@@ -1,0 +1,23 @@
+# Virtual Environments
+venv/
+env/
+.env
+.venv/
+
+# Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# OS specific files (Mac/Windows)
+.DS_Store
+Thumbs.db
