@@ -5,9 +5,9 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QProgressBar, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QFrame, QGridLayout, 
-    QMessageBox, QStyle, QLayout
+    QMessageBox, QStyle, QLayout, QComboBox
 )
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtCore import Qt
 
 # --- ADD URL DIALOG ---
@@ -47,15 +47,20 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Options")
         self.setFixedSize(500, 400)
+        
         layout = QVBoxLayout(self)
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
+        
+        # Setup Tabs
         self.general_tab = QWidget()
         self.setup_general_tab()
         self.tabs.addTab(self.general_tab, "General")
+
         self.tabs.addTab(QWidget(), "File Types")
         self.tabs.addTab(QWidget(), "Connection")
         self.tabs.addTab(QWidget(), "Save To")
+        
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.btn_ok = QPushButton("OK")
@@ -102,6 +107,10 @@ class OptionsDialog(QDialog):
         grp_settings.setLayout(vbox_settings)
         layout.addWidget(grp_settings)
         layout.addStretch()
+
+    def get_theme(self):
+        # Placeholder for theme removal
+        return None
 
 
 # --- DOWNLOAD PROGRESS DIALOG ---
@@ -282,7 +291,6 @@ class DownloadProgressDialog(QDialog):
         
         grid.addWidget(QLabel("Resume capability"), 4, 0)
         self.lbl_resume = QLabel("Unknown")
-        self.lbl_resume.setStyleSheet("font-weight: bold;")
         grid.addWidget(self.lbl_resume, 4, 1)
 
         layout.addLayout(grid)

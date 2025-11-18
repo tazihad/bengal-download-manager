@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider
 )
-from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon
+from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase
 
 from workers import DownloadWorker
@@ -87,14 +87,18 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Bengal Download Manager")
         self.setGeometry(200, 150, 1000, 600)
+        
+        # Load settings first
+        self.settings = self.load_settings()
+        
+        self.setup_menu_bar()
         self.setup_toolbar()
         self.setup_central_widget()
         self.setStatusBar(QStatusBar(self))
         # Key: id(QTableWidgetItem_col0) -> DownloadProgressDialog
         self.active_downloads = {} 
         
-        # Load persistence data
-        self.load_settings()
+        # Load download data
         self.load_data()
 
     def closeEvent(self, event: QCloseEvent):
@@ -104,43 +108,95 @@ class MainWindow(QMainWindow):
         self.save_settings()
         event.accept()
 
-    def setup_toolbar(self):
-        toolbar = QToolBar("Main Toolbar", self)
-        toolbar.setObjectName("MainToolbar")
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
-        toolbar.setMovable(False)
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+    def setup_menu_bar(self):
+        menu_bar = self.menuBar()
 
-        actions_config = [
-            ("Add URL", QStyle.StandardPixmap.SP_FileDialogNewFolder),
-            ("Resume", QStyle.StandardPixmap.SP_MediaPlay),
-            ("Stop", QStyle.StandardPixmap.SP_MediaStop),
-            ("Stop All", QStyle.StandardPixmap.SP_DialogCancelButton),
-            ("Delete", QStyle.StandardPixmap.SP_TrashIcon),
-            ("Delete Completed", QStyle.StandardPixmap.SP_DialogDiscardButton),
-            ("Options", QStyle.StandardPixmap.SP_FileDialogDetailedView),
+        # --- File Menu ---
+        file_menu = menu_bar.addMenu("&File")
+        
+        # Exit Action
+        exit_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "&Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # --- Tasks Menu (Main Download Controls) ---
+        tasks_menu = menu_bar.addMenu("&Tasks")
+        
+        # Actions List for Tasks Menu
+        tasks_config = [
+            ("Add URL", QStyle.StandardPixmap.SP_FileDialogNewFolder, self.open_add_url),
+            ("Resume", QStyle.StandardPixmap.SP_MediaPlay, self.resume_selected_download),
+            ("Stop", QStyle.StandardPixmap.SP_MediaStop, self.stop_selected_download),
+            ("Stop All", QStyle.StandardPixmap.SP_DialogCancelButton, self.stop_all_downloads),
+            ("Delete", QStyle.StandardPixmap.SP_TrashIcon, self.delete_selected_download),
+            ("Delete Completed", QStyle.StandardPixmap.SP_DialogDiscardButton, self.delete_completed_downloads),
         ]
 
-        for text, icon_type in actions_config:
-            icon = self.style().standardIcon(icon_type)
-            action = QAction(icon, text, self)
-            action.setStatusTip(text)
+        for text, icon_type, handler in tasks_config:
+            action = QAction(self.style().standardIcon(icon_type), text, self)
+            action.triggered.connect(handler)
+            tasks_menu.addAction(action)
+            # Store actions for use in setup_toolbar
+            setattr(self, f"action_{text.lower().replace(' ', '_')}", action)
+        
+        # Options action placed separately
+        options_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "&Options", self)
+        options_action.triggered.connect(self.open_options)
+        tasks_menu.addSeparator()
+        tasks_menu.addAction(options_action)
+        setattr(self, "action_options", options_action)
+
+        # --- View Menu ---
+        view_menu = menu_bar.addMenu("&View")
+        
+        # Toolbar Toggle Action
+        toolbar_toggle_action = QAction("&Toolbar", self)
+        toolbar_toggle_action.setCheckable(True)
+        toolbar_toggle_action.setChecked(True)
+        toolbar_toggle_action.triggered.connect(lambda checked: self.findChild(QToolBar, "MainToolbar").setVisible(checked))
+        view_menu.addAction(toolbar_toggle_action)
+
+        # Status Bar Toggle Action
+        status_bar_toggle_action = QAction("&Status Bar", self)
+        status_bar_toggle_action.setCheckable(True)
+        status_bar_toggle_action.setChecked(True)
+        status_bar_toggle_action.triggered.connect(lambda checked: self.statusBar().setVisible(checked))
+        view_menu.addAction(status_bar_toggle_action)
+
+        # --- Help Menu ---
+        help_menu = menu_bar.addMenu("&Help")
+        about_action = QAction("&About Bengal DM", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
+
+    def setup_toolbar(self):
+        # Check if the toolbar already exists
+        toolbar = self.findChild(QToolBar, "MainToolbar")
+        if toolbar is None:
+            # Create the toolbar if it doesn't exist (initial run)
+            toolbar = QToolBar("Main Toolbar", self)
+            toolbar.setObjectName("MainToolbar")
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+        else:
+            # Clear existing actions to prevent duplication
+            for action in toolbar.actions():
+                toolbar.removeAction(action)
+        
+        toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        # Ensure consistent size for all toolbars
+        toolbar.setIconSize(QSize(24, 24))
+
+        # Add the actions defined in setup_menu_bar to the toolbar
+        action_names = [
+            "add_url", "resume", "stop", "stop_all", "delete", "delete_completed", "options"
+        ]
+
+        for name in action_names:
+            action = getattr(self, f"action_{name}")
             toolbar.addAction(action)
-            
-            if text == "Options":
-                action.triggered.connect(self.open_options)
-            elif text == "Add URL":
-                action.triggered.connect(self.open_add_url)
-            elif text == "Resume":
-                action.triggered.connect(self.resume_selected_download)
-            elif text == "Stop":
-                action.triggered.connect(self.stop_selected_download)
-            elif text == "Stop All":
-                action.triggered.connect(self.stop_all_downloads)
-            elif text == "Delete":
-                action.triggered.connect(self.delete_selected_download)
-            elif text == "Delete Completed":
-                action.triggered.connect(self.delete_completed_downloads)
+
 
     def setup_central_widget(self):
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -161,7 +217,7 @@ class MainWindow(QMainWindow):
         self.download_table.verticalHeader().setVisible(False)
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.download_table.setIconSize(QSize(16, 16)) # Fixed: QSize is now imported
+        self.download_table.setIconSize(QSize(16, 16))
         
         # Enable Sorting
         self.download_table.setSortingEnabled(True)
@@ -291,7 +347,7 @@ class MainWindow(QMainWindow):
             config_dir = get_config_dir()
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
-                "windowState": self.saveState().toHex().data().decode()
+                "windowState": self.saveState().toHex().data().decode(),
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -299,10 +355,11 @@ class MainWindow(QMainWindow):
             print(f"Error saving settings: {e}")
 
     def load_settings(self):
+        settings = {}
         config_dir = get_config_dir()
         path = os.path.join(config_dir, "settings.json")
         if not os.path.exists(path):
-            return
+            return settings
         try:
             with open(path, "r") as f:
                 settings = json.load(f)
@@ -312,6 +369,8 @@ class MainWindow(QMainWindow):
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
         except Exception as e:
             print(f"Error loading settings: {e}")
+        
+        return settings
 
     # --------------------------
 
@@ -497,8 +556,19 @@ class MainWindow(QMainWindow):
         dialog = OptionsDialog(self)
         dialog.exec()
 
+    def show_about(self):
+        QMessageBox.about(self, "About Bengal DM", 
+            "<h2>Bengal Download Manager</h2>"
+            "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
+            "<p>Version: 1.0</p>"
+            "<p>Built for the XDG standard on Linux.</p>"
+        )
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    # Set the style explicitly to Breeze to match user's desktop environment expectation
+    QApplication.setStyle("breeze")
     app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
     window.show()
