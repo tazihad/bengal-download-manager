@@ -1,7 +1,7 @@
 import time
 import os
 import json
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 import urllib.request
 import urllib.error
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
@@ -121,7 +121,9 @@ class DownloadWorker(QThread):
         self.mutex = QMutex()
         
         parsed_url = urlparse(self.url)
-        original_filename = os.path.basename(parsed_url.path) or "downloaded_file"
+        # Decode the path to handle %20 and other URL encodings
+        decoded_path = unquote(parsed_url.path)
+        original_filename = os.path.basename(decoded_path) or "downloaded_file"
         
         if resume_filename:
             self.save_path = os.path.join(self.save_dir, resume_filename)

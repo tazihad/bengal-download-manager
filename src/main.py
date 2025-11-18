@@ -1,16 +1,86 @@
 import sys
 import os
 import time
+import json
+from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar, QStyle,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu
+    QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
+    QFileIconProvider
 )
-from PyQt6.QtGui import QAction, QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase
 
 from workers import DownloadWorker
 from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog
+from utils import get_data_dir, get_config_dir
+
+# --- HELPER FOR SORTING ---
+class SortableTableWidgetItem(QTableWidgetItem):
+    def __lt__(self, other):
+        # Sort by UserRole data (numeric) if available, else text
+        v1 = self.data(Qt.ItemDataRole.UserRole)
+        v2 = other.data(Qt.ItemDataRole.UserRole)
+        if v1 is not None and v2 is not None:
+            try:
+                return float(v1) < float(v2)
+            except:
+                pass # Fallback to string comparison
+        return self.text() < other.text()
+
+def parse_size_to_bytes(text):
+    """Converts '1.5 MB' to raw bytes for sorting."""
+    try:
+        if not text or text == "...": return 0
+        parts = text.split()
+        val = float(parts[0])
+        unit = parts[1].upper() if len(parts) > 1 else ""
+        multipliers = {'B': 1, 'K': 1024, 'KB': 1024, 'M': 1024**2, 'MB': 1024**2, 'G': 1024**3, 'GB': 1024**3}
+        for key, mult in multipliers.items():
+            if unit.startswith(key):
+                return val * mult
+        return val
+    except:
+        return 0
+
+def parse_time_to_sec(text):
+    """Converts '1 min' to seconds for sorting."""
+    try:
+        if not text or text == "...": return 0
+        parts = text.split()
+        val = float(parts[0])
+        unit = parts[1].lower() if len(parts) > 1 else ""
+        if 'hr' in unit: return val * 3600
+        if 'min' in unit: return val * 60
+        return val # seconds
+    except:
+        return 0
+
+def get_file_icon(filename):
+    """
+    Returns a robust system icon for the file type.
+    Prioritizes MIME type lookup for non-existent files to get accurate extension icons.
+    """
+    # 1. Try MIME database (Best for Linux/Unix with themes)
+    db = QMimeDatabase()
+    mime = db.mimeTypeForFile(filename, QMimeDatabase.MatchMode.MatchExtension)
+    if mime.isValid():
+        icon_name = mime.iconName()
+        icon = QIcon.fromTheme(icon_name)
+        if not icon.isNull():
+            return icon
+            
+    # 2. Fallback to standard provider
+    info = QFileInfo(filename)
+    provider = QFileIconProvider()
+    icon = provider.icon(info)
+    
+    # 3. If still generic/null, return a generic file icon
+    if icon.isNull():
+        return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+    
+    return icon
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -20,10 +90,23 @@ class MainWindow(QMainWindow):
         self.setup_toolbar()
         self.setup_central_widget()
         self.setStatusBar(QStatusBar(self))
+        # Key: id(QTableWidgetItem_col0) -> DownloadProgressDialog
         self.active_downloads = {} 
+        
+        # Load persistence data
+        self.load_settings()
+        self.load_data()
+
+    def closeEvent(self, event: QCloseEvent):
+        """Handle application closure by saving state."""
+        self.stop_all_downloads()
+        self.save_data()
+        self.save_settings()
+        event.accept()
 
     def setup_toolbar(self):
         toolbar = QToolBar("Main Toolbar", self)
+        toolbar.setObjectName("MainToolbar")
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         toolbar.setMovable(False)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -78,6 +161,11 @@ class MainWindow(QMainWindow):
         self.download_table.verticalHeader().setVisible(False)
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.download_table.setIconSize(QSize(16, 16)) # Fixed: QSize is now imported
+        
+        # Enable Sorting
+        self.download_table.setSortingEnabled(True)
+        
         self.download_table.setHorizontalHeaderLabels([
             "File Name", "Size", "Status", "Time Left", 
             "Transfer Rate", "Last Try", "Date Added"
@@ -92,7 +180,6 @@ class MainWindow(QMainWindow):
 
     def filter_downloads(self, item, column):
         category = item.text(0)
-        
         ext_map = {
             "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso"],
             "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx"],
@@ -103,20 +190,16 @@ class MainWindow(QMainWindow):
 
         for row in range(self.download_table.rowCount()):
             self.download_table.setRowHidden(row, False) 
-            
             filename = self.download_table.item(row, 0).text().lower()
             status = self.download_table.item(row, 2).text()
-            
             should_hide = False
             
             if category == "All Downloads":
                 should_hide = False
             elif category == "Unfinished":
-                if status == "Completed":
-                    should_hide = True
+                if status == "Completed": should_hide = True
             elif category == "Finished":
-                if status != "Completed":
-                    should_hide = True
+                if status != "Completed": should_hide = True
             elif category in ext_map:
                 extensions = ext_map[category]
                 if not any(filename.endswith(ext) for ext in extensions):
@@ -124,6 +207,113 @@ class MainWindow(QMainWindow):
             
             if should_hide:
                 self.download_table.setRowHidden(row, True)
+
+    # --- PERSISTENCE METHODS ---
+    def save_data(self):
+        try:
+            downloads = []
+            for row in range(self.download_table.rowCount()):
+                item_name = self.download_table.item(row, 0)
+                if not item_name: continue
+                
+                url = item_name.data(Qt.ItemDataRole.UserRole)
+                filename = item_name.text()
+                size = self.download_table.item(row, 1).text()
+                status = self.download_table.item(row, 2).text()
+                
+                if status in ["Receiving data...", "Connecting...", "Pending..."]:
+                    status = "Paused"
+                
+                dl_data = {
+                    "url": url,
+                    "filename": filename,
+                    "size": size,
+                    "status": status,
+                    "time_left": self.download_table.item(row, 3).text(),
+                    "rate": self.download_table.item(row, 4).text(),
+                    "last_try": self.download_table.item(row, 5).text(),
+                    "date_added": self.download_table.item(row, 6).text()
+                }
+                downloads.append(dl_data)
+            
+            data_dir = get_data_dir()
+            with open(os.path.join(data_dir, "downloads.json"), "w") as f:
+                json.dump(downloads, f, indent=4)
+        except Exception as e:
+            print(f"Error saving data: {e}")
+
+    def load_data(self):
+        data_dir = get_data_dir()
+        path = os.path.join(data_dir, "downloads.json")
+        if not os.path.exists(path):
+            return
+
+        try:
+            with open(path, "r") as f:
+                downloads = json.load(f)
+            
+            # Disable sorting while loading to avoid jumping
+            self.download_table.setSortingEnabled(False)
+                
+            for d in downloads:
+                row = self.download_table.rowCount()
+                self.download_table.insertRow(row)
+                
+                filename = d.get("filename", "Unknown")
+                item_name = QTableWidgetItem(filename)
+                item_name.setData(Qt.ItemDataRole.UserRole, d.get("url", ""))
+                # Set icon
+                item_name.setIcon(get_file_icon(filename))
+                
+                self.download_table.setItem(row, 0, item_name)
+                
+                self._set_sortable_item(row, 1, d.get("size", "..."), parse_size_to_bytes)
+                self.download_table.setItem(row, 2, QTableWidgetItem(d.get("status", "Unknown")))
+                self._set_sortable_item(row, 3, d.get("time_left", ""), parse_time_to_sec)
+                self._set_sortable_item(row, 4, d.get("rate", ""), parse_size_to_bytes)
+                self.download_table.setItem(row, 5, QTableWidgetItem(d.get("last_try", "")))
+                self.download_table.setItem(row, 6, QTableWidgetItem(d.get("date_added", "")))
+            
+            self.download_table.setSortingEnabled(True)
+            
+        except Exception as e:
+            print(f"Error loading data: {e}")
+
+    def _set_sortable_item(self, row, col, text, parser_func):
+        """Helper to set a sortable item with raw numeric data."""
+        item = SortableTableWidgetItem(text)
+        raw_val = parser_func(text)
+        item.setData(Qt.ItemDataRole.UserRole, raw_val)
+        self.download_table.setItem(row, col, item)
+
+    def save_settings(self):
+        try:
+            config_dir = get_config_dir()
+            settings = {
+                "geometry": self.saveGeometry().toHex().data().decode(),
+                "windowState": self.saveState().toHex().data().decode()
+            }
+            with open(os.path.join(config_dir, "settings.json"), "w") as f:
+                json.dump(settings, f)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+
+    def load_settings(self):
+        config_dir = get_config_dir()
+        path = os.path.join(config_dir, "settings.json")
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r") as f:
+                settings = json.load(f)
+                if "geometry" in settings:
+                    self.restoreGeometry(QByteArray.fromHex(settings["geometry"].encode()))
+                if "windowState" in settings:
+                    self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+
+    # --------------------------
 
     def open_add_url(self):
         dialog = AddUrlDialog(self)
@@ -133,98 +323,122 @@ class MainWindow(QMainWindow):
                 self.start_download(url)
 
     def start_download(self, url):
+        # Disable sorting briefly to insert safely
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        self.download_table.setSortingEnabled(False)
+
         row = self.download_table.rowCount()
         self.download_table.insertRow(row)
         
-        item = QTableWidgetItem(url)
-        item.setData(Qt.ItemDataRole.UserRole, url)
-        self.download_table.setItem(row, 0, item)
+        # Get filename guess from URL for icon purposes immediately
+        # Use unquote so "Google%20Docs.pdf" -> "Google Docs.pdf"
+        try:
+             parsed = urlparse(url)
+             path = unquote(parsed.path)
+             filename_guess = os.path.basename(path)
+             if not filename_guess: filename_guess = "file"
+        except:
+             filename_guess = "file"
         
-        self.download_table.setItem(row, 1, QTableWidgetItem("..."))
+        item_name = QTableWidgetItem(filename_guess)
+        item_name.setData(Qt.ItemDataRole.UserRole, url)
+        item_name.setIcon(get_file_icon(filename_guess))
+        
+        self.download_table.setItem(row, 0, item_name)
+        
+        # Initialize columns with correct item types
+        self._set_sortable_item(row, 1, "...", parse_size_to_bytes)
         self.download_table.setItem(row, 2, QTableWidgetItem("Pending..."))
-        self.download_table.setItem(row, 3, QTableWidgetItem("..."))
-        self.download_table.setItem(row, 4, QTableWidgetItem("..."))
+        self._set_sortable_item(row, 3, "...", parse_time_to_sec)
+        self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
         self.download_table.setItem(row, 5, QTableWidgetItem("Just now"))
         self.download_table.setItem(row, 6, QTableWidgetItem(time.strftime("%Y-%m-%d")))
 
-        self._start_download_worker(url, row)
+        self.download_table.setSortingEnabled(sorting_was_enabled)
+        
+        # Pass the ITEM reference, not the row index, because sorting changes indices
+        self._start_download_worker(url, item_name)
+        self.save_data()
 
-    def _start_download_worker(self, url, row, resume_filename=None):
+    def _start_download_worker(self, url, item_ref, resume_filename=None):
         save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        # Pass resume_filename to worker to avoid creating new (1), (2) files
-        worker = DownloadWorker(url, row, save_dir, resume_filename)
-        worker.main_progress_signal.connect(self.update_download_row)
-        worker.finished_signal.connect(self.download_finished)
+        # Create worker. Row index passed to worker is for legacy logging mostly.
+        # We will use item_ref for UI updates.
+        worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename)
+        
+        # Connect signals using lambda to capture item_ref
+        worker.main_progress_signal.connect(lambda _, data: self.update_download_row(item_ref, data))
+        worker.finished_signal.connect(lambda _, status: self.download_finished(item_ref, status))
         
         progress_dialog = DownloadProgressDialog(worker, self)
         progress_dialog.show()
         
-        self.active_downloads[row] = progress_dialog
-        progress_dialog.finished.connect(lambda: self.active_downloads.pop(row, None))
+        # Key active downloads by the ITEM ID (stable across sorts)
+        self.active_downloads[id(item_ref)] = progress_dialog
+        progress_dialog.finished.connect(lambda: self.active_downloads.pop(id(item_ref), None))
 
     def resume_selected_download(self):
-        selected_rows = self.download_table.selectionModel().selectedRows()
-        if not selected_rows:
-            return
-
-        row = selected_rows[0].row()
+        selected_items = self.download_table.selectedItems()
+        if not selected_items: return
         
-        if row in self.active_downloads:
-            self.active_downloads[row].activateWindow()
-            self.active_downloads[row].raise_()
+        # Find the selected row's name item (column 0)
+        # selectedItems returns items from all columns. We need the one from Col 0.
+        item_row = selected_items[0].row()
+        item_name = self.download_table.item(item_row, 0)
+        
+        if id(item_name) in self.active_downloads:
+            self.active_downloads[id(item_name)].activateWindow()
+            self.active_downloads[id(item_name)].raise_()
             return
         
-        item = self.download_table.item(row, 0)
-        url = item.data(Qt.ItemDataRole.UserRole)
-        filename = item.text() # Get current filename from table
+        url = item_name.data(Qt.ItemDataRole.UserRole)
+        filename = item_name.text()
         
         if url:
-            self.download_table.setItem(row, 2, QTableWidgetItem("Resuming..."))
-            # Pass filename to ensure we resume on the SAME file
-            self._start_download_worker(url, row, resume_filename=filename)
+            self.download_table.setItem(item_row, 2, QTableWidgetItem("Resuming..."))
+            self._start_download_worker(url, item_name, resume_filename=filename)
         else:
             QMessageBox.warning(self, "Error", "Could not find download URL.")
 
     def stop_selected_download(self):
-        selected_rows = self.download_table.selectionModel().selectedRows()
-        for idx in selected_rows:
-            row = idx.row()
-            if row in self.active_downloads:
-                dialog = self.active_downloads[row]
-                dialog.worker.stop()
-                dialog.reject() 
-                self.download_table.setItem(row, 2, QTableWidgetItem("Cancelled"))
+        for item in self.download_table.selectedItems():
+            # Only process if it's the key item (column 0)
+            if item.column() == 0:
+                key = id(item)
+                if key in self.active_downloads:
+                    dialog = self.active_downloads[key]
+                    dialog.worker.stop()
+                    dialog.reject()
+                    self.download_table.setItem(item.row(), 2, QTableWidgetItem("Cancelled"))
 
     def stop_all_downloads(self):
-        active_rows = list(self.active_downloads.keys())
-        for row in active_rows:
-            if row in self.active_downloads:
-                dialog = self.active_downloads[row]
-                dialog.worker.stop()
-                dialog.reject()
-                self.download_table.setItem(row, 2, QTableWidgetItem("Cancelled"))
+        for dialog in self.active_downloads.values():
+            dialog.worker.stop()
+            dialog.reject()
+        # Status update is tricky here without item ref mapping, 
+        # but closeEvent calls this so UI update matters less.
 
     def delete_selected_download(self):
-        selected_rows = sorted(self.download_table.selectionModel().selectedRows(), key=lambda x: x.row(), reverse=True)
-        
-        if not selected_rows:
-            return
+        # Get rows from selection
+        rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
+        if not rows: return
             
         confirm = QMessageBox.question(self, "Delete", "Are you sure you want to delete selected download(s)?", 
                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         
         if confirm == QMessageBox.StandardButton.Yes:
-            for idx in selected_rows:
-                row = idx.row()
-                if row in self.active_downloads:
-                    dialog = self.active_downloads[row]
+            for row in rows:
+                item_name = self.download_table.item(row, 0)
+                key = id(item_name)
+                if key in self.active_downloads:
+                    dialog = self.active_downloads[key]
                     dialog.worker.stop()
                     dialog.reject()
-                
                 self.download_table.removeRow(row)
+            self.save_data()
 
     def delete_completed_downloads(self):
         rows_to_delete = []
@@ -233,8 +447,7 @@ class MainWindow(QMainWindow):
             if status_item and status_item.text() == "Completed":
                 rows_to_delete.append(row)
         
-        if not rows_to_delete:
-            return
+        if not rows_to_delete: return
 
         confirm = QMessageBox.question(self, "Delete Completed", f"Delete {len(rows_to_delete)} completed downloads?", 
                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -242,24 +455,43 @@ class MainWindow(QMainWindow):
         if confirm == QMessageBox.StandardButton.Yes:
             for row in sorted(rows_to_delete, reverse=True):
                 self.download_table.removeRow(row)
+            self.save_data()
 
-    def update_download_row(self, row, data):
-        if row < self.download_table.rowCount():
-            item0 = self.download_table.item(row, 0)
-            if not item0: 
-                item0 = QTableWidgetItem()
-                self.download_table.setItem(row, 0, item0)
-            
-            item0.setText(data[0]) 
-            
-            self.download_table.setItem(row, 1, QTableWidgetItem(data[1]))
-            self.download_table.setItem(row, 2, QTableWidgetItem(data[2]))
-            self.download_table.setItem(row, 3, QTableWidgetItem(data[3]))
-            self.download_table.setItem(row, 4, QTableWidgetItem(data[4]))
+    def update_download_row(self, item_ref, data):
+        # Find the current row of the item (it might have moved due to sorting)
+        row = self.download_table.row(item_ref)
+        if row == -1: return # Item deleted
+        
+        # data = (filename, size_str, percent_str, time_left, speed_str)
+        
+        # 0. Name
+        new_name = data[0]
+        if item_ref.text() != new_name:
+            item_ref.setText(new_name)
+            # Update icon if name changes (e.g. resolved from URL)
+            item_ref.setIcon(get_file_icon(new_name))
+        
+        # 1. Size
+        self._set_sortable_item(row, 1, data[1], parse_size_to_bytes)
+        
+        # 2. Status (Shows percent during download)
+        status_item = self.download_table.item(row, 2)
+        if not status_item:
+             status_item = QTableWidgetItem()
+             self.download_table.setItem(row, 2, status_item)
+        status_item.setText(data[2])
+        
+        # 3. Time
+        self._set_sortable_item(row, 3, data[3], parse_time_to_sec)
+        
+        # 4. Rate
+        self._set_sortable_item(row, 4, data[4], parse_size_to_bytes)
 
-    def download_finished(self, row, status_text):
-        if row < self.download_table.rowCount():
+    def download_finished(self, item_ref, status_text):
+        row = self.download_table.row(item_ref)
+        if row != -1:
             self.download_table.setItem(row, 2, QTableWidgetItem(status_text))
+            self.save_data()
 
     def open_options(self):
         dialog = OptionsDialog(self)

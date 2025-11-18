@@ -15,7 +15,7 @@ class AddUrlDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Enter new address to download")
-        self.setFixedSize(600, 150)
+        self.setFixedSize(600, 100)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Address:"))
         input_layout = QHBoxLayout()
@@ -381,13 +381,20 @@ class DownloadProgressDialog(QDialog):
         self.worker.stop()
         self.reject()
 
-    def on_finished(self, row, status_text):
-        self.lbl_main_status.setText(status_text)
-        if status_text == "Completed":
+    def on_finished(self, row, status):
+        self.lbl_main_status.setText(status)
+        
+        if status == "Completed":
             self.pbar.setValue(self.pbar.maximum())
             self.btn_cancel.setText("Close")
-            self.btn_pause.setEnabled(False)
-            QMessageBox.information(self, "Download Complete", "File downloaded successfully!")
-            self.accept()
-        else:
-            self.lbl_main_status.setText("Error/Stopped")
+            
+            # Turn the Pause button into an Open Folder button
+            self.btn_pause.setText("Open Folder")
+            self.btn_pause.setEnabled(True)
+            # Disconnect old pause connection and connect new open folder logic
+            try: self.btn_pause.clicked.disconnect() 
+            except: pass
+            self.btn_pause.clicked.connect(lambda: os.startfile(self.worker.save_dir) if os.name == 'nt' else subprocess.Popen(['xdg-open', self.worker.save_dir]))
+            
+        elif status == "Error":
+             self.lbl_main_status.setStyleSheet("font-weight: bold; color: red;")
