@@ -6,6 +6,7 @@ import urllib.request
 import urllib.error
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
 from utils import get_unique_filepath
+from dialogs import load_proxy_config
 
 # --- WORKER FOR SINGLE SEGMENT ---
 class SegmentWorker(QThread):
@@ -13,7 +14,7 @@ class SegmentWorker(QThread):
     progress_signal = pyqtSignal(int, int, int, float, str)
     finished_signal = pyqtSignal(int, bool)
 
-    def __init__(self, index, url, start_byte, end_byte, filepath, initial_downloaded=0):
+    def __init__(self, index, url, start_byte, end_byte, filepath, initial_downloaded=0, opener=None):
         super().__init__()
         self.index = index
         self.url = url
@@ -21,13 +22,19 @@ class SegmentWorker(QThread):
         self.end_byte = end_byte
         self.filepath = filepath
         self.initial_downloaded = initial_downloaded
+        self.opener = opener
         
         self.is_running = True
         self.is_paused = False
+        self.speed_limit = 0 # 0 means unlimited (bytes/sec)
         
         # 'downloaded' tracks total bytes gathered for this segment (past + current session)
         self.downloaded = initial_downloaded
         self.total_size = (end_byte - start_byte) + 1
+
+    def set_speed_limit(self, limit):
+        """Sets the speed limit for this specific worker in bytes/second."""
+        self.speed_limit = limit
 
     def run(self):
         try:
@@ -45,7 +52,10 @@ class SegmentWorker(QThread):
             
             self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Resume GET...")
             
-            with urllib.request.urlopen(req, timeout=20) as response:
+            # Use custom opener if provided (for proxy)
+            opener = self.opener if self.opener else urllib.request.build_opener()
+            
+            with opener.open(req, timeout=20) as response:
                 self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Receiving data...")
                 
                 with open(self.filepath, "r+b") as f:
@@ -63,11 +73,27 @@ class SegmentWorker(QThread):
                             last_emit_time = time.time()
                             bytes_in_session = 0 # Reset speed calc on pause
                             continue
-
+                        
+                        # --- SPEED LIMITER LOGIC ---
+                        read_start = time.time()
                         chunk = response.read(chunk_size)
+                        read_duration = time.time() - read_start
+
                         if not chunk:
                             break
                         
+                        # If a limit is set, we throttle here
+                        if self.speed_limit > 0:
+                            # expected_duration = size / rate
+                            expected_duration = len(chunk) / self.speed_limit
+                            if read_duration < expected_duration:
+                                sleep_needed = expected_duration - read_duration
+                                # Break large sleeps into small chunks to remain responsive
+                                while sleep_needed > 0 and self.is_running and not self.is_paused:
+                                    nap = min(sleep_needed, 0.1) # max 100ms sleep per check
+                                    time.sleep(nap)
+                                    sleep_needed -= nap
+
                         f.write(chunk)
                         self.downloaded += len(chunk)
                         bytes_in_session += len(chunk)
@@ -120,32 +146,109 @@ class DownloadWorker(QThread):
         self.is_paused = False
         self.mutex = QMutex()
         
+        self.current_global_limit = 0 # 0 means no limit
+        self.last_active_count = 0
+        
         parsed_url = urlparse(self.url)
         # Decode the path to handle %20 and other URL encodings
         decoded_path = unquote(parsed_url.path)
         original_filename = os.path.basename(decoded_path) or "downloaded_file"
         
         if resume_filename:
-            self.save_path = os.path.join(self.save_dir, resume_filename)
+            self.target_path = os.path.join(self.save_dir, resume_filename)
+            self.save_path = self.target_path + ".tmpbdm"
             self.filename = resume_filename
         else:
             full_path = os.path.join(self.save_dir, original_filename)
-            self.save_path = get_unique_filepath(full_path)
-            self.filename = os.path.basename(self.save_path)
+            self.target_path = get_unique_filepath(full_path)
+            self.save_path = self.target_path + ".tmpbdm"
+            self.filename = os.path.basename(self.target_path)
         
-        # State file for resuming (.bdmx)
         self.state_file = self.save_path + ".bdmx"
-        
         self.workers = []
         self.segment_stats = {} 
+        
+        # --- LOAD PROXY SETTINGS ---
+        self.proxy_config = load_proxy_config()
+        self.opener = self.create_opener()
+
+    def create_opener(self):
+        """Creates a urllib opener based on proxy settings."""
+        mode = self.proxy_config.get("mode", "no_proxy")
+        
+        if mode == "no_proxy":
+            # Force no proxy by using empty env vars or simple opener
+            return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            
+        elif mode == "system":
+            # Default behavior uses system proxies
+            return urllib.request.build_opener()
+            
+        elif mode == "manual":
+            ptype = self.proxy_config.get("type", "http")
+            host = self.proxy_config.get("host", "")
+            port = self.proxy_config.get("port", 8080)
+            user = self.proxy_config.get("user", "")
+            password = self.proxy_config.get("password", "")
+            auth = self.proxy_config.get("auth", False)
+            
+            if not host: return urllib.request.build_opener()
+            
+            proxy_url = f"{host}:{port}"
+            if auth and user and password:
+                proxy_url = f"{user}:{password}@{host}:{port}"
+            
+            if ptype == "http":
+                # Supports http and https
+                proxies = {'http': f"http://{proxy_url}", 'https': f"http://{proxy_url}"}
+                return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+            
+            # Note: SOCKS support in standard urllib is limited. 
+            # This implementation sets the scheme, but underlying support depends on PySocks 
+            # being monkey-patched or installed.
+            elif ptype.startswith("socks"):
+                scheme = "socks5" if ptype == "socks5" else "socks4"
+                proxies = {
+                    'http': f"{scheme}://{proxy_url}",
+                    'https': f"{scheme}://{proxy_url}"
+                }
+                return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+                
+        return urllib.request.build_opener()
+
+    def set_global_speed_limit(self, limit_bytes_per_sec):
+        """Sets the total download speed limit."""
+        self.current_global_limit = limit_bytes_per_sec
+        self.distribute_speed_limit()
+        if limit_bytes_per_sec > 0:
+            self.log_signal.emit(f"Speed limit set to {self.format_bytes(limit_bytes_per_sec)}/s")
+        else:
+            self.log_signal.emit("Speed limit disabled")
+
+    def distribute_speed_limit(self):
+        """Distributes the global limit equally among active workers."""
+        active_workers = [w for w in self.workers if w.isRunning() and not w.isFinished()]
+        count = len(active_workers)
+        
+        if count > 0 and self.current_global_limit > 0:
+            limit_per_worker = self.current_global_limit / count
+            for w in active_workers:
+                w.set_speed_limit(limit_per_worker)
+        else:
+            # Disable limit on all workers
+            for w in self.workers:
+                w.set_speed_limit(0)
 
     def run(self):
         try:
             self.log_signal.emit("Connecting to server...")
+            if self.proxy_config.get("mode") == "manual":
+                self.log_signal.emit(f"Using Proxy: {self.proxy_config.get('host')}:{self.proxy_config.get('port')}")
+            
             self.log_signal.emit(f"Target file: {self.filename}")
             
             req = urllib.request.Request(self.url, method='HEAD')
-            with urllib.request.urlopen(req) as response:
+            with self.opener.open(req) as response:
                 total_size = int(response.info().get('Content-Length', 0))
                 accept_ranges = response.info().get('Accept-Ranges', 'none')
             
@@ -156,6 +259,7 @@ class DownloadWorker(QThread):
             is_resuming = False
             num_threads = 8
 
+            # Check for .bdmx and the .tmpbdm file
             if os.path.exists(self.state_file) and os.path.exists(self.save_path):
                 try:
                     with open(self.state_file, 'r') as f:
@@ -202,12 +306,17 @@ class DownloadWorker(QThread):
                 end = seg["end"]
                 initial_dl = seg.get("downloaded", 0)
                 
-                worker = SegmentWorker(idx, self.url, start, end, self.save_path, initial_dl)
+                # NOTE: Workers write to self.save_path (the .tmpbdm file)
+                worker = SegmentWorker(idx, self.url, start, end, self.save_path, initial_dl, opener=self.opener)
                 worker.progress_signal.connect(self.update_segment_stat)
                 self.workers.append(worker)
                 
                 self.segment_stats[idx] = {'dl': initial_dl, 'speed': 0, 'start': start, 'end': end}
                 worker.start()
+            
+            # Initial Speed Limit Application
+            self.distribute_speed_limit()
+            self.last_active_count = len(self.workers)
 
             # Monitor Loop
             finished_count = 0
@@ -221,6 +330,12 @@ class DownloadWorker(QThread):
                         self.filename, self.format_bytes(total_size), "Paused", "", "0 KB/s"
                     ))
                     continue
+                
+                # Check if threads finished to redistribute speed limit
+                active_count = sum(1 for w in self.workers if w.isRunning() and not w.isFinished())
+                if active_count != self.last_active_count:
+                    self.distribute_speed_limit()
+                    self.last_active_count = active_count
 
                 total_dl = sum(s['dl'] for s in self.segment_stats.values())
                 total_speed = sum(s['speed'] for s in self.segment_stats.values())
@@ -252,13 +367,24 @@ class DownloadWorker(QThread):
                 self.msleep(100) 
 
             if self.is_running:
-                self.log_signal.emit("File assembled and verified.")
-                self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size), "Completed", "", ""))
-                self.finished_signal.emit(self.row_index, "Completed")
+                self.log_signal.emit("File assembled. Verifying...")
                 
-                # Cleanup state file
-                if os.path.exists(self.state_file):
-                    os.remove(self.state_file)
+                # Finalize: Rename .tmpbdm to actual filename
+                try:
+                    if os.path.exists(self.target_path):
+                         os.remove(self.target_path) # Overwrite if exists
+                    os.rename(self.save_path, self.target_path)
+                    
+                    self.log_signal.emit("Download completed.")
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size), "Completed", "", ""))
+                    self.finished_signal.emit(self.row_index, "Completed")
+                    
+                    # Cleanup state file
+                    if os.path.exists(self.state_file):
+                        os.remove(self.state_file)
+                except Exception as e:
+                    self.log_signal.emit(f"Error renaming file: {e}")
+                    self.finished_signal.emit(self.row_index, "Error")
             else:
                 self.save_state(total_size) # Save on stop
                 self.log_signal.emit("Download stopped.")
