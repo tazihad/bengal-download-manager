@@ -36,4 +36,8 @@ Bengal Download Manager is a powerful and efficient download management tool des
    git clone https://github.com/your-username/bengal-download-manager.git
    cd bengal-download-manager
    # Follow build instructions in CONTRIBUTING.md
+
+   ```sh
+   pyinstaller --name "bengal-download-manager" --onefile src/main.py
+   ```
    
