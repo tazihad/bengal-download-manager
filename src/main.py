@@ -4,20 +4,83 @@ import time
 import json
 import shutil
 import subprocess
+import socket
+import threading
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar, QStyle,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QFileDialog, QDialog, 
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices
-from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject
 
 from workers import DownloadWorker
 from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, load_category_config
 from utils import get_data_dir, get_config_dir, get_unique_filepath
+
+# Default TCP port for extension communication
+DM_CONNECTOR_PORT = 9000 
+
+# --- IPC HELPER THREAD ---
+class SignalEmitter(QObject):
+    """Utility to emit signals safely to the GUI thread."""
+    new_download_signal = pyqtSignal(str)
+
+class TcpListenerThread(QThread):
+    def __init__(self, port, emitter, parent=None):
+        super().__init__(parent)
+        self.port = port
+        self.emitter = emitter
+        self.is_running = True
+        self.server_socket = None
+
+    def run(self):
+        try:
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Bind to localhost (127.0.0.1) for security
+            self.server_socket.bind(("127.0.0.1", self.port)) 
+            self.server_socket.listen(1)
+            print(f"DM Connector Listener started on 127.0.0.1:{self.port}")
+            
+            while self.is_running:
+                # Use timeout to make the accept call non-blocking 
+                self.server_socket.settimeout(1.0)
+                try:
+                    conn, addr = self.server_socket.accept()
+                    with conn:
+                        # Receive up to 4KB of data (URL + potential headers/metadata)
+                        data = conn.recv(4096).decode('utf-8') 
+                        if data.startswith("URL:"):
+                            url = data[4:].strip()
+                            # Emit signal to the GUI thread
+                            self.emitter.new_download_signal.emit(url) 
+                            conn.sendall(b"OK")
+                        else:
+                            conn.sendall(b"ERROR: Invalid format")
+                except socket.timeout:
+                    continue # Check if self.is_running changed
+                except ConnectionAbortedError:
+                    break
+                except Exception as e:
+                    print(f"Listener error during connection: {e}")
+                    time.sleep(0.5)
+
+        except Exception as e:
+            print(f"CRITICAL: Failed to start TCP Listener on port {self.port}. Browser integration disabled. Error: {e}")
+
+    def stop(self):
+        self.is_running = False
+        if self.server_socket:
+            try:
+                # Connect to self to break the blocking accept call and close the socket
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("127.0.0.1", self.port))
+                self.server_socket.close()
+            except Exception as e:
+                print(f"Error stopping listener: {e}")
 
 # --- HELPER FOR SORTING ---
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -163,10 +226,21 @@ class MainWindow(QMainWindow):
         self.timestamp_timer.timeout.connect(self.update_timestamp_display)
         self.timestamp_timer.start(60000) # Update every 60 seconds (1 minute)
         
+        # --- IPC Setup: Listener for Browser Extension ---
+        self.ipc_emitter = SignalEmitter()
+        # Connect the thread's signal to the GUI slot (start_download)
+        self.ipc_emitter.new_download_signal.connect(self.start_download) 
+        self.listener_thread = TcpListenerThread(DM_CONNECTOR_PORT, self.ipc_emitter)
+        self.listener_thread.start()
+
         # Initial UI State Update
         self.update_ui_states()
 
     def closeEvent(self, event: QCloseEvent):
+        # Stop IPC Listener Thread before closing
+        self.listener_thread.stop()
+        self.listener_thread.wait()
+        
         self.stop_all_downloads()
         # Stop the timer before closing
         self.timestamp_timer.stop() 
@@ -316,11 +390,6 @@ class MainWindow(QMainWindow):
         # Ensure row selection is correctly set up
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        
-        self.download_table.setIconSize(QSize(16, 16))
-        self.download_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.download_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.download_table.setSortingEnabled(True)
         
         # FIX: Remove blue cell highlight (focus rectangle) on selection
         # Using a comprehensive style to kill the default focus visual
@@ -861,7 +930,7 @@ class MainWindow(QMainWindow):
         worker.finished_signal.connect(lambda _, status: self.download_finished(item_ref, status))
         
         # DownloadProgressDialog is now a separate, non-modal window
-        progress_dialog = DownloadProgressDialog(worker, self)
+        progress_dialog = DownloadProgressDialog(worker, None)
         progress_dialog.show()
         
         # Connect to the dialog's finished signal to update the main UI/toolbar

@@ -90,6 +90,30 @@ def save_proxy_config(data):
     except:
         pass
 
+def load_extension_config():
+    path = os.path.join(get_config_dir(), "extension.json")
+    default = {
+        "protocol": "ws", # Default to websocket
+        "host": "localhost",
+        "port": 6800,
+        "token": ""
+    }
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    return default
+
+def save_extension_config(data):
+    path = os.path.join(get_config_dir(), "extension.json")
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=4)
+    except:
+        pass
+
 
 # --- ADD URL DIALOG ---
 class AddUrlDialog(QDialog):
@@ -124,7 +148,6 @@ class AddUrlDialog(QDialog):
 
 # --- OPTIONS DIALOG ---
 class OptionsDialog(QDialog):
-    # ... (OptionsDialog implementation remains unchanged)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Options")
@@ -132,6 +155,7 @@ class OptionsDialog(QDialog):
         
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
+        self.extension_data = load_extension_config()
         self.current_category = "General"
         
         layout = QVBoxLayout(self)
@@ -149,6 +173,10 @@ class OptionsDialog(QDialog):
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
         self.tabs.addTab(self.proxy_tab, "Proxy / Socks")
+
+        self.extension_tab = QWidget()
+        self.setup_extension_tab()
+        self.tabs.addTab(self.extension_tab, "Extensions")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -360,6 +388,76 @@ class OptionsDialog(QDialog):
         
         self.update_proxy_ui()
 
+    def setup_extension_tab(self):
+        layout = QVBoxLayout(self.extension_tab)
+        layout.setSpacing(15)
+        
+        desc = QLabel("Configure connection settings for Aria2 RPC integration.")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+        
+        grp_aria = QGroupBox("Aria2 RPC Settings")
+        form_layout = QGridLayout(grp_aria)
+        form_layout.setSpacing(10)
+        
+        # Protocol
+        form_layout.addWidget(QLabel("Protocol:"), 0, 0)
+        self.combo_aria_proto = QComboBox()
+        # Add items with user data to map display text to protocol code
+        self.combo_aria_proto.addItem("http", "http")
+        self.combo_aria_proto.addItem("https", "https")
+        self.combo_aria_proto.addItem("websocket", "ws")
+        self.combo_aria_proto.addItem("websocket (security)", "wss")
+        
+        current_proto = self.extension_data.get("protocol", "ws") # Default to ws
+        index = self.combo_aria_proto.findData(current_proto)
+        if index >= 0:
+            self.combo_aria_proto.setCurrentIndex(index)
+        else:
+             # Fallback if legacy value matches text instead of data, or just default
+             idx_text = self.combo_aria_proto.findText(current_proto)
+             if idx_text >= 0:
+                 self.combo_aria_proto.setCurrentIndex(idx_text)
+             else:
+                 # Default to websocket (index 2)
+                 self.combo_aria_proto.setCurrentIndex(2)
+
+        form_layout.addWidget(self.combo_aria_proto, 0, 1)
+        
+        # Host
+        form_layout.addWidget(QLabel("Host:"), 1, 0)
+        self.txt_aria_host = QLineEdit()
+        self.txt_aria_host.setPlaceholderText("localhost")
+        self.txt_aria_host.setText(self.extension_data.get("host", "localhost"))
+        form_layout.addWidget(self.txt_aria_host, 1, 1)
+        
+        # Port
+        form_layout.addWidget(QLabel("Port:"), 2, 0)
+        self.spin_aria_port = QSpinBox()
+        self.spin_aria_port.setRange(1, 65535)
+        self.spin_aria_port.setValue(self.extension_data.get("port", 6800))
+        form_layout.addWidget(self.spin_aria_port, 2, 1)
+        
+        # Token
+        form_layout.addWidget(QLabel("Secret Token:"), 3, 0)
+        self.txt_aria_token = QLineEdit()
+        self.txt_aria_token.setPlaceholderText("Optional secret token")
+        self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_aria_token.setText(self.extension_data.get("token", ""))
+        form_layout.addWidget(self.txt_aria_token, 3, 1)
+        
+        # Show Token Checkbox
+        self.chk_show_token = QCheckBox("Show Token")
+        self.chk_show_token.toggled.connect(
+            lambda checked: self.txt_aria_token.setEchoMode(
+                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+            )
+        )
+        form_layout.addWidget(self.chk_show_token, 4, 1)
+        
+        layout.addWidget(grp_aria)
+        layout.addStretch()
+
     def update_proxy_ui(self):
         manual = self.rb_manual.isChecked()
         self.grp_manual.setEnabled(manual)
@@ -384,6 +482,15 @@ class OptionsDialog(QDialog):
             "password": self.txt_pass.text()
         }
         save_proxy_config(self.proxy_data)
+
+    def save_extension_data(self):
+        self.extension_data = {
+            "protocol": self.combo_aria_proto.currentData(), # Save the protocol code (http, ws), not the display text
+            "host": self.txt_aria_host.text().strip(),
+            "port": self.spin_aria_port.value(),
+            "token": self.txt_aria_token.text().strip()
+        }
+        save_extension_config(self.extension_data)
 
     def on_category_changed(self, category):
         self.current_category = category
@@ -413,6 +520,7 @@ class OptionsDialog(QDialog):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
         self.save_proxy_data()
+        self.save_extension_data()
         self.accept()
 
     def get_theme(self):
@@ -451,7 +559,6 @@ class PropertiesDialog(QDialog):
             val_widget = QLineEdit(str(value))
             val_widget.setReadOnly(True)
             val_widget.setCursorPosition(0) 
-            # CHANGED: Transparent background, White text, No border
             val_widget.setStyleSheet("""
                 QLineEdit { 
                     background: transparent; 
@@ -482,12 +589,14 @@ class PropertiesDialog(QDialog):
 # --- DOWNLOAD PROGRESS DIALOG ---
 class DownloadProgressDialog(QDialog):
     def __init__(self, worker, parent=None):
+        # Passing parent=None allows the window to be a separate top-level window
         super().__init__(parent)
         self.worker = worker
         self.setWindowTitle(f"{self.worker.filename}")
         
-        # FEATURE: Make download window popup a separate window
+        # Ensure it behaves like a separate window in the OS
         self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(Qt.WindowType.Window) 
         
         self.fixed_width = 500
         self.base_height = 280
@@ -608,9 +717,6 @@ class DownloadProgressDialog(QDialog):
         self.limiter_tab = QWidget()
         self.setup_limiter_tab()
         self.tabs.addTab(self.limiter_tab, "Speed Limiter")
-        
-        # FEATURE: Remove 'Options on completion' tab
-        # self.tabs.addTab(QWidget(), "Options on completion")
 
         self.pbar = QProgressBar()
         self.pbar.setFixedHeight(20)
@@ -642,7 +748,6 @@ class DownloadProgressDialog(QDialog):
         self.btn_pause.clicked.connect(self.toggle_pause) 
         btn_layout.addWidget(self.btn_pause)
 
-        # FEATURE: Pause/Cancel -> Cancel/Close logic relies on toggle_pause
         self.btn_cancel = QPushButton("Cancel") 
         self.btn_cancel.clicked.connect(self.cancel_download)
         btn_layout.addWidget(self.btn_cancel)
@@ -709,14 +814,12 @@ class DownloadProgressDialog(QDialog):
             self.worker.pause()
             self.btn_pause.setText("Resume")
             self.lbl_main_status.setText("Paused")
-            # FEATURE: When I pause turn cancel to close
             self.btn_cancel.setText("Close") 
         elif self.btn_pause.text() == "Resume":
             self.worker.resume()
             self.btn_pause.setText("Pause")
             self.lbl_main_status.setText("Resuming...")
-            self.btn_cancel.setText("Cancel") # Revert to Cancel
-        # If it is 'Open Folder', do nothing here as the logic is handled in on_finished
+            self.btn_cancel.setText("Cancel") 
 
     def toggle_details(self, checked):
         if checked:
@@ -760,7 +863,7 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.setRowCount(num_segments)
         for i in range(num_segments):
             self.seg_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
-            self.seg_table.setItem(i, 1, QTableWidgetItem("0 B")) # Start with B for better UX
+            self.seg_table.setItem(i, 1, QTableWidgetItem("0 B")) 
             self.seg_table.setItem(i, 2, QTableWidgetItem("0 B/s"))
             self.seg_table.setItem(i, 3, QTableWidgetItem("Pending..."))
 
@@ -769,14 +872,12 @@ class DownloadProgressDialog(QDialog):
             self.segment_bars[index].setMaximum(total)
             self.segment_bars[index].setValue(dl)
             
-            # Improved display for small sizes (segment level)
             dl_str = self.worker.format_bytes(dl)
             self.seg_table.setItem(index, 1, QTableWidgetItem(dl_str))
             
             speed_str = f"{self.worker.format_bytes(speed)}/s"
             self.seg_table.setItem(index, 2, QTableWidgetItem(speed_str))
             
-            # FEATURE: Improve status states
             if status == "Receiving data...":
                  display_status = "Downloading"
             elif status == "Complete":
@@ -786,9 +887,7 @@ class DownloadProgressDialog(QDialog):
             self.seg_table.setItem(index, 3, QTableWidgetItem(display_status))
 
     def append_log(self, text):
-        # Only update the status label for short messages
         if len(text) < 60:
-            # FEATURE: Improve status states (map worker status to display status)
             if text == "Resuming download...":
                 display_text = "Resuming..."
             elif text == "Pausing download...":
@@ -811,7 +910,6 @@ class DownloadProgressDialog(QDialog):
         percent = data[2]
         self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes)} ({percent})")
         
-        # Update Pause/Cancel button state based on worker status
         main_status_text = self.lbl_main_status.text()
         if main_status_text in ["Downloading", "Resuming...", "Connecting..."]:
             self.btn_pause.setText("Pause")
@@ -833,14 +931,10 @@ class DownloadProgressDialog(QDialog):
     def cancel_download(self):
         if self.btn_cancel.text() == "Cancel":
             self.worker.stop()
-            # The on_finished signal will be emitted with "Cancelled"
         
-        # FEATURE: When the button is 'Close' (i.e. already paused, cancelled, or finished)
-        # we simply close the dialog.
-        self.reject() # Use reject() to signal to the parent that the dialog is closed
+        self.reject() 
 
     def on_finished(self, row, status):
-        # Update the dialog's status label
         if status == "Completed":
             display_status = "Completed"
         elif status == "Cancelled":
@@ -860,26 +954,20 @@ class DownloadProgressDialog(QDialog):
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")
             self.btn_pause.setEnabled(True)
-            # Disconnect previous slot and connect to open folder function
             try: self.btn_pause.clicked.disconnect() 
             except: pass
             self.btn_pause.clicked.connect(lambda: os.startfile(os.path.dirname(self.worker.target_path)) if os.name == 'nt' else subprocess.Popen(['xdg-open', os.path.dirname(self.worker.target_path)]))
         elif display_status in ["Cancelled", "Paused", "Error"]:
-            # If paused/cancelled/error, ensure the buttons are set to allow closing/resuming
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Resume")
             self.btn_pause.setEnabled(True)
             
             
     def closeEvent(self, event):
-        # Intercept the window close event (e.g., clicking 'X')
         if self.btn_cancel.text() == "Cancel":
-            # If it's an active download, treat close as a stop/pause
             self.worker.pause()
             event.accept()
         elif self.btn_pause.text() == "Open Folder":
-            # If finished, allow closing immediately
             event.accept()
         else:
-            # If already paused/cancelled, allow closing immediately
             event.accept()

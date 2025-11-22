@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bengal DM Connector Options</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; width: 400px; }
+        h1 { font-size: 1.5em; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #status { margin-top: 10px; font-weight: bold; }
+        .help { color: #666; font-size: 0.8em; margin-top: -5px; margin-bottom: 15px;}
+    </style>
+</head>
+<body>
+    <h1>Bengal DM Connector Settings</h1>
+    
+    <p>Configure the TCP address for the Bengal Download Manager desktop application.</p>
+    
+    <label for="host">Bengal DM Host Address (Usually 127.0.0.1):</label>
+    <input type="text" id="host" value="127.0.0.1">
+    <div class="help">This should typically remain 127.0.0.1 (localhost).</div>
+
+    <label for="port">TCP Port (Default 9000):</label>
+    <input type="number" id="port" value="9000">
+    <div class="help">This port must match the port configured in the Bengal DM desktop application.</div>
+
+    <button id="save">Save Settings</button>
+    <div id="status"></div>
+
+    <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Bengal DM Connector",
+  "version": "1.0",
+  "description": "Intercepts downloads and sends them to Bengal Download Manager via TCP socket.",
+  "icons": {
+    "48": "icons/icon-48.png"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "permissions": [
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}
