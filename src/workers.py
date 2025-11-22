@@ -352,7 +352,7 @@ class DownloadWorker(QThread):
                 self.main_progress_signal.emit(self.row_index, (
                     self.filename,
                     self.format_bytes(total_size),
-                    percent_str,
+                    "Receiving data..." if not self.is_paused else "Paused", # Use the worker's internal state
                     self.format_time(time_left),
                     f"{self.format_bytes(total_speed)}/s"
                 ))
@@ -387,8 +387,14 @@ class DownloadWorker(QThread):
                     self.finished_signal.emit(self.row_index, "Error")
             else:
                 self.save_state(total_size) # Save on stop
-                self.log_signal.emit("Download stopped.")
-                self.finished_signal.emit(self.row_index, "Cancelled")
+                
+                # Decide final status based on whether it was manually paused or cancelled
+                if self.is_paused:
+                    self.log_signal.emit("Download paused.")
+                    self.finished_signal.emit(self.row_index, "Paused")
+                else:
+                    self.log_signal.emit("Download stopped/cancelled.")
+                    self.finished_signal.emit(self.row_index, "Cancelled")
 
         except Exception as e:
             self.log_signal.emit(f"Critical Error: {str(e)}")
@@ -435,7 +441,8 @@ class DownloadWorker(QThread):
             w.wait()
 
     def pause(self):
-        self.is_paused = True
+        # Set is_paused flag first, which stops the thread loop
+        self.is_paused = True 
         self.log_signal.emit("Pausing download...")
         for w in self.workers:
             w.set_pause(True)

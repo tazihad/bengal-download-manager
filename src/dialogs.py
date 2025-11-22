@@ -124,6 +124,7 @@ class AddUrlDialog(QDialog):
 
 # --- OPTIONS DIALOG ---
 class OptionsDialog(QDialog):
+    # ... (OptionsDialog implementation remains unchanged)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Options")
@@ -485,6 +486,9 @@ class DownloadProgressDialog(QDialog):
         self.worker = worker
         self.setWindowTitle(f"{self.worker.filename}")
         
+        # FEATURE: Make download window popup a separate window
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        
         self.fixed_width = 500
         self.base_height = 280
         self.setFixedSize(self.fixed_width, self.base_height)
@@ -502,105 +506,6 @@ class DownloadProgressDialog(QDialog):
         self.setup_ui()
         self.init_segment_table(8)
         self.worker.start()
-
-    def setup_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(5)
-        
-        self.tabs = QTabWidget()
-        self.tabs.setFixedWidth(self.fixed_width - 20) 
-        main_layout.addWidget(self.tabs)
-        
-        self.status_tab = QWidget()
-        self.setup_status_tab()
-        self.tabs.addTab(self.status_tab, "Download status")
-        
-        self.limiter_tab = QWidget()
-        self.setup_limiter_tab()
-        self.tabs.addTab(self.limiter_tab, "Speed Limiter")
-        
-        self.tabs.addTab(QWidget(), "Options on completion")
-
-        self.pbar = QProgressBar()
-        self.pbar.setFixedHeight(20)
-        self.pbar.setTextVisible(False)
-        self.pbar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #555;
-                border-radius: 0px;
-                background-color: #333;
-            }
-            QProgressBar::chunk {
-                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                                                  stop:0 #76e068, stop:0.5 #32CD32, stop:1 #228B22);
-                width: 15px;
-                margin: 0.5px;
-            }
-        """)
-        main_layout.addWidget(self.pbar)
-
-        btn_layout = QHBoxLayout()
-        self.btn_details = QPushButton("Show Details >>")
-        self.btn_details.setCheckable(True)
-        self.btn_details.clicked.connect(self.toggle_details)
-        btn_layout.addWidget(self.btn_details)
-        
-        btn_layout.addStretch()
-        
-        self.btn_pause = QPushButton("Pause")
-        self.btn_pause.clicked.connect(self.toggle_pause) 
-        btn_layout.addWidget(self.btn_pause)
-
-        self.btn_cancel = QPushButton("Cancel")
-        self.btn_cancel.clicked.connect(self.cancel_download)
-        btn_layout.addWidget(self.btn_cancel)
-        
-        main_layout.addLayout(btn_layout)
-
-        self.details_frame = QFrame()
-        details_layout = QVBoxLayout(self.details_frame)
-        details_layout.setContentsMargins(5, 5, 5, 5)
-        details_layout.setSpacing(5)
-        
-        lbl_conn = QLabel("Start positions and download progress by connections")
-        lbl_conn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_conn.setStyleSheet("font-weight: bold; font-size: 9pt; color: #888;")
-        details_layout.addWidget(lbl_conn)
-
-        self.segments_container = QWidget()
-        self.segments_container.setFixedHeight(20)
-        self.segments_layout = QHBoxLayout(self.segments_container)
-        self.segments_layout.setSpacing(2)
-        self.segments_layout.setContentsMargins(0, 0, 0, 0)
-        details_layout.addWidget(self.segments_container)
-        
-        self.seg_table = QTableWidget()
-        self.seg_table.setColumnCount(4)
-        self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Transfer Rate", "Status"])
-        self.seg_table.verticalHeader().setVisible(False)
-        self.seg_table.setShowGrid(False)
-        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; }")
-        self.seg_table.setFixedWidth(self.fixed_width - 30)
-
-        header = self.seg_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.seg_table.setColumnWidth(0, 30)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.seg_table.setColumnWidth(1, 85) 
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.seg_table.setColumnWidth(2, 85)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) 
-        
-        self.seg_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.seg_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.seg_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        
-        details_layout.addWidget(self.seg_table)
-        
-        self.details_frame.hide()
-        main_layout.addWidget(self.details_frame)
-        main_layout.addStretch()
 
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)
@@ -650,7 +555,7 @@ class DownloadProgressDialog(QDialog):
 
         layout.addLayout(grid)
         layout.addStretch()
-
+    
     def setup_limiter_tab(self):
         layout = QVBoxLayout(self.limiter_tab)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -686,6 +591,108 @@ class DownloadProgressDialog(QDialog):
         layout.addLayout(input_layout)
         layout.addStretch()
 
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(5)
+        
+        self.tabs = QTabWidget()
+        self.tabs.setFixedWidth(self.fixed_width - 20) 
+        main_layout.addWidget(self.tabs)
+        
+        self.status_tab = QWidget()
+        self.setup_status_tab()
+        self.tabs.addTab(self.status_tab, "Download status")
+        
+        self.limiter_tab = QWidget()
+        self.setup_limiter_tab()
+        self.tabs.addTab(self.limiter_tab, "Speed Limiter")
+        
+        # FEATURE: Remove 'Options on completion' tab
+        # self.tabs.addTab(QWidget(), "Options on completion")
+
+        self.pbar = QProgressBar()
+        self.pbar.setFixedHeight(20)
+        self.pbar.setTextVisible(False)
+        self.pbar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #555;
+                border-radius: 0px;
+                background-color: #333;
+            }
+            QProgressBar::chunk {
+                background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                                                  stop:0 #76e068, stop:0.5 #32CD32, stop:1 #228B22);
+                width: 15px;
+                margin: 0.5px;
+            }
+        """)
+        main_layout.addWidget(self.pbar)
+
+        btn_layout = QHBoxLayout()
+        self.btn_details = QPushButton("Show Details >>")
+        self.btn_details.setCheckable(True)
+        self.btn_details.clicked.connect(self.toggle_details)
+        btn_layout.addWidget(self.btn_details)
+        
+        btn_layout.addStretch()
+        
+        self.btn_pause = QPushButton("Pause")
+        self.btn_pause.clicked.connect(self.toggle_pause) 
+        btn_layout.addWidget(self.btn_pause)
+
+        # FEATURE: Pause/Cancel -> Cancel/Close logic relies on toggle_pause
+        self.btn_cancel = QPushButton("Cancel") 
+        self.btn_cancel.clicked.connect(self.cancel_download)
+        btn_layout.addWidget(self.btn_cancel)
+        
+        main_layout.addLayout(btn_layout)
+
+        self.details_frame = QFrame()
+        details_layout = QVBoxLayout(self.details_frame)
+        details_layout.setContentsMargins(5, 5, 5, 5)
+        details_layout.setSpacing(5)
+        
+        lbl_conn = QLabel("Start positions and download progress by connections")
+        lbl_conn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_conn.setStyleSheet("font-weight: bold; font-size: 9pt; color: #888;")
+        details_layout.addWidget(lbl_conn)
+
+        self.segments_container = QWidget()
+        self.segments_container.setFixedHeight(20)
+        self.segments_layout = QHBoxLayout(self.segments_container)
+        self.segments_layout.setSpacing(2)
+        self.segments_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.addWidget(self.segments_container)
+        
+        self.seg_table = QTableWidget()
+        self.seg_table.setColumnCount(4)
+        self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Transfer Rate", "Status"])
+        self.seg_table.verticalHeader().setVisible(False)
+        self.seg_table.setShowGrid(False)
+        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; }")
+        self.seg_table.setFixedWidth(self.fixed_width - 30)
+
+        header = self.seg_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.seg_table.setColumnWidth(0, 30)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.seg_table.setColumnWidth(1, 85) 
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.seg_table.setColumnWidth(2, 85)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) 
+        
+        self.seg_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.seg_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.seg_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        
+        details_layout.addWidget(self.seg_table)
+        
+        self.details_frame.hide()
+        main_layout.addWidget(self.details_frame)
+        main_layout.addStretch()
+
     def apply_speed_limit(self):
         is_enabled = self.chk_limit.isChecked()
         self.spin_limit.setEnabled(is_enabled)
@@ -696,6 +703,20 @@ class DownloadProgressDialog(QDialog):
             self.worker.set_global_speed_limit(limit_bytes)
         else:
             self.worker.set_global_speed_limit(0)
+
+    def toggle_pause(self):
+        if self.btn_pause.text() == "Pause":
+            self.worker.pause()
+            self.btn_pause.setText("Resume")
+            self.lbl_main_status.setText("Paused")
+            # FEATURE: When I pause turn cancel to close
+            self.btn_cancel.setText("Close") 
+        elif self.btn_pause.text() == "Resume":
+            self.worker.resume()
+            self.btn_pause.setText("Pause")
+            self.lbl_main_status.setText("Resuming...")
+            self.btn_cancel.setText("Cancel") # Revert to Cancel
+        # If it is 'Open Folder', do nothing here as the logic is handled in on_finished
 
     def toggle_details(self, checked):
         if checked:
@@ -713,16 +734,6 @@ class DownloadProgressDialog(QDialog):
             self.details_frame.hide()
             self.btn_details.setText("Show Details >>")
             self.setFixedSize(self.fixed_width, self.base_height)
-
-    def toggle_pause(self):
-        if self.btn_pause.text() == "Pause":
-            self.worker.pause()
-            self.btn_pause.setText("Resume")
-            self.lbl_main_status.setText("Paused")
-        else:
-            self.worker.resume()
-            self.btn_pause.setText("Pause")
-            self.lbl_main_status.setText("Resuming...")
 
     def init_segment_table(self, num_segments):
         if num_segments > 1:
@@ -749,8 +760,8 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.setRowCount(num_segments)
         for i in range(num_segments):
             self.seg_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
-            self.seg_table.setItem(i, 1, QTableWidgetItem("0 KB"))
-            self.seg_table.setItem(i, 2, QTableWidgetItem("0 KB/s"))
+            self.seg_table.setItem(i, 1, QTableWidgetItem("0 B")) # Start with B for better UX
+            self.seg_table.setItem(i, 2, QTableWidgetItem("0 B/s"))
             self.seg_table.setItem(i, 3, QTableWidgetItem("Pending..."))
 
     def update_segment_row(self, index, dl, total, speed, status):
@@ -758,16 +769,35 @@ class DownloadProgressDialog(QDialog):
             self.segment_bars[index].setMaximum(total)
             self.segment_bars[index].setValue(dl)
             
-            dl_str = f"{dl/1024:.0f} KB" if dl < 1024*1024 else f"{dl/1024/1024:.2f} MB"
+            # Improved display for small sizes (segment level)
+            dl_str = self.worker.format_bytes(dl)
             self.seg_table.setItem(index, 1, QTableWidgetItem(dl_str))
             
-            speed_str = f"{speed/1024:.0f} KB/s" if speed < 1024*1024 else f"{speed/1024/1024:.2f} MB/s"
+            speed_str = f"{self.worker.format_bytes(speed)}/s"
             self.seg_table.setItem(index, 2, QTableWidgetItem(speed_str))
-            self.seg_table.setItem(index, 3, QTableWidgetItem(status))
+            
+            # FEATURE: Improve status states
+            if status == "Receiving data...":
+                 display_status = "Downloading"
+            elif status == "Complete":
+                 display_status = "Segment Completed"
+            else:
+                 display_status = status
+            self.seg_table.setItem(index, 3, QTableWidgetItem(display_status))
 
     def append_log(self, text):
+        # Only update the status label for short messages
         if len(text) < 60:
-            self.lbl_main_status.setText(text)
+            # FEATURE: Improve status states (map worker status to display status)
+            if text == "Resuming download...":
+                display_text = "Resuming..."
+            elif text == "Pausing download...":
+                display_text = "Paused"
+            elif text == "Connecting to server...":
+                display_text = "Connecting..."
+            else:
+                display_text = text
+            self.lbl_main_status.setText(display_text)
 
     def update_progress(self, current, total):
         self.pbar.setMaximum(total)
@@ -778,23 +808,78 @@ class DownloadProgressDialog(QDialog):
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
         current_bytes = self.pbar.value()
-        current_mb = current_bytes / (1024*1024)
         percent = data[2]
-        self.lbl_downloaded.setText(f"{current_mb:.2f} MB ({percent})")
+        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes)} ({percent})")
+        
+        # Update Pause/Cancel button state based on worker status
+        main_status_text = self.lbl_main_status.text()
+        if main_status_text in ["Downloading", "Resuming...", "Connecting..."]:
+            self.btn_pause.setText("Pause")
+            self.btn_cancel.setText("Cancel")
+            self.btn_pause.setEnabled(True)
+            self.btn_cancel.setEnabled(True)
+        elif main_status_text == "Paused":
+            self.btn_pause.setText("Resume")
+            self.btn_cancel.setText("Close")
+            self.btn_pause.setEnabled(True)
+            self.btn_cancel.setEnabled(True)
+        elif main_status_text in ["Cancelled", "Error"]:
+            self.btn_pause.setText("Resume")
+            self.btn_cancel.setText("Close")
+            self.btn_pause.setEnabled(True)
+            self.btn_cancel.setEnabled(True)
+
 
     def cancel_download(self):
-        self.worker.stop()
-        self.reject()
+        if self.btn_cancel.text() == "Cancel":
+            self.worker.stop()
+            # The on_finished signal will be emitted with "Cancelled"
+        
+        # FEATURE: When the button is 'Close' (i.e. already paused, cancelled, or finished)
+        # we simply close the dialog.
+        self.reject() # Use reject() to signal to the parent that the dialog is closed
 
     def on_finished(self, row, status):
-        self.lbl_main_status.setText(status)
+        # Update the dialog's status label
         if status == "Completed":
+            display_status = "Completed"
+        elif status == "Cancelled":
+            display_status = "Cancelled"
+        elif status == "Error":
+            display_status = "Error"
+            self.lbl_main_status.setStyleSheet("font-weight: bold; color: red;")
+        elif status == "Paused":
+            display_status = "Paused"
+        else:
+            display_status = status
+            
+        self.lbl_main_status.setText(display_status)
+        
+        if display_status == "Completed":
             self.pbar.setValue(self.pbar.maximum())
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")
             self.btn_pause.setEnabled(True)
+            # Disconnect previous slot and connect to open folder function
             try: self.btn_pause.clicked.disconnect() 
             except: pass
-            self.btn_pause.clicked.connect(lambda: os.startfile(self.worker.save_dir) if os.name == 'nt' else subprocess.Popen(['xdg-open', self.worker.save_dir]))
-        elif status == "Error":
-             self.lbl_main_status.setStyleSheet("font-weight: bold; color: red;")
+            self.btn_pause.clicked.connect(lambda: os.startfile(os.path.dirname(self.worker.target_path)) if os.name == 'nt' else subprocess.Popen(['xdg-open', os.path.dirname(self.worker.target_path)]))
+        elif display_status in ["Cancelled", "Paused", "Error"]:
+            # If paused/cancelled/error, ensure the buttons are set to allow closing/resuming
+            self.btn_cancel.setText("Close")
+            self.btn_pause.setText("Resume")
+            self.btn_pause.setEnabled(True)
+            
+            
+    def closeEvent(self, event):
+        # Intercept the window close event (e.g., clicking 'X')
+        if self.btn_cancel.text() == "Cancel":
+            # If it's an active download, treat close as a stop/pause
+            self.worker.pause()
+            event.accept()
+        elif self.btn_pause.text() == "Open Folder":
+            # If finished, allow closing immediately
+            event.accept()
+        else:
+            # If already paused/cancelled, allow closing immediately
+            event.accept()
