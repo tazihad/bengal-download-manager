@@ -8,6 +8,61 @@ from PyQt6.QtCore import QThread, pyqtSignal, QMutex
 from utils import get_unique_filepath
 from dialogs import load_proxy_config
 
+# --- WORKER FOR PRE-FETCHING FILE INFO ---
+class FileInfoFetcherWorker(QThread):
+    finished_signal = pyqtSignal(dict)
+    
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+    
+    def run(self):
+        result = {
+            "url": self.url,
+            "filename": "Unknown",
+            "size_str": "Unknown",
+            "size_bytes": 0,
+            "error": None
+        }
+        
+        try:
+            parsed = urlparse(self.url)
+            path = unquote(parsed.path)
+            basename = os.path.basename(path)
+            if basename: 
+                result["filename"] = basename
+            else:
+                result["filename"] = "file"
+                
+            req = urllib.request.Request(self.url, method='HEAD')
+            req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+            
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                content_length = resp.headers.get("Content-Length")
+                if content_length and content_length.isdigit():
+                    result["size_bytes"] = int(content_length)
+                    result["size_str"] = self.format_bytes(result["size_bytes"])
+                
+                content_disp = resp.headers.get("Content-Disposition")
+                if content_disp and "filename=" in content_disp:
+                    import re
+                    match = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp)
+                    if match: result["filename"] = match.group(1).strip()
+                    
+        except Exception as e:
+            result["error"] = str(e)
+            
+        self.finished_signal.emit(result)
+        
+    def format_bytes(self, size):
+        power = 2**10
+        n = 0
+        power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+        while size > power:
+            size /= power
+            n += 1
+        return f"{size:.2f} {power_labels.get(n, '')}B"
+
 # --- WORKER FOR SINGLE SEGMENT ---
 class SegmentWorker(QThread):
     # Signals: index, total_downloaded_in_segment, segment_total_size, speed, status

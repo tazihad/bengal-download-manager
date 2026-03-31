@@ -434,6 +434,7 @@ class MainWindow(QMainWindow):
             "Transfer Rate", "Last Try", "Date Added"
         ])
         header = self.download_table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         splitter.addWidget(self.category_tree)
         splitter.addWidget(self.download_table)
@@ -912,13 +913,40 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def open_add_url(self):
+        from dialogs import AddUrlDialog
         dialog = AddUrlDialog(self)
         if dialog.exec():
             url = dialog.get_url()
             if url:
-                self.start_download(url)
+                # Set a temporary status label if desired or just directly fetch
+                from workers import FileInfoFetcherWorker
+                self.fetcher = FileInfoFetcherWorker(url)
+                self.fetcher.finished_signal.connect(self.on_file_info_fetched)
+                self.fetcher.start()
 
-    def start_download(self, url):
+    def on_file_info_fetched(self, file_info):
+        from dialogs import DownloadFileInfoDialog
+        dialog = DownloadFileInfoDialog(file_info, self)
+        if dialog.exec():
+            results = dialog.get_results()
+            if results["action"] == 'start':
+                self.start_download(
+                    url=file_info["url"], 
+                    custom_filename=results["filename"],
+                    custom_save_dir=os.path.dirname(results["save_path"]),
+                    size_data=(results["size_str"], results["size_bytes"]),
+                    start_paused=False
+                )
+            elif results["action"] == 'later':
+                self.start_download(
+                    url=file_info["url"], 
+                    custom_filename=results["filename"],
+                    custom_save_dir=os.path.dirname(results["save_path"]),
+                    size_data=(results["size_str"], results["size_bytes"]),
+                    start_paused=True
+                )
+
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False):
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
@@ -932,6 +960,9 @@ class MainWindow(QMainWindow):
              if not filename_guess: filename_guess = "file"
         except:
              filename_guess = "file"
+             
+        if custom_filename:
+             filename_guess = custom_filename
         
         current_ts = str(time.time())
 
@@ -940,28 +971,59 @@ class MainWindow(QMainWindow):
         item_name.setIcon(get_file_icon(filename_guess))
         
         # Store raw timestamp data in the item
-        item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts) # Date Added (Raw TS)
-        item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts) # Last Try (Raw TS)
-
+        item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts) # Date Added
+        item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts) # Last Try
+        
+        # Determine explicit metadata bindings
+        size_str = size_data[0] if size_data else "?"
+        
         self.download_table.setItem(row, 0, item_name)
-        self._set_sortable_item(row, 1, "...", parse_size_to_bytes)
-        self.download_table.setItem(row, 2, QTableWidgetItem("Pending..."))
-        self._set_sortable_item(row, 3, "...", parse_time_to_sec)
-        self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
+        self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
+        
+        status_txt = "Paused" if start_paused else "Pending..."
+        self.download_table.setItem(row, 2, QTableWidgetItem(status_txt))
+        
+        self._set_sortable_item(row, 3, "", parse_time_to_sec) if start_paused else self._set_sortable_item(row, 3, "...", parse_time_to_sec)
+        self._set_sortable_item(row, 4, "", parse_size_to_bytes) if start_paused else self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
         
         # Display formatted timestamp
         self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(current_ts, max_relative_seconds=300)))
         self.download_table.setItem(row, 6, QTableWidgetItem(format_timestamp_relative(current_ts, max_relative_seconds=30)))
 
         self.download_table.setSortingEnabled(sorting_was_enabled)
-        self._start_download_worker(url, item_name)
+        
+        # Pre-calculate and bind the target directory strictly to UserRole+1 to survive App restarts
+        # even if the initial load is bypassed via "Download Later".
+        config = load_category_config()
+        categories = config.get("categories", {})
+        ext = os.path.splitext(filename_guess)[1].replace(".", "").lower()
+        
+        final_category = "General"
+        for cat_name, cat_data in categories.items():
+            if ext in cat_data.get("extensions", "").split():
+                final_category = cat_name
+                break
+                
+        save_dir = custom_save_dir if custom_save_dir else categories[final_category]["path"]
+        target_path = os.path.join(save_dir, filename_guess)
+        item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
+        
+        if not start_paused:
+            self._start_download_worker(url, item_name, custom_save_dir=save_dir)
+            
         self.save_data()
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None):
         config = load_category_config()
         categories = config.get("categories", {})
         
         target_filename = resume_filename if resume_filename else item_ref.text()
+        
+        # If the item already has a pre-determined path bound to data, extract its directory!
+        saved_path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
+        if saved_path and not custom_save_dir:
+            custom_save_dir = os.path.dirname(saved_path)
+            
         ext = os.path.splitext(target_filename)[1].replace(".", "").lower()
         
         final_category = "General"
@@ -970,7 +1032,7 @@ class MainWindow(QMainWindow):
                 final_category = cat_name
                 break
         
-        save_dir = categories[final_category]["path"]
+        save_dir = custom_save_dir if custom_save_dir else categories[final_category]["path"]
         if not os.path.exists(save_dir):
             try: os.makedirs(save_dir)
             except: save_dir = os.path.join(os.path.expanduser("~"), "Downloads")

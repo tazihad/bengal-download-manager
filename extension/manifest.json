@@ -20,7 +20,8 @@
   },
   "permissions": [
     "downloads",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>",
