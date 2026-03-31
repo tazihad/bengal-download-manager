@@ -42,48 +42,77 @@ class TcpListenerThread(QThread):
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # Bind to localhost (127.0.0.1) for security
             self.server_socket.bind(("127.0.0.1", self.port)) 
             self.server_socket.listen(1)
             print(f"DM Connector Listener started on 127.0.0.1:{self.port}")
             
             while self.is_running:
-                # Use timeout to make the accept call non-blocking 
                 self.server_socket.settimeout(1.0)
                 try:
                     conn, addr = self.server_socket.accept()
                     with conn:
-                        # Receive up to 4KB of data (URL + potential headers/metadata)
                         data = conn.recv(4096).decode('utf-8') 
-                        if data.startswith("URL:"):
+                        if not data: continue
+
+                        # 1. Handle CORS Preflight (Browser security check)
+                        if data.startswith("OPTIONS"):
+                            response = (
+                                "HTTP/1.1 200 OK\r\n"
+                                "Access-Control-Allow-Origin: *\r\n"
+                                "Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n"
+                                "Access-Control-Allow-Headers: Content-Type\r\n\r\n"
+                            )
+                            conn.sendall(response.encode('utf-8'))
+                            continue
+                        
+                        # 2. Handle Status Ping from popup.js
+                        if data.startswith("GET"):
+                            response = (
+                                "HTTP/1.1 200 OK\r\n"
+                                "Access-Control-Allow-Origin: *\r\n"
+                                "Content-Type: application/json\r\n\r\n"
+                                '{"status": "Bengal DM is running"}'
+                            )
+                            conn.sendall(response.encode('utf-8'))
+                            continue
+
+                        # 3. Handle actual download POST request
+                        url = ""
+                        if data.startswith("POST"):
+                            # The URL is in the body of the HTTP request, after the headers (\r\n\r\n)
+                            parts = data.split("\r\n\r\n", 1)
+                            if len(parts) == 2:
+                                url = parts[1].strip()
+                        elif data.startswith("URL:"): # Fallback for your old method
                             url = data[4:].strip()
-                            # Emit signal to the GUI thread
+
+                        if url and url.startswith("http"):
+                            # Send the URL to the PyQt GUI!
                             self.emitter.new_download_signal.emit(url) 
-                            conn.sendall(b"OK")
+                            
+                            response = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
+                            conn.sendall(response.encode('utf-8'))
                         else:
-                            conn.sendall(b"ERROR: Invalid format")
+                            response = "HTTP/1.1 400 Bad Request\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
+                            conn.sendall(response.encode('utf-8'))
+
                 except socket.timeout:
-                    continue # Check if self.is_running changed
+                    continue 
                 except OSError as e:
-                    if not self.is_running:
-                        break
-                    print(f"Listener error during connection: {e}")
+                    if not self.is_running: break
                 except Exception as e:
-                    print(f"Listener error during connection: {e}")
-                    time.sleep(0.5)
+                    print(f"Listener error: {e}")
 
         except Exception as e:
-            print(f"CRITICAL: Failed to start TCP Listener on port {self.port}. Browser integration disabled. Error: {e}")
+            print(f"CRITICAL: Failed to start TCP Listener on port {self.port}. Error: {e}")
 
     def stop(self):
         self.is_running = False
         if self.server_socket:
             try:
-                # Connect to self to break the blocking accept call and close the socket
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("127.0.0.1", self.port))
                 self.server_socket.close()
-            except Exception as e:
-                print(f"Error stopping listener: {e}")
+            except: pass
 
 # --- HELPER FOR SORTING ---
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -231,8 +260,12 @@ class MainWindow(QMainWindow):
         # --- IPC Setup: Listener for Browser Extension ---
         self.ipc_emitter = SignalEmitter()
         # Connect the thread's signal to the GUI slot (start_download)
-        self.ipc_emitter.new_download_signal.connect(self.start_download) 
+        # Route extension downloads to the pre-fetcher instead of starting immediately
+        self.ipc_emitter.new_download_signal.connect(self.process_incoming_url) 
         self.listener_thread = TcpListenerThread(DM_CONNECTOR_PORT, self.ipc_emitter)
+        
+        self.active_fetchers = [] # Prevent fetcher threads from being garbage collected
+
         self.listener_thread.start()
 
         # Initial UI State Update
@@ -918,11 +951,31 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             url = dialog.get_url()
             if url:
-                # Set a temporary status label if desired or just directly fetch
-                from workers import FileInfoFetcherWorker
-                self.fetcher = FileInfoFetcherWorker(url)
-                self.fetcher.finished_signal.connect(self.on_file_info_fetched)
-                self.fetcher.start()
+                self.process_incoming_url(url)
+
+    def process_incoming_url(self, url):
+        """Brings the app to the front, fetches file info, and shows the popup"""
+        # 1. Un-minimize and bring the main window to the front
+        self.setWindowState((self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
+        self.activateWindow()
+        self.raise_()
+
+        # 2. Start the fetcher
+        from workers import FileInfoFetcherWorker
+        fetcher = FileInfoFetcherWorker(url)
+        self.active_fetchers.append(fetcher)
+        
+        # 3. Connect to a wrapper that cleans up the thread memory when done
+        fetcher.finished_signal.connect(lambda info, f=fetcher: self._handle_fetch_complete(info, f))
+        fetcher.start()
+
+    def _handle_fetch_complete(self, file_info, fetcher):
+        # Remove the finished thread from memory
+        if fetcher in self.active_fetchers:
+            self.active_fetchers.remove(fetcher)
+            
+        # Trigger your existing popup dialog!
+        self.on_file_info_fetched(file_info)
 
     def on_file_info_fetched(self, file_info):
         from dialogs import DownloadFileInfoDialog
