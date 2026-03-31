@@ -39,6 +39,8 @@ Bengal Download Manager is a powerful and efficient download management tool des
    ```
    
    ```sh
-   pyinstaller --name "bengal-download-manager" --onefile src/main.py
+   cmake -S . -B build
+   cmake --build build
    ```
+   After it finishes, your executable will be located in `build/dist/`
    
