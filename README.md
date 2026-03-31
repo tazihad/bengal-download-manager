@@ -17,17 +17,17 @@ Bengal Download Manager is a powerful and efficient download management tool des
 
 ### Windows
 
-1. Download the latest installer from the [releases page](https://github.com/your-username/bengal-download-manager/releases).
+1. Download the latest installer from the [releases page](https://github.com/tazihad/bengal-download-manager/releases).
 2. Run the installer and follow the on-screen instructions.
 
 ### macOS
 
-1. Download the `.dmg` file from the [releases page](https://github.com/your-username/bengal-download-manager/releases).
+1. Download the `.dmg` file from the [releases page](https://github.com/tazihad/bengal-download-manager/releases).
 2. Open the `.dmg` file and drag the Bengal Download Manager application to your Applications folder.
 
 ### Linux
 
-1. Download the `.deb` or `.rpm` package from the [releases page](https://github.com/your-username/bengal-download-manager/releases).
+1. Download the `.deb` or `.rpm` package from the [releases page](https://github.com/tazihad/bengal-download-manager/releases).
 2. Install the package using your distribution's package manager:
    - For Debian/Ubuntu: `sudo dpkg -i bengal-download-manager.deb`
    - For Fedora/RHEL: `sudo rpm -i bengal-download-manager.rpm`
