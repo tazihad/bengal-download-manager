@@ -33,7 +33,7 @@ Bengal Download Manager is a powerful and efficient download management tool des
    - For Fedora/RHEL: `sudo rpm -i bengal-download-manager.rpm`
 3. Alternatively, you can build from source:
    ```bash
-   git clone https://github.com/your-username/bengal-download-manager.git
+   git clone https://github.com/tazihad/bengal-download-manager.git
    cd bengal-download-manager
    # Follow build instructions in CONTRIBUTING.md
    ```
