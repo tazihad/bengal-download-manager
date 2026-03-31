@@ -1,34 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="system">
+
 <head>
-    <title>Bengal DM Connector Options</title>
+    <meta charset="utf-8">
     <style>
-        body { font-family: sans-serif; padding: 20px; width: 400px; }
-        h1 { font-size: 1.5em; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="number"] { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        #status { margin-top: 10px; font-weight: bold; }
-        .help { color: #666; font-size: 0.8em; margin-top: -5px; margin-bottom: 15px;}
+        :root {
+            --bg: #ffffff;
+            --text: #333333;
+            --border: #e2e8f0;
+            --primary: #3b82f6;
+            --success: #22c55e;
+            --error: #ef4444;
+        }
+
+        [data-theme="dark"] {
+            --bg: #1e293b;
+            --text: #f8fafc;
+            --border: #334155;
+            --primary: #60a5fa;
+        }
+
+        body {
+            font-family: system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            max-width: 320px;
+            transition: 0.2s;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            font-size: 18px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input,
+        select {
+            width: 100%;
+            margin-top: 5px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg);
+            color: var(--text);
+            box-sizing: border-box;
+        }
+
+        .status-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme="dark"] .status-section {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: gray;
+            transition: 0.3s;
+        }
+
+        .dot.online {
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+        }
+
+        .dot.offline {
+            background: var(--error);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            border-radius: 4px;
+            color: var(--text);
+            transition: 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .refresh-btn.spinning {
+            animation: spin 1s linear infinite;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        button.save-btn {
+            margin-top: 15px;
+            width: 100%;
+            padding: 10px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        button.save-btn:hover {
+            opacity: 0.8;
+        }
+
+        #status-msg {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            height: 20px;
+        }
     </style>
 </head>
+
 <body>
-    <h1>Bengal DM Connector Settings</h1>
-    
-    <p>Configure the TCP address for the Bengal Download Manager desktop application.</p>
-    
-    <label for="host">Bengal DM Host Address (Usually 127.0.0.1):</label>
-    <input type="text" id="host" value="127.0.0.1">
-    <div class="help">This should typically remain 127.0.0.1 (localhost).</div>
+    <div class="card">
+        <h2>Settings</h2>
 
-    <label for="port">TCP Port (Default 9000):</label>
-    <input type="number" id="port" value="9000">
-    <div class="help">This port must match the port configured in the Bengal DM desktop application.</div>
+        <label>Aria2 Host: <input type="text" id="host" placeholder="localhost"></label>
+        <label>Aria2 Port: <input type="number" id="port" placeholder="50001"></label>
 
-    <button id="save">Save Settings</button>
-    <div id="status"></div>
+        <label>UI Theme:
+            <select id="theme">
+                <option value="system">System Default</option>
+                <option value="light">Light Mode</option>
+                <option value="dark">Dark Mode</option>
+            </select>
+        </label>
 
+        <div class="status-section">
+            <div class="status-left">
+                <div id="dot" class="dot"></div>
+                <span id="conn-text">Checking...</span>
+            </div>
+            <button id="refresh-btn" class="refresh-btn" title="Test Connection">🔄</button>
+        </div>
+
+        <button id="save" class="save-btn">Save Preferences</button>
+        <div id="status-msg"></div>
+    </div>
     <script src="options.js"></script>
 </body>
+
 </html>
