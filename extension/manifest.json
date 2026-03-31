@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Bengal DM Connector",
   "version": "1.0",
-  "description": "Sends downloads directly to Bengal Download Manager (aria2).",
+  "description": "Sends downloads directly to Bengal Download Manager.",
   "icons": {
     "48": "assets/icon-48.png"
   },
@@ -18,6 +18,17 @@
       "background.js"
     ]
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
   "permissions": [
     "downloads",
     "storage",
