@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import socket
 import threading
+import urllib.request
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar, QStyle,
@@ -14,11 +15,11 @@ from PyQt6.QtWidgets import (
     QFileIconProvider, QInputDialog, QFileDialog, QDialog, 
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit
 )
-from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices
+from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject
 
-from workers import DownloadWorker
-from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, load_category_config
+from workers import DownloadWorker, Aria2Worker
+from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, load_category_config, load_extension_config
 from utils import get_data_dir, get_config_dir, get_unique_filepath
 
 # Default TCP port for extension communication
@@ -63,8 +64,10 @@ class TcpListenerThread(QThread):
                             conn.sendall(b"ERROR: Invalid format")
                 except socket.timeout:
                     continue # Check if self.is_running changed
-                except ConnectionAbortedError:
-                    break
+                except OSError as e:
+                    if not self.is_running:
+                        break
+                    print(f"Listener error during connection: {e}")
                 except Exception as e:
                     print(f"Listener error during connection: {e}")
                     time.sleep(0.5)
@@ -135,8 +138,7 @@ def get_file_icon(filename):
         return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
     return icon
 
-# REVISED: Implements "Just now" (0-59s) and "X min ago" (up to max_relative_seconds)
-def format_timestamp_relative(timestamp_str, max_relative_seconds=30): # Default set for Date Added (30s)
+def format_timestamp_relative(timestamp_str, max_relative_seconds=30): 
     """
     Formats a timestamp string (stored as float seconds since epoch) to either 
     "Just now", "Y min ago", or full date/time based on max_relative_seconds.
@@ -169,15 +171,15 @@ def format_timestamp_relative(timestamp_str, max_relative_seconds=30): # Default
 
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
-class DeleteCompletedDialog(QDialog):
-    def __init__(self, count, parent=None):
+class DeleteDialog(QDialog):
+    def __init__(self, count, is_completed=False, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Delete Completed Downloads")
+        self.setWindowTitle("Delete Completed Downloads" if is_completed else "Delete")
         
         layout = QVBoxLayout(self)
         
         # Message Label
-        message = QLabel(f"Are you sure you want to delete {count} completed download(s)?")
+        message = QLabel(f"Are you sure you want to delete {count} {'completed ' if is_completed else 'selected '}download(s)?")
         layout.addWidget(message)
         
         # Checkbox for Disk Deletion
@@ -235,6 +237,21 @@ class MainWindow(QMainWindow):
 
         # Initial UI State Update
         self.update_ui_states()
+        
+        # Auto-start local Aria2 daemon for accelerated downloading
+        self.aria2_process = self.start_aria2_daemon()
+
+    def start_aria2_daemon(self):
+        try:
+            # We use --daemon=false because PyQt will manage the subprocess lifecycle
+            proc = subprocess.Popen([
+                "aria2c", "--enable-rpc=true", "--rpc-listen-port=6800",
+                "--rpc-allow-origin-all", "--max-connection-per-server=8",
+                "--min-split-size=1M", "--split=8", "--daemon=false"
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return proc
+        except Exception:
+            return None
 
     def closeEvent(self, event: QCloseEvent):
         # Stop IPC Listener Thread before closing
@@ -244,6 +261,15 @@ class MainWindow(QMainWindow):
         self.stop_all_downloads()
         # Stop the timer before closing
         self.timestamp_timer.stop() 
+        
+        # Kill the aria2 daemon cleanly on exit
+        if hasattr(self, 'aria2_process') and self.aria2_process:
+            self.aria2_process.terminate()
+            try:
+                self.aria2_process.wait(timeout=2)
+            except:
+                self.aria2_process.kill()
+                
         self.save_data()
         self.save_settings()
         event.accept()
@@ -274,13 +300,10 @@ class MainWindow(QMainWindow):
         self.action_redownload = QAction("Redownload", self)
         self.action_redownload.triggered.connect(self.redownload_selected)
 
-        self.action_remove = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Remove", self)
-        self.action_remove.triggered.connect(self.remove_from_list)
-        self.action_remove.setEnabled(False)
-
-        self.action_delete = QAction("Delete from disk", self)
+        self.action_delete = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Delete", self)
         self.action_delete.triggered.connect(self.delete_selected_download)
         self.action_delete.setEnabled(False)
+        self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
         self.action_delete_completed = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "Delete Completed", self)
         self.action_delete_completed.triggered.connect(self.delete_completed_downloads)
@@ -304,7 +327,7 @@ class MainWindow(QMainWindow):
         # 2. File
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.action_stop)
-        file_menu.addAction(self.action_remove)
+        file_menu.addAction(self.action_delete)
         file_menu.addAction(self.action_download_now)
         file_menu.addAction(self.action_redownload)
         file_menu.addSeparator()
@@ -365,7 +388,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_resume)
         toolbar.addAction(self.action_stop)
         toolbar.addAction(self.action_stop_all)
-        toolbar.addAction(self.action_remove) 
+        toolbar.addAction(self.action_delete) 
         toolbar.addAction(self.action_delete_completed)
         toolbar.addAction(self.action_options)
 
@@ -447,11 +470,10 @@ class MainWindow(QMainWindow):
                 # Only run periodic formatting if the download is NOT currently active 
                 if last_try_ts and not is_active:
                     new_display_text = format_timestamp_relative(last_try_ts, max_relative_seconds=LAST_TRY_MAX_REL_TIME)
-                    current_display_text = self.download_table.item(row, 5).text()
-                    
-                    # Update only if the string changed (e.g., crossing a minute boundary or 5-minute threshold)
-                    if current_display_text != new_display_text:
-                        self.download_table.item(row, 5).setText(new_display_text)
+                    item_5 = self.download_table.item(row, 5)
+                    if item_5 is not None:
+                        if item_5.text() != new_display_text:
+                            item_5.setText(new_display_text)
 
                 # --- Update Date Added (Column 6) ---
                 # Threshold: 30 seconds
@@ -459,9 +481,10 @@ class MainWindow(QMainWindow):
                 date_added_ts = item_name.data(Qt.ItemDataRole.UserRole + 3)
                 if date_added_ts:
                     new_display_text = format_timestamp_relative(date_added_ts, max_relative_seconds=DATE_ADDED_MAX_REL_TIME)
-                    current_display_text = self.download_table.item(row, 6).text()
-                    if current_display_text != new_display_text:
-                        self.download_table.item(row, 6).setText(new_display_text)
+                    item_6 = self.download_table.item(row, 6)
+                    if item_6 is not None:
+                        if item_6.text() != new_display_text:
+                            item_6.setText(new_display_text)
                         
         finally:
             self.download_table.blockSignals(False)
@@ -485,7 +508,9 @@ class MainWindow(QMainWindow):
                 item = self.download_table.item(r, 0)
                 key = id(item)
                 
-                status = self.download_table.item(r, 2).text()
+                status_item = self.download_table.item(r, 2)
+                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else None
+                status = logic_status if logic_status else (status_item.text() if status_item else "")
                 
                 # Check for active workers
                 if key in self.active_downloads:
@@ -507,7 +532,6 @@ class MainWindow(QMainWindow):
         self.action_resume.setEnabled(selection_has_resumable and not selection_has_active)
         self.action_download_now.setEnabled(selection_has_resumable and not selection_has_active)
         
-        self.action_remove.setEnabled(has_selection)
         self.action_delete.setEnabled(has_selection)
         self.action_redownload.setEnabled(has_selection)
         
@@ -519,6 +543,33 @@ class MainWindow(QMainWindow):
         self.save_data() # Save status changes
         self.update_ui_states()
         
+    def delete_selected_download(self):
+        rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
+        if not rows: return
+        
+        dlg = DeleteDialog(self)
+        if dlg.exec():
+            delete_disk = dlg.should_delete_from_disk()
+            for row in rows:
+                item_0 = self.download_table.item(row, 0)
+                key = id(item_0)
+                
+                # Stop if active
+                if key in self.active_downloads:
+                    dialog = self.active_downloads[key]
+                    dialog.worker.stop()
+                    dialog.reject()
+                
+                if delete_disk:
+                    path = item_0.data(Qt.ItemDataRole.UserRole + 1)
+                    if path and os.path.exists(path):
+                        try: os.remove(path)
+                        except: pass
+                
+                self.download_table.removeRow(row)
+            self.save_data()
+            self.update_ui_states()
+
     def redownload_selected(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()))
         for row in rows:
@@ -562,11 +613,15 @@ class MainWindow(QMainWindow):
                 item_name = self.download_table.item(row, 0)
                 if not item_name: continue
                 
+                def safe_get(col):
+                    it = self.download_table.item(row, col)
+                    return it.text() if it else ""
+                
                 url = item_name.data(Qt.ItemDataRole.UserRole)
                 path = item_name.data(Qt.ItemDataRole.UserRole + 1) 
                 filename = item_name.text()
-                size = self.download_table.item(row, 1).text()
-                status = self.download_table.item(row, 2).text()
+                size = safe_get(1)
+                status = safe_get(2)
                 
                 # Retrieve raw timestamp values for persistence
                 last_try_ts = item_name.data(Qt.ItemDataRole.UserRole + 2) or ""
@@ -582,8 +637,8 @@ class MainWindow(QMainWindow):
                     "path": path,
                     "size": size,
                     "status": status,
-                    "time_left": self.download_table.item(row, 3).text(),
-                    "rate": self.download_table.item(row, 4).text(),
+                    "time_left": safe_get(3),
+                    "rate": safe_get(4),
                     "last_try": str(last_try_ts), # Save raw timestamp
                     "date_added": str(date_added_ts) # Save raw timestamp
                 }
@@ -721,8 +776,9 @@ class MainWindow(QMainWindow):
         menu.addActions([act_redownload, act_refresh])
         menu.addSeparator()
         
-        act_remove = QAction("Remove", self)
-        menu.addAction(act_remove)
+        act_delete = QAction("Delete", self)
+        act_delete.triggered.connect(self.delete_selected_download)
+        menu.addAction(act_delete)
         menu.addSeparator()
         
         act_props = QAction("Properties", self)
@@ -733,9 +789,7 @@ class MainWindow(QMainWindow):
         act_open_folder.triggered.connect(lambda: self.ctx_open_folder(item))
         act_move.triggered.connect(lambda: self.ctx_move_rename(item))
         act_redownload.triggered.connect(lambda: self.ctx_redownload(item))
-        # Resume/Stop connected to generic handlers above
         act_refresh.triggered.connect(lambda: self.ctx_refresh_address(item))
-        act_remove.triggered.connect(self.remove_from_list) 
         act_props.triggered.connect(lambda: self.ctx_properties(item))
 
         menu.exec(self.download_table.viewport().mapToGlobal(pos))
@@ -921,7 +975,27 @@ class MainWindow(QMainWindow):
             try: os.makedirs(save_dir)
             except: save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
 
-        worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename)
+        # SMART ROUTING: Check if Aria2 RPC is responsive before starting
+        use_aria2 = False
+        try:
+            ext_data = load_extension_config()
+            token = ext_data.get("token", "")
+            params = [f"token:{token}"] if token else []
+            payload = {"jsonrpc": "2.0", "id": "1", "method": "aria2.getVersion", "params": params}
+            
+            rpc_url = f"http://{ext_data.get('host', 'localhost')}:{ext_data.get('port', 6800)}/jsonrpc"
+            req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                res = json.loads(resp.read())
+                if 'error' not in res:
+                    use_aria2 = True
+        except:
+            pass
+
+        if use_aria2:
+            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename)
+        else:
+            worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename)
         
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
         item_ref.setText(worker.filename)
@@ -978,9 +1052,20 @@ class MainWindow(QMainWindow):
                 key = id(item)
                 if key in self.active_downloads:
                     dialog = self.active_downloads[key]
-                    dialog.worker.pause() # Pause the worker
-                    # Update status immediately
-                    self.download_table.setItem(item.row(), 2, QTableWidgetItem("Paused"))
+                    dialog.worker.stop() # Drop lock
+                    
+                    # Update status preserving percentage string
+                    status_item = self.download_table.item(item.row(), 2)
+                    if not status_item:
+                        status_item = QTableWidgetItem()
+                        self.download_table.setItem(item.row(), 2, status_item)
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                    final_display = f"{pct_data} complete" if pct_data else "Paused"
+                    status_item.setText(final_display)
+                    
+                    # Preserve Time Left but Drop Rate
+                    self._set_sortable_item(item.row(), 4, "", parse_size_to_bytes)
                     
                     # Update last try timestamp on pause
                     item_ref = self.download_table.item(item.row(), 0)
@@ -993,12 +1078,21 @@ class MainWindow(QMainWindow):
 
     def stop_all_downloads(self):
         for dialog in list(self.active_downloads.values()):
-            dialog.worker.pause()
+            dialog.worker.stop()
             # Find the corresponding table item and update status/timestamp
             for r in range(self.download_table.rowCount()):
                 item_ref = self.download_table.item(r, 0)
                 if id(item_ref) == next((k for k, v in self.active_downloads.items() if v == dialog), None):
-                    self.download_table.setItem(r, 2, QTableWidgetItem("Paused"))
+                    status_item = self.download_table.item(r, 2)
+                    if not status_item:
+                        status_item = QTableWidgetItem()
+                        self.download_table.setItem(r, 2, status_item)
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                    final_display = f"{pct_data} complete" if pct_data else "Paused"
+                    status_item.setText(final_display)
+                    
+                    self._set_sortable_item(r, 4, "", parse_size_to_bytes)
                     
                     new_timestamp = str(time.time())
                     item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
@@ -1025,28 +1119,30 @@ class MainWindow(QMainWindow):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
         if not rows: return
             
-        confirm = QMessageBox.question(self, "Delete", "Are you sure you want to delete selected download(s)?\nThis will delete the files from disk.", 
-                                       QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        count = len(rows)
+        dialog = DeleteDialog(count, is_completed=False, parent=self)
         
-        if confirm == QMessageBox.StandardButton.Yes:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            delete_disk = dialog.should_delete_from_disk()
             for row in rows:
                 item_name = self.download_table.item(row, 0)
                 key = id(item_name)
                 if key in self.active_downloads:
-                    dialog = self.active_downloads[key]
-                    dialog.worker.stop()
-                    dialog.reject()
+                    dlg = self.active_downloads[key]
+                    dlg.worker.stop()
+                    dlg.reject()
                 
-                path = item_name.data(Qt.ItemDataRole.UserRole + 1)
-                if path and os.path.exists(path):
-                    try: os.remove(path)
-                    except: pass
-                if path and os.path.exists(path + ".tmpbdm"):
-                    try: os.remove(path + ".tmpbdm")
-                    except: pass
-                if path and os.path.exists(path + ".tmpbdm.bdmx"): # Delete state file
-                    try: os.remove(path + ".tmpbdm.bdmx")
-                    except: pass
+                if delete_disk:
+                    path = item_name.data(Qt.ItemDataRole.UserRole + 1)
+                    if path and os.path.exists(path):
+                        try: os.remove(path)
+                        except: pass
+                    if path and os.path.exists(path + ".tmpbdm"):
+                        try: os.remove(path + ".tmpbdm")
+                        except: pass
+                    if path and os.path.exists(path + ".tmpbdm.bdmx"):
+                        try: os.remove(path + ".tmpbdm.bdmx")
+                        except: pass
                 
                 self.download_table.removeRow(row)
             self.save_data()
@@ -1063,7 +1159,7 @@ class MainWindow(QMainWindow):
 
         # FEATURE: Use custom dialog for checkbox functionality
         count = len(rows_to_delete)
-        dialog = DeleteCompletedDialog(count, self)
+        dialog = DeleteDialog(count, is_completed=True, parent=self)
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
             delete_disk = dialog.should_delete_from_disk()
@@ -1090,7 +1186,10 @@ class MainWindow(QMainWindow):
             self.update_ui_states()
 
     def update_download_row(self, item_ref, data):
-        row = self.download_table.row(item_ref)
+        try:
+            row = self.download_table.row(item_ref)
+        except RuntimeError:
+            return # object has been deleted by remove
         if row == -1: return 
         
         # --- FIX: Block signals during bulk update to prevent flickering ---
@@ -1112,9 +1211,12 @@ class MainWindow(QMainWindow):
             
             # Col 2: Status
             status_item = self.download_table.item(row, 2)
+            old_status = ""
             if not status_item:
                  status_item = QTableWidgetItem()
                  self.download_table.setItem(row, 2, status_item)
+            else:
+                 old_status = status_item.text()
                  
             # Map worker status to improved table status
             worker_status = data[2]
@@ -1129,11 +1231,33 @@ class MainWindow(QMainWindow):
             else:
                 display_status = worker_status
                 
-            status_item.setText(display_status)
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            
+            final_display = display_status
+            if len(data) > 6:
+                comp, tot = data[5], data[6]
+                if tot > 0:
+                    pct = f"{(comp/tot)*100:.1f}%"
+                    status_item.setData(Qt.ItemDataRole.UserRole, pct)
+            
+            if display_status in ["Paused", "Cancelled"]:
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                if pct_data:
+                    final_display = f"{pct_data}"
+                
+            if final_display != old_status:
+                status_item.setText(final_display)
+                self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
-            self._set_sortable_item(row, 3, data[3], parse_time_to_sec)
-            self._set_sortable_item(row, 4, data[4], parse_size_to_bytes)
+            if display_status in ["Completed", "Error"]:
+                self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            elif display_status in ["Paused", "Cancelled"]:
+                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            else:
+                self._set_sortable_item(row, 3, data[3], parse_time_to_sec)
+                self._set_sortable_item(row, 4, data[4], parse_size_to_bytes)
             
             # Col 5: Last Try (Formatted for display)
             # This is already being updated here for active downloads
@@ -1145,9 +1269,11 @@ class MainWindow(QMainWindow):
             self.download_table.viewport().update()
 
     def download_finished(self, item_ref, status_text):
-        row = self.download_table.row(item_ref)
+        try:
+            row = self.download_table.row(item_ref)
+        except RuntimeError:
+            return # object has been deleted by remove
         if row != -1:
-            # Map final worker status to display status
             if status_text == "Completed":
                  display_status = "Completed"
             elif status_text == "Cancelled":
@@ -1156,8 +1282,27 @@ class MainWindow(QMainWindow):
                  display_status = "Paused"
             else:
                  display_status = "Error"
+            
+            if display_status in ["Completed", "Error"]:
+                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            elif display_status in ["Paused", "Cancelled"]:
+                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
                  
-            self.download_table.setItem(row, 2, QTableWidgetItem(display_status))
+            status_item = self.download_table.item(row, 2)
+            if not status_item:
+                status_item = QTableWidgetItem()
+                self.download_table.setItem(row, 2, status_item)
+                
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            
+            final_display = display_status
+            if display_status in ["Paused", "Cancelled"]:
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                if pct_data:
+                    final_display = f"{pct_data} complete"
+            
+            status_item.setText(final_display)
             
             # Update Last Try timestamp one last time when download stops/finishes
             final_timestamp = str(time.time())

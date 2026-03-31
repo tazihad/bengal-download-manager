@@ -199,6 +199,40 @@ class OptionsDialog(QDialog):
         
         grp_settings = QGroupBox("Engine Settings")
         vbox_settings = QVBoxLayout()
+        
+        # Test RPC connection to determine Active Engine
+        import urllib.request
+        
+        token = self.extension_data.get("token", "")
+        params = [f"token:{token}"] if token else []
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "1",
+            "method": "aria2.getVersion",
+            "params": params
+        }
+        
+        rpc_host = self.extension_data.get("host", "localhost")
+        rpc_port = self.extension_data.get("port", 6800)
+        rpc_url = f"http://{rpc_host}:{rpc_port}/jsonrpc"
+        
+        req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
+        engine_status = "Fallback (Custom Python)"
+        try:
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                res = json.loads(resp.read())
+                if 'error' in res:
+                    engine_status = f"<span style='color: orange; font-weight: bold;'>Fallback (RPC Error: {res['error'].get('message', 'Unknown')})</span>"
+                else:
+                    version = res.get('result', {}).get('version', 'Unknown')
+                    engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
+        except:
+            engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
+            
+        lbl_engine = QLabel(f"Active Engine: {engine_status}")
+        lbl_engine.setTextFormat(Qt.TextFormat.RichText)
+        vbox_settings.addWidget(lbl_engine)
+        
         vbox_settings.addWidget(QLabel("Default Connections: 8"))
         
         version_info = "Not found"
@@ -604,6 +638,8 @@ class DownloadProgressDialog(QDialog):
         
         self.is_expanded = False
         self.segment_bars = []
+        self.current_bytes = 0
+        self.total_bytes = 0
         
         self.worker.log_signal.connect(self.append_log)
         self.worker.main_bar_signal.connect(self.update_progress)
@@ -621,10 +657,13 @@ class DownloadProgressDialog(QDialog):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(5)
 
-        self.lbl_url = QLabel(self.worker.url)
+        url_text = self.worker.url
+        display_url = url_text if len(url_text) <= 65 else url_text[:62] + "..."
+        
+        self.lbl_url = QLabel(display_url)
+        self.lbl_url.setToolTip(url_text)
         self.lbl_url.setStyleSheet("color: #666;")
         self.lbl_url.setFixedWidth(self.fixed_width - 60) 
-        self.lbl_url.setWordWrap(True) 
         layout.addWidget(self.lbl_url)
 
         status_layout = QHBoxLayout()
@@ -839,7 +878,8 @@ class DownloadProgressDialog(QDialog):
             self.setFixedSize(self.fixed_width, self.base_height)
 
     def init_segment_table(self, num_segments):
-        if num_segments > 1:
+        # Aria2 backend (which has 'gid') supports resume automatically
+        if num_segments > 1 or hasattr(self.worker, 'gid'):
             self.lbl_resume.setText("Yes")
         else:
             self.lbl_resume.setText("No/Unknown")
@@ -848,7 +888,9 @@ class DownloadProgressDialog(QDialog):
             self.segments_layout.itemAt(i).widget().setParent(None)
         self.segment_bars = []
 
-        for i in range(num_segments):
+        total_display = 8
+
+        for i in range(total_display):
             bar = QProgressBar()
             bar.setTextVisible(False)
             bar.setStyleSheet("""
@@ -860,17 +902,26 @@ class DownloadProgressDialog(QDialog):
             self.segments_layout.addWidget(bar)
             self.segment_bars.append(bar)
 
-        self.seg_table.setRowCount(num_segments)
-        for i in range(num_segments):
+        self.seg_table.setRowCount(total_display)
+        for i in range(total_display):
             self.seg_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
-            self.seg_table.setItem(i, 1, QTableWidgetItem("0 B")) 
-            self.seg_table.setItem(i, 2, QTableWidgetItem("0 B/s"))
-            self.seg_table.setItem(i, 3, QTableWidgetItem("Pending..."))
+            if i < num_segments:
+                self.seg_table.setItem(i, 1, QTableWidgetItem("0 B")) 
+                self.seg_table.setItem(i, 2, QTableWidgetItem("0 B/s"))
+                self.seg_table.setItem(i, 3, QTableWidgetItem("Pending..."))
+            else:
+                self.seg_table.setItem(i, 1, QTableWidgetItem("-")) 
+                self.seg_table.setItem(i, 2, QTableWidgetItem("-"))
+                self.seg_table.setItem(i, 3, QTableWidgetItem("Unused"))
 
     def update_segment_row(self, index, dl, total, speed, status):
         if index < len(self.segment_bars):
-            self.segment_bars[index].setMaximum(total)
-            self.segment_bars[index].setValue(dl)
+            if total > 0:
+                self.segment_bars[index].setMaximum(10000)
+                self.segment_bars[index].setValue(int((dl / total) * 10000))
+            else:
+                self.segment_bars[index].setMaximum(0)
+                self.segment_bars[index].setValue(0)
             
             dl_str = self.worker.format_bytes(dl)
             self.seg_table.setItem(index, 1, QTableWidgetItem(dl_str))
@@ -881,7 +932,7 @@ class DownloadProgressDialog(QDialog):
             if status == "Receiving data...":
                  display_status = "Downloading"
             elif status == "Complete":
-                 display_status = "Segment Completed"
+                 display_status = "Completed"
             else:
                  display_status = status
             self.seg_table.setItem(index, 3, QTableWidgetItem(display_status))
@@ -899,15 +950,31 @@ class DownloadProgressDialog(QDialog):
             self.lbl_main_status.setText(display_text)
 
     def update_progress(self, current, total):
-        self.pbar.setMaximum(total)
-        self.pbar.setValue(current)
+        self.current_bytes = current
+        self.total_bytes = total
+        
+        # Scale for QProgressBar since it takes 32-bit int
+        if total > 0:
+            self.pbar.setMaximum(10000)
+            self.pbar.setValue(int((current / total) * 10000))
+        else:
+            self.pbar.setMaximum(0)
+            self.pbar.setValue(0)
 
     def update_stats(self, row, data):
         self.lbl_size.setText(data[1])
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
-        current_bytes = self.pbar.value()
-        percent = data[2]
+        
+        current_bytes = self.current_bytes
+        total_bytes = self.total_bytes
+        
+        # Calculate percentage properly based on progress bar values
+        if total_bytes > 0:
+            percent = f"{(current_bytes / total_bytes) * 100:.1f}%"
+        else:
+            percent = "Unknown %" if current_bytes > 0 else "0.0%"
+            
         self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes)} ({percent})")
         
         main_status_text = self.lbl_main_status.text()
@@ -931,6 +998,8 @@ class DownloadProgressDialog(QDialog):
     def cancel_download(self):
         if self.btn_cancel.text() == "Cancel":
             self.worker.stop()
+            self.worker.finished_signal.emit(self.worker.row_index, "Cancelled")
+            self.btn_cancel.setText("Close")
         
         self.reject() 
 
@@ -950,7 +1019,19 @@ class DownloadProgressDialog(QDialog):
         self.lbl_main_status.setText(display_status)
         
         if display_status == "Completed":
-            self.pbar.setValue(self.pbar.maximum())
+            if self.total_bytes > 0:
+                self.current_bytes = self.total_bytes
+                self.pbar.setMaximum(10000)
+                self.pbar.setValue(10000)
+                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.total_bytes)} (100.0%)")
+            else:
+                self.pbar.setMaximum(10000)
+                self.pbar.setValue(10000)
+                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes)} (100.0%)")
+                
+            self.lbl_time.setText("0 sec")
+            self.lbl_speed.setText("0 B/s")
+            
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")
             self.btn_pause.setEnabled(True)
@@ -965,9 +1046,6 @@ class DownloadProgressDialog(QDialog):
             
     def closeEvent(self, event):
         if self.btn_cancel.text() == "Cancel":
-            self.worker.pause()
-            event.accept()
-        elif self.btn_pause.text() == "Open Folder":
-            event.accept()
-        else:
-            event.accept()
+            self.worker.stop()
+            self.worker.finished_signal.emit(self.worker.row_index, "Paused")
+        self.reject()
