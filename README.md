@@ -2,6 +2,10 @@
 
 Bengal Download Manager is a powerful and efficient download management tool designed to simplify and accelerate your downloading experience.
 
+## Screenshots
+<img width="800" alt="Screenshot_20260427_193142" src="https://github.com/user-attachments/assets/e9346302-548c-4898-8122-b5dd1507a2f2" />
+
+
 ## Features
 
 - **Multi-threaded Downloads:** Download files in multiple parts simultaneously, significantly increasing download speeds.
