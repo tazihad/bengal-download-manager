@@ -39,9 +39,8 @@ Bengal Download Manager is a powerful and efficient download management tool des
    ```bash
    git clone https://github.com/tazihad/bengal-download-manager.git
    cd bengal-download-manager
-   # Follow build instructions in CONTRIBUTING.md
    ```
-   
+
    ```sh
    pip install -r requirements.txt
    cmake -S . -B build
