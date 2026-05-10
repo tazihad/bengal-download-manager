@@ -43,6 +43,7 @@ Bengal Download Manager is a powerful and efficient download management tool des
    ```
    
    ```sh
+   pip install -r requirements.txt
    cmake -S . -B build
    cmake --build build
    ```
