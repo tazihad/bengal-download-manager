@@ -238,7 +238,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bengal Download Manager")
-        self.setWindowIcon(QIcon("src/assets/icon.png"))
+        icon_path = os.path.join(get_data_dir(), "assets", "icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         self.setGeometry(200, 150, 1000, 600)
         
         self.settings = self.load_settings()

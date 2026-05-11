@@ -26,6 +26,7 @@ class FileInfoFetcherWorker(QThread):
         }
         
         try:
+            # 1. Try to get filename from URL first
             parsed = urlparse(self.url)
             path = unquote(parsed.path)
             basename = os.path.basename(path)
@@ -34,20 +35,56 @@ class FileInfoFetcherWorker(QThread):
             else:
                 result["filename"] = "file"
                 
-            req = urllib.request.Request(self.url, method='HEAD')
+            req = urllib.request.Request(self.url, method='GET') # Use GET but only read headers if possible
             req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
             
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            # Use a context manager to ensure the connection is closed
+            # We use GET because some servers (like GitHub releases) might not support HEAD properly
+            # or might return different headers for HEAD vs GET.
+            # We'll close the response immediately after reading headers.
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 content_length = resp.headers.get("Content-Length")
                 if content_length and content_length.isdigit():
                     result["size_bytes"] = int(content_length)
                     result["size_str"] = self.format_bytes(result["size_bytes"])
                 
                 content_disp = resp.headers.get("Content-Disposition")
-                if content_disp and "filename=" in content_disp:
+                header_filename = None
+                if content_disp:
                     import re
-                    match = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp)
-                    if match: result["filename"] = match.group(1).strip()
+                    # Look for filename* (RFC 5987) or filename=
+                    cd_match = re.search(r'filename\*=UTF-8\'\'([^"\';]+)', content_disp, re.IGNORECASE)
+                    if not cd_match:
+                        cd_match = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp, re.IGNORECASE)
+                    
+                    if cd_match:
+                        extracted = unquote(cd_match.group(1).strip())
+                        if extracted:
+                            header_filename = extracted
+
+                # SMART FILENAME LOGIC:
+                # 1. If we have a header filename, check if it's "garbage" (like a UUID)
+                # 2. If it's garbage and our URL basename looks good, prefer basename.
+                # 3. Otherwise, prefer header filename.
+                
+                is_garbage = False
+                if header_filename:
+                    # Check if UUID-like: 8-4-4-4-12 hex chars
+                    import re
+                    if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', header_filename, re.I):
+                        is_garbage = True
+                    # Check if purely hex hash (like SHA1/MD5)
+                    elif re.match(r'^[0-9a-f]{32,64}$', header_filename, re.I):
+                        is_garbage = True
+                
+                if header_filename and not is_garbage:
+                    result["filename"] = header_filename
+                elif basename and basename != "file":
+                    # Keep the original basename if it looks like a real file
+                    result["filename"] = basename
+                elif header_filename:
+                    # Last resort: use the garbage header filename
+                    result["filename"] = header_filename
                     
         except Exception as e:
             result["error"] = str(e)

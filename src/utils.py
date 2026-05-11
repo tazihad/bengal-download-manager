@@ -89,15 +89,15 @@ def ensure_aria2():
         os.remove(temp_file)
         os.chmod(local_aria2, 0o755)
         
-        # Symlink to ~/.local/bin/ if it exists
+        # Symlink to ~/.local/bin/
         local_bin = os.path.expanduser("~/.local/bin")
-        if os.path.exists(local_bin):
-            symlink_path = os.path.join(local_bin, "aria2c")
-            if not os.path.exists(symlink_path):
-                try:
-                    os.symlink(local_aria2, symlink_path)
-                except:
-                    pass
+        os.makedirs(local_bin, exist_ok=True)
+        symlink_path = os.path.join(local_bin, "aria2c")
+        if not os.path.exists(symlink_path):
+            try:
+                os.symlink(local_aria2, symlink_path)
+            except:
+                pass
                     
         return local_aria2
     except Exception:

@@ -32,7 +32,9 @@
   "permissions": [
     "downloads",
     "storage",
-    "contextMenus"
+    "contextMenus",
+    "webRequest",
+    "webRequestBlocking"
   ],
   "host_permissions": [
     "<all_urls>",
