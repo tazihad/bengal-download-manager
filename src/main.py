@@ -20,7 +20,10 @@ from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, 
 
 from workers import DownloadWorker, Aria2Worker
 from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, load_category_config, load_extension_config
-from utils import get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2
+from utils import (
+    get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
+    load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin
+)
 
 # Default TCP port for extension communication
 DM_CONNECTOR_PORT = 9000 
@@ -283,27 +286,53 @@ class MainWindow(QMainWindow):
         # Auto-start local Aria2 daemon for accelerated downloading
         self.aria2_process = self.start_aria2_daemon()
 
+    def _handle_options_accepted(self):
+        # Clean restart aria2 daemon
+        if self.aria2_process:
+            try:
+                self.aria2_process.terminate()
+                try: self.aria2_process.wait(timeout=2.0)
+                except: self.aria2_process.kill()
+            except: pass
+        self.aria2_process = self.start_aria2_daemon()
+
     def start_aria2_daemon(self):
         try:
             aria2_bin = ensure_aria2() or "aria2c"
             ext_data = load_extension_config()
             port = ext_data.get("port", 56800)
             token = ext_data.get("token", "")
-            
+
+            # Note: --no-proxy is not needed for the server side of RPC
             cmd = [
                 aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
-                "--rpc-allow-origin-all", "--max-connection-per-server=8",
-                "--min-split-size=1M", "--split=8", "--daemon=false"
+                "--rpc-listen-all=false", "--rpc-allow-origin-all",
+                "--max-connection-per-server=8", "--min-split-size=1M",
+                "--split=8", "--daemon=false",
+                "--no-proxy=127.0.0.1,localhost"
             ]
-            if token:
-                cmd.append(f"--rpc-secret={token}")
-                
-            # We use --daemon=false because PyQt will manage the subprocess lifecycle
-            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if token: cmd.append(f"--rpc-secret={token}")
+
+            # --- APPLY PROXY SETTINGS VIA PROXYCHAINS ---
+            proxy_conf = generate_proxychains_config()
+            proxychains_bin = get_proxychains_bin()
+
+            popen_kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+
+            if proxy_conf and proxychains_bin:
+                if "proxychains4" in proxychains_bin:
+                    # Wrap aria2 command with proxychains v4 (supports -f)
+                    cmd = [proxychains_bin, "-f", proxy_conf] + cmd
+                else:
+                    # Wrap with proxychains v3 (no -f support)
+                    # It looks for proxychains.conf in the current working directory.
+                    cmd = [proxychains_bin] + cmd
+                    popen_kwargs["cwd"] = get_config_dir()
+
+            proc = subprocess.Popen(cmd, **popen_kwargs)
             return proc
         except Exception:
             return None
-
     def closeEvent(self, event: QCloseEvent):
         # Stop IPC Listener Thread before closing
         self.listener_thread.stop()
@@ -1115,22 +1144,16 @@ class MainWindow(QMainWindow):
             try: os.makedirs(save_dir)
             except: save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
 
-        # SMART ROUTING: Check if Aria2 RPC is responsive before starting
-        use_aria2 = False
+        # SMART ROUTING: Use Aria2 as the primary engine. 
+        # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.
+        use_aria2 = True
         try:
-            ext_data = load_extension_config()
-            token = ext_data.get("token", "")
-            params = [f"token:{token}"] if token else []
-            payload = {"jsonrpc": "2.0", "id": "1", "method": "aria2.getVersion", "params": params}
-            
-            rpc_url = f"http://{ext_data.get('host', 'localhost')}:{ext_data.get('port', 56800)}/jsonrpc"
-            req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req, timeout=0.5) as resp:
-                res = json.loads(resp.read())
-                if 'error' not in res:
-                    use_aria2 = True
+            # Quick check if it's alive, but don't strictly require it to be responsive 
+            # at this exact millisecond (it might be starting up or busy).
+            if not hasattr(self, 'aria2_process') or not self.aria2_process:
+                use_aria2 = False
         except:
-            pass
+            use_aria2 = False
 
         if use_aria2:
             worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename)
@@ -1464,8 +1487,14 @@ class MainWindow(QMainWindow):
     def _handle_options_accepted(self):
         # Restart aria2 daemon to apply new port/token
         if self.aria2_process:
-            self.aria2_process.terminate()
-            self.aria2_process.wait()
+            try:
+                self.aria2_process.terminate()
+                try:
+                    self.aria2_process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    self.aria2_process.kill()
+            except:
+                pass
         self.aria2_process = self.start_aria2_daemon()
 
     def show_about(self):

@@ -10,20 +10,37 @@ chrome.webRequest.onBeforeRedirect.addListener((details) => {
 // --- CONNECTION VERIFICATION ---
 async function isAria2Online() {
   const items = await chrome.storage.local.get({ port: 56800, token: "" });
-  const url = `http://localhost:${items.port}/jsonrpc`;
+  const url = `http://127.0.0.1:${items.port}/jsonrpc`;
   const params = items.token ? [`token:${items.token}`] : [];
   const payload = { jsonrpc: "2.0", id: "bg-check", method: "aria2.getVersion", params: params };
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+      cache: 'no-store'
     });
+    
+    clearTimeout(timeoutId);
     const data = await response.json();
     return !!(data.result && data.result.version);
   } catch (e) {
-    return false;
+    // If 127.0.0.1 fails, try localhost as fallback
+    try {
+        const response = await fetch(`http://localhost:${items.port}/jsonrpc`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        return !!(data.result && data.result.version);
+    } catch {
+        return false;
+    }
   }
 }
 
@@ -50,39 +67,46 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
   } else if (contentType.includes('application/octet-stream') || 
              contentType.includes('application/x-msdos-program') ||
              contentType.includes('application/zip') ||
-             contentType.includes('application/x-7z-compressed') ||
-             contentType.includes('application/x-rar-compressed') ||
-             contentType.includes('application/x-apple-diskimage') ||
-             contentType.includes('application/x-debian-package')) {
+             contentType.includes('application/x-7z-compressed')) {
     isDownload = true;
   }
 
   if (isDownload) {
-    // Only intercept if Aria2 is actually online on the configured port
-    // We use a sync-like check here (Async doesn't work in blocking listeners directly)
-    // But since onHeadersReceived blocking doesn't support async, we rely on the Downloads API fallback 
-    // for out-of-sync cases, OR we just let it go.
-    // However, if we CAN'T verify, we better let the browser handle it than potentially lose the download.
+    // Blocking check for sync is not possible here, so we always pass to background tasks
+    // background task will verify sync before actually sending to DM
     return; 
   }
 }, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }, ["blocking", "responseHeaders"]);
 
 // --- HELPER: Send URL to Python App ---
 async function sendToBengalDM(targetUrl) {
-  // STRICT SYNC CHECK: Verify Aria2 is online before sending
+  // Try port 9000 check first
+  try {
+    const response = await fetch("http://127.0.0.1:9000/", { method: 'GET' });
+    if (!response.ok) return false;
+  } catch {
+    // Try localhost if 127.0.0.1 fails
+    try {
+        await fetch("http://localhost:9000/", { method: 'GET' });
+    } catch {
+        return false;
+    }
+  }
+
+  // Then verify Aria2 Sync
   const online = await isAria2Online();
   if (!online) {
-    console.error("Aria2 port mismatch or offline. Aborting takeover.");
+    console.warn("Aria2 out of sync or unreachable via 127.0.0.1/localhost");
     return false;
   }
 
   const originalUrl = urlMap.get(targetUrl) || targetUrl;
   try {
-    const response = await fetch("http://127.0.0.1:9000/", {
+    await fetch("http://127.0.0.1:9000/", {
       method: 'POST',
       body: originalUrl
     });
-    return response.ok;
+    return true;
   } catch (err) {
     return false;
   }
@@ -120,14 +144,9 @@ chrome.downloads.onCreated.addListener(async (downloadItem) => {
     const isImageExt = downloadItem.url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|avif)(\?.*)?$/i);
     if (isImageMime || isImageExt) return;
 
-    // Verify SYNC before hijacking
     const online = await isAria2Online();
-    if (!online) {
-        console.warn("Aria2 out of sync. Allowing browser to handle download.");
-        return;
-    }
+    if (!online) return;
 
-    // Hijack
     queueMicrotask(() => {
         chrome.downloads.cancel(downloadItem.id);
         chrome.downloads.erase({ id: downloadItem.id });

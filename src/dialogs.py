@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtCore import Qt
-from utils import get_config_dir
+from utils import get_config_dir, load_proxy_config, save_proxy_config, load_extension_config, save_extension_config
 
 # --- CONFIGURATION HELPERS ---
 DEFAULT_CATEGORIES = {
@@ -62,58 +62,6 @@ def save_category_config(data):
             json.dump(data, f, indent=4)
     except Exception:
         pass
-
-def load_proxy_config():
-    path = os.path.join(get_config_dir(), "proxy.json")
-    default = {
-        "mode": "no_proxy", # no_proxy, system, manual
-        "type": "http", # http, socks4, socks5
-        "host": "",
-        "port": 8080,
-        "auth": False,
-        "user": "",
-        "password": ""
-    }
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except:
-            pass
-    return default
-
-def save_proxy_config(data):
-    path = os.path.join(get_config_dir(), "proxy.json")
-    try:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
-    except:
-        pass
-
-def load_extension_config():
-    path = os.path.join(get_config_dir(), "extension.json")
-    default = {
-        "protocol": "ws", # Default to websocket
-        "host": "localhost",
-        "port": 56800,
-        "token": ""
-    }
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except:
-            pass
-    return default
-
-def save_extension_config(data):
-    path = os.path.join(get_config_dir(), "extension.json")
-    try:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
-    except:
-        pass
-
 
 # --- ADD URL DIALOG ---
 class AddUrlDialog(QDialog):
@@ -314,38 +262,13 @@ class OptionsDialog(QDialog):
         grp_settings = QGroupBox("Engine Settings")
         vbox_settings = QVBoxLayout()
         
-        # Test RPC connection to determine Active Engine
-        import urllib.request
+        # Engine status label
+        self.lbl_engine = QLabel("Active Engine: Checking...")
+        self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
+        vbox_settings.addWidget(self.lbl_engine)
         
-        token = self.extension_data.get("token", "")
-        params = [f"token:{token}"] if token else []
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "1",
-            "method": "aria2.getVersion",
-            "params": params
-        }
-        
-        rpc_host = self.extension_data.get("host", "localhost")
-        rpc_port = self.extension_data.get("port", 56800)
-        rpc_url = f"http://{rpc_host}:{rpc_port}/jsonrpc"
-        
-        req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        engine_status = "Fallback (Custom Python)"
-        try:
-            with urllib.request.urlopen(req, timeout=0.5) as resp:
-                res = json.loads(resp.read())
-                if 'error' in res:
-                    engine_status = f"<span style='color: orange; font-weight: bold;'>Fallback (RPC Error: {res['error'].get('message', 'Unknown')})</span>"
-                else:
-                    version = res.get('result', {}).get('version', 'Unknown')
-                    engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
-        except:
-            engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
-            
-        lbl_engine = QLabel(f"Active Engine: {engine_status}")
-        lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        vbox_settings.addWidget(lbl_engine)
+        # Initial check
+        self.refresh_engine_status()
         
         vbox_settings.addWidget(QLabel("Default Connections: 8"))
         
@@ -366,6 +289,32 @@ class OptionsDialog(QDialog):
         grp_settings.setLayout(vbox_settings)
         layout.addWidget(grp_settings)
         layout.addStretch()
+
+    def refresh_engine_status(self):
+        """Re-tests the Aria2 RPC connection and updates the label."""
+        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        
+        from utils import call_aria2_rpc, load_proxy_config
+        proxy = load_proxy_config()
+        
+        # Default status
+        engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
+        
+        try:
+            # Force local check via raw socket
+            result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
+            if result:
+                version = result.get('version', 'Unknown')
+                engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
+            elif proxy.get("mode") == "manual":
+                # If manual proxy is on, aria2 might be starting or taking time through proxychains
+                engine_status = "<span style='color: blue; font-weight: bold;'>Aria2 Starting (via Proxychains)...</span>"
+        except:
+            pass
+        
+        if hasattr(self, 'lbl_engine'):
+            self.lbl_engine.setText(f"Active Engine: {engine_status}")
 
     def setup_saveto_tab(self):
         layout = QVBoxLayout(self.saveto_tab)
@@ -446,18 +395,24 @@ class OptionsDialog(QDialog):
         layout.addStretch()
         self.on_category_changed(self.combo_cat.currentText())
 
+    def on_proxy_toggle(self, checked):
+        if checked:
+            self.update_proxy_ui()
+            self.save_proxy_data()
+            self.refresh_engine_status()
+
     def setup_proxy_tab(self):
         layout = QVBoxLayout(self.proxy_tab)
         
         self.bg_mode = QButtonGroup(self)
         
         self.rb_no_proxy = QRadioButton("No proxy / Get from system")
-        self.rb_no_proxy.toggled.connect(self.update_proxy_ui)
+        self.rb_no_proxy.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_no_proxy)
         self.bg_mode.addButton(self.rb_no_proxy)
         
         self.rb_manual = QRadioButton("Manual proxy configuration")
-        self.rb_manual.toggled.connect(self.update_proxy_ui)
+        self.rb_manual.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_manual)
         self.bg_mode.addButton(self.rb_manual)
         
@@ -470,8 +425,11 @@ class OptionsDialog(QDialog):
         self.bg_type = QButtonGroup(self)
         
         self.rb_http = QRadioButton("HTTP")
+        self.rb_http.toggled.connect(self.on_proxy_toggle)
         self.rb_socks4 = QRadioButton("SOCKS4")
+        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
         self.rb_socks5 = QRadioButton("SOCKS5")
+        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
         
         self.bg_type.addButton(self.rb_http)
         self.bg_type.addButton(self.rb_socks4)
@@ -488,28 +446,38 @@ class OptionsDialog(QDialog):
         addr_layout = QHBoxLayout()
         addr_layout.addWidget(QLabel("Proxy/Socks host:"))
         self.txt_host = QLineEdit()
+        self.txt_host.textChanged.connect(self.save_proxy_data)
+        self.txt_host.textChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.txt_host)
         
         addr_layout.addWidget(QLabel("Port:"))
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
         self.spin_port.setValue(8080)
+        self.spin_port.valueChanged.connect(self.save_proxy_data)
+        self.spin_port.valueChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.spin_port)
         manual_layout.addLayout(addr_layout)
         
         # Auth
         self.chk_auth = QCheckBox("Authentication required")
         self.chk_auth.toggled.connect(self.update_proxy_ui)
+        self.chk_auth.toggled.connect(self.save_proxy_data)
+        self.chk_auth.toggled.connect(self.refresh_engine_status)
         manual_layout.addWidget(self.chk_auth)
         
         auth_layout = QGridLayout()
         auth_layout.addWidget(QLabel("Username:"), 0, 0)
         self.txt_user = QLineEdit()
+        self.txt_user.textChanged.connect(self.save_proxy_data)
+        self.txt_user.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_user, 0, 1)
         
         auth_layout.addWidget(QLabel("Password:"), 1, 0)
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.textChanged.connect(self.save_proxy_data)
+        self.txt_pass.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_pass, 1, 1)
         
         manual_layout.addLayout(auth_layout)
@@ -517,7 +485,18 @@ class OptionsDialog(QDialog):
         layout.addWidget(self.grp_manual)
         layout.addStretch()
         
-        # Load Values
+        # Load Values (Block signals to prevent auto-save-defaults during init)
+        self.rb_manual.blockSignals(True)
+        self.rb_no_proxy.blockSignals(True)
+        self.rb_http.blockSignals(True)
+        self.rb_socks4.blockSignals(True)
+        self.rb_socks5.blockSignals(True)
+        self.txt_host.blockSignals(True)
+        self.spin_port.blockSignals(True)
+        self.chk_auth.blockSignals(True)
+        self.txt_user.blockSignals(True)
+        self.txt_pass.blockSignals(True)
+        
         if self.proxy_data["mode"] == "manual":
             self.rb_manual.setChecked(True)
         else:
@@ -533,6 +512,17 @@ class OptionsDialog(QDialog):
         self.chk_auth.setChecked(self.proxy_data.get("auth", False))
         self.txt_user.setText(self.proxy_data.get("user", ""))
         self.txt_pass.setText(self.proxy_data.get("password", ""))
+
+        self.rb_manual.blockSignals(False)
+        self.rb_no_proxy.blockSignals(False)
+        self.rb_http.blockSignals(False)
+        self.rb_socks4.blockSignals(False)
+        self.rb_socks5.blockSignals(False)
+        self.txt_host.blockSignals(False)
+        self.spin_port.blockSignals(False)
+        self.chk_auth.blockSignals(False)
+        self.txt_user.blockSignals(False)
+        self.txt_pass.blockSignals(False)
         
         self.update_proxy_ui()
 

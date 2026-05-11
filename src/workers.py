@@ -5,8 +5,7 @@ from urllib.parse import urlparse, unquote
 import urllib.request
 import urllib.error
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
-from utils import get_unique_filepath
-from dialogs import load_proxy_config
+from utils import get_unique_filepath, load_proxy_config, load_extension_config
 
 # --- WORKER FOR PRE-FETCHING FILE INFO ---
 class FileInfoFetcherWorker(QThread):
@@ -16,6 +15,10 @@ class FileInfoFetcherWorker(QThread):
         super().__init__()
         self.url = url
     
+    def create_opener(self):
+        """Standard opener (uses system proxies if any)."""
+        return urllib.request.build_opener()
+
     def run(self):
         result = {
             "url": self.url,
@@ -26,7 +29,7 @@ class FileInfoFetcherWorker(QThread):
         }
         
         try:
-            # 1. Try to get filename from URL first
+            # ... URL parsing logic ...
             parsed = urlparse(self.url)
             path = unquote(parsed.path)
             basename = os.path.basename(path)
@@ -35,14 +38,11 @@ class FileInfoFetcherWorker(QThread):
             else:
                 result["filename"] = "file"
                 
-            req = urllib.request.Request(self.url, method='GET') # Use GET but only read headers if possible
+            req = urllib.request.Request(self.url, method='GET') 
             req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
             
-            # Use a context manager to ensure the connection is closed
-            # We use GET because some servers (like GitHub releases) might not support HEAD properly
-            # or might return different headers for HEAD vs GET.
-            # We'll close the response immediately after reading headers.
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            opener = self.create_opener()
+            with opener.open(req, timeout=10) as resp:
                 content_length = resp.headers.get("Content-Length")
                 if content_length and content_length.isdigit():
                     result["size_bytes"] = int(content_length)
@@ -260,52 +260,10 @@ class DownloadWorker(QThread):
         self.workers = []
         self.segment_stats = {} 
         
-        # --- LOAD PROXY SETTINGS ---
-        self.proxy_config = load_proxy_config()
         self.opener = self.create_opener()
 
     def create_opener(self):
-        """Creates a urllib opener based on proxy settings."""
-        mode = self.proxy_config.get("mode", "no_proxy")
-        
-        if mode == "no_proxy":
-            # Force no proxy by using empty env vars or simple opener
-            return urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            
-        elif mode == "system":
-            # Default behavior uses system proxies
-            return urllib.request.build_opener()
-            
-        elif mode == "manual":
-            ptype = self.proxy_config.get("type", "http")
-            host = self.proxy_config.get("host", "")
-            port = self.proxy_config.get("port", 8080)
-            user = self.proxy_config.get("user", "")
-            password = self.proxy_config.get("password", "")
-            auth = self.proxy_config.get("auth", False)
-            
-            if not host: return urllib.request.build_opener()
-            
-            proxy_url = f"{host}:{port}"
-            if auth and user and password:
-                proxy_url = f"{user}:{password}@{host}:{port}"
-            
-            if ptype == "http":
-                # Supports http and https
-                proxies = {'http': f"http://{proxy_url}", 'https': f"http://{proxy_url}"}
-                return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-            
-            # Note: SOCKS support in standard urllib is limited. 
-            # This implementation sets the scheme, but underlying support depends on PySocks 
-            # being monkey-patched or installed.
-            elif ptype.startswith("socks"):
-                scheme = "socks5" if ptype == "socks5" else "socks4"
-                proxies = {
-                    'http': f"{scheme}://{proxy_url}",
-                    'https': f"{scheme}://{proxy_url}"
-                }
-                return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-                
+        """Standard opener (uses system proxies if any)."""
         return urllib.request.build_opener()
 
     def set_global_speed_limit(self, limit_bytes_per_sec):
@@ -334,9 +292,6 @@ class DownloadWorker(QThread):
     def run(self):
         try:
             self.log_signal.emit("Connecting to server...")
-            if self.proxy_config.get("mode") == "manual":
-                self.log_signal.emit(f"Using Proxy: {self.proxy_config.get('host')}:{self.proxy_config.get('port')}")
-            
             self.log_signal.emit(f"Target file: {self.filename}")
             
             req = urllib.request.Request(self.url, method='HEAD')
@@ -579,11 +534,10 @@ class Aria2Worker(QThread):
         self.is_running = True
         self.gid = None
         
-        from dialogs import load_extension_config
         ext_data = load_extension_config()
         self.rpc_port = ext_data.get("port", 56800)
         self.rpc_token = ext_data.get("token", "")
-        self.rpc_url = f"http://localhost:{self.rpc_port}/jsonrpc"
+        self.rpc_url = f"http://127.0.0.1:{self.rpc_port}/jsonrpc"
         
         parsed_url = urlparse(self.url)
         decoded_path = unquote(parsed_url.path)
@@ -598,23 +552,8 @@ class Aria2Worker(QThread):
             self.filename = os.path.basename(self.target_path)
 
     def call_rpc(self, method, params=None):
-        if params is None: params = []
-        
-        # Include token if set
-        rpc_params = [f"token:{self.rpc_token}"] + params if self.rpc_token else params
-        
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "bengal",
-            "method": method,
-            "params": rpc_params
-        }
-        req = urllib.request.Request(self.rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                return json.loads(resp.read()).get("result")
-        except Exception:
-            return None
+        from utils import call_aria2_rpc
+        return call_aria2_rpc(method, params=params, port=self.rpc_port, token=self.rpc_token)
 
     def run(self):
         self.log_signal.emit("Connecting to Aria2 engine...")

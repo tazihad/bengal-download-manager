@@ -17,19 +17,30 @@ async function testConnection(port, token) {
   refreshBtn.classList.add('spinning');
 
   try {
-    const url = `http://localhost:${port}/jsonrpc`;
+    const url = `http://127.0.0.1:${port}/jsonrpc`;
     const params = token ? [`token:${token}`] : [];
     const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion", params: params };
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
+    let response;
+    try {
+        response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+    } catch (e) {
+        // Fallback to localhost if 127.0.0.1 fails
+        response = await fetch(`http://localhost:${port}/jsonrpc`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+    }
 
     clearTimeout(timeoutId);
 

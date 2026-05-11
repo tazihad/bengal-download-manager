@@ -13,19 +13,29 @@ document.getElementById('options-link').addEventListener('click', (e) => {
 });
 
 async function checkAria2(port, token) {
-    const url = `http://localhost:${port}/jsonrpc`;
+    const url = `http://127.0.0.1:${port}/jsonrpc`;
     const params = token ? [`token:${token}`] : [];
     const payload = { jsonrpc: "2.0", id: "popup-check", method: "aria2.getVersion", params: params };
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1000);
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-            signal: controller.signal
-        });
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+        } catch {
+            response = await fetch(`http://localhost:${port}/jsonrpc`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+        }
         clearTimeout(timeoutId);
         const data = await response.json();
         return !!(data.result && data.result.version);
