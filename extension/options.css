@@ -1,0 +1,153 @@
+:root { 
+  --bg: #ffffff; 
+  --text: #333333; 
+  --border: #e2e8f0; 
+  --primary: #3b82f6; 
+  --success: #22c55e; 
+  --error: #ef4444; 
+}
+
+[data-theme="dark"] { 
+  --bg: #1e293b; 
+  --text: #f8fafc; 
+  --border: #334155; 
+  --primary: #60a5fa; 
+}
+
+body { 
+  font-family: system-ui, sans-serif; 
+  background: var(--bg); 
+  color: var(--text); 
+  padding: 20px; 
+  max-width: 320px; 
+  transition: 0.2s; 
+  margin: 0 auto; 
+}
+
+.card { 
+  background: var(--bg); 
+  border: 1px solid var(--border); 
+  border-radius: 10px; 
+  padding: 20px; 
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
+}
+
+h2 { 
+  margin-top: 0; 
+  border-bottom: 1px solid var(--border); 
+  padding-bottom: 10px; 
+  font-size: 18px; 
+}
+
+label { 
+  display: block; 
+  margin-top: 15px; 
+  font-size: 14px; 
+  font-weight: 500; 
+}
+
+input, select { 
+  width: 100%; 
+  margin-top: 5px; 
+  padding: 10px; 
+  border: 1px solid var(--border); 
+  border-radius: 6px; 
+  background: var(--bg); 
+  color: var(--text); 
+  box-sizing: border-box; 
+}
+
+.status-section { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  margin-top: 20px; 
+  padding: 12px; 
+  border-radius: 8px; 
+  background: rgba(0,0,0,0.04); 
+}
+
+[data-theme="dark"] .status-section { 
+  background: rgba(255,255,255,0.05); 
+}
+
+.status-left { 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+  font-weight: 500; 
+  font-size: 14px; 
+}
+
+.dot { 
+  width: 12px; 
+  height: 12px; 
+  border-radius: 50%; 
+  background: gray; 
+  transition: 0.3s; 
+}
+
+.dot.online { 
+  background: var(--success); 
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); 
+}
+
+.dot.offline { 
+  background: var(--error); 
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); 
+}
+
+.refresh-btn { 
+  background: none; 
+  border: none; 
+  cursor: pointer; 
+  font-size: 16px; 
+  padding: 4px; 
+  border-radius: 4px; 
+  color: var(--text); 
+  transition: 0.2s; 
+}
+
+.refresh-btn:hover { 
+  background: rgba(0,0,0,0.1); 
+}
+
+[data-theme="dark"] .refresh-btn:hover { 
+  background: rgba(255,255,255,0.1); 
+}
+
+.refresh-btn.spinning { 
+  animation: spin 1s linear infinite; 
+  pointer-events: none; 
+  opacity: 0.5; 
+}
+
+@keyframes spin { 
+  100% { transform: rotate(360deg); } 
+}
+
+button.save-btn { 
+  margin-top: 15px; 
+  width: 100%; 
+  padding: 10px; 
+  background: var(--primary); 
+  color: white; 
+  border: none; 
+  border-radius: 6px; 
+  cursor: pointer; 
+  font-weight: bold; 
+  font-size: 14px; 
+  transition: opacity 0.2s; 
+}
+
+button.save-btn:hover { 
+  opacity: 0.8; 
+}
+
+#status-msg { 
+  margin-top: 15px; 
+  text-align: center; 
+  font-size: 14px; 
+  font-weight: bold; 
+  height: 20px; 
+}
