@@ -1506,6 +1506,8 @@ class MainWindow(QMainWindow):
         )
 
 if __name__ == "__main__":
+    from PyQt6.QtCore import Qt
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
