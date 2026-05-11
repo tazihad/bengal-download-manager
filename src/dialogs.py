@@ -663,7 +663,7 @@ class PropertiesDialog(QDialog):
     def __init__(self, file_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Properties - {file_data.get('filename', 'Unknown')}")
-        self.setFixedSize(450, 380)
+        self.setMinimumSize(400, 300)
         
         layout = QVBoxLayout(self)
         
