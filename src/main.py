@@ -253,12 +253,12 @@ class MainWindow(QMainWindow):
             self.setWindowIcon(QIcon(icon_path))
         self.setGeometry(200, 150, 1000, 600)
         
-        self.settings = self.load_settings()
-        
         self.setup_actions()
         self.setup_menu_bar()
         self.setup_toolbar()
         self.setup_central_widget()
+        
+        self.settings = self.load_settings()
         
         # Changed active_downloads to hold the download row reference, not just the dialog ID
         self.active_downloads = {} 
@@ -785,9 +785,15 @@ class MainWindow(QMainWindow):
     def save_settings(self):
         try:
             config_dir = get_config_dir()
+            # Save column widths
+            column_widths = []
+            for i in range(self.download_table.columnCount()):
+                column_widths.append(self.download_table.columnWidth(i))
+
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
+                "column_widths": column_widths
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -807,6 +813,10 @@ class MainWindow(QMainWindow):
                     self.restoreGeometry(QByteArray.fromHex(settings["geometry"].encode()))
                 if "windowState" in settings:
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
+                if "column_widths" in settings:
+                    for i, width in enumerate(settings["column_widths"]):
+                        if i < self.download_table.columnCount():
+                            self.download_table.setColumnWidth(i, width)
         except Exception:
             pass
         return settings
