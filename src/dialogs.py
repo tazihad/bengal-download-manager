@@ -213,7 +213,7 @@ class OptionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Options")
-        self.setFixedSize(600, 550)
+        self.setMinimumSize(500, 400)
         
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
