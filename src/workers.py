@@ -578,7 +578,12 @@ class Aria2Worker(QThread):
         self.save_dir = save_dir
         self.is_running = True
         self.gid = None
-        self.rpc_url = "http://localhost:6800/jsonrpc"
+        
+        from dialogs import load_extension_config
+        ext_data = load_extension_config()
+        self.rpc_port = ext_data.get("port", 56800)
+        self.rpc_token = ext_data.get("token", "")
+        self.rpc_url = f"http://localhost:{self.rpc_port}/jsonrpc"
         
         parsed_url = urlparse(self.url)
         decoded_path = unquote(parsed_url.path)
@@ -594,11 +599,15 @@ class Aria2Worker(QThread):
 
     def call_rpc(self, method, params=None):
         if params is None: params = []
+        
+        # Include token if set
+        rpc_params = [f"token:{self.rpc_token}"] + params if self.rpc_token else params
+        
         payload = {
             "jsonrpc": "2.0",
             "id": "bengal",
             "method": method,
-            "params": params
+            "params": rpc_params
         }
         req = urllib.request.Request(self.rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
         try:

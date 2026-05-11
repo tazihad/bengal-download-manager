@@ -95,7 +95,7 @@ def load_extension_config():
     default = {
         "protocol": "ws", # Default to websocket
         "host": "localhost",
-        "port": 6800,
+        "port": 56800,
         "token": ""
     }
     if os.path.exists(path):
@@ -327,7 +327,7 @@ class OptionsDialog(QDialog):
         }
         
         rpc_host = self.extension_data.get("host", "localhost")
-        rpc_port = self.extension_data.get("port", 6800)
+        rpc_port = self.extension_data.get("port", 56800)
         rpc_url = f"http://{rpc_host}:{rpc_port}/jsonrpc"
         
         req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
@@ -572,27 +572,20 @@ class OptionsDialog(QDialog):
 
         form_layout.addWidget(self.combo_aria_proto, 0, 1)
         
-        # Host
-        form_layout.addWidget(QLabel("Host:"), 1, 0)
-        self.txt_aria_host = QLineEdit()
-        self.txt_aria_host.setPlaceholderText("localhost")
-        self.txt_aria_host.setText(self.extension_data.get("host", "localhost"))
-        form_layout.addWidget(self.txt_aria_host, 1, 1)
-        
         # Port
-        form_layout.addWidget(QLabel("Port:"), 2, 0)
+        form_layout.addWidget(QLabel("Port:"), 1, 0)
         self.spin_aria_port = QSpinBox()
         self.spin_aria_port.setRange(1, 65535)
-        self.spin_aria_port.setValue(self.extension_data.get("port", 6800))
-        form_layout.addWidget(self.spin_aria_port, 2, 1)
+        self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
+        form_layout.addWidget(self.spin_aria_port, 1, 1)
         
         # Token
-        form_layout.addWidget(QLabel("Secret Token:"), 3, 0)
+        form_layout.addWidget(QLabel("Secret Token:"), 2, 0)
         self.txt_aria_token = QLineEdit()
         self.txt_aria_token.setPlaceholderText("Optional secret token")
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
-        form_layout.addWidget(self.txt_aria_token, 3, 1)
+        form_layout.addWidget(self.txt_aria_token, 2, 1)
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
@@ -601,7 +594,7 @@ class OptionsDialog(QDialog):
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
             )
         )
-        form_layout.addWidget(self.chk_show_token, 4, 1)
+        form_layout.addWidget(self.chk_show_token, 3, 1)
         
         layout.addWidget(grp_aria)
         layout.addStretch()
@@ -634,7 +627,7 @@ class OptionsDialog(QDialog):
     def save_extension_data(self):
         self.extension_data = {
             "protocol": self.combo_aria_proto.currentData(), # Save the protocol code (http, ws), not the display text
-            "host": self.txt_aria_host.text().strip(),
+            "host": "localhost",
             "port": self.spin_aria_port.value(),
             "token": self.txt_aria_token.text().strip()
         }

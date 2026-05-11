@@ -7,7 +7,7 @@ function applyTheme(theme) {
   }
 }
 
-async function testConnection(host, port) {
+async function testConnection(port, token) {
   const connText = document.getElementById('conn-text');
   const dot = document.getElementById('dot');
   const refreshBtn = document.getElementById('refresh-btn');
@@ -17,8 +17,9 @@ async function testConnection(host, port) {
   refreshBtn.classList.add('spinning');
 
   try {
-    const url = `http://${host}:${port}/jsonrpc`;
-    const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion" };
+    const url = `http://localhost:${port}/jsonrpc`;
+    const params = token ? [`token:${token}`] : [];
+    const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion", params: params };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -32,14 +33,15 @@ async function testConnection(host, port) {
 
     clearTimeout(timeoutId);
 
-    if (response.ok) {
-      const data = await response.json();
-      if (data.result && data.result.version) {
-        dot.className = "dot online";
-        connText.textContent = "Connected";
-      }
+    const data = await response.json();
+    if (data.result && data.result.version) {
+      dot.className = "dot online";
+      connText.textContent = `Connected (v${data.result.version})`;
+    } else if (data.error) {
+      dot.className = "dot offline";
+      connText.textContent = "Auth Error";
     } else {
-      throw new Error("Bad HTTP status");
+      throw new Error("Invalid response");
     }
   } catch (error) {
     dot.className = "dot offline";
@@ -50,32 +52,84 @@ async function testConnection(host, port) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  chrome.storage.local.get({ host: "localhost", port: 50001, theme: "system" }, (items) => {
-    document.getElementById('host').value = items.host;
-    document.getElementById('port').value = items.port;
+  chrome.storage.local.get({ port: 56800, token: "", theme: "system" }, (items) => {
+    let port = items.port;
+    if (port === 6800 || port === 6801 || port === 50001) {
+      port = 56800;
+      chrome.storage.local.set({ port: 56800 });
+    }
+    document.getElementById('port').value = port;
+    document.getElementById('token').value = items.token;
     document.getElementById('theme').value = items.theme;
     applyTheme(items.theme);
-    testConnection(items.host, items.port);
+    testConnection(port, items.token);
+  });
+});
+
+document.getElementById('sync').addEventListener('click', async () => {
+  const statusMsg = document.getElementById('status-msg');
+  statusMsg.textContent = 'Syncing...';
+  statusMsg.style.color = 'var(--text)';
+
+  try {
+    const response = await fetch("http://127.0.0.1:9000/", { method: 'GET' });
+    if (!response.ok) throw new Error("App not responding");
+    
+    const data = await response.json();
+    if (data.aria2) {
+      const { port, token } = data.aria2;
+      document.getElementById('port').value = port;
+      document.getElementById('token').value = token;
+      
+      const theme = document.getElementById('theme').value;
+      
+      chrome.storage.local.set({ host: "localhost", port, token, theme }, () => {
+        statusMsg.textContent = 'Synced & Saved ✓';
+        statusMsg.style.color = 'var(--success)';
+        setTimeout(() => statusMsg.textContent = '', 2000);
+        testConnection(port, token);
+      });
+    }
+  } catch (err) {
+    statusMsg.textContent = 'Sync Failed (Is App Running?)';
+    statusMsg.style.color = 'var(--error)';
+    setTimeout(() => statusMsg.textContent = '', 2000);
+  }
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+  const defaults = { host: "localhost", port: 56800, token: "", theme: "system" };
+  chrome.storage.local.set(defaults, () => {
+    document.getElementById('port').value = defaults.port;
+    document.getElementById('token').value = defaults.token;
+    document.getElementById('theme').value = defaults.theme;
+    applyTheme(defaults.theme);
+    testConnection(defaults.port, defaults.token);
+    
+    const statusMsg = document.getElementById('status-msg');
+    statusMsg.textContent = 'Reset to Defaults ✓';
+    statusMsg.style.color = 'var(--success)';
+    setTimeout(() => statusMsg.textContent = '', 2000);
   });
 });
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
-  const host = document.getElementById('host').value.trim();
-  const port = parseInt(document.getElementById('port').value, 10);
-  testConnection(host, port);
+  const port = parseInt(document.getElementById('port').value, 10) || 56800;
+  const token = document.getElementById('token').value.trim();
+  testConnection(port, token);
 });
 
 document.getElementById('save').addEventListener('click', () => {
-  const host = document.getElementById('host').value.trim();
-  const port = parseInt(document.getElementById('port').value, 10);
+  const port = parseInt(document.getElementById('port').value, 10) || 56800;
+  const token = document.getElementById('token').value.trim();
   const theme = document.getElementById('theme').value;
 
-  chrome.storage.local.set({ host, port, theme }, () => {
+  chrome.storage.local.set({ host: "localhost", port, token, theme }, () => {
     applyTheme(theme);
     const statusMsg = document.getElementById('status-msg');
     statusMsg.textContent = 'Settings Saved ✓';
     statusMsg.style.color = 'var(--success)';
     setTimeout(() => statusMsg.textContent = '', 2000);
-    testConnection(host, port);
+    testConnection(port, token);
   });
 });

@@ -10,8 +10,7 @@
     <div class="card">
         <h2>Settings</h2>
 
-        <label>Aria2 Host: <input type="text" id="host" placeholder="localhost"></label>
-        <label>Aria2 Port: <input type="number" id="port" placeholder="50001"></label>
+        <label>Aria2 Port: <input type="number" id="port" placeholder="56800"></label>
         <label>RPC Secret (Optional): <input type="password" id="token" placeholder="Leave blank if none"></label>
 
         <label>UI Theme:
@@ -31,6 +30,8 @@
         </div>
 
         <button id="save" class="save-btn">Save Preferences</button>
+        <button id="sync" class="sync-btn">Sync from Bengal DM</button>
+        <button id="reset" class="reset-btn">Reset to Defaults</button>
         <div id="status-msg"></div>
     </div>
     <script src="options.js"></script>

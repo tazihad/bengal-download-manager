@@ -64,13 +64,20 @@ class TcpListenerThread(QThread):
                             conn.sendall(response.encode('utf-8'))
                             continue
                         
-                        # 2. Handle Status Ping from popup.js
+                        # 2. Handle Status Ping and Config Sync
                         if data.startswith("GET"):
+                            ext_data = load_extension_config()
+                            config_json = json.dumps({
+                                "status": "Bengal DM is running",
+                                "aria2": {
+                                    "port": ext_data.get("port", 56800),
+                                    "token": ext_data.get("token", "")
+                                }
+                            })
                             response = (
                                 "HTTP/1.1 200 OK\r\n"
                                 "Access-Control-Allow-Origin: *\r\n"
-                                "Content-Type: application/json\r\n\r\n"
-                                '{"status": "Bengal DM is running"}'
+                                "Content-Type: application/json\r\n\r\n" + config_json
                             )
                             conn.sendall(response.encode('utf-8'))
                             continue
@@ -279,12 +286,20 @@ class MainWindow(QMainWindow):
     def start_aria2_daemon(self):
         try:
             aria2_bin = ensure_aria2() or "aria2c"
-            # We use --daemon=false because PyQt will manage the subprocess lifecycle
-            proc = subprocess.Popen([
-                aria2_bin, "--enable-rpc=true", "--rpc-listen-port=6800",
+            ext_data = load_extension_config()
+            port = ext_data.get("port", 56800)
+            token = ext_data.get("token", "")
+            
+            cmd = [
+                aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
                 "--rpc-allow-origin-all", "--max-connection-per-server=8",
                 "--min-split-size=1M", "--split=8", "--daemon=false"
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            ]
+            if token:
+                cmd.append(f"--rpc-secret={token}")
+                
+            # We use --daemon=false because PyQt will manage the subprocess lifecycle
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return proc
         except Exception:
             return None
@@ -945,8 +960,9 @@ class MainWindow(QMainWindow):
             "date_added": format_timestamp_relative(item_0.data(Qt.ItemDataRole.UserRole + 3), max_relative_seconds=0), # Force full time for properties
             "last_try": format_timestamp_relative(item_0.data(Qt.ItemDataRole.UserRole + 2), max_relative_seconds=0) # Force full time for properties
         }
-        dlg = PropertiesDialog(data, self)
-        dlg.exec()
+        # Keep reference
+        self._prop_dlg = PropertiesDialog(data, self)
+        self._prop_dlg.show()
 
     def open_add_url(self):
         from dialogs import AddUrlDialog
@@ -1107,7 +1123,7 @@ class MainWindow(QMainWindow):
             params = [f"token:{token}"] if token else []
             payload = {"jsonrpc": "2.0", "id": "1", "method": "aria2.getVersion", "params": params}
             
-            rpc_url = f"http://{ext_data.get('host', 'localhost')}:{ext_data.get('port', 6800)}/jsonrpc"
+            rpc_url = f"http://{ext_data.get('host', 'localhost')}:{ext_data.get('port', 56800)}/jsonrpc"
             req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
             with urllib.request.urlopen(req, timeout=0.5) as resp:
                 res = json.loads(resp.read())
@@ -1439,8 +1455,18 @@ class MainWindow(QMainWindow):
         self.update_ui_states()
     
     def open_options(self):
-        dialog = OptionsDialog(self)
-        dialog.exec()
+        from dialogs import OptionsDialog
+        # Keep a reference to prevent garbage collection
+        self._options_dlg = OptionsDialog(self)
+        self._options_dlg.accepted.connect(self._handle_options_accepted)
+        self._options_dlg.show()
+
+    def _handle_options_accepted(self):
+        # Restart aria2 daemon to apply new port/token
+        if self.aria2_process:
+            self.aria2_process.terminate()
+            self.aria2_process.wait()
+        self.aria2_process = self.start_aria2_daemon()
 
     def show_about(self):
         QMessageBox.about(self, "About Bengal DM", 
