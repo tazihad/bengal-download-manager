@@ -731,7 +731,8 @@ class DownloadProgressDialog(QDialog):
         
         self.fixed_width = 500
         self.base_height = 280
-        self.setFixedSize(self.fixed_width, self.base_height)
+        self.setMinimumWidth(450)
+        self.setMinimumHeight(self.base_height)
         
         self.is_expanded = False
         self.segment_bars = []
@@ -755,12 +756,11 @@ class DownloadProgressDialog(QDialog):
         layout.setSpacing(5)
 
         url_text = self.worker.url
-        display_url = url_text if len(url_text) <= 65 else url_text[:62] + "..."
         
-        self.lbl_url = QLabel(display_url)
+        self.lbl_url = QLabel(url_text)
         self.lbl_url.setToolTip(url_text)
         self.lbl_url.setStyleSheet("color: #666;")
-        self.lbl_url.setFixedWidth(self.fixed_width - 60) 
+        self.lbl_url.setWordWrap(True)
         layout.addWidget(self.lbl_url)
 
         status_layout = QHBoxLayout()
@@ -843,7 +843,6 @@ class DownloadProgressDialog(QDialog):
         main_layout.setSpacing(5)
         
         self.tabs = QTabWidget()
-        self.tabs.setFixedWidth(self.fixed_width - 20) 
         main_layout.addWidget(self.tabs)
         
         self.status_tab = QWidget()
@@ -913,7 +912,6 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
         self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; }")
-        self.seg_table.setFixedWidth(self.fixed_width - 30)
 
         header = self.seg_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
@@ -976,11 +974,11 @@ class DownloadProgressDialog(QDialog):
             self.seg_table.setMinimumHeight(table_height)
             self.seg_table.setMaximumHeight(table_height)
             details_extra = table_height + 60 
-            self.setFixedSize(self.fixed_width, self.base_height + details_extra)
+            self.resize(self.width(), self.base_height + details_extra)
         else:
             self.details_frame.hide()
             self.btn_details.setText("Show Details >>")
-            self.setFixedSize(self.fixed_width, self.base_height)
+            self.resize(self.width(), self.base_height)
 
     def init_segment_table(self, num_segments):
         # Aria2 backend (which has 'gid') supports resume automatically
