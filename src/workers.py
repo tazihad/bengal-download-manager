@@ -477,8 +477,8 @@ class DownloadWorker(QThread):
             
             with open(self.state_file, 'w') as f:
                 json.dump(data, f)
-        except Exception as e:
-            print(f"Failed to save state: {e}")
+        except Exception:
+            pass
 
     def update_segment_stat(self, index, dl, total, speed, status):
         self.mutex.lock()

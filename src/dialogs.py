@@ -60,8 +60,8 @@ def save_category_config(data):
     try:
         with open(path, "w") as f:
             json.dump(data, f, indent=4)
-    except Exception as e:
-        print(f"Error saving categories: {e}")
+    except Exception:
+        pass
 
 def load_proxy_config():
     path = os.path.join(get_config_dir(), "proxy.json")
@@ -979,8 +979,8 @@ class DownloadProgressDialog(QDialog):
                 target_dir = os.path.dirname(self.worker.target_path)
                 if os.path.exists(target_dir):
                     subprocess.Popen(['xdg-open', target_dir])
-            except Exception as e:
-                print(f"Cannot open folder: {e}") 
+            except Exception:
+                pass 
 
     def toggle_details(self, checked):
         if checked:

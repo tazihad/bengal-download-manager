@@ -20,7 +20,7 @@ from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, 
 
 from workers import DownloadWorker, Aria2Worker
 from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, load_category_config, load_extension_config
-from utils import get_data_dir, get_config_dir, get_unique_filepath
+from utils import get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2
 
 # Default TCP port for extension communication
 DM_CONNECTOR_PORT = 9000 
@@ -44,7 +44,6 @@ class TcpListenerThread(QThread):
             self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.server_socket.bind(("127.0.0.1", self.port)) 
             self.server_socket.listen(1)
-            print(f"DM Connector Listener started on 127.0.0.1:{self.port}")
             
             while self.is_running:
                 self.server_socket.settimeout(1.0)
@@ -101,10 +100,10 @@ class TcpListenerThread(QThread):
                 except OSError as e:
                     if not self.is_running: break
                 except Exception as e:
-                    print(f"Listener error: {e}")
+                    pass
 
         except Exception as e:
-            print(f"CRITICAL: Failed to start TCP Listener on port {self.port}. Error: {e}")
+            pass
 
     def stop(self):
         self.is_running = False
@@ -239,6 +238,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bengal Download Manager")
+        self.setWindowIcon(QIcon("src/assets/icon.png"))
         self.setGeometry(200, 150, 1000, 600)
         
         self.settings = self.load_settings()
@@ -276,9 +276,10 @@ class MainWindow(QMainWindow):
 
     def start_aria2_daemon(self):
         try:
+            aria2_bin = ensure_aria2() or "aria2c"
             # We use --daemon=false because PyQt will manage the subprocess lifecycle
             proc = subprocess.Popen([
-                "aria2c", "--enable-rpc=true", "--rpc-listen-port=6800",
+                aria2_bin, "--enable-rpc=true", "--rpc-listen-port=6800",
                 "--rpc-allow-origin-all", "--max-connection-per-server=8",
                 "--min-split-size=1M", "--split=8", "--daemon=false"
             ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -681,8 +682,8 @@ class MainWindow(QMainWindow):
             data_dir = get_data_dir()
             with open(os.path.join(data_dir, "downloads.json"), "w") as f:
                 json.dump(downloads, f, indent=4)
-        except Exception as e:
-            print(f"Error saving data: {e}")
+        except Exception:
+            pass
 
     def load_data(self):
         data_dir = get_data_dir()
@@ -726,8 +727,8 @@ class MainWindow(QMainWindow):
 
             self.download_table.setSortingEnabled(True)
             
-        except Exception as e:
-            print(f"Error loading data: {e}")
+        except Exception:
+            pass
 
     def _set_sortable_item(self, row, col, text, parser_func):
         item = SortableTableWidgetItem(text)
@@ -744,8 +745,8 @@ class MainWindow(QMainWindow):
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
-        except Exception as e:
-            print(f"Error saving settings: {e}")
+        except Exception:
+            pass
 
     def load_settings(self):
         settings = {}
@@ -760,8 +761,8 @@ class MainWindow(QMainWindow):
                     self.restoreGeometry(QByteArray.fromHex(settings["geometry"].encode()))
                 if "windowState" in settings:
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
-        except Exception as e:
-            print(f"Error loading settings: {e}")
+        except Exception:
+            pass
         return settings
 
     def show_context_menu(self, pos):
@@ -948,10 +949,13 @@ class MainWindow(QMainWindow):
     def open_add_url(self):
         from dialogs import AddUrlDialog
         dialog = AddUrlDialog(self)
-        if dialog.exec():
-            url = dialog.get_url()
-            if url:
-                self.process_incoming_url(url)
+        dialog.accepted.connect(lambda: self._handle_add_url_accepted(dialog))
+        dialog.show()
+
+    def _handle_add_url_accepted(self, dialog):
+        url = dialog.get_url()
+        if url:
+            self.process_incoming_url(url)
 
     def process_incoming_url(self, url):
         """Brings the app to the front, fetches file info, and shows the popup"""
@@ -980,24 +984,27 @@ class MainWindow(QMainWindow):
     def on_file_info_fetched(self, file_info):
         from dialogs import DownloadFileInfoDialog
         dialog = DownloadFileInfoDialog(file_info, self)
-        if dialog.exec():
-            results = dialog.get_results()
-            if results["action"] == 'start':
-                self.start_download(
-                    url=file_info["url"], 
-                    custom_filename=results["filename"],
-                    custom_save_dir=os.path.dirname(results["save_path"]),
-                    size_data=(results["size_str"], results["size_bytes"]),
-                    start_paused=False
-                )
-            elif results["action"] == 'later':
-                self.start_download(
-                    url=file_info["url"], 
-                    custom_filename=results["filename"],
-                    custom_save_dir=os.path.dirname(results["save_path"]),
-                    size_data=(results["size_str"], results["size_bytes"]),
-                    start_paused=True
-                )
+        dialog.accepted.connect(lambda: self._handle_download_dialog_accepted(dialog, file_info))
+        dialog.show()
+
+    def _handle_download_dialog_accepted(self, dialog, file_info):
+        results = dialog.get_results()
+        if results["action"] == 'start':
+            self.start_download(
+                url=file_info["url"], 
+                custom_filename=results["filename"],
+                custom_save_dir=os.path.dirname(results["save_path"]),
+                size_data=(results["size_str"], results["size_bytes"]),
+                start_paused=False
+            )
+        elif results["action"] == 'later':
+            self.start_download(
+                url=file_info["url"], 
+                custom_filename=results["filename"],
+                custom_save_dir=os.path.dirname(results["save_path"]),
+                size_data=(results["size_str"], results["size_bytes"]),
+                start_paused=True
+            )
 
     def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False):
         sorting_was_enabled = self.download_table.isSortingEnabled()
