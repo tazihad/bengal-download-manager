@@ -191,7 +191,7 @@ class SegmentWorker(QThread):
                         bytes_in_session += len(chunk)
                         
                         current_time = time.time()
-                        if current_time - last_emit_time > 0.8: 
+                        if current_time - last_emit_time > 0.2: 
                             speed = bytes_in_session / (current_time - last_emit_time)
                             self.progress_signal.emit(
                                 self.index, self.downloaded, self.total_size, speed, "Receiving data..."
@@ -729,7 +729,7 @@ class Aria2Worker(QThread):
                     self.log_signal.emit("Aria2 download paused.")
                     self.paused_logged = True
                 
-            time.sleep(0.5)
+            time.sleep(0.2)
 
     def stop(self):
         self.is_running = False
