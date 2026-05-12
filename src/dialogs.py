@@ -8,9 +8,12 @@ from PyQt6.QtWidgets import (
     QMessageBox, QStyle, QLayout, QComboBox, QCheckBox, QSpinBox, QFileDialog,
     QRadioButton, QButtonGroup
 )
-from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtCore import Qt
-from utils import get_config_dir, load_proxy_config, save_proxy_config, load_extension_config, save_extension_config
+from PyQt6.QtGui import QFont, QColor, QDesktopServices
+from PyQt6.QtCore import Qt, QUrl
+from utils import (
+    get_config_dir, load_proxy_config, save_proxy_config, 
+    load_extension_config, save_extension_config, show_in_folder
+)
 
 # --- CONFIGURATION HELPERS ---
 DEFAULT_CATEGORIES = {
@@ -118,6 +121,7 @@ class DownloadFileInfoDialog(QDialog):
         
         self.url_input = QLineEdit(file_info.get("url", ""))
         self.url_input.setReadOnly(True)
+        self.url_input.setCursorPosition(0)
         form_layout.addRow("URL:", self.url_input)
         
         self.category_combo = QComboBox()
@@ -756,13 +760,19 @@ class DownloadProgressDialog(QDialog):
         layout.setSpacing(5)
 
         url_text = self.worker.url
-        
-        self.lbl_url = QLabel(url_text)
-        self.lbl_url.setToolTip(url_text)
-        self.lbl_url.setStyleSheet("color: #666;")
-        self.lbl_url.setWordWrap(True)
-        layout.addWidget(self.lbl_url)
 
+        self.lbl_url = QLineEdit(url_text)
+        self.lbl_url.setReadOnly(True)
+        self.lbl_url.setCursorPosition(0)
+        self.lbl_url.setToolTip(url_text)
+        self.lbl_url.setStyleSheet("""
+            QLineEdit {
+                background: transparent;
+                border: none;
+                color: #666;
+            }
+        """)
+        layout.addWidget(self.lbl_url)
         status_layout = QHBoxLayout()
         status_layout.addWidget(QLabel("Status:"))
         self.lbl_main_status = QLabel("Connecting...")
@@ -1065,10 +1075,19 @@ class DownloadProgressDialog(QDialog):
             self.pbar.setValue(0)
 
     def update_stats(self, row, data):
-        self.lbl_size.setText(data[1])
+        # Only update size if it's not "Unknown" or if current is "Calculating..."
+        new_size_text = data[1]
+        if new_size_text != "Unknown" or self.lbl_size.text() == "Calculating...":
+            self.lbl_size.setText(new_size_text)
+            
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
         
+        # Update internal byte counts if high-precision data is available (indices 5 and 6)
+        if len(data) > 6:
+            self.current_bytes = data[5]
+            self.total_bytes = data[6]
+            
         current_bytes = self.current_bytes
         total_bytes = self.total_bytes
         
@@ -1080,18 +1099,32 @@ class DownloadProgressDialog(QDialog):
             
         self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes)} ({percent})")
         
-        main_status_text = self.lbl_main_status.text()
-        if main_status_text in ["Downloading", "Resuming...", "Connecting..."]:
+        # Map worker status to display status
+        worker_status = data[2]
+        if worker_status.startswith("Receiving data"):
+            display_status = "Downloading"
+        elif worker_status == "Connecting...":
+            display_status = "Connecting..."
+        elif worker_status == "Complete":
+            display_status = "Completed"
+        elif worker_status == "Resume GET...":
+            display_status = "Resuming..."
+        else:
+            display_status = worker_status
+            
+        self.lbl_main_status.setText(display_status)
+        
+        if display_status in ["Downloading", "Resuming...", "Connecting..."]:
             self.btn_pause.setText("Pause")
             self.btn_cancel.setText("Cancel")
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
-        elif main_status_text == "Paused":
+        elif display_status == "Paused":
             self.btn_pause.setText("Resume")
             self.btn_cancel.setText("Close")
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
-        elif main_status_text in ["Cancelled", "Error"]:
+        elif display_status in ["Cancelled", "Error"]:
             self.btn_pause.setText("Resume")
             self.btn_cancel.setText("Close")
             self.btn_pause.setEnabled(True)
@@ -1140,7 +1173,11 @@ class DownloadProgressDialog(QDialog):
             self.btn_pause.setEnabled(True)
             try: self.btn_pause.clicked.disconnect() 
             except: pass
-            self.btn_pause.clicked.connect(lambda: os.startfile(os.path.dirname(self.worker.target_path)) if os.name == 'nt' else subprocess.Popen(['xdg-open', os.path.dirname(self.worker.target_path)]))
+            
+            def open_target_folder():
+                show_in_folder(self.worker.target_path)
+            
+            self.btn_pause.clicked.connect(open_target_folder)
         elif display_status in ["Cancelled", "Paused", "Error"]:
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Resume")
@@ -1152,3 +1189,94 @@ class DownloadProgressDialog(QDialog):
             self.worker.stop()
             self.worker.finished_signal.emit(self.worker.row_index, "Paused")
         self.reject()
+
+
+class DownloadCompleteDialog(QDialog):
+    def __init__(self, file_data, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Download complete")
+        self.setFixedWidth(520)
+        self.file_data = file_data
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        from PyQt6.QtWidgets import QFormLayout
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        # Address
+        self.url_input = QLineEdit(file_data.get('url', ''))
+        self.url_input.setReadOnly(True)
+        self.url_input.setCursorPosition(0)
+        self.url_input.setStyleSheet("background: transparent; border: none; color: #555;")
+        form.addRow("Address:", self.url_input)
+        
+        # Saved as
+        self.path_input = QLineEdit(file_data.get('path', ''))
+        self.path_input.setReadOnly(True)
+        self.path_input.setCursorPosition(0)
+        self.path_input.setStyleSheet("background: transparent; border: none; font-weight: bold;")
+        form.addRow("The file saved as:", self.path_input)
+        
+        # Size
+        self.lbl_size = QLabel(file_data.get('size', 'Unknown'))
+        self.lbl_size.setStyleSheet("font-weight: bold;")
+        form.addRow("Size:", self.lbl_size)
+        
+        layout.addLayout(form)
+        layout.addSpacing(10)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self.btn_open = QPushButton("Open")
+        self.btn_open_with = QPushButton("Open with...")
+        self.btn_open_folder = QPushButton("Open Folder")
+        self.btn_close = QPushButton("Close")
+        
+        # Set height for buttons to look more like IDM
+        for btn in [self.btn_open, self.btn_open_with, self.btn_open_folder, self.btn_close]:
+            btn.setFixedHeight(30)
+            btn_layout.addWidget(btn)
+            
+        layout.addLayout(btn_layout)
+        
+        # Connect
+        self.btn_open.clicked.connect(self.on_open)
+        self.btn_open_with.clicked.connect(self.on_open_with)
+        self.btn_open_folder.clicked.connect(self.on_open_folder)
+        self.btn_close.clicked.connect(self.accept)
+        
+    def on_open(self):
+        path = self.file_data.get('path')
+        if path and os.path.exists(path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Error", "File does not exist.")
+            
+    def on_open_with(self):
+        path = self.file_data.get('path')
+        if not path or not os.path.exists(path):
+             QMessageBox.warning(self, "Error", "File does not exist.")
+             return
+             
+        # On Linux we can use a generic open with dialog or ask for app
+        if os.name == 'nt':
+            # On Windows, we can use 'rundll32.exe shell32.dll,OpenAs_RunDLL path'
+            subprocess.Popen(['rundll32.exe', 'shell32.dll,OpenAs_RunDLL', path])
+        else:
+            # On Linux, there isn't a single standard "Open With" command like Windows
+            # But we can ask the user for an executable
+            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
+            if app_path:
+                subprocess.Popen([app_path, path])
+        self.accept()
+            
+    def on_open_folder(self):
+        path = self.file_data.get('path')
+        if path:
+            show_in_folder(path)
+            self.accept()

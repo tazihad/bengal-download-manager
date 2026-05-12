@@ -21,3 +21,6 @@ build/
 # OS specific files (Mac/Windows)
 .DS_Store
 Thumbs.db
+
+# custom
+docs/

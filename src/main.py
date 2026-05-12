@@ -13,16 +13,18 @@ from PyQt6.QtWidgets import (
     QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QFileDialog, QDialog, 
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
+    QSystemTrayIcon
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject
 
 from workers import DownloadWorker, Aria2Worker
-from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, load_category_config, load_extension_config
+from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, DownloadCompleteDialog, load_category_config, load_extension_config
 from utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
-    load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin
+    load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
+    show_in_folder
 )
 
 # Default TCP port for extension communication
@@ -256,6 +258,7 @@ class MainWindow(QMainWindow):
         self.setup_actions()
         self.setup_menu_bar()
         self.setup_toolbar()
+        self.setup_tray_icon()
         self.setup_central_widget()
         
         self.settings = self.load_settings()
@@ -285,6 +288,7 @@ class MainWindow(QMainWindow):
         
         # Auto-start local Aria2 daemon for accelerated downloading
         self.aria2_process = self.start_aria2_daemon()
+        self.is_quitting = False
 
     def _handle_options_accepted(self):
         # Clean restart aria2 daemon
@@ -334,6 +338,12 @@ class MainWindow(QMainWindow):
         except Exception:
             return None
     def closeEvent(self, event: QCloseEvent):
+        if not self.is_quitting:
+            event.ignore()
+            self.hide()
+            self.update_tray_action()
+            return
+
         # Stop IPC Listener Thread before closing
         self.listener_thread.stop()
         self.listener_thread.wait()
@@ -353,15 +363,19 @@ class MainWindow(QMainWindow):
         self.save_data()
         self.save_settings()
         event.accept()
+        QApplication.quit()
+
+    def quit_app(self):
+        self.is_quitting = True
+        self.close()
 
     def setup_actions(self):
         self.action_add_url = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), "Add URL", self)
         self.action_add_url.triggered.connect(self.open_add_url)
 
         self.action_exit = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "Exit", self)
-        self.action_exit.triggered.connect(self.close)
+        self.action_exit.triggered.connect(self.quit_app)
 
-        # Updated text for stop action
         self.action_stop = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop), "Stop/Pause", self)
         self.action_stop.triggered.connect(self.stop_selected_download)
         self.action_stop.setEnabled(False)
@@ -521,6 +535,59 @@ class MainWindow(QMainWindow):
         splitter.setSizes([200, 800])
         splitter.setCollapsible(0, False)
         self.setCentralWidget(splitter)
+
+    def setup_tray_icon(self):
+        """Sets up the system tray icon and its context menu."""
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Set icon
+        icon_path = os.path.join(get_data_dir(), "assets", "icon.png")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
+        
+        # Create tray menu
+        tray_menu = QMenu(self)
+        
+        # Show/Hide Action
+        self.action_tray_toggle = QAction("Hide", self) # Default to Hide as window starts visible
+        self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
+        self.action_tray_toggle.triggered.connect(self.toggle_window)
+        
+        tray_menu.addAction(self.action_tray_toggle)
+        tray_menu.addAction(self.action_options)
+        tray_menu.addSeparator()
+        tray_menu.addAction(self.action_exit)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.show()
+        
+        # Double click to show/hide
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+
+    def on_tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.toggle_window()
+
+    def toggle_window(self):
+        """Toggles the visibility of the main window."""
+        if self.isVisible():
+            self.hide()
+        else:
+            self.showNormal()
+            self.activateWindow()
+            self.raise_()
+        self.update_tray_action()
+
+    def update_tray_action(self):
+        """Updates the tray action text and icon based on window visibility."""
+        if self.isVisible():
+            self.action_tray_toggle.setText("Hide")
+            self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
+        else:
+            self.action_tray_toggle.setText("Show")
+            self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton))
         
     def update_timestamp_display(self):
         """
@@ -909,21 +976,11 @@ class MainWindow(QMainWindow):
         row = item.row()
         item_0 = self.download_table.item(row, 0)
         path = item_0.data(Qt.ItemDataRole.UserRole + 1)
-        if path:
-            folder = os.path.dirname(path)
-            if os.path.exists(folder):
-                if os.name == 'nt':
-                    os.startfile(folder)
-                else:
-                    subprocess.Popen(['xdg-open', folder])
+        show_in_folder(path)
 
     def open_downloads_folder_generic(self):
         path = os.path.join(os.path.expanduser("~"), "Downloads")
-        if os.path.exists(path):
-             if os.name == 'nt':
-                 os.startfile(path)
-             else:
-                 subprocess.Popen(['xdg-open', path])
+        show_in_folder(path)
 
     def ctx_move_rename(self, item):
         row = item.row()
@@ -1398,7 +1455,7 @@ class MainWindow(QMainWindow):
             elif worker_status == "Connecting...":
                 display_status = "Connecting..."
             elif worker_status == "Complete":
-                display_status = "Completed"
+                display_status = "Complete"
             elif worker_status == "Resume GET...":
                 display_status = "Resuming..."
             else:
@@ -1407,16 +1464,18 @@ class MainWindow(QMainWindow):
             status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
             
             final_display = display_status
+            pct_str = ""
             if len(data) > 6:
                 comp, tot = data[5], data[6]
                 if tot > 0:
-                    pct = f"{(comp/tot)*100:.1f}%"
-                    status_item.setData(Qt.ItemDataRole.UserRole, pct)
+                    pct_str = f"{(comp/tot)*100:.2f}%"
+                    status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
             
-            if display_status in ["Paused", "Cancelled"]:
+            if display_status == "Downloading":
+                final_display = pct_str if pct_str else "Downloading"
+            elif display_status in ["Paused", "Cancelled"]:
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                if pct_data:
-                    final_display = f"{pct_data}"
+                final_display = f"Paused {pct_data}" if pct_data else "Paused"
                 
             if final_display != old_status:
                 status_item.setText(final_display)
@@ -1448,7 +1507,22 @@ class MainWindow(QMainWindow):
             return # object has been deleted by remove
         if row != -1:
             if status_text == "Completed":
-                 display_status = "Completed"
+                 display_status = "Complete"
+                 
+                 # Close the progress dialog if it exists
+                 key = id(item_ref)
+                 if key in self.active_downloads:
+                     progress_dialog = self.active_downloads[key]
+                     progress_dialog.close()
+                 
+                 # Show IDM-style Download Complete Dialog
+                 file_data = {
+                     "url": item_ref.data(Qt.ItemDataRole.UserRole),
+                     "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
+                     "size": self.download_table.item(row, 1).text()
+                 }
+                 self._complete_dlg = DownloadCompleteDialog(file_data, self)
+                 self._complete_dlg.show()
             elif status_text == "Cancelled":
                  display_status = "Cancelled"
             elif status_text == "Paused":
@@ -1468,12 +1542,13 @@ class MainWindow(QMainWindow):
                 self.download_table.setItem(row, 2, status_item)
                 
             status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            
+
             final_display = display_status
-            if display_status in ["Paused", "Cancelled"]:
+            if display_status == "Complete":
+                final_display = "Complete"
+            elif display_status in ["Paused", "Cancelled"]:
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                if pct_data:
-                    final_display = f"{pct_data} complete"
+                final_display = f"Paused {pct_data}" if pct_data else "Paused"
             
             status_item.setText(final_display)
             
@@ -1519,6 +1594,7 @@ if __name__ == "__main__":
     from PyQt6.QtCore import Qt
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
     window.show()

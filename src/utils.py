@@ -6,6 +6,7 @@ import urllib.request
 import platform
 import shutil
 import tarfile
+import subprocess
 
 def get_unique_filepath(filepath):
     if not os.path.exists(filepath):
@@ -234,3 +235,77 @@ def ensure_aria2():
         return local_aria2
     except:
         return None
+
+def show_in_folder(path):
+    """
+    If path is a file, opens the folder containing it and selects (highlights) it.
+    If path is a directory, just opens the directory.
+    Inspired by qBittorrent's implementation.
+    """
+    if not path: return
+    path = os.path.abspath(path)
+    if not os.path.exists(path): return
+
+    # --- ENVIRONMENT SANITIZATION ---
+    # When running as a bundled app (e.g. PyInstaller), we must clear 
+    # LD_LIBRARY_PATH and other Qt variables so child processes (like Dolphin) 
+    # use system libraries instead of the ones bundled with this app.
+    clean_env = os.environ.copy()
+    keys_to_clear = [
+        "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
+        "PYTHONHOME", "PYTHONPATH"
+    ]
+    for key in keys_to_clear:
+        clean_env.pop(key, None)
+
+    # If it's a directory, just open it normally
+    if os.path.isdir(path):
+        if platform.system() == 'Windows':
+            os.startfile(path)
+        elif platform.system() == 'Darwin':
+            subprocess.Popen(['open', path], env=clean_env)
+        else:
+            try:
+                subprocess.Popen(['xdg-open', path], env=clean_env)
+            except:
+                pass
+        return
+
+    # If it's a file, try to open parent and select it
+    if platform.system() == 'Windows':
+        # explorer.exe /select,"C:\path\to\file"
+        win_path = os.path.normpath(path)
+        subprocess.Popen(['explorer.exe', '/select,', win_path]) # Windows doesn't use LD_LIBRARY_PATH
+
+    elif platform.system() == 'Darwin':
+        # macOS: open -R <path>
+        subprocess.Popen(['open', '-R', path], env=clean_env)
+
+    else:
+        # Linux / Unix
+        try:
+            # Query default file manager for directories
+            proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            output, _ = proc.communicate()
+            output = output.strip().lower()
+            
+            # Check for known file managers that support selection flags
+            if "dolphin" in output:
+                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
+            elif "nautilus" in output:
+                subprocess.Popen(['nautilus', '--no-desktop', path], env=clean_env)
+            elif "caja" in output:
+                subprocess.Popen(['caja', '--no-desktop', path], env=clean_env)
+            elif "nemo" in output:
+                subprocess.Popen(['nemo', '--no-desktop', path], env=clean_env)
+            elif "konqueror" in output:
+                subprocess.Popen(['konqueror', '--select', path], env=clean_env)
+            else:
+                # Fallback: Open parent folder with xdg-open
+                parent = os.path.dirname(path)
+                subprocess.Popen(['xdg-open', parent], env=clean_env)
+        except Exception:
+            # Fallback to xdg-open if xdg-mime or specific FM calls fail
+            parent = os.path.dirname(path)
+            subprocess.Popen(['xdg-open', parent], env=clean_env)

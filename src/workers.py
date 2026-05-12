@@ -370,11 +370,20 @@ class DownloadWorker(QThread):
             save_counter = 0
             
             while finished_count < num_threads and self.is_running:
+                total_dl = sum(s['dl'] for s in self.segment_stats.values())
+                total_speed = sum(s['speed'] for s in self.segment_stats.values())
+                
                 if self.is_paused:
                     time.sleep(0.2)
                     self.save_state(total_size) # Save state on pause
                     self.main_progress_signal.emit(self.row_index, (
-                        self.filename, self.format_bytes(total_size), "Paused", "", "0 KB/s"
+                        self.filename, 
+                        self.format_bytes(total_size) if total_size > 0 else "Unknown", 
+                        "Paused", 
+                        "", 
+                        "0 KB/s",
+                        total_dl,
+                        total_size
                     ))
                     continue
                 
@@ -384,24 +393,23 @@ class DownloadWorker(QThread):
                     self.distribute_speed_limit()
                     self.last_active_count = active_count
 
-                total_dl = sum(s['dl'] for s in self.segment_stats.values())
-                total_speed = sum(s['speed'] for s in self.segment_stats.values())
-                
                 # Progress Calculation
-                percent_val = (total_dl / total_size) * 100
+                percent_val = (total_dl / total_size) * 100 if total_size > 0 else 0
                 percent_str = f"{percent_val:.1f}%"
                 
                 time_left = 0
-                if total_speed > 0:
+                if total_speed > 0 and total_size > 0:
                     time_left = (total_size - total_dl) / total_speed
                 
                 self.main_bar_signal.emit(total_dl, total_size)
                 self.main_progress_signal.emit(self.row_index, (
                     self.filename,
-                    self.format_bytes(total_size),
+                    self.format_bytes(total_size) if total_size > 0 else "Unknown",
                     "Receiving data..." if not self.is_paused else "Paused", # Use the worker's internal state
                     self.format_time(time_left),
-                    f"{self.format_bytes(total_speed)}/s"
+                    f"{self.format_bytes(total_speed)}/s",
+                    total_dl,
+                    total_size
                 ))
 
                 # Periodically save state (every ~2 seconds)
@@ -423,7 +431,7 @@ class DownloadWorker(QThread):
                     os.rename(self.save_path, self.target_path)
                     
                     self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size), "Completed", "", ""))
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size) if total_size > 0 else "Unknown", "Completed", "", "", total_size, total_size))
                     self.finished_signal.emit(self.row_index, "Completed")
                     
                     # Cleanup state file
