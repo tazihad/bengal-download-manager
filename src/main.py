@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
-from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent
 
 from workers import DownloadWorker, Aria2Worker
 from dialogs import AddUrlDialog, OptionsDialog, DownloadProgressDialog, PropertiesDialog, DownloadCompleteDialog, load_category_config, load_extension_config
@@ -124,6 +124,19 @@ class TcpListenerThread(QThread):
                 socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("127.0.0.1", self.port))
                 self.server_socket.close()
             except: pass
+
+class EmptyAreaClickFilter(QObject):
+    def __init__(self, table, parent=None):
+        super().__init__(parent)
+        self.table = table
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.MouseButtonPress:
+            item = self.table.itemAt(event.pos())
+            if not item:
+                self.table.clearSelection()
+                self.table.setCurrentItem(None)
+        return super().eventFilter(obj, event)
 
 # --- HELPER FOR SORTING ---
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -507,8 +520,13 @@ class MainWindow(QMainWindow):
         # Ensure row selection is correctly set up
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        
+
+        # Install event filter to clear selection on empty area click
+        self.empty_area_filter = EmptyAreaClickFilter(self.download_table, self)
+        self.download_table.viewport().installEventFilter(self.empty_area_filter)
+
         # FIX: Remove blue cell highlight (focus rectangle) on selection
+
         # Using a comprehensive style to kill the default focus visual
         self.download_table.setStyleSheet("""
             QTableWidget::item:focus { 
