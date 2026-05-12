@@ -5,8 +5,7 @@ from urllib.parse import urlparse, unquote
 import urllib.request
 import urllib.error
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
-from utils import get_unique_filepath
-from dialogs import load_proxy_config
+from utils import get_unique_filepath, load_proxy_config, load_extension_config
 
 # --- WORKER FOR PRE-FETCHING FILE INFO ---
 class FileInfoFetcherWorker(QThread):
@@ -16,6 +15,10 @@ class FileInfoFetcherWorker(QThread):
         super().__init__()
         self.url = url
     
+    def create_opener(self):
+        """Standard opener (uses system proxies if any)."""
+        return urllib.request.build_opener()
+
     def run(self):
         result = {
             "url": self.url,
@@ -26,6 +29,7 @@ class FileInfoFetcherWorker(QThread):
         }
         
         try:
+            # ... URL parsing logic ...
             parsed = urlparse(self.url)
             path = unquote(parsed.path)
             basename = os.path.basename(path)
@@ -34,20 +38,53 @@ class FileInfoFetcherWorker(QThread):
             else:
                 result["filename"] = "file"
                 
-            req = urllib.request.Request(self.url, method='HEAD')
+            req = urllib.request.Request(self.url, method='GET') 
             req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
             
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            opener = self.create_opener()
+            with opener.open(req, timeout=10) as resp:
                 content_length = resp.headers.get("Content-Length")
                 if content_length and content_length.isdigit():
                     result["size_bytes"] = int(content_length)
                     result["size_str"] = self.format_bytes(result["size_bytes"])
                 
                 content_disp = resp.headers.get("Content-Disposition")
-                if content_disp and "filename=" in content_disp:
+                header_filename = None
+                if content_disp:
                     import re
-                    match = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp)
-                    if match: result["filename"] = match.group(1).strip()
+                    # Look for filename* (RFC 5987) or filename=
+                    cd_match = re.search(r'filename\*=UTF-8\'\'([^"\';]+)', content_disp, re.IGNORECASE)
+                    if not cd_match:
+                        cd_match = re.search(r'filename=["\']?([^"\';]+)["\']?', content_disp, re.IGNORECASE)
+                    
+                    if cd_match:
+                        extracted = unquote(cd_match.group(1).strip())
+                        if extracted:
+                            header_filename = extracted
+
+                # SMART FILENAME LOGIC:
+                # 1. If we have a header filename, check if it's "garbage" (like a UUID)
+                # 2. If it's garbage and our URL basename looks good, prefer basename.
+                # 3. Otherwise, prefer header filename.
+                
+                is_garbage = False
+                if header_filename:
+                    # Check if UUID-like: 8-4-4-4-12 hex chars
+                    import re
+                    if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', header_filename, re.I):
+                        is_garbage = True
+                    # Check if purely hex hash (like SHA1/MD5)
+                    elif re.match(r'^[0-9a-f]{32,64}$', header_filename, re.I):
+                        is_garbage = True
+                
+                if header_filename and not is_garbage:
+                    result["filename"] = header_filename
+                elif basename and basename != "file":
+                    # Keep the original basename if it looks like a real file
+                    result["filename"] = basename
+                elif header_filename:
+                    # Last resort: use the garbage header filename
+                    result["filename"] = header_filename
                     
         except Exception as e:
             result["error"] = str(e)
@@ -223,52 +260,10 @@ class DownloadWorker(QThread):
         self.workers = []
         self.segment_stats = {} 
         
-        # --- LOAD PROXY SETTINGS ---
-        self.proxy_config = load_proxy_config()
         self.opener = self.create_opener()
 
     def create_opener(self):
-        """Creates a urllib opener based on proxy settings."""
-        mode = self.proxy_config.get("mode", "no_proxy")
-        
-        if mode == "no_proxy":
-            # Force no proxy by using empty env vars or simple opener
-            return urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            
-        elif mode == "system":
-            # Default behavior uses system proxies
-            return urllib.request.build_opener()
-            
-        elif mode == "manual":
-            ptype = self.proxy_config.get("type", "http")
-            host = self.proxy_config.get("host", "")
-            port = self.proxy_config.get("port", 8080)
-            user = self.proxy_config.get("user", "")
-            password = self.proxy_config.get("password", "")
-            auth = self.proxy_config.get("auth", False)
-            
-            if not host: return urllib.request.build_opener()
-            
-            proxy_url = f"{host}:{port}"
-            if auth and user and password:
-                proxy_url = f"{user}:{password}@{host}:{port}"
-            
-            if ptype == "http":
-                # Supports http and https
-                proxies = {'http': f"http://{proxy_url}", 'https': f"http://{proxy_url}"}
-                return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-            
-            # Note: SOCKS support in standard urllib is limited. 
-            # This implementation sets the scheme, but underlying support depends on PySocks 
-            # being monkey-patched or installed.
-            elif ptype.startswith("socks"):
-                scheme = "socks5" if ptype == "socks5" else "socks4"
-                proxies = {
-                    'http': f"{scheme}://{proxy_url}",
-                    'https': f"{scheme}://{proxy_url}"
-                }
-                return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-                
+        """Standard opener (uses system proxies if any)."""
         return urllib.request.build_opener()
 
     def set_global_speed_limit(self, limit_bytes_per_sec):
@@ -297,9 +292,6 @@ class DownloadWorker(QThread):
     def run(self):
         try:
             self.log_signal.emit("Connecting to server...")
-            if self.proxy_config.get("mode") == "manual":
-                self.log_signal.emit(f"Using Proxy: {self.proxy_config.get('host')}:{self.proxy_config.get('port')}")
-            
             self.log_signal.emit(f"Target file: {self.filename}")
             
             req = urllib.request.Request(self.url, method='HEAD')
@@ -378,11 +370,20 @@ class DownloadWorker(QThread):
             save_counter = 0
             
             while finished_count < num_threads and self.is_running:
+                total_dl = sum(s['dl'] for s in self.segment_stats.values())
+                total_speed = sum(s['speed'] for s in self.segment_stats.values())
+                
                 if self.is_paused:
                     time.sleep(0.2)
                     self.save_state(total_size) # Save state on pause
                     self.main_progress_signal.emit(self.row_index, (
-                        self.filename, self.format_bytes(total_size), "Paused", "", "0 KB/s"
+                        self.filename, 
+                        self.format_bytes(total_size) if total_size > 0 else "Unknown", 
+                        "Paused", 
+                        "", 
+                        "0 KB/s",
+                        total_dl,
+                        total_size
                     ))
                     continue
                 
@@ -392,24 +393,23 @@ class DownloadWorker(QThread):
                     self.distribute_speed_limit()
                     self.last_active_count = active_count
 
-                total_dl = sum(s['dl'] for s in self.segment_stats.values())
-                total_speed = sum(s['speed'] for s in self.segment_stats.values())
-                
                 # Progress Calculation
-                percent_val = (total_dl / total_size) * 100
+                percent_val = (total_dl / total_size) * 100 if total_size > 0 else 0
                 percent_str = f"{percent_val:.1f}%"
                 
                 time_left = 0
-                if total_speed > 0:
+                if total_speed > 0 and total_size > 0:
                     time_left = (total_size - total_dl) / total_speed
                 
                 self.main_bar_signal.emit(total_dl, total_size)
                 self.main_progress_signal.emit(self.row_index, (
                     self.filename,
-                    self.format_bytes(total_size),
+                    self.format_bytes(total_size) if total_size > 0 else "Unknown",
                     "Receiving data..." if not self.is_paused else "Paused", # Use the worker's internal state
                     self.format_time(time_left),
-                    f"{self.format_bytes(total_speed)}/s"
+                    f"{self.format_bytes(total_speed)}/s",
+                    total_dl,
+                    total_size
                 ))
 
                 # Periodically save state (every ~2 seconds)
@@ -431,7 +431,7 @@ class DownloadWorker(QThread):
                     os.rename(self.save_path, self.target_path)
                     
                     self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size), "Completed", "", ""))
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size) if total_size > 0 else "Unknown", "Completed", "", "", total_size, total_size))
                     self.finished_signal.emit(self.row_index, "Completed")
                     
                     # Cleanup state file
@@ -541,7 +541,11 @@ class Aria2Worker(QThread):
         self.save_dir = save_dir
         self.is_running = True
         self.gid = None
-        self.rpc_url = "http://localhost:6800/jsonrpc"
+        
+        ext_data = load_extension_config()
+        self.rpc_port = ext_data.get("port", 56800)
+        self.rpc_token = ext_data.get("token", "")
+        self.rpc_url = f"http://127.0.0.1:{self.rpc_port}/jsonrpc"
         
         parsed_url = urlparse(self.url)
         decoded_path = unquote(parsed_url.path)
@@ -556,19 +560,8 @@ class Aria2Worker(QThread):
             self.filename = os.path.basename(self.target_path)
 
     def call_rpc(self, method, params=None):
-        if params is None: params = []
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "bengal",
-            "method": method,
-            "params": params
-        }
-        req = urllib.request.Request(self.rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                return json.loads(resp.read()).get("result")
-        except Exception:
-            return None
+        from utils import call_aria2_rpc
+        return call_aria2_rpc(method, params=params, port=self.rpc_port, token=self.rpc_token)
 
     def run(self):
         self.log_signal.emit("Connecting to Aria2 engine...")

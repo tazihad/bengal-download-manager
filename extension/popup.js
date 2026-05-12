@@ -12,7 +12,39 @@ document.getElementById('options-link').addEventListener('click', (e) => {
     chrome.runtime.openOptionsPage();
 });
 
-chrome.storage.local.get({ theme: "system" }, async (items) => {
+async function checkAria2(port, token) {
+    const url = `http://127.0.0.1:${port}/jsonrpc`;
+    const params = token ? [`token:${token}`] : [];
+    const payload = { jsonrpc: "2.0", id: "popup-check", method: "aria2.getVersion", params: params };
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+        } catch {
+            response = await fetch(`http://localhost:${port}/jsonrpc`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+        }
+        clearTimeout(timeoutId);
+        const data = await response.json();
+        return !!(data.result && data.result.version);
+    } catch (e) {
+        return false;
+    }
+}
+
+chrome.storage.local.get({ theme: "system", port: 56800, token: "" }, async (items) => {
     applyTheme(items.theme);
 
     const statusText = document.getElementById('status-text');
@@ -22,7 +54,7 @@ chrome.storage.local.get({ theme: "system" }, async (items) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 1500);
 
-        // Ping the Python app on port 9000
+        // 1. Ping the Python app on port 9000
         const response = await fetch("http://127.0.0.1:9000/", {
             method: 'GET',
             signal: controller.signal
@@ -31,8 +63,15 @@ chrome.storage.local.get({ theme: "system" }, async (items) => {
         clearTimeout(timeoutId);
 
         if (response.ok) {
-            dot.className = "dot online";
-            statusText.textContent = "Bengal DM Running";
+            // 2. Ping Aria2 to ensure sync
+            const ariaOnline = await checkAria2(items.port, items.token);
+            if (ariaOnline) {
+                dot.className = "dot online";
+                statusText.textContent = "Bengal DM Running";
+            } else {
+                dot.className = "dot offline";
+                statusText.textContent = "Ports Out of Sync";
+            }
         } else {
             throw new Error("Invalid Response");
         }

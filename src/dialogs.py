@@ -8,9 +8,12 @@ from PyQt6.QtWidgets import (
     QMessageBox, QStyle, QLayout, QComboBox, QCheckBox, QSpinBox, QFileDialog,
     QRadioButton, QButtonGroup
 )
-from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtCore import Qt
-from utils import get_config_dir
+from PyQt6.QtGui import QFont, QColor, QDesktopServices
+from PyQt6.QtCore import Qt, QUrl
+from utils import (
+    get_config_dir, load_proxy_config, save_proxy_config, 
+    load_extension_config, save_extension_config, show_in_folder
+)
 
 # --- CONFIGURATION HELPERS ---
 DEFAULT_CATEGORIES = {
@@ -63,64 +66,12 @@ def save_category_config(data):
     except Exception:
         pass
 
-def load_proxy_config():
-    path = os.path.join(get_config_dir(), "proxy.json")
-    default = {
-        "mode": "no_proxy", # no_proxy, system, manual
-        "type": "http", # http, socks4, socks5
-        "host": "",
-        "port": 8080,
-        "auth": False,
-        "user": "",
-        "password": ""
-    }
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except:
-            pass
-    return default
-
-def save_proxy_config(data):
-    path = os.path.join(get_config_dir(), "proxy.json")
-    try:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
-    except:
-        pass
-
-def load_extension_config():
-    path = os.path.join(get_config_dir(), "extension.json")
-    default = {
-        "protocol": "ws", # Default to websocket
-        "host": "localhost",
-        "port": 6800,
-        "token": ""
-    }
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except:
-            pass
-    return default
-
-def save_extension_config(data):
-    path = os.path.join(get_config_dir(), "extension.json")
-    try:
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
-    except:
-        pass
-
-
 # --- ADD URL DIALOG ---
 class AddUrlDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Enter new address to download")
-        self.setFixedSize(600, 100)
+        self.setMinimumWidth(500)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Address:"))
         input_layout = QHBoxLayout()
@@ -170,6 +121,7 @@ class DownloadFileInfoDialog(QDialog):
         
         self.url_input = QLineEdit(file_info.get("url", ""))
         self.url_input.setReadOnly(True)
+        self.url_input.setCursorPosition(0)
         form_layout.addRow("URL:", self.url_input)
         
         self.category_combo = QComboBox()
@@ -265,7 +217,7 @@ class OptionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Options")
-        self.setFixedSize(600, 550)
+        self.setMinimumSize(500, 400)
         
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
@@ -314,38 +266,13 @@ class OptionsDialog(QDialog):
         grp_settings = QGroupBox("Engine Settings")
         vbox_settings = QVBoxLayout()
         
-        # Test RPC connection to determine Active Engine
-        import urllib.request
+        # Engine status label
+        self.lbl_engine = QLabel("Active Engine: Checking...")
+        self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
+        vbox_settings.addWidget(self.lbl_engine)
         
-        token = self.extension_data.get("token", "")
-        params = [f"token:{token}"] if token else []
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "1",
-            "method": "aria2.getVersion",
-            "params": params
-        }
-        
-        rpc_host = self.extension_data.get("host", "localhost")
-        rpc_port = self.extension_data.get("port", 6800)
-        rpc_url = f"http://{rpc_host}:{rpc_port}/jsonrpc"
-        
-        req = urllib.request.Request(rpc_url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        engine_status = "Fallback (Custom Python)"
-        try:
-            with urllib.request.urlopen(req, timeout=0.5) as resp:
-                res = json.loads(resp.read())
-                if 'error' in res:
-                    engine_status = f"<span style='color: orange; font-weight: bold;'>Fallback (RPC Error: {res['error'].get('message', 'Unknown')})</span>"
-                else:
-                    version = res.get('result', {}).get('version', 'Unknown')
-                    engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
-        except:
-            engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
-            
-        lbl_engine = QLabel(f"Active Engine: {engine_status}")
-        lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        vbox_settings.addWidget(lbl_engine)
+        # Initial check
+        self.refresh_engine_status()
         
         vbox_settings.addWidget(QLabel("Default Connections: 8"))
         
@@ -366,6 +293,32 @@ class OptionsDialog(QDialog):
         grp_settings.setLayout(vbox_settings)
         layout.addWidget(grp_settings)
         layout.addStretch()
+
+    def refresh_engine_status(self):
+        """Re-tests the Aria2 RPC connection and updates the label."""
+        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        
+        from utils import call_aria2_rpc, load_proxy_config
+        proxy = load_proxy_config()
+        
+        # Default status
+        engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
+        
+        try:
+            # Force local check via raw socket
+            result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
+            if result:
+                version = result.get('version', 'Unknown')
+                engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
+            elif proxy.get("mode") == "manual":
+                # If manual proxy is on, aria2 might be starting or taking time through proxychains
+                engine_status = "<span style='color: blue; font-weight: bold;'>Aria2 Starting (via Proxychains)...</span>"
+        except:
+            pass
+        
+        if hasattr(self, 'lbl_engine'):
+            self.lbl_engine.setText(f"Active Engine: {engine_status}")
 
     def setup_saveto_tab(self):
         layout = QVBoxLayout(self.saveto_tab)
@@ -446,18 +399,24 @@ class OptionsDialog(QDialog):
         layout.addStretch()
         self.on_category_changed(self.combo_cat.currentText())
 
+    def on_proxy_toggle(self, checked):
+        if checked:
+            self.update_proxy_ui()
+            self.save_proxy_data()
+            self.refresh_engine_status()
+
     def setup_proxy_tab(self):
         layout = QVBoxLayout(self.proxy_tab)
         
         self.bg_mode = QButtonGroup(self)
         
         self.rb_no_proxy = QRadioButton("No proxy / Get from system")
-        self.rb_no_proxy.toggled.connect(self.update_proxy_ui)
+        self.rb_no_proxy.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_no_proxy)
         self.bg_mode.addButton(self.rb_no_proxy)
         
         self.rb_manual = QRadioButton("Manual proxy configuration")
-        self.rb_manual.toggled.connect(self.update_proxy_ui)
+        self.rb_manual.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_manual)
         self.bg_mode.addButton(self.rb_manual)
         
@@ -470,8 +429,11 @@ class OptionsDialog(QDialog):
         self.bg_type = QButtonGroup(self)
         
         self.rb_http = QRadioButton("HTTP")
+        self.rb_http.toggled.connect(self.on_proxy_toggle)
         self.rb_socks4 = QRadioButton("SOCKS4")
+        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
         self.rb_socks5 = QRadioButton("SOCKS5")
+        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
         
         self.bg_type.addButton(self.rb_http)
         self.bg_type.addButton(self.rb_socks4)
@@ -488,28 +450,38 @@ class OptionsDialog(QDialog):
         addr_layout = QHBoxLayout()
         addr_layout.addWidget(QLabel("Proxy/Socks host:"))
         self.txt_host = QLineEdit()
+        self.txt_host.textChanged.connect(self.save_proxy_data)
+        self.txt_host.textChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.txt_host)
         
         addr_layout.addWidget(QLabel("Port:"))
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
         self.spin_port.setValue(8080)
+        self.spin_port.valueChanged.connect(self.save_proxy_data)
+        self.spin_port.valueChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.spin_port)
         manual_layout.addLayout(addr_layout)
         
         # Auth
         self.chk_auth = QCheckBox("Authentication required")
         self.chk_auth.toggled.connect(self.update_proxy_ui)
+        self.chk_auth.toggled.connect(self.save_proxy_data)
+        self.chk_auth.toggled.connect(self.refresh_engine_status)
         manual_layout.addWidget(self.chk_auth)
         
         auth_layout = QGridLayout()
         auth_layout.addWidget(QLabel("Username:"), 0, 0)
         self.txt_user = QLineEdit()
+        self.txt_user.textChanged.connect(self.save_proxy_data)
+        self.txt_user.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_user, 0, 1)
         
         auth_layout.addWidget(QLabel("Password:"), 1, 0)
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.textChanged.connect(self.save_proxy_data)
+        self.txt_pass.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_pass, 1, 1)
         
         manual_layout.addLayout(auth_layout)
@@ -517,7 +489,18 @@ class OptionsDialog(QDialog):
         layout.addWidget(self.grp_manual)
         layout.addStretch()
         
-        # Load Values
+        # Load Values (Block signals to prevent auto-save-defaults during init)
+        self.rb_manual.blockSignals(True)
+        self.rb_no_proxy.blockSignals(True)
+        self.rb_http.blockSignals(True)
+        self.rb_socks4.blockSignals(True)
+        self.rb_socks5.blockSignals(True)
+        self.txt_host.blockSignals(True)
+        self.spin_port.blockSignals(True)
+        self.chk_auth.blockSignals(True)
+        self.txt_user.blockSignals(True)
+        self.txt_pass.blockSignals(True)
+        
         if self.proxy_data["mode"] == "manual":
             self.rb_manual.setChecked(True)
         else:
@@ -533,6 +516,17 @@ class OptionsDialog(QDialog):
         self.chk_auth.setChecked(self.proxy_data.get("auth", False))
         self.txt_user.setText(self.proxy_data.get("user", ""))
         self.txt_pass.setText(self.proxy_data.get("password", ""))
+
+        self.rb_manual.blockSignals(False)
+        self.rb_no_proxy.blockSignals(False)
+        self.rb_http.blockSignals(False)
+        self.rb_socks4.blockSignals(False)
+        self.rb_socks5.blockSignals(False)
+        self.txt_host.blockSignals(False)
+        self.spin_port.blockSignals(False)
+        self.chk_auth.blockSignals(False)
+        self.txt_user.blockSignals(False)
+        self.txt_pass.blockSignals(False)
         
         self.update_proxy_ui()
 
@@ -572,27 +566,20 @@ class OptionsDialog(QDialog):
 
         form_layout.addWidget(self.combo_aria_proto, 0, 1)
         
-        # Host
-        form_layout.addWidget(QLabel("Host:"), 1, 0)
-        self.txt_aria_host = QLineEdit()
-        self.txt_aria_host.setPlaceholderText("localhost")
-        self.txt_aria_host.setText(self.extension_data.get("host", "localhost"))
-        form_layout.addWidget(self.txt_aria_host, 1, 1)
-        
         # Port
-        form_layout.addWidget(QLabel("Port:"), 2, 0)
+        form_layout.addWidget(QLabel("Port:"), 1, 0)
         self.spin_aria_port = QSpinBox()
         self.spin_aria_port.setRange(1, 65535)
-        self.spin_aria_port.setValue(self.extension_data.get("port", 6800))
-        form_layout.addWidget(self.spin_aria_port, 2, 1)
+        self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
+        form_layout.addWidget(self.spin_aria_port, 1, 1)
         
         # Token
-        form_layout.addWidget(QLabel("Secret Token:"), 3, 0)
+        form_layout.addWidget(QLabel("Secret Token:"), 2, 0)
         self.txt_aria_token = QLineEdit()
         self.txt_aria_token.setPlaceholderText("Optional secret token")
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
-        form_layout.addWidget(self.txt_aria_token, 3, 1)
+        form_layout.addWidget(self.txt_aria_token, 2, 1)
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
@@ -601,7 +588,7 @@ class OptionsDialog(QDialog):
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
             )
         )
-        form_layout.addWidget(self.chk_show_token, 4, 1)
+        form_layout.addWidget(self.chk_show_token, 3, 1)
         
         layout.addWidget(grp_aria)
         layout.addStretch()
@@ -634,7 +621,7 @@ class OptionsDialog(QDialog):
     def save_extension_data(self):
         self.extension_data = {
             "protocol": self.combo_aria_proto.currentData(), # Save the protocol code (http, ws), not the display text
-            "host": self.txt_aria_host.text().strip(),
+            "host": "localhost",
             "port": self.spin_aria_port.value(),
             "token": self.txt_aria_token.text().strip()
         }
@@ -680,7 +667,7 @@ class PropertiesDialog(QDialog):
     def __init__(self, file_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Properties - {file_data.get('filename', 'Unknown')}")
-        self.setFixedSize(450, 380)
+        self.setMinimumSize(400, 300)
         
         layout = QVBoxLayout(self)
         
@@ -748,7 +735,8 @@ class DownloadProgressDialog(QDialog):
         
         self.fixed_width = 500
         self.base_height = 280
-        self.setFixedSize(self.fixed_width, self.base_height)
+        self.setMinimumWidth(450)
+        self.setMinimumHeight(self.base_height)
         
         self.is_expanded = False
         self.segment_bars = []
@@ -772,14 +760,19 @@ class DownloadProgressDialog(QDialog):
         layout.setSpacing(5)
 
         url_text = self.worker.url
-        display_url = url_text if len(url_text) <= 65 else url_text[:62] + "..."
-        
-        self.lbl_url = QLabel(display_url)
-        self.lbl_url.setToolTip(url_text)
-        self.lbl_url.setStyleSheet("color: #666;")
-        self.lbl_url.setFixedWidth(self.fixed_width - 60) 
-        layout.addWidget(self.lbl_url)
 
+        self.lbl_url = QLineEdit(url_text)
+        self.lbl_url.setReadOnly(True)
+        self.lbl_url.setCursorPosition(0)
+        self.lbl_url.setToolTip(url_text)
+        self.lbl_url.setStyleSheet("""
+            QLineEdit {
+                background: transparent;
+                border: none;
+                color: #666;
+            }
+        """)
+        layout.addWidget(self.lbl_url)
         status_layout = QHBoxLayout()
         status_layout.addWidget(QLabel("Status:"))
         self.lbl_main_status = QLabel("Connecting...")
@@ -860,7 +853,6 @@ class DownloadProgressDialog(QDialog):
         main_layout.setSpacing(5)
         
         self.tabs = QTabWidget()
-        self.tabs.setFixedWidth(self.fixed_width - 20) 
         main_layout.addWidget(self.tabs)
         
         self.status_tab = QWidget()
@@ -930,7 +922,6 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
         self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; }")
-        self.seg_table.setFixedWidth(self.fixed_width - 30)
 
         header = self.seg_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
@@ -993,11 +984,11 @@ class DownloadProgressDialog(QDialog):
             self.seg_table.setMinimumHeight(table_height)
             self.seg_table.setMaximumHeight(table_height)
             details_extra = table_height + 60 
-            self.setFixedSize(self.fixed_width, self.base_height + details_extra)
+            self.resize(self.width(), self.base_height + details_extra)
         else:
             self.details_frame.hide()
             self.btn_details.setText("Show Details >>")
-            self.setFixedSize(self.fixed_width, self.base_height)
+            self.resize(self.width(), self.base_height)
 
     def init_segment_table(self, num_segments):
         # Aria2 backend (which has 'gid') supports resume automatically
@@ -1084,10 +1075,19 @@ class DownloadProgressDialog(QDialog):
             self.pbar.setValue(0)
 
     def update_stats(self, row, data):
-        self.lbl_size.setText(data[1])
+        # Only update size if it's not "Unknown" or if current is "Calculating..."
+        new_size_text = data[1]
+        if new_size_text != "Unknown" or self.lbl_size.text() == "Calculating...":
+            self.lbl_size.setText(new_size_text)
+            
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
         
+        # Update internal byte counts if high-precision data is available (indices 5 and 6)
+        if len(data) > 6:
+            self.current_bytes = data[5]
+            self.total_bytes = data[6]
+            
         current_bytes = self.current_bytes
         total_bytes = self.total_bytes
         
@@ -1099,18 +1099,32 @@ class DownloadProgressDialog(QDialog):
             
         self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes)} ({percent})")
         
-        main_status_text = self.lbl_main_status.text()
-        if main_status_text in ["Downloading", "Resuming...", "Connecting..."]:
+        # Map worker status to display status
+        worker_status = data[2]
+        if worker_status.startswith("Receiving data"):
+            display_status = "Downloading"
+        elif worker_status == "Connecting...":
+            display_status = "Connecting..."
+        elif worker_status == "Complete":
+            display_status = "Completed"
+        elif worker_status == "Resume GET...":
+            display_status = "Resuming..."
+        else:
+            display_status = worker_status
+            
+        self.lbl_main_status.setText(display_status)
+        
+        if display_status in ["Downloading", "Resuming...", "Connecting..."]:
             self.btn_pause.setText("Pause")
             self.btn_cancel.setText("Cancel")
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
-        elif main_status_text == "Paused":
+        elif display_status == "Paused":
             self.btn_pause.setText("Resume")
             self.btn_cancel.setText("Close")
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
-        elif main_status_text in ["Cancelled", "Error"]:
+        elif display_status in ["Cancelled", "Error"]:
             self.btn_pause.setText("Resume")
             self.btn_cancel.setText("Close")
             self.btn_pause.setEnabled(True)
@@ -1159,7 +1173,11 @@ class DownloadProgressDialog(QDialog):
             self.btn_pause.setEnabled(True)
             try: self.btn_pause.clicked.disconnect() 
             except: pass
-            self.btn_pause.clicked.connect(lambda: os.startfile(os.path.dirname(self.worker.target_path)) if os.name == 'nt' else subprocess.Popen(['xdg-open', os.path.dirname(self.worker.target_path)]))
+            
+            def open_target_folder():
+                show_in_folder(self.worker.target_path)
+            
+            self.btn_pause.clicked.connect(open_target_folder)
         elif display_status in ["Cancelled", "Paused", "Error"]:
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Resume")
@@ -1171,3 +1189,94 @@ class DownloadProgressDialog(QDialog):
             self.worker.stop()
             self.worker.finished_signal.emit(self.worker.row_index, "Paused")
         self.reject()
+
+
+class DownloadCompleteDialog(QDialog):
+    def __init__(self, file_data, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Download complete")
+        self.setFixedWidth(520)
+        self.file_data = file_data
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        from PyQt6.QtWidgets import QFormLayout
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        # Address
+        self.url_input = QLineEdit(file_data.get('url', ''))
+        self.url_input.setReadOnly(True)
+        self.url_input.setCursorPosition(0)
+        self.url_input.setStyleSheet("background: transparent; border: none; color: #555;")
+        form.addRow("Address:", self.url_input)
+        
+        # Saved as
+        self.path_input = QLineEdit(file_data.get('path', ''))
+        self.path_input.setReadOnly(True)
+        self.path_input.setCursorPosition(0)
+        self.path_input.setStyleSheet("background: transparent; border: none; font-weight: bold;")
+        form.addRow("The file saved as:", self.path_input)
+        
+        # Size
+        self.lbl_size = QLabel(file_data.get('size', 'Unknown'))
+        self.lbl_size.setStyleSheet("font-weight: bold;")
+        form.addRow("Size:", self.lbl_size)
+        
+        layout.addLayout(form)
+        layout.addSpacing(10)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self.btn_open = QPushButton("Open")
+        self.btn_open_with = QPushButton("Open with...")
+        self.btn_open_folder = QPushButton("Open Folder")
+        self.btn_close = QPushButton("Close")
+        
+        # Set height for buttons to look more like IDM
+        for btn in [self.btn_open, self.btn_open_with, self.btn_open_folder, self.btn_close]:
+            btn.setFixedHeight(30)
+            btn_layout.addWidget(btn)
+            
+        layout.addLayout(btn_layout)
+        
+        # Connect
+        self.btn_open.clicked.connect(self.on_open)
+        self.btn_open_with.clicked.connect(self.on_open_with)
+        self.btn_open_folder.clicked.connect(self.on_open_folder)
+        self.btn_close.clicked.connect(self.accept)
+        
+    def on_open(self):
+        path = self.file_data.get('path')
+        if path and os.path.exists(path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Error", "File does not exist.")
+            
+    def on_open_with(self):
+        path = self.file_data.get('path')
+        if not path or not os.path.exists(path):
+             QMessageBox.warning(self, "Error", "File does not exist.")
+             return
+             
+        # On Linux we can use a generic open with dialog or ask for app
+        if os.name == 'nt':
+            # On Windows, we can use 'rundll32.exe shell32.dll,OpenAs_RunDLL path'
+            subprocess.Popen(['rundll32.exe', 'shell32.dll,OpenAs_RunDLL', path])
+        else:
+            # On Linux, there isn't a single standard "Open With" command like Windows
+            # But we can ask the user for an executable
+            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
+            if app_path:
+                subprocess.Popen([app_path, path])
+        self.accept()
+            
+    def on_open_folder(self):
+        path = self.file_data.get('path')
+        if path:
+            show_in_folder(path)
+            self.accept()
