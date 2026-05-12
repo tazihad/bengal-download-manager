@@ -399,8 +399,8 @@ class MainWindow(QMainWindow):
         self.action_delete.setEnabled(False)
         self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.action_delete_completed = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "Delete Completed", self)
-        self.action_delete_completed.triggered.connect(self.delete_completed_downloads)
+        self.action_clear = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "Clear", self)
+        self.action_clear.triggered.connect(self.clear_finished_downloads)
         
         self.action_options = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Options", self)
         self.action_options.triggered.connect(self.open_options)
@@ -434,7 +434,7 @@ class MainWindow(QMainWindow):
         downloads_menu.addAction(self.action_stop_all)
         downloads_menu.addSeparator()
         downloads_menu.addAction(self.action_delete)
-        downloads_menu.addAction(self.action_delete_completed)
+        downloads_menu.addAction(self.action_clear)
         downloads_menu.addSeparator()
         downloads_menu.addAction(self.action_options)
 
@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_stop)
         toolbar.addAction(self.action_stop_all)
         toolbar.addAction(self.action_delete) 
-        toolbar.addAction(self.action_delete_completed)
+        toolbar.addAction(self.action_clear)
         toolbar.addAction(self.action_options)
 
     def setup_central_widget(self):
@@ -529,7 +529,17 @@ class MainWindow(QMainWindow):
         ])
         header = self.download_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        
+        # Enable column customization features
+        header.setSectionsMovable(True)
+        header.setSectionsClickable(True)
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self.show_header_context_menu)
+
+        # Change resize mode to Interactive for all columns
+        for i in range(self.download_table.columnCount()):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+
         splitter.addWidget(self.category_tree)
         splitter.addWidget(self.download_table)
         splitter.setSizes([200, 800])
@@ -743,9 +753,9 @@ class MainWindow(QMainWindow):
             if category == "All Downloads":
                 should_hide = False
             elif category == "Unfinished":
-                if status == "Completed": should_hide = True
+                if status == "Complete": should_hide = True
             elif category == "Finished":
-                if status != "Completed": should_hide = True
+                if status != "Complete": should_hide = True
             elif category in ext_map:
                 extensions = ext_map[category]
                 if not any(filename.endswith(ext) for ext in extensions):
@@ -852,15 +862,21 @@ class MainWindow(QMainWindow):
     def save_settings(self):
         try:
             config_dir = get_config_dir()
-            # Save column widths
-            column_widths = []
+            
+            column_data = []
+            header = self.download_table.horizontalHeader()
             for i in range(self.download_table.columnCount()):
-                column_widths.append(self.download_table.columnWidth(i))
+                logical_idx = header.logicalIndex(i)
+                column_data.append({
+                    "logical_index": logical_idx,
+                    "width": self.download_table.columnWidth(logical_idx),
+                    "visible": not self.download_table.isColumnHidden(logical_idx)
+                })
 
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
-                "column_widths": column_widths
+                "column_data": column_data
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -880,13 +896,61 @@ class MainWindow(QMainWindow):
                     self.restoreGeometry(QByteArray.fromHex(settings["geometry"].encode()))
                 if "windowState" in settings:
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
-                if "column_widths" in settings:
+                
+                header = self.download_table.horizontalHeader()
+                if "column_data" in settings:
+                    for i, col in enumerate(settings["column_data"]):
+                        logical_idx = col["logical_index"]
+                        # Move visual index of logical_idx to position i
+                        header.moveSection(header.visualIndex(logical_idx), i)
+                        self.download_table.setColumnHidden(logical_idx, not col["visible"])
+                        self.download_table.setColumnWidth(logical_idx, col["width"])
+                elif "column_widths" in settings:
                     for i, width in enumerate(settings["column_widths"]):
                         if i < self.download_table.columnCount():
                             self.download_table.setColumnWidth(i, width)
         except Exception:
             pass
         return settings
+
+    def show_header_context_menu(self, pos):
+        menu = QMenu(self)
+        act_columns = QAction("Columns", self)
+        act_columns.triggered.connect(self.open_column_dialog)
+        menu.addAction(act_columns)
+        menu.exec(self.download_table.horizontalHeader().viewport().mapToGlobal(pos))
+
+    def open_column_dialog(self):
+        header = self.download_table.horizontalHeader()
+        columns_data = []
+        
+        # Map visual index to logical index to get current visual order
+        for i in range(self.download_table.columnCount()):
+            logical_idx = header.logicalIndex(i)
+            name = self.download_table.horizontalHeaderItem(logical_idx).text()
+            visible = not self.download_table.isColumnHidden(logical_idx)
+            width = self.download_table.columnWidth(logical_idx)
+            columns_data.append({
+                "name": name, 
+                "visible": visible, 
+                "width": width, 
+                "logical_index": logical_idx
+            })
+            
+        from dialogs import ColumnDialog
+        dlg = ColumnDialog(columns_data, self)
+        if dlg.exec():
+            new_data = dlg.get_results()
+            self.apply_column_settings(new_data)
+            self.save_settings()
+
+    def apply_column_settings(self, data):
+        header = self.download_table.horizontalHeader()
+        for i, col in enumerate(data):
+            logical_idx = col["logical_index"]
+            header.moveSection(header.visualIndex(logical_idx), i)
+            self.download_table.setColumnHidden(logical_idx, not col["visible"])
+            self.download_table.setColumnWidth(logical_idx, col["width"])
 
     def show_context_menu(self, pos):
         item = self.download_table.itemAt(pos)
@@ -1378,42 +1442,20 @@ class MainWindow(QMainWindow):
             self.save_data()
             self.update_ui_states()
 
-    def delete_completed_downloads(self):
-        rows_to_delete = []
+    def clear_finished_downloads(self):
+        rows_to_clear = []
         for row in range(self.download_table.rowCount()):
             status_item = self.download_table.item(row, 2)
-            if status_item and status_item.text() == "Completed":
-                rows_to_delete.append(row)
+            if status_item and status_item.text() == "Complete":
+                rows_to_clear.append(row)
         
-        if not rows_to_delete: return
+        if not rows_to_clear: return
 
-        # FEATURE: Use custom dialog for checkbox functionality
-        count = len(rows_to_delete)
-        dialog = DeleteDialog(count, is_completed=True, parent=self)
-        
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            delete_disk = dialog.should_delete_from_disk()
-            
-            for row in sorted(rows_to_delete, reverse=True):
-                item_name = self.download_table.item(row, 0)
-                path = item_name.data(Qt.ItemDataRole.UserRole + 1)
+        for row in sorted(rows_to_clear, reverse=True):
+            self.download_table.removeRow(row)
                 
-                if delete_disk:
-                    if path and os.path.exists(path):
-                        try: os.remove(path)
-                        except: pass
-                    # Delete temp files too, just in case
-                    if path and os.path.exists(path + ".tmpbdm"):
-                        try: os.remove(path + ".tmpbdm")
-                        except: pass
-                    if path and os.path.exists(path + ".tmpbdm.bdmx"):
-                        try: os.remove(path + ".tmpbdm.bdmx")
-                        except: pass
-                
-                self.download_table.removeRow(row)
-                
-            self.save_data()
-            self.update_ui_states()
+        self.save_data()
+        self.update_ui_states()
 
     def update_download_row(self, item_ref, data):
         try:
