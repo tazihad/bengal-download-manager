@@ -3,7 +3,7 @@ import subprocess
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
-    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout
+    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox
 )
 from PyQt6.QtCore import Qt
 from core.utils import (
@@ -24,6 +24,9 @@ class OptionsDialog(QDialog):
         self.current_category = "General"
         
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+        
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
         
@@ -45,18 +48,31 @@ class OptionsDialog(QDialog):
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
+        
         self.btn_ok = QPushButton("OK")
+        self.btn_ok.setFixedWidth(80)
+        self.btn_ok.setFixedHeight(30)
+        self.btn_ok.setDefault(True)
         self.btn_ok.clicked.connect(self.save_and_accept)
+        
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setFixedWidth(80)
+        self.btn_cancel.setFixedHeight(30)
         self.btn_cancel.clicked.connect(self.reject)
+        
         btn_layout.addWidget(self.btn_ok)
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
 
     def setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(20)
+        
         grp_integration = QGroupBox("System Integration")
         vbox_int = QVBoxLayout()
+        vbox_int.setContentsMargins(10, 15, 10, 10)
+        vbox_int.setSpacing(10)
         vbox_int.addWidget(QLabel("Launch Bengal DM on system startup"))
         vbox_int.addWidget(QLabel("Integrate into browsers"))
         grp_integration.setLayout(vbox_int)
@@ -64,6 +80,8 @@ class OptionsDialog(QDialog):
         
         grp_settings = QGroupBox("Engine Settings")
         vbox_settings = QVBoxLayout()
+        vbox_settings.setContentsMargins(10, 15, 10, 10)
+        vbox_settings.setSpacing(10)
         
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
@@ -120,7 +138,8 @@ class OptionsDialog(QDialog):
 
     def setup_saveto_tab(self):
         layout = QVBoxLayout(self.saveto_tab)
-        layout.setSpacing(10)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
         
         header_layout = QHBoxLayout()
         icon_label = QLabel()
@@ -137,14 +156,12 @@ class OptionsDialog(QDialog):
 
         grp_save = QGroupBox("Save To...")
         grp_layout = QVBoxLayout(grp_save)
-        grp_layout.setSpacing(8)
+        grp_layout.setContentsMargins(10, 15, 10, 15)
+        grp_layout.setSpacing(10)
         
         cat_row = QHBoxLayout()
         cat_row.addWidget(QLabel("Category"))
         cat_row.addStretch()
-        btn_new = QPushButton("New")
-        btn_new.setFixedWidth(60)
-        cat_row.addWidget(btn_new)
         grp_layout.addLayout(cat_row)
         
         self.combo_cat = QComboBox()
@@ -176,11 +193,12 @@ class OptionsDialog(QDialog):
         self.chk_last_selected.setChecked(True)
         grp_layout.addWidget(self.chk_last_selected)
 
-        grp_save.setLayout(grp_layout)
         layout.addWidget(grp_save)
         
         grp_temp = QGroupBox("Temporary directory")
         temp_layout = QVBoxLayout(grp_temp)
+        temp_layout.setContentsMargins(10, 15, 10, 15)
+        temp_layout.setSpacing(10)
         
         temp_dir_row = QHBoxLayout()
         self.txt_temp_path = QLineEdit()
@@ -204,6 +222,8 @@ class OptionsDialog(QDialog):
 
     def setup_proxy_tab(self):
         layout = QVBoxLayout(self.proxy_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         
         self.bg_mode = QButtonGroup(self)
         
@@ -220,6 +240,8 @@ class OptionsDialog(QDialog):
         # Manual Settings Group
         self.grp_manual = QGroupBox()
         manual_layout = QVBoxLayout(self.grp_manual)
+        manual_layout.setContentsMargins(10, 15, 10, 15)
+        manual_layout.setSpacing(12)
         
         # Type
         type_layout = QHBoxLayout()
@@ -329,7 +351,8 @@ class OptionsDialog(QDialog):
 
     def setup_extension_tab(self):
         layout = QVBoxLayout(self.extension_tab)
-        layout.setSpacing(15)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(20)
         
         desc = QLabel("Configure connection settings for Aria2 RPC integration.")
         desc.setWordWrap(True)
@@ -337,7 +360,8 @@ class OptionsDialog(QDialog):
         
         grp_aria = QGroupBox("Aria2 RPC Settings")
         form_layout = QGridLayout(grp_aria)
-        form_layout.setSpacing(10)
+        form_layout.setContentsMargins(10, 15, 10, 15)
+        form_layout.setSpacing(12)
         
         # Protocol
         form_layout.addWidget(QLabel("Protocol:"), 0, 0)
