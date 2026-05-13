@@ -35,7 +35,7 @@ Bengal Download Manager is a powerful and efficient download management tool des
 2. Install the package using your distribution's package manager:
    - For Debian/Ubuntu: `sudo dpkg -i bengal-download-manager.deb`
    - For Fedora/RHEL: `sudo rpm -i bengal-download-manager.rpm`
-3. Alternatively, you can build from source:
+3. Alternatively, you can build from source (see [DEPENDENCIES.md](DEPENDENCIES.md) for requirements):
    ```bash
    git clone https://github.com/tazihad/bengal-download-manager.git
    cd bengal-download-manager
