@@ -37,9 +37,13 @@ set(SPEC_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 # Define the custom command that actually runs PyInstaller
 add_custom_command(
     OUTPUT "${DIST_DIR}/${EXECUTABLE_NAME}"
-    COMMAND ${Python3_EXECUTABLE} -m PyInstaller
+    COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/src"
+            ${Python3_EXECUTABLE} -m PyInstaller
             --name "${APP_NAME}"
             --onefile
+            --paths "${CMAKE_CURRENT_SOURCE_DIR}/src"
+            --collect-all core
+            --collect-all ui
             # Optional: Add --windowed here if you want to hide the console window on Windows/macOS
             --distpath "${DIST_DIR}"
             --workpath "${BUILD_DIR}"
@@ -48,10 +52,7 @@ add_custom_command(
             "${MAIN_SCRIPT}"
     # Depend on all source files so CMake knows when to rebuild
     DEPENDS "${MAIN_SCRIPT}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/dialogs.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/workers.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/utils.py"
-    COMMENT "Building standalone executable with PyInstaller..."
+    COMMENT "Building standalone executable with PyInstaller (with PYTHONPATH=src)..."
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
