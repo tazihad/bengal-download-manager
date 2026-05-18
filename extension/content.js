@@ -1,35 +1,42 @@
 document.addEventListener('click', (event) => {
-    // 1. Find the closest <a> link tag that the user clicked
     const link = event.target.closest('a');
+    if (!link || !link.href || !link.href.startsWith('http')) return;
+    
+    // 1. Skip if modifier keys are pressed (let browser handle new tabs/windows natively)
+    if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) return;
 
-    if (link && link.href && link.href.startsWith('http')) {
-        // CRITICAL: Block the browser from navigating immediately
-        event.preventDefault();
-        event.stopPropagation();
+    // 2. heuristic: skip pre-flight for obvious web pages
+    const url = new URL(link.href);
+    const pathname = url.pathname.toLowerCase();
+    const isWebPage = pathname.endsWith('/') || 
+                      pathname.split('/').pop() === '' ||
+                      pathname.match(/\.(html|php|asp|aspx|jsp|htm)$/i) ||
+                      (!pathname.includes('.') && !pathname.endsWith('/'));
 
-        const isNewTab = link.target === '_blank';
+    if (isWebPage) return;
+
+    // 3. Block navigation for potential downloads
+    event.preventDefault();
+    event.stopPropagation();
+
+    const originalCursor = link.style.cursor;
+    link.style.cursor = 'wait';
+
+    chrome.runtime.sendMessage({
+        action: "check_link_preflight",
+        url: link.href
+    }, (response) => {
+        link.style.cursor = originalCursor;
         
-        // Show a visual cue (optional, depending on preference)
-        document.body.style.cursor = 'wait';
-
-        // Send the URL directly to our background.js script for pre-flight check
-        chrome.runtime.sendMessage({
-            action: "check_link_preflight",
-            url: link.href
-        }, (response) => {
-            document.body.style.cursor = 'default';
-            
-            // If background says Bengal handled it, we do nothing (navigation remains blocked)
-            if (response && response.handledByBengal) {
-                return;
-            }
-            
-            // If Bengal didn't handle it, we resume navigation
-            if (isNewTab) {
-                window.open(link.href, '_blank');
-            } else {
-                window.location.href = link.href;
-            }
-        });
-    }
-}, true); // 'true' uses the capture phase to intercept before the website's own code can react
+        if (response && response.handledByBengal) {
+            return;
+        }
+        
+        // Resume navigation if Bengal didn't take it
+        if (link.target === '_blank') {
+            window.open(link.href, '_blank');
+        } else {
+            window.location.href = link.href;
+        }
+    });
+}, true);
