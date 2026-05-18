@@ -3,22 +3,33 @@ document.addEventListener('click', (event) => {
     const link = event.target.closest('a');
 
     if (link && link.href && link.href.startsWith('http')) {
+        // CRITICAL: Block the browser from navigating immediately
+        event.preventDefault();
+        event.stopPropagation();
 
-        // 2. Define the file types you want to intercept silently
-        const interceptTypes = /\.(zip|rar|7z|tar|gz|iso|exe|msi|mp4|mkv|avi|mp3|flac|pdf)(\?.*)?$/i;
+        const isNewTab = link.target === '_blank';
+        
+        // Show a visual cue (optional, depending on preference)
+        document.body.style.cursor = 'wait';
 
-        // 3. If the link matches a download file type
-        if (link.href.match(interceptTypes)) {
-
-            // CRITICAL: Block Firefox from seeing the click or navigating
-            event.preventDefault();
-            event.stopPropagation();
-
-            // Send the URL directly to our background.js script
-            chrome.runtime.sendMessage({
-                action: "silent_download",
-                url: link.href
-            });
-        }
+        // Send the URL directly to our background.js script for pre-flight check
+        chrome.runtime.sendMessage({
+            action: "check_link_preflight",
+            url: link.href
+        }, (response) => {
+            document.body.style.cursor = 'default';
+            
+            // If background says Bengal handled it, we do nothing (navigation remains blocked)
+            if (response && response.handledByBengal) {
+                return;
+            }
+            
+            // If Bengal didn't handle it, we resume navigation
+            if (isNewTab) {
+                window.open(link.href, '_blank');
+            } else {
+                window.location.href = link.href;
+            }
+        });
     }
 }, true); // 'true' uses the capture phase to intercept before the website's own code can react
