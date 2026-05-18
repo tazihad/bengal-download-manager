@@ -67,7 +67,9 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
     '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
     'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
     'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
-    'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage'
+    'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
+    'xz', 'bz', 'lzma', 'war', 'ear',
+    'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv'
   ];
   
   const lowerUrl = details.url.split('?')[0].toLowerCase();
@@ -177,7 +179,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
       'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
       'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
-      'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage'
+      'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
+      'xz', 'bz', 'lzma', 'war', 'ear',
+      'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv'
     ];
 
     const lowerUrl = request.url.split('?')[0].toLowerCase();

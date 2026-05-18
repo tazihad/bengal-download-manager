@@ -9,11 +9,11 @@ DEFAULT_CATEGORIES = {
     },
     "Compressed": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Compressed"),
-        "extensions": "7z ace arj bz2 gz gzip lzh rar sea sit sitx tar zip"
+        "extensions": "7z ace arj bz2 gz gzip lzh rar sea sit sitx tar zip xz bz bz2 lzma war ear"
     },
     "Documents": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Documents"),
-        "extensions": "pdf pps ppt"
+        "extensions": "pdf pps ppt doc docx xls xlsx pptx odt ods odp rtf csv"
     },
     "Music": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Music"),
