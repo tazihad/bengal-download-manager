@@ -62,24 +62,71 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
   contentDisposition = contentDisposition.toLowerCase();
   contentType = contentType.toLowerCase();
 
-  if (contentDisposition.includes('attachment')) {
+  // 3. Check for target extensions from our categorized list
+  const targetExts = [
+    '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
+    'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
+    'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
+    'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
+    'xz', 'bz', 'lzma', 'war', 'ear',
+    'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv', 'ppsx'
+    ];
+  
+  const lowerUrl = details.url.split('?')[0].toLowerCase();
+  const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
+
+  // CRITICAL BYPASS: If the response is HTML, it's a landing page (like VLC).
+  // We MUST let the browser open it.
+  if (contentType.includes('text/html') && !contentDisposition.includes('attachment')) {
+      return; 
+  }
+
+  // Only download if it's one of our target extensions or an explicit attachment
+  if (hasTargetExt) {
     isDownload = true;
-  } else if (contentType.includes('application/octet-stream') || 
-             contentType.includes('application/x-msdos-program') ||
-             contentType.includes('application/zip') ||
-             contentType.includes('application/x-7z-compressed')) {
-    isDownload = true;
+  } else if (contentDisposition.includes('attachment')) {
+    // Optional: Keep this if you want to catch files explicitly marked as attachment 
+    // even if they aren't in the list. To strictly stick to the list, we remove this.
+    // Given your request "only stick to download format that are categorized", we'll verify extension even for attachments.
+    
+    // Check if attachment filename has target extension
+    const cdMatch = contentDisposition.match(/filename="?(.+?\.(.+?))"?($|;)/i);
+    if (cdMatch && cdMatch[2]) {
+        const cdExt = cdMatch[2].toLowerCase();
+        if (targetExts.includes(cdExt)) {
+            isDownload = true;
+        }
+    }
   }
 
   if (isDownload) {
-    // Blocking check for sync is not possible here, so we always pass to background tasks
-    // background task will verify sync before actually sending to DM
-    return; 
+    // Asynchronously send to Bengal DM so we don't block the sync return
+    chrome.cookies.getAll({ url: details.url }, (cookies) => {
+      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      sendToBengalDM(details.url, cookieString);
+    });
+    
+    // CRITICAL: Immediately cancel the browser's request
+    // If it's a main frame navigation that was just opened, we'll try to close the tab.
+    if (details.type === "main_frame") {
+        setTimeout(() => {
+            chrome.tabs.get(details.tabId, (tab) => {
+                if (chrome.runtime.lastError || !tab) return;
+                // Only close if it's a "clean" tab (no title or just the URL)
+                // or if it was opened specifically for this download.
+                if (!tab.url || tab.url === details.url || tab.url === 'about:blank') {
+                    chrome.tabs.remove(details.tabId);
+                }
+            });
+        }, 500);
+    }
+
+    return { cancel: true };
   }
 }, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }, ["blocking", "responseHeaders"]);
 
 // --- HELPER: Send URL to Python App ---
-async function sendToBengalDM(targetUrl) {
+async function sendToBengalDM(targetUrl, cookies = "") {
   // Try port 9000 check first
   try {
     const response = await fetch("http://127.0.0.1:9000/", { method: 'GET' });
@@ -104,7 +151,14 @@ async function sendToBengalDM(targetUrl) {
   try {
     await fetch("http://127.0.0.1:9000/", {
       method: 'POST',
-      body: originalUrl
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: originalUrl,
+        userAgent: navigator.userAgent,
+        cookies: cookies
+      })
     });
     return true;
   } catch (err) {
@@ -131,33 +185,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "download-with-bengal") {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
     if (targetUrl && targetUrl.startsWith("http")) {
-      await sendToBengalDM(targetUrl);
+      const cookies = await chrome.cookies.getAll({ url: targetUrl });
+      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      await sendToBengalDM(targetUrl, cookieString);
     }
   }
 });
 
-// --- FEATURE 2: Smart Download Interceptor ---
-chrome.downloads.onCreated.addListener(async (downloadItem) => {
-    if (!downloadItem.url.startsWith("http")) return;
-
-    const isImageMime = downloadItem.mime && downloadItem.mime.startsWith("image/");
-    const isImageExt = downloadItem.url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|avif)(\?.*)?$/i);
-    if (isImageMime || isImageExt) return;
-
-    const online = await isAria2Online();
-    if (!online) return;
-
-    queueMicrotask(() => {
-        chrome.downloads.cancel(downloadItem.id);
-        chrome.downloads.erase({ id: downloadItem.id });
-    });
-
-    sendToBengalDM(downloadItem.url);
-});
-
-// --- FEATURE 3: Silent Click Interceptor ---
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  if (request.action === "silent_download") {
-    await sendToBengalDM(request.url);
+// --- MESSAGE INTERCEPTOR ---
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "silent_download" || request.action === "check_link_preflight") {
+    // We let the onHeadersReceived listener do the heavy lifting for navigation links.
+    // For manual triggers or pre-flight check, we just tell content.js to go ahead
+    // and the deep network interceptor will catch it if it's a real file.
+    if (request.action === "check_link_preflight") {
+        sendResponse({ handledByBengal: false });
+    }
+    return true; 
   }
 });

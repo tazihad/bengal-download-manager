@@ -40,7 +40,7 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder
+    show_in_folder, resolve_filename
 )
 
 # Default TCP port for extension communication
@@ -105,17 +105,28 @@ class TcpListenerThread(QThread):
 
                         # 3. Handle actual download POST request
                         url = ""
+                        user_agent = ""
+                        cookies = ""
                         if data.startswith("POST"):
                             # The URL is in the body of the HTTP request, after the headers (\r\n\r\n)
                             parts = data.split("\r\n\r\n", 1)
                             if len(parts) == 2:
-                                url = parts[1].strip()
+                                body = parts[1].strip()
+                                try:
+                                    # Try parsing as JSON first (new method)
+                                    payload = json.loads(body)
+                                    url = payload.get("url", "")
+                                    user_agent = payload.get("userAgent", "")
+                                    cookies = payload.get("cookies", "")
+                                except:
+                                    # Fallback to plain text (old method)
+                                    url = body
                         elif data.startswith("URL:"): # Fallback for your old method
                             url = data[4:].strip()
 
                         if url and url.startswith("http"):
-                            # Send the URL to the PyQt GUI!
-                            self.emitter.new_download_signal.emit(url) 
+                            # Send the URL, User-Agent, and Cookies to the PyQt GUI!
+                            self.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}") 
                             
                             response = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
                             conn.sendall(response.encode('utf-8'))
@@ -759,6 +770,10 @@ class MainWindow(QMainWindow):
                 
                 status = internal_status if internal_status else display_text
                 
+                # Normalize exact 100% or Complete variations to "Complete"
+                if status == "Complete" or display_text == "Complete" or "100.00%" in str(status) or "100.00%" in str(display_text):
+                    status = "Complete"
+                
                 # If currently active or paused, normalize to include percentage if available
                 if status in ["Downloading", "Connecting...", "Pending...", "Resuming...", "Paused", "Cancelled"]:
                     if pct_data:
@@ -768,9 +783,10 @@ class MainWindow(QMainWindow):
                         status = display_text
                     else:
                         status = "Paused"
-                elif status == "Completed" or status == "Complete":
+                
+                # STRICT 100% CHECK: only force "Complete" if it's exactly 100%
+                if isinstance(status, str) and "100.00%" in status:
                     status = "Complete"
-                # If it's already a percentage (e.g. from previous load or pause), keep it
                 
                 # Retrieve raw timestamp values for persistence
                 last_try_ts = item_name.data(Qt.ItemDataRole.UserRole + 2) or ""
@@ -832,7 +848,11 @@ class MainWindow(QMainWindow):
                 display_status = raw_status
                 
                 # Determine internal state based on status text
-                if raw_status == "Complete" or raw_status == "Completed":
+                is_actually_complete = False
+                if raw_status == "Complete" or "100.00%" in str(raw_status):
+                    is_actually_complete = True
+
+                if is_actually_complete:
                     display_status = "Complete"
                     internal_state = "Complete"
                 elif "%" in raw_status:
@@ -1149,11 +1169,16 @@ class MainWindow(QMainWindow):
         if url:
             self.process_incoming_url(url)
 
-    def process_incoming_url(self, url):
+    def process_incoming_url(self, data):
         """Fetches file info and shows the popup without stealing focus for main window"""
+        parts = data.split("|", 2)
+        url = parts[0]
+        user_agent = parts[1] if len(parts) > 1 else ""
+        cookies = parts[2] if len(parts) > 2 else ""
+
         # 2. Start the fetcher
         from core.workers import FileInfoFetcherWorker
-        fetcher = FileInfoFetcherWorker(url)
+        fetcher = FileInfoFetcherWorker(url, user_agent=user_agent, cookies=cookies)
         self.active_fetchers.append(fetcher)
         
         # 3. Connect to a wrapper that cleans up the thread memory when done
@@ -1172,16 +1197,17 @@ class MainWindow(QMainWindow):
         from ui.dialogs import DownloadFileInfoDialog
         dialog = DownloadFileInfoDialog(file_info, self)
         
-        # IDM-style: Start downloading immediately as soon as the info window is shown
-        # HIDDEN: don't show the progress dialog yet
+        # Add to list but don't start downloading yet (wait for user confirmation)
         results = dialog.get_results()
         item_ref = self.start_download(
             url=file_info["url"], 
             custom_filename=results["filename"],
             custom_save_dir=os.path.dirname(results["save_path"]),
             size_data=(results["size_str"], results["size_bytes"]),
-            start_paused=False,
-            show_dialog=False
+            start_paused=True,
+            show_dialog=False,
+            user_agent=file_info.get("user_agent"),
+            cookies=file_info.get("cookies")
         )
         
         # Connect signals to handle the dialog result
@@ -1193,58 +1219,35 @@ class MainWindow(QMainWindow):
         results = dialog.get_results()
         key = id(item_ref)
         
-        # Ensure it's in the table now that it's confirmed
-        row = self.download_table.row(item_ref)
-        if row == -1:
-            row = self.insert_download_row(item_ref, results.get("size_str", "?"), start_paused=False)
+        # Update filename and path in case user changed them in the dialog
+        item_ref.setText(results["filename"])
+        item_ref.setData(Qt.ItemDataRole.UserRole + 1, results["save_path"])
         
-        # If "Start Download" was clicked, show the hidden dialog
+        # Ensure it's in the table
+        row = self.download_table.row(item_ref)
+        if row == -1: return
+
+        # If "Start Download" was clicked, initiate the worker
         if results["action"] == 'start':
-            # CHECK: If download finished while info dialog was showing
-            status_item = self.download_table.item(row, 2)
-            status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-            if not status:
-                status = item_ref.data(Qt.ItemDataRole.UserRole + 11)
-
-            if status == "Complete":
-                # Ensure table shows Complete
-                if status_item:
-                    status_item.setText("Complete")
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
-                
-                # Show Download Complete Dialog
-                file_data = {
-                    "url": item_ref.data(Qt.ItemDataRole.UserRole),
-                    "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
-                    "size": self.download_table.item(row, 1).text()
-                }
-                self._complete_dlg = DownloadCompleteDialog(file_data, self)
-                self._complete_dlg.show()
-            elif key in self.active_downloads:
-                self.active_downloads[key].show()
-                self.active_downloads[key].activateWindow()
-            return
-
-        # If "Download Later" was clicked, pause the already running download
-        if results["action"] == 'later':
-            if key in self.active_downloads:
-                progress_dlg = self.active_downloads[key]
-                progress_dlg.worker.pause()
-                progress_dlg.lbl_main_status.setText("Paused")
-                progress_dlg.btn_pause.setText("Resume")
-            return
+            self.download_table.setItem(row, 2, QTableWidgetItem("Starting..."))
+            self._start_download_worker(
+                file_info["url"], 
+                item_ref, 
+                resume_filename=results["filename"],
+                custom_save_dir=os.path.dirname(results["save_path"]),
+                user_agent=file_info.get("user_agent")
+            )
+        elif results["action"] == 'later':
+            self.download_table.setItem(row, 2, QTableWidgetItem("Paused"))
 
     def _handle_download_dialog_rejected(self, item_ref):
-        # If the user cancels the File Info dialog, stop the download we started
-        key = id(item_ref)
-        if key in self.active_downloads:
-            progress_dlg = self.active_downloads[key]
-            progress_dlg.worker.stop()
-            progress_dlg.close()
-        
-        self.download_finished(item_ref, "Cancelled")
+        # User cancelled - remove the proposed download from the table
+        row = self.download_table.row(item_ref)
+        if row != -1:
+            self.download_table.removeRow(row)
+        self.save_data()
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=True):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=True, user_agent=None, cookies=None):
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
@@ -1252,10 +1255,7 @@ class MainWindow(QMainWindow):
         self.download_table.insertRow(row)
         
         try:
-             parsed = urlparse(url)
-             path = unquote(parsed.path)
-             filename_guess = os.path.basename(path)
-             if not filename_guess: filename_guess = "file"
+             filename_guess = resolve_filename(url, {})
         except:
              filename_guess = "file"
              
@@ -1268,9 +1268,11 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole, url)
         item_name.setIcon(get_file_icon(filename_guess))
         
-        # Store raw timestamp data in the item
+        # Store raw timestamp data and cookies in the item
         item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts) # Date Added
         item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts) # Last Try
+        item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent) # User-Agent
+        item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies) # Cookies
         
         # Determine explicit metadata bindings
         size_str = size_data[0] if size_data else "?"
@@ -1307,12 +1309,17 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
         
         if not start_paused:
-            self._start_download_worker(url, item_name, custom_save_dir=save_dir, show_dialog=show_dialog)
+            self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies)
             
         self.save_data()
         return item_name
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None):
+        if not user_agent:
+            user_agent = item_ref.data(Qt.ItemDataRole.UserRole + 4)
+        if not cookies:
+            cookies = item_ref.data(Qt.ItemDataRole.UserRole + 5)
+        
         config = load_category_config()
         categories = config.get("categories", {})
         
@@ -1348,9 +1355,9 @@ class MainWindow(QMainWindow):
             use_aria2 = False
 
         if use_aria2:
-            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename)
+            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies)
         else:
-            worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename)
+            worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies)
         
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
         item_ref.setText(worker.filename)
@@ -1510,23 +1517,49 @@ class MainWindow(QMainWindow):
         rows_to_clear = []
         for row in range(self.download_table.rowCount()):
             status_item = self.download_table.item(row, 2)
-            if status_item and status_item.text() == "Complete":
-                rows_to_clear.append(row)
-        
+            if status_item:
+                # Use logical internal status if available (UserRole + 1)
+                internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                display_text = status_item.text()
+
+                is_complete = False
+                if internal_status == "Complete":
+                    is_complete = True
+                elif display_text and display_text.strip() == "Complete":
+                    is_complete = True
+
+                if is_complete:
+                    rows_to_clear.append(row)
+
         if not rows_to_clear: return
 
+        # Reverse sort to delete from bottom up correctly
         for row in sorted(rows_to_clear, reverse=True):
+            item_name = self.download_table.item(row, 0)
+            if item_name:
+                key = id(item_name)
+                if key in self.active_downloads:
+                    dlg = self.active_downloads[key]
+                    dlg.worker.stop()
+                    dlg.reject()
             self.download_table.removeRow(row)
-                
+
         self.save_data()
         self.update_ui_states()
-
     def update_download_row(self, item_ref, data):
         try:
             row = self.download_table.row(item_ref)
         except RuntimeError:
             return # object has been deleted by remove
         if row == -1: return 
+
+        # --- PROTECTION GUARD ---
+        # If the row is already marked as Complete, ignore any late progress signals
+        status_item = self.download_table.item(row, 2)
+        if status_item:
+            internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+            if internal_status == "Complete":
+                return
         
         # --- FIX: Block signals during bulk update to prevent flickering ---
         self.download_table.blockSignals(True)
@@ -1574,14 +1607,32 @@ class MainWindow(QMainWindow):
             if len(data) > 6:
                 comp, tot = data[5], data[6]
                 if tot > 0:
-                    pct_str = f"{(comp/tot)*100:.2f}%"
+                    pct_val = (comp/tot)*100
+                    if pct_val >= 99.999:
+                        pct_str = "Complete"
+                    else:
+                        pct_str = f"{pct_val:.2f}%"
+                        
                     status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
+                    
+                    # EXACT 100% CHECK: Switch to Complete in the moment
+                    if comp >= tot: 
+                        display_status = "Complete"
+                        # FORCE UI TEXT IMMEDIATELY
+                        status_item.setText("Complete")
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             
             if display_status == "Downloading":
                 final_display = pct_str if pct_str else "Downloading"
             elif display_status in ["Paused", "Cancelled"]:
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct_data if pct_data else display_status
+            
+            # CRITICAL: Always force "Complete" if that's the determined status
+            if display_status == "Complete":
+                final_display = "Complete"
+                status_item.setText("Complete")
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 
             if final_display != old_status:
                 status_item.setText(final_display)
@@ -1630,11 +1681,10 @@ class MainWindow(QMainWindow):
                 status_item = QTableWidgetItem()
                 self.download_table.setItem(row, 2, status_item)
             
-            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            
             # Formatting final display text
             if display_status == "Complete":
                 final_display = "Complete"
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct if pct else "0.0%"
@@ -1674,6 +1724,8 @@ class MainWindow(QMainWindow):
             
         self.update_ui_states()
         self.save_data()
+        # Explicit repaint
+        self.download_table.viewport().update()
     
     def open_options(self):
         from ui.dialogs import OptionsDialog

@@ -3,7 +3,7 @@ import os
 import random
 from urllib.parse import urlparse, unquote
 from PyQt6.QtCore import QThread, pyqtSignal
-from core.utils import get_unique_filepath, load_extension_config, call_aria2_rpc
+from core.utils import get_unique_filepath, load_extension_config, call_aria2_rpc, resolve_filename
 
 class Aria2Worker(QThread):
     main_progress_signal = pyqtSignal(int, tuple) 
@@ -13,11 +13,13 @@ class Aria2Worker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None):
         super().__init__()
         self.url = url
         self.row_index = row_index
         self.save_dir = save_dir
+        self.user_agent = user_agent
+        self.cookies = cookies
         self.is_running = True
         self.gid = None
         
@@ -26,16 +28,15 @@ class Aria2Worker(QThread):
         self.rpc_token = ext_data.get("token", "")
         self.rpc_url = f"http://127.0.0.1:{self.rpc_port}/jsonrpc"
         
-        parsed_url = urlparse(self.url)
-        decoded_path = unquote(parsed_url.path)
-        original_filename = os.path.basename(decoded_path) or "downloaded_file"
-        
         if resume_filename:
             self.filename = resume_filename
-            self.target_path = os.path.join(self.save_dir, self.filename)
         else:
-            full_path = os.path.join(self.save_dir, original_filename)
-            self.target_path = get_unique_filepath(full_path)
+            self.filename = resolve_filename(self.url, {})
+
+        self.target_path = os.path.join(self.save_dir, self.filename)
+        # Ensure unique if not resumed
+        if not resume_filename:
+            self.target_path = get_unique_filepath(self.target_path)
             self.filename = os.path.basename(self.target_path)
 
     def call_rpc(self, method, params=None):
@@ -45,7 +46,27 @@ class Aria2Worker(QThread):
         self.log_signal.emit("Connecting to Aria2 engine...")
         self.init_segments_signal.emit(8) 
         
-        params = [[self.url], {"dir": self.save_dir, "out": self.filename, "split": "8", "max-connection-per-server": "8", "continue": "true"}]
+        options = {"dir": self.save_dir, "out": self.filename, "split": "8", "max-connection-per-server": "8", "continue": "true"}
+        
+        # --- FULL BROWSER HEADERS (Mimic JD2) ---
+        ua = self.user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
+        headers = [
+            f"User-Agent: {ua}",
+            "Accept: */*",
+            "Accept-Language: en-US,en;q=0.5",
+            "Connection: keep-alive"
+        ]
+        
+        parsed = urlparse(self.url)
+        headers.append(f"Referer: {parsed.scheme}://{parsed.netloc}/")
+        
+        if self.cookies:
+            headers.append(f"Cookie: {self.cookies}")
+        
+        options["header"] = headers
+        options["user-agent"] = ua # Still set explicitly for safety
+            
+        params = [[self.url], options]
         self.gid = self.call_rpc("aria2.addUri", params)
         
         if not self.gid:
@@ -72,6 +93,10 @@ class Aria2Worker(QThread):
             connections = int(status.get("connections", 0))
             state = status.get("status")
             
+            # FORCE Complete if progress is 100%
+            if total_length > 0 and completed_length >= total_length:
+                state = "complete"
+
             if getattr(self, 'is_pause_requested', False):
                 download_speed = 0
                 state = "paused"

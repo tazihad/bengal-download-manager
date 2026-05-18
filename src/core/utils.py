@@ -7,6 +7,109 @@ import platform
 import shutil
 import tarfile
 import subprocess
+import re
+import mimetypes
+from urllib.parse import urlparse, unquote
+
+def resolve_filename(url, headers):
+    """
+    JDownloader-style robust filename resolution:
+    1. Content-Disposition (RFC 5987 filename* > filename)
+    2. URL path (last segment)
+    3. Extension correction (replace .php/.asp etc. with real extension from MIME)
+    4. Fallback to 'downloaded_file'
+    """
+    filename = None
+    
+    # --- 1. Content-Disposition (Highest Priority for Generic Links) ---
+    cd = headers.get("Content-Disposition")
+    if cd:
+        # RFC 5987 filename*
+        cd_match = re.search(r"filename\*=UTF-8''([^\"';]+)", cd, re.IGNORECASE)
+        if not cd_match:
+            # Standard filename
+            cd_match = re.search(r'filename=["\']?([^"\';]+)[\"\']?', cd, re.IGNORECASE)
+        
+        if cd_match:
+            filename = unquote(cd_match.group(1).strip())
+            filename = os.path.basename(filename) # Sanitization
+            # Filter out UUIDs/Hashes which JD2 also ignores if better name available
+            if filename and (
+                re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', filename, re.I) or
+                re.match(r'^[0-9a-f]{32,64}$', filename, re.I)
+            ):
+                filename = None
+
+    # --- 2. URL Path Extraction ---
+    if not filename:
+        try:
+            # Check for location header if present (for manual redirect analysis)
+            effective_url = headers.get("Location") or url
+            parsed = urlparse(effective_url)
+            path = unquote(parsed.path)
+            # Remove trailing slashes
+            path = path.rstrip('/')
+            basename = os.path.basename(path)
+            
+            if basename and basename not in ["", "/", "."] and not (
+                re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', basename, re.I) or
+                re.match(r'^[0-9a-f]{32,64}$', basename, re.I) or
+                basename.isdigit()
+            ):
+                filename = basename
+        except:
+            pass
+
+    # --- 3. JDownloader-style Extension Correction ---
+    # Determine the "Real" extension from Content-Type
+    content_type = headers.get("Content-Type", "").split(';')[0].strip().lower()
+    real_extension = None
+    if content_type:
+        mime_map = {
+            'application/x-msdownload': '.exe',
+            'application/octet-stream': '.bin',
+            'application/x-executable': '.exe',
+            'application/x-msdos-program': '.exe',
+            'application/x-msi': '.msi',
+            'application/zip': '.zip',
+            'application/x-7z-compressed': '.7z',
+            'application/x-rar-compressed': '.rar',
+            'application/pdf': '.pdf',
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'video/mp4': '.mp4',
+            'audio/mpeg': '.mp3'
+        }
+        real_extension = mime_map.get(content_type)
+        if not real_extension:
+            exts = mimetypes.guess_all_extensions(content_type)
+            if exts:
+                # Preference list
+                if '.exe' in exts: real_extension = '.exe'
+                elif '.zip' in exts: real_extension = '.zip'
+                elif '.jpg' in exts: real_extension = '.jpg'
+                else: real_extension = exts[0]
+
+    if not filename:
+        filename = "downloaded_file"
+        if real_extension:
+            filename += real_extension
+    else:
+        # CORRECTION LOGIC:
+        # If we have a filename but its extension is a script (.php, .asp) or missing, 
+        # replace/append with the real one.
+        script_exts = ['.php', '.asp', '.aspx', '.jsp', '.cfm', '.cgi', '.pl', '.html', '.htm']
+        base, current_ext = os.path.splitext(filename)
+        current_ext = current_ext.lower()
+        
+        if real_extension:
+            if current_ext in script_exts or not current_ext:
+                filename = base + real_extension
+            elif current_ext == '.bin' and real_extension != '.bin':
+                # .bin is often a generic fallback, prefer specific extensions
+                filename = base + real_extension
+
+    return filename
 
 def get_unique_filepath(filepath):
     if not os.path.exists(filepath):
