@@ -75,7 +75,13 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
   const lowerUrl = details.url.split('?')[0].toLowerCase();
   const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
 
-  // Only download if it's one of our target extensions
+  // CRITICAL BYPASS: If the response is HTML, it's a landing page (like VLC).
+  // We MUST let the browser open it.
+  if (contentType.includes('text/html') && !contentDisposition.includes('attachment')) {
+      return; 
+  }
+
+  // Only download if it's one of our target extensions or an explicit attachment
   if (hasTargetExt) {
     isDownload = true;
   } else if (contentDisposition.includes('attachment')) {
@@ -175,30 +181,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // --- MESSAGE INTERCEPTOR ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "silent_download" || request.action === "check_link_preflight") {
-    const targetExts = [
-      '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
-      'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
-      'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
-      'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
-      'xz', 'bz', 'lzma', 'war', 'ear',
-      'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv'
-    ];
-
-    const lowerUrl = request.url.split('?')[0].toLowerCase();
-    const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
-
-    if (hasTargetExt) {
-      chrome.cookies.getAll({ url: request.url }, (cookies) => {
-        const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-        sendToBengalDM(request.url, cookieString);
-      });
-      if (request.action === "check_link_preflight") {
-        sendResponse({ handledByBengal: true });
-      }
-    } else {
-      if (request.action === "check_link_preflight") {
+    // We let the onHeadersReceived listener do the heavy lifting for navigation links.
+    // For manual triggers or pre-flight check, we just tell content.js to go ahead
+    // and the deep network interceptor will catch it if it's a real file.
+    if (request.action === "check_link_preflight") {
         sendResponse({ handledByBengal: false });
-      }
     }
     return true; 
   }
