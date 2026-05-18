@@ -53,53 +53,52 @@ class FileInfoFetcherWorker(QThread):
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'identity',
                 'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Windows"',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'cross-site',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0'
+                'Upgrade-Insecure-Requests': '1'
             }
 
             if self.cookies:
                 headers['Cookie'] = self.cookies
 
-            # Add Referer if possible
             parsed_orig = urlparse(self.url)
-            if "techspot.com" in parsed_orig.netloc:
-                headers['Referer'] = 'https://www.techspot.com/'
-            else:
-                headers['Referer'] = f"{parsed_orig.scheme}://{parsed_orig.netloc}/"
+            headers['Referer'] = f"{parsed_orig.scheme}://{parsed_orig.netloc}/"
 
             opener = self.create_opener()
             
-            # --- JDOWNLOADER STYLE HANDSHAKE ---
-            # Use GET but read only headers. If HTML, check for meta-refresh.
-            req = urllib.request.Request(self.url, headers=headers)
+            # Follow redirects manually to inspect each stage
+            current_url = self.url
+            max_redirects = 10
             
-            with opener.open(req, timeout=15) as resp:
-                final_url = resp.geturl()
-                final_headers = resp.headers
-                
-                # Update result URL (might have changed due to redirects)
-                result["url"] = final_url
-                
-                content_type = final_headers.get("Content-Type", "").lower()
-                
-                # 1. Resolve name from the real headers and final URL
-                result["filename"] = resolve_filename(final_url, final_headers)
-                
-                # 2. Get size
-                content_length = final_headers.get("Content-Length")
-                if content_length and content_length.isdigit():
-                    result["size_bytes"] = int(content_length)
-                    result["size_str"] = self.format_bytes(result["size_bytes"])
+            for _ in range(max_redirects):
+                req = urllib.request.Request(current_url, headers=headers)
+                with opener.open(req, timeout=15) as resp:
+                    final_url = resp.geturl()
+                    final_headers = resp.headers
+                    content_type = final_headers.get("Content-Type", "").lower()
+                    
+                    # If we hit an HTML page with no attachment header, it's NOT the file.
+                    if "text/html" in content_type and not final_headers.get("Content-Disposition"):
+                        if final_url != current_url:
+                            current_url = final_url
+                            continue
+                        
+                        result["error"] = "Target is a webpage, not a file. Redirected to landing page."
+                        self.finished_signal.emit(result)
+                        return
 
-                # IMPORTANT: Close immediately to stop background download
-                resp.close()
+                    # We found a binary or an explicit attachment!
+                    result["url"] = final_url
+                    result["filename"] = resolve_filename(final_url, final_headers)
+                    
+                    content_length = final_headers.get("Content-Length")
+                    if content_length and content_length.isdigit():
+                        result["size_bytes"] = int(content_length)
+                        result["size_str"] = self.format_bytes(result["size_bytes"])
+                    
+                    resp.close()
+                    self.finished_signal.emit(result)
+                    return
+
+            result["error"] = "Too many redirects. Could not find direct file link."
                     
         except Exception as e:
             result["error"] = str(e)

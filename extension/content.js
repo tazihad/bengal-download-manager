@@ -5,17 +5,21 @@ document.addEventListener('click', (event) => {
     // 1. Skip if modifier keys are pressed (let browser handle new tabs/windows natively)
     if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) return;
 
-    // 2. heuristic: skip pre-flight for obvious web pages
+    // 2. heuristic: only intercept if it matches our target extension list
+    const targetExts = [
+        '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
+        'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
+        'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
+        'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage'
+    ];
+
     const url = new URL(link.href);
     const pathname = url.pathname.toLowerCase();
-    const isWebPage = pathname.endsWith('/') || 
-                      pathname.split('/').pop() === '' ||
-                      pathname.match(/\.(html|php|asp|aspx|jsp|htm)$/i) ||
-                      (!pathname.includes('.') && !pathname.endsWith('/'));
+    const extension = pathname.split('.').pop().split('?')[0];
 
-    if (isWebPage) return;
+    if (!targetExts.includes(extension)) return;
 
-    // 3. Block navigation for potential downloads
+    // 3. Block navigation for verified potential downloads
     event.preventDefault();
     event.stopPropagation();
 
@@ -32,7 +36,7 @@ document.addEventListener('click', (event) => {
             return;
         }
         
-        // Resume navigation if Bengal didn't take it
+        // Resume navigation if Bengal didn't take it (failsafe)
         if (link.target === '_blank') {
             window.open(link.href, '_blank');
         } else {

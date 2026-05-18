@@ -770,6 +770,10 @@ class MainWindow(QMainWindow):
                 
                 status = internal_status if internal_status else display_text
                 
+                # Normalize exact 100% or Complete variations to "Complete"
+                if status == "Complete" or display_text == "Complete" or "100.00%" in str(status) or "100.00%" in str(display_text):
+                    status = "Complete"
+                
                 # If currently active or paused, normalize to include percentage if available
                 if status in ["Downloading", "Connecting...", "Pending...", "Resuming...", "Paused", "Cancelled"]:
                     if pct_data:
@@ -779,9 +783,10 @@ class MainWindow(QMainWindow):
                         status = display_text
                     else:
                         status = "Paused"
-                elif status == "Completed" or status == "Complete":
+                
+                # STRICT 100% CHECK: only force "Complete" if it's exactly 100%
+                if isinstance(status, str) and "100.00%" in status:
                     status = "Complete"
-                # If it's already a percentage (e.g. from previous load or pause), keep it
                 
                 # Retrieve raw timestamp values for persistence
                 last_try_ts = item_name.data(Qt.ItemDataRole.UserRole + 2) or ""
@@ -843,7 +848,11 @@ class MainWindow(QMainWindow):
                 display_status = raw_status
                 
                 # Determine internal state based on status text
-                if raw_status == "Complete" or raw_status == "Completed":
+                is_actually_complete = False
+                if raw_status == "Complete" or "100.00%" in str(raw_status):
+                    is_actually_complete = True
+
+                if is_actually_complete:
                     display_status = "Complete"
                     internal_state = "Complete"
                 elif "%" in raw_status:
@@ -1508,23 +1517,49 @@ class MainWindow(QMainWindow):
         rows_to_clear = []
         for row in range(self.download_table.rowCount()):
             status_item = self.download_table.item(row, 2)
-            if status_item and status_item.text() == "Complete":
-                rows_to_clear.append(row)
-        
+            if status_item:
+                # Use logical internal status if available (UserRole + 1)
+                internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                display_text = status_item.text()
+
+                is_complete = False
+                if internal_status == "Complete":
+                    is_complete = True
+                elif display_text and display_text.strip() == "Complete":
+                    is_complete = True
+
+                if is_complete:
+                    rows_to_clear.append(row)
+
         if not rows_to_clear: return
 
+        # Reverse sort to delete from bottom up correctly
         for row in sorted(rows_to_clear, reverse=True):
+            item_name = self.download_table.item(row, 0)
+            if item_name:
+                key = id(item_name)
+                if key in self.active_downloads:
+                    dlg = self.active_downloads[key]
+                    dlg.worker.stop()
+                    dlg.reject()
             self.download_table.removeRow(row)
-                
+
         self.save_data()
         self.update_ui_states()
-
     def update_download_row(self, item_ref, data):
         try:
             row = self.download_table.row(item_ref)
         except RuntimeError:
             return # object has been deleted by remove
         if row == -1: return 
+
+        # --- PROTECTION GUARD ---
+        # If the row is already marked as Complete, ignore any late progress signals
+        status_item = self.download_table.item(row, 2)
+        if status_item:
+            internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+            if internal_status == "Complete":
+                return
         
         # --- FIX: Block signals during bulk update to prevent flickering ---
         self.download_table.blockSignals(True)
@@ -1572,14 +1607,32 @@ class MainWindow(QMainWindow):
             if len(data) > 6:
                 comp, tot = data[5], data[6]
                 if tot > 0:
-                    pct_str = f"{(comp/tot)*100:.2f}%"
+                    pct_val = (comp/tot)*100
+                    if pct_val >= 99.999:
+                        pct_str = "Complete"
+                    else:
+                        pct_str = f"{pct_val:.2f}%"
+                        
                     status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
+                    
+                    # EXACT 100% CHECK: Switch to Complete in the moment
+                    if comp >= tot: 
+                        display_status = "Complete"
+                        # FORCE UI TEXT IMMEDIATELY
+                        status_item.setText("Complete")
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             
             if display_status == "Downloading":
                 final_display = pct_str if pct_str else "Downloading"
             elif display_status in ["Paused", "Cancelled"]:
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct_data if pct_data else display_status
+            
+            # CRITICAL: Always force "Complete" if that's the determined status
+            if display_status == "Complete":
+                final_display = "Complete"
+                status_item.setText("Complete")
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 
             if final_display != old_status:
                 status_item.setText(final_display)
@@ -1628,11 +1681,10 @@ class MainWindow(QMainWindow):
                 status_item = QTableWidgetItem()
                 self.download_table.setItem(row, 2, status_item)
             
-            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            
             # Formatting final display text
             if display_status == "Complete":
                 final_display = "Complete"
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct if pct else "0.0%"
@@ -1672,6 +1724,8 @@ class MainWindow(QMainWindow):
             
         self.update_ui_states()
         self.save_data()
+        # Explicit repaint
+        self.download_table.viewport().update()
     
     def open_options(self):
         from ui.dialogs import OptionsDialog

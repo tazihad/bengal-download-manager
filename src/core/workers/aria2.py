@@ -93,6 +93,10 @@ class Aria2Worker(QThread):
             connections = int(status.get("connections", 0))
             state = status.get("status")
             
+            # FORCE Complete if progress is 100%
+            if total_length > 0 and completed_length >= total_length:
+                state = "complete"
+
             if getattr(self, 'is_pause_requested', False):
                 download_speed = 0
                 state = "paused"

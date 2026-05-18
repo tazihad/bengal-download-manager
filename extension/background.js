@@ -62,19 +62,44 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
   contentDisposition = contentDisposition.toLowerCase();
   contentType = contentType.toLowerCase();
 
-  if (contentDisposition.includes('attachment')) {
+  // 3. Check for target extensions from our categorized list
+  const targetExts = [
+    '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
+    'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
+    'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
+    'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage'
+  ];
+  
+  const lowerUrl = details.url.split('?')[0].toLowerCase();
+  const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
+
+  // Only download if it's one of our target extensions
+  if (hasTargetExt) {
     isDownload = true;
-  } else if (contentType.includes('application/octet-stream') || 
-             contentType.includes('application/x-msdos-program') ||
-             contentType.includes('application/zip') ||
-             contentType.includes('application/x-7z-compressed')) {
-    isDownload = true;
+  } else if (contentDisposition.includes('attachment')) {
+    // Optional: Keep this if you want to catch files explicitly marked as attachment 
+    // even if they aren't in the list. To strictly stick to the list, we remove this.
+    // Given your request "only stick to download format that are categorized", we'll verify extension even for attachments.
+    
+    // Check if attachment filename has target extension
+    const cdMatch = contentDisposition.match(/filename="?(.+?\.(.+?))"?($|;)/i);
+    if (cdMatch && cdMatch[2]) {
+        const cdExt = cdMatch[2].toLowerCase();
+        if (targetExts.includes(cdExt)) {
+            isDownload = true;
+        }
+    }
   }
 
   if (isDownload) {
-    // Blocking check for sync is not possible here, so we always pass to background tasks
-    // background task will verify sync before actually sending to DM
-    return; 
+    // Asynchronously send to Bengal DM so we don't block the sync return
+    chrome.cookies.getAll({ url: details.url }, (cookies) => {
+      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      sendToBengalDM(details.url, cookieString);
+    });
+    
+    // CRITICAL: Immediately block the browser's download to prevent "Failed" ghost entries
+    return { redirectUrl: 'javascript:void(0)' };
   }
 }, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }, ["blocking", "responseHeaders"]);
 
@@ -145,37 +170,32 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// --- FEATURE 2: Smart Download Interceptor ---
-chrome.downloads.onCreated.addListener(async (downloadItem) => {
-    if (!downloadItem.url.startsWith("http")) return;
-
-    const isImageMime = downloadItem.mime && downloadItem.mime.startsWith("image/");
-    const isImageExt = downloadItem.url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|avif)(\?.*)?$/i);
-    if (isImageMime || isImageExt) return;
-
-    const online = await isAria2Online();
-    if (!online) return;
-
-    queueMicrotask(() => {
-        chrome.downloads.cancel(downloadItem.id);
-        chrome.downloads.erase({ id: downloadItem.id });
-    });
-
-    const cookies = await chrome.cookies.getAll({ url: downloadItem.url });
-    const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-    sendToBengalDM(downloadItem.url, cookieString);
-});
-
 // --- MESSAGE INTERCEPTOR ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "silent_download" || request.action === "check_link_preflight") {
-    chrome.cookies.getAll({ url: request.url }, (cookies) => {
-      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      sendToBengalDM(request.url, cookieString);
-    });
+    const targetExts = [
+      '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
+      'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
+      'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
+      'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage'
+    ];
 
-    if (request.action === "check_link_preflight") {
-      sendResponse({ handledByBengal: true });
+    const lowerUrl = request.url.split('?')[0].toLowerCase();
+    const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
+
+    if (hasTargetExt) {
+      chrome.cookies.getAll({ url: request.url }, (cookies) => {
+        const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+        sendToBengalDM(request.url, cookieString);
+      });
+      if (request.action === "check_link_preflight") {
+        sendResponse({ handledByBengal: true });
+      }
+    } else {
+      if (request.action === "check_link_preflight") {
+        sendResponse({ handledByBengal: false });
+      }
     }
+    return true; 
   }
 });
