@@ -1346,7 +1346,7 @@ class MainWindow(QMainWindow):
             use_aria2 = False
 
         if use_aria2:
-            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent)
+            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies)
         else:
             worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies)
         
