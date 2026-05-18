@@ -44,5 +44,11 @@
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "connector@bengal-dm.org",
+      "strict_min_version": "109.0"
+    }
   }
 }
