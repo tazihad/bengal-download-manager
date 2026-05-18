@@ -4,13 +4,13 @@ import json
 from urllib.parse import urlparse, unquote
 import urllib.request
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
-from core.utils import get_unique_filepath
+from core.utils import get_unique_filepath, resolve_filename
 
 class SegmentWorker(QThread):
     progress_signal = pyqtSignal(int, object, object, float, str)
     finished_signal = pyqtSignal(int, bool)
 
-    def __init__(self, index, url, start_byte, end_byte, filepath, initial_downloaded=0, opener=None):
+    def __init__(self, index, url, start_byte, end_byte, filepath, initial_downloaded=0, opener=None, user_agent=None, cookies=None):
         super().__init__()
         self.index = index
         self.url = url
@@ -19,6 +19,8 @@ class SegmentWorker(QThread):
         self.filepath = filepath
         self.initial_downloaded = initial_downloaded
         self.opener = opener
+        self.user_agent = user_agent
+        self.cookies = cookies
         
         self.is_running = True
         self.is_paused = False
@@ -40,7 +42,19 @@ class SegmentWorker(QThread):
             resume_offset = self.start_byte + self.downloaded
             
             req = urllib.request.Request(self.url)
-            req.add_header("Range", f"bytes={resume_offset}-{self.end_byte}")
+            # --- FULL BROWSER HEADERS (Mimic JD2) ---
+            req.add_header('User-Agent', self.user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0")
+            req.add_header('Accept', '*/*')
+            req.add_header('Accept-Language', 'en-US,en;q=0.5')
+            req.add_header('Connection', 'keep-alive')
+            req.add_header('Range', f"bytes={resume_offset}-{self.end_byte}")
+            
+            if self.cookies:
+                req.add_header('Cookie', self.cookies)
+            
+            # Add Referer if possible (use base domain)
+            parsed = urlparse(self.url)
+            req.add_header('Referer', f"{parsed.scheme}://{parsed.netloc}/")
             
             self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Resume GET...")
             
@@ -122,11 +136,13 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None):
         super().__init__()
         self.url = url
         self.row_index = row_index
         self.save_dir = save_dir
+        self.user_agent = user_agent
+        self.cookies = cookies
         self.is_running = True
         self.is_paused = False
         self.mutex = QMutex()
@@ -134,20 +150,19 @@ class DownloadWorker(QThread):
         self.current_global_limit = 0 
         self.last_active_count = 0
         
-        parsed_url = urlparse(self.url)
-        decoded_path = unquote(parsed_url.path)
-        original_filename = os.path.basename(decoded_path) or "downloaded_file"
-        
+        # Initial guess. Real resolution might happen in run() during the first GET.
         if resume_filename:
-            self.target_path = os.path.join(self.save_dir, resume_filename)
-            self.save_path = self.target_path + ".tmpbdm"
             self.filename = resume_filename
         else:
-            full_path = os.path.join(self.save_dir, original_filename)
-            self.target_path = get_unique_filepath(full_path)
-            self.save_path = self.target_path + ".tmpbdm"
+            self.filename = resolve_filename(self.url, {})
+
+        self.target_path = os.path.join(self.save_dir, self.filename)
+        # If it was a generic fallback name, ensure it's unique
+        if not resume_filename:
+            self.target_path = get_unique_filepath(self.target_path)
             self.filename = os.path.basename(self.target_path)
-        
+
+        self.save_path = self.target_path + ".tmpbdm"
         self.state_file = self.save_path + ".bdmx"
         self.workers = []
         self.segment_stats = {} 
@@ -183,6 +198,11 @@ class DownloadWorker(QThread):
             self.log_signal.emit(f"Target file: {self.filename}")
             
             req = urllib.request.Request(self.url, method='HEAD')
+            if self.cookies:
+                req.add_header('Cookie', self.cookies)
+            if self.user_agent:
+                req.add_header('User-Agent', self.user_agent)
+
             with self.opener.open(req) as response:
                 total_size = int(response.info().get('Content-Length', 0))
                 accept_ranges = response.info().get('Accept-Ranges', 'none')
@@ -235,7 +255,7 @@ class DownloadWorker(QThread):
                 end = seg["end"]
                 initial_dl = seg.get("downloaded", 0)
                 
-                worker = SegmentWorker(idx, self.url, start, end, self.save_path, initial_dl, opener=self.opener)
+                worker = SegmentWorker(idx, self.url, start, end, self.save_path, initial_dl, opener=self.opener, user_agent=self.user_agent, cookies=self.cookies)
                 worker.progress_signal.connect(self.update_segment_stat)
                 self.workers.append(worker)
                 
