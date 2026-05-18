@@ -69,7 +69,7 @@ def test_start_download_logic(app):
 
 if __name__ == "__main__":
     # If run directly, show instructions
-    print("Test script created. To run tests, please install pytest-qt:")
-    print("pip install pytest pytest-qt")
+    print("Test script created. To run tests, please install dev dependencies:")
+    print("pip install -r requirements-dev.txt")
     print("\nThen run:")
     print("PYTHONPATH=src pytest test_app.py")

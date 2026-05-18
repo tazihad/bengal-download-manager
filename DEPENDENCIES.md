@@ -45,7 +45,7 @@ These are listed in `requirements.txt` and should be installed in a virtual envi
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-pip install pytest pytest-qt  # For development/testing
+pip install -r requirements-dev.txt  # For development/testing
 ```
 
 ---
