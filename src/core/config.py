@@ -13,7 +13,7 @@ DEFAULT_CATEGORIES = {
     },
     "Documents": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Documents"),
-        "extensions": "pdf pps ppt doc docx xls xlsx pptx odt ods odp rtf csv"
+        "extensions": "pdf pps ppt doc docx xls xlsx pptx odt ods odp rtf csv ppsx"
     },
     "Music": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Music"),
