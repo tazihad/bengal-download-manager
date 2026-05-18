@@ -305,8 +305,8 @@ class DownloadWorker(QThread):
                     os.rename(self.save_path, self.target_path)
                     
                     self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size) if total_size > 0 else "Unknown", "Completed", "", "", total_size, total_size))
-                    self.finished_signal.emit(self.row_index, "Completed")
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size))
+                    self.finished_signal.emit(self.row_index, "Complete")
                     
                     if os.path.exists(self.state_file):
                         os.remove(self.state_file)

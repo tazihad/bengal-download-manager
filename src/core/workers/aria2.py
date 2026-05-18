@@ -84,7 +84,7 @@ class Aria2Worker(QThread):
 
             display_state = "Receiving data..."
             if state == "paused": display_state = "Paused"
-            elif state == "complete": display_state = "Completed"
+            elif state == "complete": display_state = "Complete"
             elif state == "error": display_state = "Error"
             elif state == "removed": display_state = "Cancelled"
 
@@ -193,7 +193,7 @@ class Aria2Worker(QThread):
 
             if state == "complete":
                 self.log_signal.emit("Aria2 download completed successfully.")
-                self.finished_signal.emit(self.row_index, "Completed")
+                self.finished_signal.emit(self.row_index, "Complete")
                 break
             elif state in ["error", "removed"]:
                 self.log_signal.emit(f"Aria2 download stopped: {state}")

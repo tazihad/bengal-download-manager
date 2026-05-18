@@ -236,6 +236,93 @@ def ensure_aria2():
     except:
         return None
 
+def open_with(path):
+    """
+    Shows the OS-native "Open With" dialog for the given path.
+    Returns True if a command was successfully launched.
+    """
+    if not path or not os.path.exists(path):
+        return False
+
+    # Windows
+    if platform.system() == 'Windows':
+        subprocess.Popen(['rundll32.exe', 'shell32.dll,OpenAs_RunDLL', os.path.normpath(path)])
+        return True
+
+    # macOS
+    if platform.system() == 'Darwin':
+        subprocess.Popen(['open', path])
+        return True
+
+    # Linux / Unix
+    abs_path = os.path.abspath(path)
+    from PyQt6.QtCore import QUrl
+    # Ensure URI is properly encoded and prefixed
+    uri = QUrl.fromLocalFile(abs_path).toString()
+    
+    # --- XDG DESKTOP PORTAL: The standard for native "Open With" pickers ---
+    
+    # 1. Try via busctl (user session)
+    if shutil.which("busctl"):
+        try:
+            # Syntax: parent_window uri options(dict)
+            cmd = [
+                "busctl", "--user", "call", 
+                "org.freedesktop.portal.Desktop", 
+                "/org/freedesktop/portal/desktop", 
+                "org.freedesktop.portal.OpenURI", "OpenURI", 
+                "ssa{sv}", "", uri, "1", "ask", "b", "true"
+            ]
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except: pass
+
+    # 2. Try via gdbus
+    if shutil.which("gdbus"):
+        try:
+            cmd = [
+                "gdbus", "call", "--session", 
+                "--dest", "org.freedesktop.portal.Desktop", 
+                "--object-path", "/org/freedesktop/portal/desktop", 
+                "--method", "org.freedesktop.portal.OpenURI.OpenURI", 
+                "", uri, "{'ask': <true>}"
+            ]
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except: pass
+
+    # 3. Try via dbus-send (older but common)
+    if shutil.which("dbus-send"):
+        try:
+            # Note: dict syntax in dbus-send is very limited, 
+            # often portals don't like it, but it's worth a shot.
+            cmd = [
+                "dbus-send", "--session", "--dest=org.freedesktop.portal.Desktop", 
+                "/org/freedesktop/portal/desktop", 
+                "org.freedesktop.portal.OpenURI.OpenURI", 
+                "string:", f"string:{uri}", "dict:string:variant:ask,boolean:true"
+            ]
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except: pass
+
+    # --- FALLBACKS: If portals are broken or unavailable ---
+
+    # 4. mimeopen -d (Allows choosing app in a terminal/launcher)
+    if shutil.which("mimeopen"):
+        try:
+            # We try to use a terminal so the user can see the options
+            term = shutil.which("x-terminal-emulator") or shutil.which("gnome-terminal") or shutil.which("konsole")
+            if term:
+                subprocess.Popen([term, "-e", f"mimeopen -d '{abs_path}'"])
+                return True
+            else:
+                subprocess.Popen(["mimeopen", "-d", abs_path])
+                return True
+        except: pass
+
+    return False
+
 def show_in_folder(path):
     """
     If path is a file, opens the folder containing it and selects (highlights) it.

@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -6,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtCore import Qt, QUrl
-from core.utils import show_in_folder
+from core.utils import show_in_folder, open_with
 
 class DownloadCompleteDialog(QDialog):
     def __init__(self, file_data, parent=None):
@@ -79,17 +80,14 @@ class DownloadCompleteDialog(QDialog):
              QMessageBox.warning(self, "Error", "File does not exist.")
              return
              
-        # On Linux we can use a generic open with dialog or ask for app
-        if os.name == 'nt':
-            # On Windows, we can use 'rundll32.exe shell32.dll,OpenAs_RunDLL path'
-            subprocess.Popen(['rundll32.exe', 'shell32.dll,OpenAs_RunDLL', path])
+        if open_with(path):
+            self.accept()
         else:
-            # On Linux, there isn't a single standard "Open With" command like Windows
-            # But we can ask the user for an executable
+            # Final fallback: Manual picker if utility returns False
             app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
             if app_path:
                 subprocess.Popen([app_path, path])
-        self.accept()
+                self.accept()
             
     def on_open_folder(self):
         path = self.file_data.get('path')

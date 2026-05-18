@@ -334,7 +334,7 @@ class DownloadProgressDialog(QDialog):
             if status == "Receiving data...":
                  display_status = "Downloading"
             elif status == "Complete":
-                 display_status = "Completed"
+                 display_status = "Complete"
             else:
                  display_status = status
             self.seg_table.setItem(index, 3, QTableWidgetItem(display_status))
@@ -395,7 +395,7 @@ class DownloadProgressDialog(QDialog):
         elif worker_status == "Connecting...":
             display_status = "Connecting..."
         elif worker_status == "Complete":
-            display_status = "Completed"
+            display_status = "Complete"
         elif worker_status == "Resume GET...":
             display_status = "Resuming..."
         else:
@@ -429,8 +429,8 @@ class DownloadProgressDialog(QDialog):
         self.reject() 
 
     def on_finished(self, row, status):
-        if status == "Completed":
-            display_status = "Completed"
+        if status == "Complete":
+            display_status = "Complete"
         elif status == "Cancelled":
             display_status = "Cancelled"
         elif status == "Error":
@@ -443,7 +443,7 @@ class DownloadProgressDialog(QDialog):
             
         self.lbl_main_status.setText(display_status)
         
-        if display_status == "Completed":
+        if display_status == "Complete":
             if self.total_bytes > 0:
                 self.current_bytes = self.total_bytes
                 self.pbar.setMaximum(10000)

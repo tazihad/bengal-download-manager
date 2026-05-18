@@ -257,8 +257,8 @@ class MainWindow(QMainWindow):
         
         self.settings = self.load_settings()
         
-        # Changed active_downloads to hold the download row reference, not just the dialog ID
         self.active_downloads = {} 
+        self.active_file_info_dialogs = {}
         self.load_data()
         
         # FEATURE: Timer for periodic timestamp updates (Run every 60 seconds)
@@ -393,7 +393,7 @@ class MainWindow(QMainWindow):
         self.action_delete.setEnabled(False)
         self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.action_clear = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "Clear", self)
+        self.action_clear = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "Clear Completed", self)
         self.action_clear.triggered.connect(self.clear_finished_downloads)
         
         self.action_options = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Options", self)
@@ -751,15 +751,30 @@ class MainWindow(QMainWindow):
                 path = item_name.data(Qt.ItemDataRole.UserRole + 1) 
                 filename = item_name.text()
                 size = safe_get(1)
-                status = safe_get(2)
+                # Use standardized internal status if available, otherwise fallback to text
+                status_item = self.download_table.item(row, 2)
+                internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                display_text = safe_get(2)
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+                
+                status = internal_status if internal_status else display_text
+                
+                # If currently active or paused, normalize to include percentage if available
+                if status in ["Downloading", "Connecting...", "Pending...", "Resuming...", "Paused", "Cancelled"]:
+                    if pct_data:
+                        status = pct_data
+                    elif "%" in display_text:
+                        # Fallback to parsing text if UserRole is empty
+                        status = display_text
+                    else:
+                        status = "Paused"
+                elif status == "Completed" or status == "Complete":
+                    status = "Complete"
+                # If it's already a percentage (e.g. from previous load or pause), keep it
                 
                 # Retrieve raw timestamp values for persistence
                 last_try_ts = item_name.data(Qt.ItemDataRole.UserRole + 2) or ""
                 date_added_ts = item_name.data(Qt.ItemDataRole.UserRole + 3) or ""
-                
-                # Save status as 'Paused' if currently active/pending but not completed
-                if status in ["Downloading", "Connecting...", "Pending...", "Resuming..."]:
-                    status = "Paused"
                 
                 dl_data = {
                     "url": url,
@@ -812,7 +827,31 @@ class MainWindow(QMainWindow):
                 self.download_table.setItem(row, 0, item_name)
                 
                 self._set_sortable_item(row, 1, d.get("size", "..."), parse_size_to_bytes)
-                self.download_table.setItem(row, 2, QTableWidgetItem(d.get("status", "Unknown")))
+                # Col 2: Status (Sanitize: show percentage, never "Paused")
+                raw_status = d.get("status", "0.0%")
+                display_status = raw_status
+                
+                # Determine internal state based on status text
+                if raw_status == "Complete" or raw_status == "Completed":
+                    display_status = "Complete"
+                    internal_state = "Complete"
+                elif "%" in raw_status:
+                    display_status = raw_status
+                    internal_state = "Paused"
+                elif raw_status in ["Paused", "Cancelled", "Error"]:
+                    display_status = "0.0%" if raw_status != "Error" else "Error"
+                    internal_state = raw_status
+                else:
+                    internal_state = raw_status
+
+                status_item = QTableWidgetItem(display_status)
+                # Store the standardized internal state in UserRole + 1
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, internal_state)
+                # Also restore the raw percentage string in UserRole for resume logic
+                if "%" in raw_status:
+                    status_item.setData(Qt.ItemDataRole.UserRole, raw_status)
+                
+                self.download_table.setItem(row, 2, status_item)
                 self._set_sortable_item(row, 3, d.get("time_left", ""), parse_time_to_sec)
                 self._set_sortable_item(row, 4, d.get("rate", ""), parse_size_to_bytes)
                 
@@ -933,11 +972,14 @@ class MainWindow(QMainWindow):
         row_index = item.row()
         item_0 = self.download_table.item(row_index, 0)
         
-        status = self.download_table.item(row_index, 2).text()
-        is_completed = (status == "Completed")
+        status_item = self.download_table.item(row_index, 2)
+        logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+        status_text = status_item.text() if status_item else ""
+        
+        is_completed = (logic_status == "Complete" or status_text == "Complete")
         is_active = id(item_0) in self.active_downloads
-        is_resumable = status in ["Paused", "Cancelled", "Error"]
-        is_pausable = status in ["Connecting...", "Downloading", "Resuming..."]
+        is_resumable = (logic_status in ["Paused", "Cancelled", "Error"]) or ("%" in status_text and not is_active)
+        is_pausable = (logic_status in ["Connecting...", "Downloading", "Resuming...", "Pending..."]) or (is_active and "%" in status_text)
 
         menu = QMenu(self)
         
@@ -1151,9 +1193,34 @@ class MainWindow(QMainWindow):
         results = dialog.get_results()
         key = id(item_ref)
         
+        # Ensure it's in the table now that it's confirmed
+        row = self.download_table.row(item_ref)
+        if row == -1:
+            row = self.insert_download_row(item_ref, results.get("size_str", "?"), start_paused=False)
+        
         # If "Start Download" was clicked, show the hidden dialog
         if results["action"] == 'start':
-            if key in self.active_downloads:
+            # CHECK: If download finished while info dialog was showing
+            status_item = self.download_table.item(row, 2)
+            status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            if not status:
+                status = item_ref.data(Qt.ItemDataRole.UserRole + 11)
+
+            if status == "Complete":
+                # Ensure table shows Complete
+                if status_item:
+                    status_item.setText("Complete")
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
+                
+                # Show Download Complete Dialog
+                file_data = {
+                    "url": item_ref.data(Qt.ItemDataRole.UserRole),
+                    "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
+                    "size": self.download_table.item(row, 1).text()
+                }
+                self._complete_dlg = DownloadCompleteDialog(file_data, self)
+                self._complete_dlg.show()
+            elif key in self.active_downloads:
                 self.active_downloads[key].show()
                 self.active_downloads[key].activateWindow()
             return
@@ -1521,7 +1588,7 @@ class MainWindow(QMainWindow):
                 self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
-            if display_status in ["Completed", "Error"]:
+            if display_status in ["Complete", "Error"]:
                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
             elif display_status in ["Paused", "Cancelled"]:
@@ -1540,66 +1607,73 @@ class MainWindow(QMainWindow):
             self.download_table.viewport().update()
 
     def download_finished(self, item_ref, status_text):
+        # Normalize status
+        if status_text == "Complete":
+            display_status = "Complete"
+            # SET FLAG EARLY so if confirmation comes later, it knows it's complete
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
+        elif status_text == "Cancelled":
+            display_status = "Cancelled"
+        elif status_text == "Paused":
+            display_status = "Paused"
+        else:
+            display_status = "Error"
+
         try:
             row = self.download_table.row(item_ref)
         except RuntimeError:
-            return # object has been deleted by remove
-        if row != -1:
-            if status_text == "Completed":
-                 display_status = "Complete"
-                 
-                 # Close the progress dialog if it exists
-                 key = id(item_ref)
-                 if key in self.active_downloads:
-                     progress_dialog = self.active_downloads[key]
-                     progress_dialog.close()
-                 
-                 # Show IDM-style Download Complete Dialog
-                 file_data = {
-                     "url": item_ref.data(Qt.ItemDataRole.UserRole),
-                     "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
-                     "size": self.download_table.item(row, 1).text()
-                 }
-                 self._complete_dlg = DownloadCompleteDialog(file_data, self)
-                 self._complete_dlg.show()
-            elif status_text == "Cancelled":
-                 display_status = "Cancelled"
-            elif status_text == "Paused":
-                 display_status = "Paused"
-            else:
-                 display_status = "Error"
+            return 
             
-            if display_status in ["Completed", "Error"]:
-                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
-                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-            elif display_status in ["Paused", "Cancelled"]:
-                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-                 
+        if row != -1:
             status_item = self.download_table.item(row, 2)
             if not status_item:
                 status_item = QTableWidgetItem()
                 self.download_table.setItem(row, 2, status_item)
-                
+            
             status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-
-            final_display = display_status
+            
+            # Formatting final display text
             if display_status == "Complete":
                 final_display = "Complete"
             elif display_status in ["Paused", "Cancelled"]:
-                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                final_display = f"Paused {pct_data}" if pct_data else "Paused"
+                pct = status_item.data(Qt.ItemDataRole.UserRole)
+                final_display = pct if pct else "0.0%"
+            else:
+                final_display = display_status
             
             status_item.setText(final_display)
             
-            # Update Last Try timestamp one last time when download stops/finishes
+            if display_status in ["Complete", "Error"]:
+                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            elif display_status in ["Paused", "Cancelled"]:
+                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+
             final_timestamp = str(time.time())
             item_ref.setData(Qt.ItemDataRole.UserRole + 2, final_timestamp)
             self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(final_timestamp, max_relative_seconds=300)))
+
+        # Handle UI Popups / Dialogs
+        key = id(item_ref)
+        if display_status == "Complete":
+            if key in self.active_downloads:
+                self.active_downloads[key].close()
             
-            self.save_data()
-        
-        # Update UI to reflect that a download finished (e.g. Stop button disabled)
+            # If File Info dialog is still open, return and wait for confirmed action
+            if key in self.active_file_info_dialogs:
+                return
+
+            # Show IDM-style Download Complete Dialog
+            file_data = {
+                "url": item_ref.data(Qt.ItemDataRole.UserRole),
+                "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
+                "size": self.download_table.item(row, 1).text() if row != -1 else "?"
+            }
+            self._complete_dlg = DownloadCompleteDialog(file_data, self)
+            self._complete_dlg.show()
+            
         self.update_ui_states()
+        self.save_data()
     
     def open_options(self):
         from ui.dialogs import OptionsDialog
