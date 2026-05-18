@@ -138,7 +138,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "download-with-bengal") {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
     if (targetUrl && targetUrl.startsWith("http")) {
-      await sendToBengalDM(targetUrl);
+      const cookies = await chrome.cookies.getAll({ url: targetUrl });
+      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      await sendToBengalDM(targetUrl, cookieString);
     }
   }
 });
@@ -159,24 +161,21 @@ chrome.downloads.onCreated.addListener(async (downloadItem) => {
         chrome.downloads.erase({ id: downloadItem.id });
     });
 
-    sendToBengalDM(downloadItem.url);
+    const cookies = await chrome.cookies.getAll({ url: downloadItem.url });
+    const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+    sendToBengalDM(downloadItem.url, cookieString);
 });
 
-// --- FEATURE 3: Silent Click Interceptor ---
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  if (request.action === "silent_download") {
-    await sendToBengalDM(request.url);
-  }
-});
-
-// --- PRE-FLIGHT CHECKER ---
+// --- MESSAGE INTERCEPTOR ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "check_link_preflight") {
+  if (request.action === "silent_download" || request.action === "check_link_preflight") {
     chrome.cookies.getAll({ url: request.url }, (cookies) => {
       const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
       sendToBengalDM(request.url, cookieString);
     });
-    sendResponse({ handledByBengal: true });
-    return true; 
+
+    if (request.action === "check_link_preflight") {
+      sendResponse({ handledByBengal: true });
+    }
   }
 });
