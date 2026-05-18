@@ -1,0 +1,481 @@
+import os
+import subprocess
+from PyQt6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
+    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox
+)
+from PyQt6.QtCore import Qt
+from core.utils import (
+    load_proxy_config, save_proxy_config, 
+    load_extension_config, save_extension_config, call_aria2_rpc
+)
+from core.config import load_category_config, save_category_config
+
+class OptionsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Options")
+        self.setMinimumSize(500, 400)
+        
+        self.config_data = load_category_config()
+        self.proxy_data = load_proxy_config()
+        self.extension_data = load_extension_config()
+        self.current_category = "General"
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+        
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+        
+        self.general_tab = QWidget()
+        self.setup_general_tab()
+        self.tabs.addTab(self.general_tab, "General")
+
+        self.saveto_tab = QWidget()
+        self.setup_saveto_tab()
+        self.tabs.addTab(self.saveto_tab, "Save To")
+        
+        self.proxy_tab = QWidget()
+        self.setup_proxy_tab()
+        self.tabs.addTab(self.proxy_tab, "Proxy / Socks")
+
+        self.extension_tab = QWidget()
+        self.setup_extension_tab()
+        self.tabs.addTab(self.extension_tab, "Extensions")
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.btn_ok = QPushButton("OK")
+        self.btn_ok.setFixedWidth(80)
+        self.btn_ok.setFixedHeight(30)
+        self.btn_ok.setDefault(True)
+        self.btn_ok.clicked.connect(self.save_and_accept)
+        
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setFixedWidth(80)
+        self.btn_cancel.setFixedHeight(30)
+        self.btn_cancel.clicked.connect(self.reject)
+        
+        btn_layout.addWidget(self.btn_ok)
+        btn_layout.addWidget(self.btn_cancel)
+        layout.addLayout(btn_layout)
+
+    def setup_general_tab(self):
+        layout = QVBoxLayout(self.general_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(20)
+        
+        grp_integration = QGroupBox("System Integration")
+        vbox_int = QVBoxLayout()
+        vbox_int.setContentsMargins(10, 15, 10, 10)
+        vbox_int.setSpacing(10)
+        vbox_int.addWidget(QLabel("Launch Bengal DM on system startup"))
+        vbox_int.addWidget(QLabel("Integrate into browsers"))
+        grp_integration.setLayout(vbox_int)
+        layout.addWidget(grp_integration)
+        
+        grp_settings = QGroupBox("Engine Settings")
+        vbox_settings = QVBoxLayout()
+        vbox_settings.setContentsMargins(10, 15, 10, 10)
+        vbox_settings.setSpacing(10)
+        
+        # Engine status label
+        self.lbl_engine = QLabel("Active Engine: Checking...")
+        self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
+        vbox_settings.addWidget(self.lbl_engine)
+        
+        # Initial check
+        self.refresh_engine_status()
+        
+        vbox_settings.addWidget(QLabel("Default Connections: 8"))
+        
+        version_info = "Not found"
+        aria2_path = os.path.expanduser("~/bin/aria2c")
+        if os.path.exists(aria2_path):
+            try:
+                out = subprocess.check_output([aria2_path, "--version"], text=True).splitlines()[0]
+                version_info = f"{out} ({aria2_path})"
+            except: pass
+        else:
+            try:
+                out = subprocess.check_output(["aria2c", "--version"], text=True).splitlines()[0]
+                version_info = f"{out} (System Path)"
+            except: pass
+                
+        vbox_settings.addWidget(QLabel(f"Aria2 Binary: {version_info}"))
+        grp_settings.setLayout(vbox_settings)
+        layout.addWidget(grp_settings)
+        layout.addStretch()
+
+    def refresh_engine_status(self):
+        """Re-tests the Aria2 RPC connection and updates the label."""
+        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        
+        proxy = load_proxy_config()
+        
+        # Default status
+        engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
+        
+        try:
+            # Force local check via raw socket
+            result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
+            if result:
+                version = result.get('version', 'Unknown')
+                engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
+            elif proxy.get("mode") == "manual":
+                # If manual proxy is on, aria2 might be starting or taking time through proxychains
+                engine_status = "<span style='color: blue; font-weight: bold;'>Aria2 Starting (via Proxychains)...</span>"
+        except:
+            pass
+        
+        if hasattr(self, 'lbl_engine'):
+            self.lbl_engine.setText(f"Active Engine: {engine_status}")
+
+    def setup_saveto_tab(self):
+        layout = QVBoxLayout(self.saveto_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+        
+        header_layout = QHBoxLayout()
+        icon_label = QLabel()
+        icon_label.setPixmap(self.style().standardPixmap(QStyle.StandardPixmap.SP_DirIcon)) 
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(QLabel("Categories, file types, folders"))
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+        
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line)
+
+        grp_save = QGroupBox("Save To...")
+        grp_layout = QVBoxLayout(grp_save)
+        grp_layout.setContentsMargins(10, 15, 10, 15)
+        grp_layout.setSpacing(10)
+        
+        cat_row = QHBoxLayout()
+        cat_row.addWidget(QLabel("Category"))
+        cat_row.addStretch()
+        grp_layout.addLayout(cat_row)
+        
+        self.combo_cat = QComboBox()
+        self.combo_cat.addItems(sorted(self.config_data["categories"].keys()))
+        idx = self.combo_cat.findText("General")
+        if idx != -1: self.combo_cat.setCurrentIndex(idx)
+        self.combo_cat.currentTextChanged.connect(self.on_category_changed)
+        grp_layout.addWidget(self.combo_cat)
+
+        grp_layout.addWidget(QLabel('Automatically put in above category the following file types:'))
+        self.txt_extensions = QLineEdit()
+        self.txt_extensions.textChanged.connect(self.on_extensions_changed)
+        grp_layout.addWidget(self.txt_extensions)
+        
+        self.lbl_def_dir = QLabel('Default download directory for "General" category')
+        grp_layout.addWidget(self.lbl_def_dir)
+        
+        dir_row = QHBoxLayout()
+        self.txt_save_path = QLineEdit()
+        self.txt_save_path.textChanged.connect(self.on_path_changed)
+        dir_row.addWidget(self.txt_save_path)
+        
+        btn_browse_save = QPushButton("Browse")
+        btn_browse_save.clicked.connect(lambda: self.browse_folder(self.txt_save_path))
+        dir_row.addWidget(btn_browse_save)
+        grp_layout.addLayout(dir_row)
+        
+        self.chk_last_selected = QCheckBox('Change folder for selected category on last selected')
+        self.chk_last_selected.setChecked(True)
+        grp_layout.addWidget(self.chk_last_selected)
+
+        layout.addWidget(grp_save)
+        
+        grp_temp = QGroupBox("Temporary directory")
+        temp_layout = QVBoxLayout(grp_temp)
+        temp_layout.setContentsMargins(10, 15, 10, 15)
+        temp_layout.setSpacing(10)
+        
+        temp_dir_row = QHBoxLayout()
+        self.txt_temp_path = QLineEdit()
+        self.txt_temp_path.setText(self.config_data.get("temp_dir", ""))
+        temp_dir_row.addWidget(self.txt_temp_path)
+        
+        btn_browse_temp = QPushButton("Browse")
+        btn_browse_temp.clicked.connect(lambda: self.browse_folder(self.txt_temp_path))
+        temp_layout.addLayout(temp_dir_row)
+        
+        grp_temp.setLayout(temp_layout)
+        layout.addWidget(grp_temp)
+        layout.addStretch()
+        self.on_category_changed(self.combo_cat.currentText())
+
+    def on_proxy_toggle(self, checked):
+        if checked:
+            self.update_proxy_ui()
+            self.save_proxy_data()
+            self.refresh_engine_status()
+
+    def setup_proxy_tab(self):
+        layout = QVBoxLayout(self.proxy_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+        
+        self.bg_mode = QButtonGroup(self)
+        
+        self.rb_no_proxy = QRadioButton("No proxy / Get from system")
+        self.rb_no_proxy.toggled.connect(self.on_proxy_toggle)
+        layout.addWidget(self.rb_no_proxy)
+        self.bg_mode.addButton(self.rb_no_proxy)
+        
+        self.rb_manual = QRadioButton("Manual proxy configuration")
+        self.rb_manual.toggled.connect(self.on_proxy_toggle)
+        layout.addWidget(self.rb_manual)
+        self.bg_mode.addButton(self.rb_manual)
+        
+        # Manual Settings Group
+        self.grp_manual = QGroupBox()
+        manual_layout = QVBoxLayout(self.grp_manual)
+        manual_layout.setContentsMargins(10, 15, 10, 15)
+        manual_layout.setSpacing(12)
+        
+        # Type
+        type_layout = QHBoxLayout()
+        self.bg_type = QButtonGroup(self)
+        
+        self.rb_http = QRadioButton("HTTP")
+        self.rb_http.toggled.connect(self.on_proxy_toggle)
+        self.rb_socks4 = QRadioButton("SOCKS4")
+        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
+        self.rb_socks5 = QRadioButton("SOCKS5")
+        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
+        
+        self.bg_type.addButton(self.rb_http)
+        self.bg_type.addButton(self.rb_socks4)
+        self.bg_type.addButton(self.rb_socks5)
+        
+        type_layout.addWidget(QLabel("Type:"))
+        type_layout.addWidget(self.rb_http)
+        type_layout.addWidget(self.rb_socks4)
+        type_layout.addWidget(self.rb_socks5)
+        type_layout.addStretch()
+        manual_layout.addLayout(type_layout)
+        
+        # Host / Port
+        addr_layout = QHBoxLayout()
+        addr_layout.addWidget(QLabel("Proxy/Socks host:"))
+        self.txt_host = QLineEdit()
+        self.txt_host.textChanged.connect(self.save_proxy_data)
+        self.txt_host.textChanged.connect(self.refresh_engine_status)
+        addr_layout.addWidget(self.txt_host)
+        
+        addr_layout.addWidget(QLabel("Port:"))
+        self.spin_port = QSpinBox()
+        self.spin_port.setRange(1, 65535)
+        self.spin_port.setValue(8080)
+        self.spin_port.valueChanged.connect(self.save_proxy_data)
+        self.spin_port.valueChanged.connect(self.refresh_engine_status)
+        addr_layout.addWidget(self.spin_port)
+        manual_layout.addLayout(addr_layout)
+        
+        # Auth
+        self.chk_auth = QCheckBox("Authentication required")
+        self.chk_auth.toggled.connect(self.update_proxy_ui)
+        self.chk_auth.toggled.connect(self.save_proxy_data)
+        self.chk_auth.toggled.connect(self.refresh_engine_status)
+        manual_layout.addWidget(self.chk_auth)
+        
+        auth_layout = QGridLayout()
+        auth_layout.addWidget(QLabel("Username:"), 0, 0)
+        self.txt_user = QLineEdit()
+        self.txt_user.textChanged.connect(self.save_proxy_data)
+        self.txt_user.textChanged.connect(self.refresh_engine_status)
+        auth_layout.addWidget(self.txt_user, 0, 1)
+        
+        auth_layout.addWidget(QLabel("Password:"), 1, 0)
+        self.txt_pass = QLineEdit()
+        self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.textChanged.connect(self.save_proxy_data)
+        self.txt_pass.textChanged.connect(self.refresh_engine_status)
+        auth_layout.addWidget(self.txt_pass, 1, 1)
+        
+        manual_layout.addLayout(auth_layout)
+        
+        layout.addWidget(self.grp_manual)
+        layout.addStretch()
+        
+        # Load Values (Block signals to prevent auto-save-defaults during init)
+        self.rb_manual.blockSignals(True)
+        self.rb_no_proxy.blockSignals(True)
+        self.rb_http.blockSignals(True)
+        self.rb_socks4.blockSignals(True)
+        self.rb_socks5.blockSignals(True)
+        self.txt_host.blockSignals(True)
+        self.spin_port.blockSignals(True)
+        self.chk_auth.blockSignals(True)
+        self.txt_user.blockSignals(True)
+        self.txt_pass.blockSignals(True)
+        
+        if self.proxy_data["mode"] == "manual":
+            self.rb_manual.setChecked(True)
+        else:
+            self.rb_no_proxy.setChecked(True)
+            
+        ptype = self.proxy_data.get("type", "http")
+        if ptype == "socks4": self.rb_socks4.setChecked(True)
+        elif ptype == "socks5": self.rb_socks5.setChecked(True)
+        else: self.rb_http.setChecked(True)
+        
+        self.txt_host.setText(self.proxy_data.get("host", ""))
+        self.spin_port.setValue(self.proxy_data.get("port", 8080))
+        self.chk_auth.setChecked(self.proxy_data.get("auth", False))
+        self.txt_user.setText(self.proxy_data.get("user", ""))
+        self.txt_pass.setText(self.proxy_data.get("password", ""))
+
+        self.rb_manual.blockSignals(False)
+        self.rb_no_proxy.blockSignals(False)
+        self.rb_http.blockSignals(False)
+        self.rb_socks4.blockSignals(False)
+        self.rb_socks5.blockSignals(False)
+        self.txt_host.blockSignals(False)
+        self.spin_port.blockSignals(False)
+        self.chk_auth.blockSignals(False)
+        self.txt_user.blockSignals(False)
+        self.txt_pass.blockSignals(False)
+        
+        self.update_proxy_ui()
+
+    def setup_extension_tab(self):
+        layout = QVBoxLayout(self.extension_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(20)
+        
+        desc = QLabel("Configure connection settings for Aria2 RPC integration.")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+        
+        grp_aria = QGroupBox("Aria2 RPC Settings")
+        form_layout = QGridLayout(grp_aria)
+        form_layout.setContentsMargins(10, 15, 10, 15)
+        form_layout.setSpacing(12)
+        
+        # Protocol
+        form_layout.addWidget(QLabel("Protocol:"), 0, 0)
+        self.combo_aria_proto = QComboBox()
+        # Add items with user data to map display text to protocol code
+        self.combo_aria_proto.addItem("http", "http")
+        self.combo_aria_proto.addItem("https", "https")
+        self.combo_aria_proto.addItem("websocket", "ws")
+        self.combo_aria_proto.addItem("websocket (security)", "wss")
+        
+        current_proto = self.extension_data.get("protocol", "ws") # Default to ws
+        index = self.combo_aria_proto.findData(current_proto)
+        if index >= 0:
+            self.combo_aria_proto.setCurrentIndex(index)
+        else:
+             idx_text = self.combo_aria_proto.findText(current_proto)
+             if idx_text >= 0:
+                 self.combo_aria_proto.setCurrentIndex(idx_text)
+             else:
+                 self.combo_aria_proto.setCurrentIndex(2)
+
+        form_layout.addWidget(self.combo_aria_proto, 0, 1)
+        
+        # Port
+        form_layout.addWidget(QLabel("Port:"), 1, 0)
+        self.spin_aria_port = QSpinBox()
+        self.spin_aria_port.setRange(1, 65535)
+        self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
+        form_layout.addWidget(self.spin_aria_port, 1, 1)
+        
+        # Token
+        form_layout.addWidget(QLabel("Secret Token:"), 2, 0)
+        self.txt_aria_token = QLineEdit()
+        self.txt_aria_token.setPlaceholderText("Optional secret token")
+        self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_aria_token.setText(self.extension_data.get("token", ""))
+        form_layout.addWidget(self.txt_aria_token, 2, 1)
+        
+        # Show Token Checkbox
+        self.chk_show_token = QCheckBox("Show Token")
+        self.chk_show_token.toggled.connect(
+            lambda checked: self.txt_aria_token.setEchoMode(
+                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+            )
+        )
+        form_layout.addWidget(self.chk_show_token, 3, 1)
+        
+        layout.addWidget(grp_aria)
+        layout.addStretch()
+
+    def update_proxy_ui(self):
+        manual = self.rb_manual.isChecked()
+        self.grp_manual.setEnabled(manual)
+        
+        auth = self.chk_auth.isChecked() and manual
+        self.txt_user.setEnabled(auth)
+        self.txt_pass.setEnabled(auth)
+
+    def save_proxy_data(self):
+        mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
+        ptype = "http"
+        if self.rb_socks4.isChecked(): ptype = "socks4"
+        if self.rb_socks5.isChecked(): ptype = "socks5"
+        
+        self.proxy_data = {
+            "mode": mode,
+            "type": ptype,
+            "host": self.txt_host.text().strip(),
+            "port": self.spin_port.value(),
+            "auth": self.chk_auth.isChecked(),
+            "user": self.txt_user.text(),
+            "password": self.txt_pass.text()
+        }
+        save_proxy_config(self.proxy_data)
+
+    def save_extension_data(self):
+        self.extension_data = {
+            "protocol": self.combo_aria_proto.currentData(), 
+            "host": "localhost",
+            "port": self.spin_aria_port.value(),
+            "token": self.txt_aria_token.text().strip()
+        }
+        save_extension_config(self.extension_data)
+
+    def on_category_changed(self, category):
+        self.current_category = category
+        cat_data = self.config_data["categories"].get(category, {})
+        self.txt_extensions.blockSignals(True)
+        self.txt_save_path.blockSignals(True)
+        self.txt_extensions.setText(cat_data.get("extensions", ""))
+        self.txt_save_path.setText(cat_data.get("path", ""))
+        self.lbl_def_dir.setText(f'Default download directory for "{category}" category')
+        self.txt_extensions.blockSignals(False)
+        self.txt_save_path.blockSignals(False)
+
+    def on_extensions_changed(self, text):
+        if self.current_category in self.config_data["categories"]:
+            self.config_data["categories"][self.current_category]["extensions"] = text
+
+    def on_path_changed(self, text):
+        if self.current_category in self.config_data["categories"]:
+            self.config_data["categories"][self.current_category]["path"] = text
+
+    def browse_folder(self, line_edit):
+        folder = QFileDialog.getExistingDirectory(self, "Select Directory", line_edit.text())
+        if folder:
+            line_edit.setText(folder)
+
+    def save_and_accept(self):
+        self.config_data["temp_dir"] = self.txt_temp_path.text()
+        save_category_config(self.config_data)
+        self.save_proxy_data()
+        self.save_extension_data()
+        self.accept()
+
+    def get_theme(self):
+        return None
