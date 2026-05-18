@@ -79,7 +79,7 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
 }, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }, ["blocking", "responseHeaders"]);
 
 // --- HELPER: Send URL to Python App ---
-async function sendToBengalDM(targetUrl) {
+async function sendToBengalDM(targetUrl, cookies = "") {
   // Try port 9000 check first
   try {
     const response = await fetch("http://127.0.0.1:9000/", { method: 'GET' });
@@ -109,7 +109,8 @@ async function sendToBengalDM(targetUrl) {
       },
       body: JSON.stringify({
         url: originalUrl,
-        userAgent: navigator.userAgent
+        userAgent: navigator.userAgent,
+        cookies: cookies
       })
     });
     return true;
@@ -171,46 +172,11 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 // --- PRE-FLIGHT CHECKER ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "check_link_preflight") {
-    // Needs to be async, so we return true to keep the message channel open
-    (async () => {
-      try {
-        const response = await fetch(request.url, { method: "HEAD" });
-        const contentType = (response.headers.get("content-type") || "").toLowerCase();
-        const contentDisposition = (response.headers.get("content-disposition") || "").toLowerCase();
-        
-        let isDownload = false;
-        if (contentDisposition.includes("attachment")) {
-          isDownload = true;
-        } else if (contentType.includes("application/octet-stream") || 
-                   contentType.includes("application/x-msdos-program") ||
-                   contentType.includes("application/zip") ||
-                   contentType.includes("application/x-7z-compressed")) {
-          isDownload = true;
-        }
-
-        // Fallback for known extensions if headers are missing/unreliable
-        const interceptTypes = /\.(zip|rar|7z|tar|gz|iso|exe|msi|mp4|mkv|avi|mp3|flac|pdf)(\?.*)?$/i;
-        if (!isDownload && request.url.match(interceptTypes)) {
-          isDownload = true;
-        }
-
-        if (isDownload) {
-          const sent = await sendToBengalDM(request.url);
-          if (sent) {
-            sendResponse({ handledByBengal: true });
-            return;
-          }
-        }
-        
-        // Not a download or Bengal DM failed
-        sendResponse({ handledByBengal: false });
-        
-      } catch (err) {
-        // Fetch failed (network error, CORS issue if server explicitly blocks HEAD, etc)
-        // Default to letting the browser handle it
-        sendResponse({ handledByBengal: false });
-      }
-    })();
+    chrome.cookies.getAll({ url: request.url }, (cookies) => {
+      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      sendToBengalDM(request.url, cookieString);
+    });
+    sendResponse({ handledByBengal: true });
     return true; 
   }
 });
