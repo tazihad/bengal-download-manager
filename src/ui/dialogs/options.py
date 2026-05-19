@@ -371,7 +371,14 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        desc = QLabel("Configure connection settings for Aria2 RPC integration.")
+        # Help Text
+        help_text = (
+            "<b>Browser Extension Integration</b><br>"
+            "Bengal Download Manager works with a browser extension to capture downloads "
+            "automatically. These settings allow the extension to communicate with the "
+            "download engine (Aria2) running on your computer."
+        )
+        desc = QLabel(help_text)
         desc.setWordWrap(True)
         layout.addWidget(desc)
         
@@ -419,15 +426,47 @@ class OptionsDialog(QDialog):
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
-        self.chk_show_token.toggled.connect(
-            lambda checked: self.txt_aria_token.setEchoMode(
-                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-            )
-        )
+        self.chk_show_token.toggled.connect(self.on_toggle_show_token)
         form_layout.addWidget(self.chk_show_token, 3, 1)
         
         layout.addWidget(grp_aria)
+
+        # Extension Helper Section
+        grp_helper = QGroupBox("Extension Helper")
+        helper_layout = QVBoxLayout(grp_helper)
+        helper_layout.setContentsMargins(10, 15, 10, 15)
+        
+        helper_desc = QLabel(
+            "If the browser extension is unable to communicate with Bengal DM, "
+            "you may need to reinstall the native messaging host."
+        )
+        helper_desc.setWordWrap(True)
+        helper_desc.setStyleSheet("color: #666; font-size: 11px;")
+        helper_layout.addWidget(helper_desc)
+        
+        self.btn_reinstall_helper = QPushButton("Reinstall Extension Helper")
+        self.btn_reinstall_helper.clicked.connect(self.reinstall_extension_helper)
+        helper_layout.addWidget(self.btn_reinstall_helper)
+        
+        layout.addWidget(grp_helper)
+        
         layout.addStretch()
+
+    def on_toggle_show_token(self, checked):
+        """Toggles the echo mode of the token field."""
+        if checked:
+            self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
+
+    def reinstall_extension_helper(self):
+        """Placeholder for reinstalling native messaging host."""
+        QMessageBox.information(
+            self, 
+            "Extension Helper", 
+            "Native messaging host reinstallation is not yet implemented in this version.\n\n"
+            "Please check back in a future update or consult the manual installation guide."
+        )
 
     def update_proxy_ui(self):
         manual = self.rb_manual.isChecked()
