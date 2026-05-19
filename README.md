@@ -1,10 +1,15 @@
 # Bengal Download Manager
 
+<p align="center">
+  <img width="100%" alt="Bengal Download Manager Poster" src="assets/poster.jpg" />
+</p>
+
 Bengal Download Manager is a powerful and efficient download management tool designed to simplify and accelerate your downloading experience.
 
 ## Screenshots
-<img width="800" alt="Screenshot_20260427_193142" src="assets/Screenshot_20260519_084849.png" />
-
+<p align="center">
+  <img width="80%" alt="Bengal Download Manager Interface Screenshot" src="assets/Screenshot_20260519_084849.png" />
+</p>
 
 ## Features
 
