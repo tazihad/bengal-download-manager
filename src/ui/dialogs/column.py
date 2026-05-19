@@ -34,7 +34,13 @@ class ColumnDialog(QDialog):
         # Buttons layout
         btn_vbox = QVBoxLayout()
         self.btn_up = QPushButton("Move Up")
+        self.btn_up.setFixedWidth(100)
+        self.btn_up.setFixedHeight(30)
+        
         self.btn_down = QPushButton("Move Down")
+        self.btn_down.setFixedWidth(100)
+        self.btn_down.setFixedHeight(30)
+        
         btn_vbox.addWidget(self.btn_up)
         btn_vbox.addWidget(self.btn_down)
         btn_vbox.addStretch()
@@ -47,6 +53,7 @@ class ColumnDialog(QDialog):
         width_layout.addWidget(QLabel("Column width (pixels):"))
         self.spin_width = QSpinBox()
         self.spin_width.setRange(10, 1000)
+        self.spin_width.setFixedHeight(25)
         width_layout.addWidget(self.spin_width)
         width_layout.addStretch()
         layout.addLayout(width_layout)
@@ -55,7 +62,14 @@ class ColumnDialog(QDialog):
         btns = QHBoxLayout()
         btns.addStretch()
         self.btn_ok = QPushButton("OK")
+        self.btn_ok.setFixedWidth(80)
+        self.btn_ok.setFixedHeight(30)
+        self.btn_ok.setDefault(True)
+        
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setFixedWidth(80)
+        self.btn_cancel.setFixedHeight(30)
+        
         btns.addWidget(self.btn_ok)
         btns.addWidget(self.btn_cancel)
         layout.addLayout(btns)

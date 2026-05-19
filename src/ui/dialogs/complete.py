@@ -49,9 +49,16 @@ class DownloadCompleteDialog(QDialog):
         # Buttons
         btn_layout = QHBoxLayout()
         self.btn_open = QPushButton("Open")
+        self.btn_open.setFixedWidth(80)
+        
         self.btn_open_with = QPushButton("Open with...")
+        self.btn_open_with.setFixedWidth(100)
+        
         self.btn_open_folder = QPushButton("Open Folder")
+        self.btn_open_folder.setFixedWidth(100)
+        
         self.btn_close = QPushButton("Close")
+        self.btn_close.setFixedWidth(80)
         
         # Set height for buttons to look more like IDM
         for btn in [self.btn_open, self.btn_open_with, self.btn_open_folder, self.btn_close]:
