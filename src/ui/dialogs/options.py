@@ -1,11 +1,12 @@
 import os
 import subprocess
+import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
@@ -122,30 +123,35 @@ class OptionsDialog(QDialog):
         layout.addStretch()
 
     def refresh_engine_status(self):
-        """Re-tests the Aria2 RPC connection and updates the label."""
+        """Re-tests the Aria2 RPC connection and updates the label in background."""
+        if not hasattr(self, 'lbl_engine'): return
+        
         token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
         rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
         
-        proxy = load_proxy_config()
+        self.lbl_engine.setText("Active Engine: <span style='color: #3498db;'>●</span> Checking...")
         
-        # Default status: Fallback
-        engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
-        
-        try:
-            # Force local check via raw socket
-            result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
-            if result:
-                version = result.get('version', 'Unknown')
-                engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
-            elif proxy.get("mode") == "manual":
-                # If manual proxy is on, aria2 might be starting or taking time through proxychains
-                engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting (via Proxychains)..."
-        except:
-            pass
-        
-        if hasattr(self, 'lbl_engine'):
+        def check():
+            proxy = load_proxy_config()
+            engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
+            try:
+                # This is a blocking network call (3s timeout)
+                result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
+                if result:
+                    version = result.get('version', 'Unknown')
+                    engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
+                elif proxy.get("mode") == "manual":
+                    engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting (via Proxychains)..."
+            except:
+                pass
+            
             aria2_bin = find_aria2() or "Not found"
-            self.lbl_engine.setText(f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>")
+            final_text = f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>"
+            
+            # Update UI safely from background thread
+            QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
+
+        threading.Thread(target=check, daemon=True).start()
 
     def setup_saveto_tab(self):
         layout = QVBoxLayout(self.saveto_tab)
