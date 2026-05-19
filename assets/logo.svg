@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E9DFAC"/>
+      <stop offset="30%" stop-color="#C5B26E"/>
+      <stop offset="70%" stop-color="#9E8A46"/>
+      <stop offset="100%" stop-color="#EBE0A8"/>
+    </linearGradient>
+
+    <linearGradient id="greenBgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#628A3E"/>
+      <stop offset="100%" stop-color="#325419"/>
+    </linearGradient>
+
+    <linearGradient id="fangGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E2E3E5"/>
+      <stop offset="50%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EAECEE"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+
+    <g id="leftFangs" filter="url(#shadow)">
+      <path d="M 65 145 L 100 135 C 80 250, 95 370, 125 435 C 60 370, 35 250, 65 145 Z" fill="url(#fangGrad)"/>
+      
+      <path d="M 125 115 L 160 105 C 135 210, 160 320, 195 400 C 120 320, 95 210, 125 115 Z" fill="url(#fangGrad)"/>
+      
+      <path d="M 195 115 L 220 112 C 205 190, 220 280, 240 360 C 185 280, 170 190, 195 115 Z" fill="url(#fangGrad)"/>
+    </g>
+  </defs>
+
+  <rect x="5" y="5" width="490" height="490" rx="115" fill="url(#goldGradient)" />
+  
+  <rect x="18" y="18" width="464" height="464" rx="102" fill="url(#greenBgGradient)" />
+
+  <use href="#leftFangs" />
+  
+  <use href="#leftFangs" transform="translate(500, 0) scale(-1, 1)" />
+</svg>
