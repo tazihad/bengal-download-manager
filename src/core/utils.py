@@ -339,6 +339,37 @@ def ensure_aria2():
     except:
         return None
 
+def open_file_generic(path):
+    """
+    Robustly opens a file or directory using the OS default application.
+    On Linux, clears environment variables to ensure child processes use system libraries.
+    """
+    if not path or not os.path.exists(path):
+        return False
+
+    path = os.path.abspath(path)
+    
+    # --- ENVIRONMENT SANITIZATION ---
+    clean_env = os.environ.copy()
+    keys_to_clear = [
+        "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
+        "PYTHONHOME", "PYTHONPATH"
+    ]
+    for key in keys_to_clear:
+        clean_env.pop(key, None)
+
+    try:
+        if platform.system() == 'Windows':
+            os.startfile(path)
+        elif platform.system() == 'Darwin':
+            subprocess.Popen(['open', path], env=clean_env)
+        else:
+            # Linux / Unix: Use xdg-open for system-wide defaults
+            subprocess.Popen(['xdg-open', path], env=clean_env)
+        return True
+    except Exception:
+        return False
+
 def open_with(path):
     """
     Shows the OS-native "Open With" dialog for the given path.

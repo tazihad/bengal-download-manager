@@ -40,7 +40,7 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename
+    show_in_folder, resolve_filename, open_file_generic
 )
 
 # Default TCP port for extension communication
@@ -1055,7 +1055,8 @@ class MainWindow(QMainWindow):
         item_0 = self.download_table.item(row, 0)
         path = item_0.data(Qt.ItemDataRole.UserRole + 1)
         if path and os.path.exists(path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            if not open_file_generic(path):
+                QMessageBox.critical(self, "Error", "Failed to open the file with the system default application.")
         else:
             QMessageBox.warning(self, "Error", "File does not exist.")
 
