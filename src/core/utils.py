@@ -339,6 +339,20 @@ def ensure_aria2():
     except:
         return None
 
+def get_clean_env():
+    """
+    Returns a copy of the environment with Qt-specific paths removed.
+    Prevents child processes from using bundled libraries.
+    """
+    clean_env = os.environ.copy()
+    keys_to_clear = [
+        "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
+        "PYTHONHOME", "PYTHONPATH"
+    ]
+    for key in keys_to_clear:
+        clean_env.pop(key, None)
+    return clean_env
+
 def open_file_generic(path):
     """
     Robustly opens a file or directory using the OS default application.
@@ -348,15 +362,7 @@ def open_file_generic(path):
         return False
 
     path = os.path.abspath(path)
-    
-    # --- ENVIRONMENT SANITIZATION ---
-    clean_env = os.environ.copy()
-    keys_to_clear = [
-        "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
-        "PYTHONHOME", "PYTHONPATH"
-    ]
-    for key in keys_to_clear:
-        clean_env.pop(key, None)
+    clean_env = get_clean_env()
 
     try:
         if platform.system() == 'Windows':
@@ -373,10 +379,16 @@ def open_file_generic(path):
 def open_with(path):
     """
     Shows the OS-native "Open With" dialog for the given path.
-    Returns True if a command was successfully launched.
+    Uses a multi-stage approach on Linux:
+    1. XDG Portal (D-Bus) to force a native app picker.
+    2. xdg-open (system default / picker for unknown types).
+    3. mimeopen -d (CLI picker).
     """
     if not path or not os.path.exists(path):
         return False
+
+    path = os.path.abspath(path)
+    clean_env = get_clean_env()
 
     # Windows
     if platform.system() == 'Windows':
@@ -385,33 +397,14 @@ def open_with(path):
 
     # macOS
     if platform.system() == 'Darwin':
-        subprocess.Popen(['open', path])
+        subprocess.Popen(['open', path], env=clean_env)
         return True
 
     # Linux / Unix
-    abs_path = os.path.abspath(path)
     from PyQt6.QtCore import QUrl
-    # Ensure URI is properly encoded and prefixed
-    uri = QUrl.fromLocalFile(abs_path).toString()
+    uri = QUrl.fromLocalFile(path).toString()
     
-    # --- XDG DESKTOP PORTAL: The standard for native "Open With" pickers ---
-    
-    # 1. Try via busctl (user session)
-    if shutil.which("busctl"):
-        try:
-            # Syntax: parent_window uri options(dict)
-            cmd = [
-                "busctl", "--user", "call", 
-                "org.freedesktop.portal.Desktop", 
-                "/org/freedesktop/portal/desktop", 
-                "org.freedesktop.portal.OpenURI", "OpenURI", 
-                "ssa{sv}", "", uri, "1", "ask", "b", "true"
-            ]
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-        except: pass
-
-    # 2. Try via gdbus
+    # 1. Try XDG Desktop Portal via D-Bus (Forces Picker Choice)
     if shutil.which("gdbus"):
         try:
             cmd = [
@@ -421,38 +414,27 @@ def open_with(path):
                 "--method", "org.freedesktop.portal.OpenURI.OpenURI", 
                 "", uri, "{'ask': <true>}"
             ]
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=clean_env)
             return True
         except: pass
 
-    # 3. Try via dbus-send (older but common)
-    if shutil.which("dbus-send"):
+    # 2. Try xdg-open (User suggested method)
+    # This uses system defaults, but will often show a picker for unknown file types.
+    if shutil.which("xdg-open"):
         try:
-            # Note: dict syntax in dbus-send is very limited, 
-            # often portals don't like it, but it's worth a shot.
-            cmd = [
-                "dbus-send", "--session", "--dest=org.freedesktop.portal.Desktop", 
-                "/org/freedesktop/portal/desktop", 
-                "org.freedesktop.portal.OpenURI.OpenURI", 
-                "string:", f"string:{uri}", "dict:string:variant:ask,boolean:true"
-            ]
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(['xdg-open', path], env=clean_env)
             return True
         except: pass
 
-    # --- FALLBACKS: If portals are broken or unavailable ---
-
-    # 4. mimeopen -d (Allows choosing app in a terminal/launcher)
+    # 3. Try mimeopen -d (Standard CLI app picker)
     if shutil.which("mimeopen"):
         try:
-            # We try to use a terminal so the user can see the options
             term = shutil.which("x-terminal-emulator") or shutil.which("gnome-terminal") or shutil.which("konsole")
             if term:
-                subprocess.Popen([term, "-e", f"mimeopen -d '{abs_path}'"])
-                return True
+                subprocess.Popen([term, "-e", f"mimeopen -d '{path}'"], env=clean_env)
             else:
-                subprocess.Popen(["mimeopen", "-d", abs_path])
-                return True
+                subprocess.Popen(["mimeopen", "-d", path], env=clean_env)
+            return True
         except: pass
 
     return False
@@ -467,17 +449,7 @@ def show_in_folder(path):
     path = os.path.abspath(path)
     if not os.path.exists(path): return
 
-    # --- ENVIRONMENT SANITIZATION ---
-    # When running as a bundled app (e.g. PyInstaller), we must clear 
-    # LD_LIBRARY_PATH and other Qt variables so child processes (like Dolphin) 
-    # use system libraries instead of the ones bundled with this app.
-    clean_env = os.environ.copy()
-    keys_to_clear = [
-        "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
-        "PYTHONHOME", "PYTHONPATH"
-    ]
-    for key in keys_to_clear:
-        clean_env.pop(key, None)
+    clean_env = get_clean_env()
 
     # If it's a directory, just open it normally
     if os.path.isdir(path):
@@ -494,24 +466,20 @@ def show_in_folder(path):
 
     # If it's a file, try to open parent and select it
     if platform.system() == 'Windows':
-        # explorer.exe /select,"C:\path\to\file"
         win_path = os.path.normpath(path)
-        subprocess.Popen(['explorer.exe', '/select,', win_path]) # Windows doesn't use LD_LIBRARY_PATH
+        subprocess.Popen(['explorer.exe', '/select,', win_path]) 
 
     elif platform.system() == 'Darwin':
-        # macOS: open -R <path>
         subprocess.Popen(['open', '-R', path], env=clean_env)
 
     else:
         # Linux / Unix
         try:
-            # Query default file manager for directories
             proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
             output, _ = proc.communicate()
             output = output.strip().lower()
             
-            # Check for known file managers that support selection flags
             if "dolphin" in output:
                 subprocess.Popen(['dolphin', '--select', path], env=clean_env)
             elif "nautilus" in output:
@@ -523,10 +491,8 @@ def show_in_folder(path):
             elif "konqueror" in output:
                 subprocess.Popen(['konqueror', '--select', path], env=clean_env)
             else:
-                # Fallback: Open parent folder with xdg-open
                 parent = os.path.dirname(path)
                 subprocess.Popen(['xdg-open', parent], env=clean_env)
         except Exception:
-            # Fallback to xdg-open if xdg-mime or specific FM calls fail
             parent = os.path.dirname(path)
             subprocess.Popen(['xdg-open', parent], env=clean_env)

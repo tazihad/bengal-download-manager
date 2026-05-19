@@ -40,7 +40,7 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename, open_file_generic
+    show_in_folder, resolve_filename, open_file_generic, open_with
 )
 
 # Default TCP port for extension communication
@@ -255,9 +255,37 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bengal Download Manager")
-        icon_path = os.path.join(get_data_dir(), "assets", "icon.png")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+        
+        # --- ROBUST LOGO LOADING ---
+        # Search multiple locations:
+        # 1. MEIPASS (PyInstaller)
+        # 2. ../assets/ (Development from src/)
+        # 3. assets/ (Running from root)
+        # 4. ~/.local/share/bengal-download-manager/assets/ (Installed)
+        
+        icon_locations = [
+            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
+            os.path.join(os.path.dirname(current_dir), "assets", "logo.png"),
+            os.path.join(current_dir, "assets", "logo.png"),
+            os.path.join(get_data_dir(), "assets", "logo.png"),
+            # SVG fallbacks
+            os.path.join(os.path.dirname(current_dir), "assets", "logo.svg"),
+            os.path.join(current_dir, "assets", "logo.svg")
+        ]
+        
+        final_icon = None
+        for loc in icon_locations:
+            if loc and os.path.exists(loc):
+                final_icon = QIcon(loc)
+                if not final_icon.isNull():
+                    break
+        
+        if final_icon:
+            self.setWindowIcon(final_icon)
+        else:
+            # System fallback for window
+            self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
+            
         self.setGeometry(200, 150, 1000, 600)
         
         self.setup_actions()
@@ -559,14 +587,12 @@ class MainWindow(QMainWindow):
     def setup_tray_icon(self):
         """Sets up the system tray icon and its context menu."""
         self.tray_icon = QSystemTrayIcon(self)
-        
-        # Set icon
-        icon_path = os.path.join(get_data_dir(), "assets", "icon.png")
-        if os.path.exists(icon_path):
-            self.tray_icon.setIcon(QIcon(icon_path))
-        else:
-            self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
-        
+
+        # Set icon from window icon
+        icon = self.windowIcon()
+        if icon.isNull():
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+        self.tray_icon.setIcon(icon)        
         # Create tray menu
         tray_menu = QMenu(self)
         
@@ -1067,9 +1093,12 @@ class MainWindow(QMainWindow):
         if not path or not os.path.exists(path):
              QMessageBox.warning(self, "Error", "File does not exist.")
              return
-        app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
-        if app_path:
-            subprocess.Popen([app_path, path])
+        
+        if not open_with(path):
+            # Final fallback: Manual picker if system utilities fail
+            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
+            if app_path:
+                subprocess.Popen([app_path, path])
 
     def ctx_open_folder(self, item):
         row = item.row()
@@ -1136,10 +1165,14 @@ class MainWindow(QMainWindow):
         row = item.row()
         item_0 = self.download_table.item(row, 0)
         url = item_0.data(Qt.ItemDataRole.UserRole)
-        new_url, ok = QInputDialog.getText(self, "Refresh Address", "Enter new URL:", text=url)
-        if ok and new_url:
-            item_0.setData(Qt.ItemDataRole.UserRole, new_url)
-            self.save_data()
+        
+        from ui.dialogs import RefreshAddressDialog
+        dlg = RefreshAddressDialog(url, self)
+        if dlg.exec():
+            new_url = dlg.get_url()
+            if new_url:
+                item_0.setData(Qt.ItemDataRole.UserRole, new_url)
+                self.save_data()
 
     def ctx_properties(self, item):
         row = item.row()
