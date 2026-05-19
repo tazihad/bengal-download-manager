@@ -296,6 +296,13 @@ class MainWindow(QMainWindow):
         
         self.settings = self.load_settings()
         
+        # FEATURE: Start Minimized logic
+        if getattr(self, "start_minimized", False):
+            # We use a timer to hide because some window managers might show it briefly otherwise
+            QTimer.singleShot(0, self.hide)
+            # Update tray icon action to "Show"
+            QTimer.singleShot(0, self.update_tray_action)
+        
         self.active_downloads = {} 
         self.active_file_info_dialogs = {}
         self.load_data()
@@ -1812,5 +1819,6 @@ if __name__ == "__main__":
     app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
-    window.show()
+    if not getattr(window, "start_minimized", False):
+        window.show()
     sys.exit(app.exec())

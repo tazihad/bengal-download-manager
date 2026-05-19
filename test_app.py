@@ -109,6 +109,41 @@ def test_drag_and_drop(app, qtbot, monkeypatch):
     # 4. Verify results
     assert test_url in processed_urls
 
+def test_start_minimized_logic(qtbot, monkeypatch):
+    """Verify that start_minimized logic hides the window on startup."""
+    # Mock settings to return start_minimized=True
+    import json
+    from core.utils import get_config_dir
+    
+    config_dir = get_config_dir()
+    settings_path = os.path.join(config_dir, "settings.json")
+    
+    # Backup original settings if they exist
+    original_content = None
+    if os.path.exists(settings_path):
+        with open(settings_path, "r") as f:
+            original_content = f.read()
+            
+    try:
+        # Write test settings
+        with open(settings_path, "w") as f:
+            json.dump({"start_minimized": True}, f)
+            
+        window = MainWindow()
+        qtbot.addWidget(window)
+        
+        # We need to wait a tiny bit for the QTimer.singleShot(0, self.hide) to trigger
+        qtbot.waitUntil(lambda: not window.isVisible(), timeout=1000)
+        assert not window.isVisible()
+        
+    finally:
+        # Restore original settings
+        if original_content is not None:
+            with open(settings_path, "w") as f:
+                f.write(original_content)
+        elif os.path.exists(settings_path):
+            os.remove(settings_path)
+
 if __name__ == "__main__":
     # If run directly, show instructions
     print("Test script created. To run tests, please install dev dependencies:")
