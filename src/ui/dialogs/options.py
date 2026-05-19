@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    ensure_aria2
+    find_aria2
 )
 from core.config import load_category_config, save_category_config
 
@@ -78,10 +78,7 @@ class OptionsDialog(QDialog):
         
         self.chk_start_minimized = QCheckBox("Start Bengal DM minimized in system tray")
         # Load from parent (MainWindow) settings
-        if self.parent() and hasattr(self.parent(), "start_minimized"):
-            self.chk_start_minimized.setChecked(self.parent().start_minimized)
-        else:
-            self.chk_start_minimized.setChecked(False)
+        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized", False))
         vbox_startup.addWidget(self.chk_start_minimized)
         
         self.chk_startup = QCheckBox("Launch Bengal DM on system startup (Coming Soon)")
@@ -147,7 +144,7 @@ class OptionsDialog(QDialog):
             pass
         
         if hasattr(self, 'lbl_engine'):
-            aria2_bin = ensure_aria2() or "Not found"
+            aria2_bin = find_aria2() or "Not found"
             self.lbl_engine.setText(f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>")
 
     def setup_saveto_tab(self):
@@ -490,10 +487,11 @@ class OptionsDialog(QDialog):
         save_category_config(self.config_data)
         
         # Save start_minimized to parent (MainWindow)
-        if self.parent() and hasattr(self.parent(), "start_minimized"):
-            self.parent().start_minimized = self.chk_start_minimized.isChecked()
-            if hasattr(self.parent(), "save_settings"):
-                self.parent().save_settings()
+        if self.parent():
+            setattr(self.parent(), "start_minimized", self.chk_start_minimized.isChecked())
+            save_fn = getattr(self.parent(), "save_settings", None)
+            if callable(save_fn):
+                save_fn()
 
         self.save_proxy_data()
         self.save_extension_data()

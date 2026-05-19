@@ -294,17 +294,34 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
             try: s.shutdown(socket.SHUT_RDWR); s.close()
             except: pass
 
+def find_aria2():
+    """Non-blocking check for aria2c binary without downloading."""
+    system_aria2 = shutil.which("aria2c")
+    if system_aria2:
+        return system_aria2
+    
+    # Check common local locations
+    data_dir = get_data_dir()
+    local_aria2 = os.path.join(data_dir, "bin", "aria2c")
+    if os.path.exists(local_aria2):
+        return local_aria2
+    
+    # Check ~/.local/bin specifically
+    local_bin_aria2 = os.path.expanduser("~/.local/bin/aria2c")
+    if os.path.exists(local_bin_aria2):
+        return local_bin_aria2
+        
+    return None
+
 def ensure_aria2():
-    if shutil.which("aria2c"):
-        return "aria2c"
+    found = find_aria2()
+    if found:
+        return found
     
     data_dir = get_data_dir()
     bin_dir = os.path.join(data_dir, "bin")
     os.makedirs(bin_dir, exist_ok=True)
     local_aria2 = os.path.join(bin_dir, "aria2c")
-    
-    if os.path.exists(local_aria2):
-        return local_aria2
     
     try:
         arch = platform.machine().lower()
