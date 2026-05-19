@@ -339,13 +339,14 @@ class MainWindow(QMainWindow):
             ext_data = load_extension_config()
             port = ext_data.get("port", 56800)
             token = ext_data.get("token", "")
+            max_conn = str(ext_data.get("max_connections", 8))
 
             # Note: --no-proxy is not needed for the server side of RPC
             cmd = [
                 aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
                 "--rpc-listen-all=false", "--rpc-allow-origin-all",
-                "--max-connection-per-server=8", "--min-split-size=1M",
-                "--split=8", "--daemon=false",
+                f"--max-connection-per-server={max_conn}", "--min-split-size=1M",
+                f"--split={max_conn}", "--daemon=false",
                 "--no-proxy=127.0.0.1,localhost"
             ]
             if token: cmd.append(f"--rpc-secret={token}")
@@ -933,7 +934,8 @@ class MainWindow(QMainWindow):
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
-                "column_data": column_data
+                "column_data": column_data,
+                "start_minimized": getattr(self, "start_minimized", False)
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -954,6 +956,8 @@ class MainWindow(QMainWindow):
                 if "windowState" in settings:
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                 
+                self.start_minimized = settings.get("start_minimized", False)
+
                 header = self.download_table.horizontalHeader()
                 if "column_data" in settings:
                     for i, col in enumerate(settings["column_data"]):

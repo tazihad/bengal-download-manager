@@ -165,7 +165,8 @@ def load_extension_config():
         "protocol": "ws",
         "host": "localhost",
         "port": 56800,
-        "token": ""
+        "token": "",
+        "max_connections": 8
     }
     if os.path.exists(path):
         try:
