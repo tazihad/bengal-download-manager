@@ -46,9 +46,13 @@ class Aria2Worker(QThread):
         self.log_signal.emit("Connecting to Aria2 engine...")
         
         ext_data = load_extension_config()
-        max_conn = str(ext_data.get("max_connections", 8))
+        max_conn_val = ext_data.get("max_connections", 8)
+        if not isinstance(max_conn_val, int) or max_conn_val < 1:
+            max_conn_val = 8 # Fallback to default if invalid or 0
         
-        self.init_segments_signal.emit(int(max_conn)) 
+        max_conn = str(max_conn_val)
+        
+        self.init_segments_signal.emit(max_conn_val) 
         
         options = {
             "dir": self.save_dir, 
@@ -86,7 +90,7 @@ class Aria2Worker(QThread):
 
         self.log_signal.emit(f"Download started via Aria2 (GID: {self.gid[:6]})")
         
-        max_conn_int = int(max_conn)
+        max_conn_int = max_conn_val
         simulated_dls = [0] * max_conn_int
         simulated_speeds = [0] * max_conn_int
         active_indices = []
