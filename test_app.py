@@ -67,6 +67,48 @@ def test_start_download_logic(app):
     assert app.download_table.item(0, 0).text() == "test_file.zip"
     assert app.download_table.item(0, 2).text() == "Paused"
 
+def test_drag_and_drop(app, qtbot, monkeypatch):
+    """Verify that drag and drop correctly triggers URL processing."""
+    from PyQt6.QtCore import QMimeData, QUrl, QPointF
+    from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+    
+    # 1. Mock process_incoming_url to track if it was called
+    processed_urls = []
+    monkeypatch.setattr(app, "process_incoming_url", lambda url: processed_urls.append(url))
+    
+    # 2. Simulate Drag Enter
+    mime_data = QMimeData()
+    test_url = "http://example.com/test.zip"
+    mime_data.setUrls([QUrl(test_url)])
+    
+    center = app.rect().center()
+
+    enter_event = QDragEnterEvent(
+        center, 
+        Qt.DropAction.CopyAction, 
+        mime_data, 
+        Qt.MouseButton.LeftButton, 
+        Qt.KeyboardModifier.NoModifier
+    )
+    
+    app.dragEnterEvent(enter_event)
+    assert enter_event.isAccepted()
+    
+    # 3. Simulate Drop
+    drop_event = QDropEvent(
+        QPointF(center),
+        Qt.DropAction.CopyAction,
+        mime_data,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        QDragEnterEvent.Type.Drop
+    )
+    
+    app.dropEvent(drop_event)
+    
+    # 4. Verify results
+    assert test_url in processed_urls
+
 if __name__ == "__main__":
     # If run directly, show instructions
     print("Test script created. To run tests, please install dev dependencies:")

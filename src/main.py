@@ -305,6 +305,9 @@ class MainWindow(QMainWindow):
         self.timestamp_timer.timeout.connect(self.update_timestamp_display)
         self.timestamp_timer.start(60000) # Update every 60 seconds (1 minute)
         
+        # Enable Drag-and-Drop
+        self.setAcceptDrops(True)
+
         # --- IPC Setup: Listener for Browser Extension ---
         self.ipc_emitter = SignalEmitter()
         # Connect the thread's signal to the GUI slot (start_download)
@@ -402,6 +405,15 @@ class MainWindow(QMainWindow):
     def quit_app(self):
         self.is_quitting = True
         self.close()
+
+    # --- DRAG AND DROP HANDLERS ---
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            self.process_incoming_url(url.toString())
 
     def setup_actions(self):
         self.action_add_url = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), "Add URL", self)
