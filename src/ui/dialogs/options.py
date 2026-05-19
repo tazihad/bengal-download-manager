@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from core.utils import (
     load_proxy_config, save_proxy_config, 
-    load_extension_config, save_extension_config, call_aria2_rpc
+    load_extension_config, save_extension_config, call_aria2_rpc,
+    ensure_aria2
 )
 from core.config import load_category_config, save_category_config
 
@@ -69,46 +70,58 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        grp_integration = QGroupBox("System Integration")
-        vbox_int = QVBoxLayout()
-        vbox_int.setContentsMargins(10, 15, 10, 10)
-        vbox_int.setSpacing(10)
-        vbox_int.addWidget(QLabel("Launch Bengal DM on system startup"))
-        vbox_int.addWidget(QLabel("Integrate into browsers"))
-        grp_integration.setLayout(vbox_int)
-        layout.addWidget(grp_integration)
+        # 1. Startup & Integration
+        grp_startup = QGroupBox("Startup & Integration")
+        vbox_startup = QVBoxLayout()
+        vbox_startup.setContentsMargins(10, 15, 10, 10)
+        vbox_startup.setSpacing(10)
         
-        grp_settings = QGroupBox("Engine Settings")
-        vbox_settings = QVBoxLayout()
-        vbox_settings.setContentsMargins(10, 15, 10, 10)
-        vbox_settings.setSpacing(10)
+        self.chk_start_minimized = QCheckBox("Start Bengal DM minimized in system tray")
+        # Load from parent (MainWindow) settings
+        if self.parent() and hasattr(self.parent(), "start_minimized"):
+            self.chk_start_minimized.setChecked(self.parent().start_minimized)
+        else:
+            self.chk_start_minimized.setChecked(False)
+        vbox_startup.addWidget(self.chk_start_minimized)
+        
+        self.chk_startup = QCheckBox("Launch Bengal DM on system startup (Coming Soon)")
+        self.chk_startup.setEnabled(False)
+        vbox_startup.addWidget(self.chk_startup)
+        
+        self.chk_browser = QCheckBox("Integrate into browsers (Coming Soon)")
+        self.chk_browser.setEnabled(False)
+        vbox_startup.addWidget(self.chk_browser)
+        
+        grp_startup.setLayout(vbox_startup)
+        layout.addWidget(grp_startup)
+        
+        # 2. Engine Settings
+        grp_engine = QGroupBox("Engine Settings")
+        vbox_engine = QVBoxLayout()
+        vbox_engine.setContentsMargins(10, 15, 10, 10)
+        vbox_engine.setSpacing(12)
         
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        vbox_settings.addWidget(self.lbl_engine)
+        vbox_engine.addWidget(self.lbl_engine)
+        
+        # Max connections per download
+        conn_layout = QHBoxLayout()
+        conn_layout.addWidget(QLabel("Max connections per download:"))
+        self.spin_max_conn = QSpinBox()
+        self.spin_max_conn.setRange(1, 16)
+        self.spin_max_conn.setValue(self.extension_data.get("max_connections", 8))
+        self.spin_max_conn.setFixedWidth(60)
+        conn_layout.addWidget(self.spin_max_conn)
+        conn_layout.addStretch()
+        vbox_engine.addLayout(conn_layout)
         
         # Initial check
         self.refresh_engine_status()
         
-        vbox_settings.addWidget(QLabel("Default Connections: 8"))
-        
-        version_info = "Not found"
-        aria2_path = os.path.expanduser("~/bin/aria2c")
-        if os.path.exists(aria2_path):
-            try:
-                out = subprocess.check_output([aria2_path, "--version"], text=True).splitlines()[0]
-                version_info = f"{out} ({aria2_path})"
-            except: pass
-        else:
-            try:
-                out = subprocess.check_output(["aria2c", "--version"], text=True).splitlines()[0]
-                version_info = f"{out} (System Path)"
-            except: pass
-                
-        vbox_settings.addWidget(QLabel(f"Aria2 Binary: {version_info}"))
-        grp_settings.setLayout(vbox_settings)
-        layout.addWidget(grp_settings)
+        grp_engine.setLayout(vbox_engine)
+        layout.addWidget(grp_engine)
         layout.addStretch()
 
     def refresh_engine_status(self):
@@ -118,23 +131,24 @@ class OptionsDialog(QDialog):
         
         proxy = load_proxy_config()
         
-        # Default status
-        engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
+        # Default status: Fallback
+        engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
         
         try:
             # Force local check via raw socket
             result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
             if result:
                 version = result.get('version', 'Unknown')
-                engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
+                engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
             elif proxy.get("mode") == "manual":
                 # If manual proxy is on, aria2 might be starting or taking time through proxychains
-                engine_status = "<span style='color: blue; font-weight: bold;'>Aria2 Starting (via Proxychains)...</span>"
+                engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting (via Proxychains)..."
         except:
             pass
         
         if hasattr(self, 'lbl_engine'):
-            self.lbl_engine.setText(f"Active Engine: {engine_status}")
+            aria2_bin = ensure_aria2() or "Not found"
+            self.lbl_engine.setText(f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>")
 
     def setup_saveto_tab(self):
         layout = QVBoxLayout(self.saveto_tab)
@@ -442,7 +456,8 @@ class OptionsDialog(QDialog):
             "protocol": self.combo_aria_proto.currentData(), 
             "host": "localhost",
             "port": self.spin_aria_port.value(),
-            "token": self.txt_aria_token.text().strip()
+            "token": self.txt_aria_token.text().strip(),
+            "max_connections": self.spin_max_conn.value()
         }
         save_extension_config(self.extension_data)
 
@@ -473,6 +488,13 @@ class OptionsDialog(QDialog):
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
+        
+        # Save start_minimized to parent (MainWindow)
+        if self.parent() and hasattr(self.parent(), "start_minimized"):
+            self.parent().start_minimized = self.chk_start_minimized.isChecked()
+            if hasattr(self.parent(), "save_settings"):
+                self.parent().save_settings()
+
         self.save_proxy_data()
         self.save_extension_data()
         self.accept()
