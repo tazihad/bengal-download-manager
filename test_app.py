@@ -18,7 +18,17 @@ def app(qtbot):
     while window.download_table.rowCount() > 0:
         window.download_table.removeRow(0)
     qtbot.addWidget(window)
-    return window
+    
+    yield window
+    
+    # Cleanup: Ensure IPC listener thread is stopped
+    if hasattr(window, 'listener_thread'):
+        window.listener_thread.stop()
+        window.listener_thread.wait()
+    
+    # Ensure aria2 process is killed
+    if hasattr(window, 'aria2_process') and window.aria2_process:
+        window.aria2_process.kill()
 
 def test_window_title(app):
     """Verify the main window title."""
@@ -135,6 +145,12 @@ def test_start_minimized_logic(qtbot, monkeypatch):
         # We need to wait a tiny bit for the QTimer.singleShot(0, self.hide) to trigger
         qtbot.waitUntil(lambda: not window.isVisible(), timeout=1000)
         assert not window.isVisible()
+        
+        # Manual cleanup for this specific test
+        window.listener_thread.stop()
+        window.listener_thread.wait()
+        if window.aria2_process:
+            window.aria2_process.kill()
         
     finally:
         # Restore original settings
