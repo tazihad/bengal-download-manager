@@ -49,7 +49,7 @@ class OptionsDialog(QDialog):
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "Extensions")
+        self.tabs.addTab(self.extension_tab, "BDM Integration Module")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -374,12 +374,19 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
+        # Header with App Icon
+        header_layout = QHBoxLayout()
+        icon_label = QLabel()
+        icon_label.setPixmap(self.windowIcon().pixmap(32, 32))
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(QLabel("<b>BDM Integration Module</b>"))
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+        
         # Help Text
         help_text = (
-            "<b>Browser Extension Integration</b><br>"
-            "Bengal Download Manager works with a browser extension to capture downloads "
-            "automatically. These settings allow the extension to communicate with the "
-            "download engine (Aria2) running on your computer."
+            "This module allows Bengal Download Manager to communicate with browser "
+            "extensions to capture downloads automatically."
         )
         desc = QLabel(help_text)
         desc.setWordWrap(True)
