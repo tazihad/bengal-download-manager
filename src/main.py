@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon, QRubberBand
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
-from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 
 from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
@@ -188,17 +188,33 @@ class EmptyAreaClickFilter(QObject):
 
     def update_selection(self, modifiers):
         rect = self.rubber_band.geometry()
+        selection_model = self.table.selectionModel()
         
-        # We handle standard replacement selection
-        if not (modifiers & Qt.KeyboardModifier.ControlModifier):
-            self.table.clearSelection()
+        # Determine selection command
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            command = QItemSelectionModel.SelectionFlag.Select
+        else:
+            command = QItemSelectionModel.SelectionFlag.ClearAndSelect
+            
+        command |= QItemSelectionModel.SelectionFlag.Rows
+        
+        selection = QItemSelection()
+        any_selected = False
         
         for row in range(self.table.rowCount()):
             row_y = self.table.rowViewportPosition(row)
             row_height = self.table.rowHeight(row)
             # Selection happens if the rubber band vertically overlaps the row
             if rect.bottom() >= row_y and rect.top() <= (row_y + row_height):
-                self.table.selectRow(row)
+                index = self.table.model().index(row, 0)
+                selection.select(index, index)
+                any_selected = True
+        
+        if any_selected:
+            selection_model.select(selection, command)
+        elif not (modifiers & Qt.KeyboardModifier.ControlModifier):
+            # If nothing touched and no Ctrl, clear everything
+            self.table.clearSelection()
 
 # --- HELPER FOR SORTING ---
 class SortableTableWidgetItem(QTableWidgetItem):
