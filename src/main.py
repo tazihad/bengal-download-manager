@@ -476,6 +476,7 @@ class MainWindow(QMainWindow):
 
     def setup_actions(self):
         self.action_add_url = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), "Add URL", self)
+        self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
         self.action_add_url.triggered.connect(self.open_add_url)
 
         self.action_exit = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "Exit", self)
