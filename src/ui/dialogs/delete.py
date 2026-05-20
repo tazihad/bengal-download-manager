@@ -1,11 +1,12 @@
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QApplication
 )
 
 class DeleteDialog(QDialog):
     def __init__(self, count, is_completed=False, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Delete Completed Downloads" if is_completed else "Delete")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(420)
         
         layout = QVBoxLayout(self)

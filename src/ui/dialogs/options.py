@@ -18,6 +18,7 @@ class OptionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Options")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedSize(500, 520)
         
         # Remove maximize button and prevent resizing via window flags

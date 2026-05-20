@@ -250,48 +250,43 @@ def format_timestamp_relative(timestamp_str, max_relative_seconds=30):
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp_float))
 
 
+def get_app_icon():
+    """Robustly finds and returns the application icon."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    icon_locations = [
+        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
+        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.svg"),
+        # AppImage specific locations
+        os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
+        os.path.join(os.environ.get('APPDIR', ''), "bengal-download-manager.png"),
+        # Development and local paths
+        os.path.join(os.path.dirname(current_dir), "assets", "logo.png"),
+        os.path.join(os.path.dirname(current_dir), "assets", "logo.svg"),
+        os.path.join(current_dir, "assets", "logo.png"),
+        os.path.join(current_dir, "assets", "logo.svg"),
+        os.path.join(get_data_dir(), "assets", "logo.png"),
+        os.path.join(get_data_dir(), "assets", "logo.svg"),
+    ]
+    
+    for loc in icon_locations:
+        if loc and os.path.exists(loc):
+            icon = QIcon(loc)
+            if not icon.isNull():
+                return icon
+                
+    # Fallback to system icon if nothing found
+    return QIcon.fromTheme("system-run", QIcon(":/icons/fallback.png")) # Just a safe fallback
+
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bengal Download Manager")
         
-        # --- ROBUST LOGO LOADING ---
-        # Search multiple locations:
-        # 1. MEIPASS (PyInstaller bundled assets)
-        # 2. APPDIR (AppImage mounted directory)
-        # 3. ../assets/ (Development from src/)
-        # 4. assets/ (Running from root)
-        # 5. ~/.local/share/bengal-download-manager/assets/ (Installed)
+        # Set window icon from global app icon
+        self.setWindowIcon(QApplication.windowIcon())
         
-        icon_locations = [
-            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
-            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.svg"),
-            # AppImage specific locations
-            os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
-            os.path.join(os.environ.get('APPDIR', ''), "bengal-download-manager.png"),
-            # Development and local paths
-            os.path.join(os.path.dirname(current_dir), "assets", "logo.png"),
-            os.path.join(os.path.dirname(current_dir), "assets", "logo.svg"),
-            os.path.join(current_dir, "assets", "logo.png"),
-            os.path.join(current_dir, "assets", "logo.svg"),
-            os.path.join(get_data_dir(), "assets", "logo.png"),
-            os.path.join(get_data_dir(), "assets", "logo.svg"),
-        ]
-        
-        final_icon = None
-        for loc in icon_locations:
-            if loc and os.path.exists(loc):
-                final_icon = QIcon(loc)
-                if not final_icon.isNull():
-                    break
-        
-        if final_icon:
-            self.setWindowIcon(final_icon)
-        else:
-            # System fallback for window
-            self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
-            
         self.setGeometry(200, 150, 1000, 600)
         
         self.setup_actions()
@@ -1856,6 +1851,14 @@ if __name__ == "__main__":
     app.setApplicationName("bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 9))
+    
+    # Initialize and set global application icon
+    app_icon = get_app_icon()
+    if app_icon.isNull():
+        # Last resort fallback to standard Qt icon
+        app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+    app.setWindowIcon(app_icon)
+    
     window = MainWindow()
     if not getattr(window, "start_minimized", False):
         window.show()

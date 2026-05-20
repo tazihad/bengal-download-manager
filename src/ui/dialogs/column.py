@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSpinBox
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSpinBox,
+    QApplication
 )
 from PyQt6.QtCore import Qt
 
@@ -8,6 +9,7 @@ class ColumnDialog(QDialog):
     def __init__(self, columns_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Columns")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(400)
         self.columns = columns_data # List of dicts: {"name": str, "visible": bool, "width": int, "logical_index": int}
         

@@ -6,6 +6,7 @@ class RefreshAddressDialog(QDialog):
     def __init__(self, current_url, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Refresh download address")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)
         
         layout = QVBoxLayout(self)

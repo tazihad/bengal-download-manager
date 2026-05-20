@@ -6,6 +6,7 @@ class AddUrlDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Enter new address to download")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)
         
         layout = QVBoxLayout(self)
