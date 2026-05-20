@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QFormLayout, QMessageBox, QFileDialog
+    QFormLayout, QMessageBox, QFileDialog, QApplication
 )
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtCore import Qt, QUrl
@@ -13,6 +13,7 @@ class DownloadCompleteDialog(QDialog):
     def __init__(self, file_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Download complete")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)
         self.file_data = file_data
         

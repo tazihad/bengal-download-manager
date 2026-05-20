@@ -10,6 +10,7 @@ class DownloadFileInfoDialog(QDialog):
     def __init__(self, file_info, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Download File Info")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)
         self.file_info = file_info
         self.config = load_category_config()

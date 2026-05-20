@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QProgressBar, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QFrame, QGridLayout, 
-    QCheckBox, QSpinBox
+    QCheckBox, QSpinBox, QApplication
 )
 from PyQt6.QtCore import Qt
 from core.utils import show_in_folder
@@ -13,6 +13,7 @@ class DownloadProgressDialog(QDialog):
         super().__init__(parent)
         self.worker = worker
         self.setWindowTitle(f"{self.worker.filename}")
+        self.setWindowIcon(QApplication.windowIcon())
         
         # Ensure it behaves like a separate window in the OS
         self.setWindowModality(Qt.WindowModality.NonModal)

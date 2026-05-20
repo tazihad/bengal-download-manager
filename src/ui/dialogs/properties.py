@@ -1,7 +1,7 @@
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QGroupBox, QGridLayout
+    QGroupBox, QGridLayout, QApplication
 )
 
 from core.utils import open_file_generic
@@ -10,6 +10,7 @@ class PropertiesDialog(QDialog):
     def __init__(self, file_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Properties - {file_data.get('filename', 'Unknown')}")
+        self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(500)
         self.file_data = file_data
         
