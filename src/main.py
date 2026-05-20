@@ -613,6 +613,7 @@ class MainWindow(QMainWindow):
         # Ensure row selection is correctly set up
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.download_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         # Install event filter to clear selection on empty area click
         self.empty_area_filter = EmptyAreaClickFilter(self.download_table, self)
