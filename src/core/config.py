@@ -39,7 +39,7 @@ DEFAULT_CATEGORIES = {
 
 def load_category_config():
     path = os.path.join(get_config_dir(), "categories.json")
-    data = {"categories": DEFAULT_CATEGORIES, "temp_dir": get_cache_dir()}
+    data = {"categories": DEFAULT_CATEGORIES, "temp_dir": os.path.join(get_cache_dir(), "downloads")}
     if os.path.exists(path):
         try:
             with open(path, "r") as f:
