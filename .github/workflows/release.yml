@@ -32,7 +32,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libqt6gui6 cmake zip
+          sudo apt-get install -y libqt6gui6 cmake zip libfuse2
 
       - name: Install Python Dependencies
         run: |
@@ -110,8 +110,8 @@ jobs:
           wget -q https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           
-          # 5. Build AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir Bengal_Download_Manager-${VERSION}-x86_64.AppImage
+          # 5. Build AppImage (Extract and run to avoid FUSE issues in CI)
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir Bengal_Download_Manager-${VERSION}-x86_64.AppImage
 
       - name: Build Extension
         run: |
