@@ -258,19 +258,25 @@ class MainWindow(QMainWindow):
         
         # --- ROBUST LOGO LOADING ---
         # Search multiple locations:
-        # 1. MEIPASS (PyInstaller)
-        # 2. ../assets/ (Development from src/)
-        # 3. assets/ (Running from root)
-        # 4. ~/.local/share/bengal-download-manager/assets/ (Installed)
+        # 1. MEIPASS (PyInstaller bundled assets)
+        # 2. APPDIR (AppImage mounted directory)
+        # 3. ../assets/ (Development from src/)
+        # 4. assets/ (Running from root)
+        # 5. ~/.local/share/bengal-download-manager/assets/ (Installed)
         
         icon_locations = [
             os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
+            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.svg"),
+            # AppImage specific locations
+            os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
+            os.path.join(os.environ.get('APPDIR', ''), "bengal-download-manager.png"),
+            # Development and local paths
             os.path.join(os.path.dirname(current_dir), "assets", "logo.png"),
-            os.path.join(current_dir, "assets", "logo.png"),
-            os.path.join(get_data_dir(), "assets", "logo.png"),
-            # SVG fallbacks
             os.path.join(os.path.dirname(current_dir), "assets", "logo.svg"),
-            os.path.join(current_dir, "assets", "logo.svg")
+            os.path.join(current_dir, "assets", "logo.png"),
+            os.path.join(current_dir, "assets", "logo.svg"),
+            os.path.join(get_data_dir(), "assets", "logo.png"),
+            os.path.join(get_data_dir(), "assets", "logo.svg"),
         ]
         
         final_icon = None
