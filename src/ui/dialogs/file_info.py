@@ -1,7 +1,7 @@
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QComboBox, QFileDialog, QFormLayout
+    QComboBox, QFileDialog, QFormLayout, QApplication
 )
 from core.utils import get_unique_filepath
 from core.config import load_category_config
