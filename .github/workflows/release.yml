@@ -67,7 +67,7 @@ jobs:
         run: |
           mkdir build_cmake
           cd build_cmake
-          cmake ..
+          cmake -DPython3_EXECUTABLE=$(which python) ..
           cmake --build .
 
       - name: Build Extension
