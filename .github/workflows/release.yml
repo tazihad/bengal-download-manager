@@ -111,7 +111,7 @@ jobs:
           chmod +x appimagetool-x86_64.AppImage
           
           # 5. Build AppImage (Extract and run to avoid FUSE issues in CI)
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir Bengal_Download_Manager-${VERSION}-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir bengal-download-manager-${VERSION}-x86_64.AppImage
 
       - name: Build Extension
         run: |
@@ -125,7 +125,7 @@ jobs:
           name: Release ${{ steps.get_tag.outputs.tag }}
           files: |
             build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64
-            Bengal_Download_Manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage
+            bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage
             extension-firefox.xpi
           draft: false
           prerelease: true
