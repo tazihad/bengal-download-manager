@@ -75,43 +75,15 @@ jobs:
           echo "version=${TAG#v}" >> $GITHUB_OUTPUT
           echo "Release Tag: $TAG"
 
-      - name: Build Application
-        run: |
-          mkdir build_cmake
-          cd build_cmake
-          cmake -DPython3_EXECUTABLE=$(which python) ..
-          cmake --build .
-          # Rename binary for release
-          VERSION="${{ steps.get_tag.outputs.version }}"
-          mv dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-x86_64
+      - name: Build Binary
+        uses: ./.github/actions/build-binary
+        with:
+          version: ${{ steps.get_tag.outputs.version }}
 
       - name: Build AppImage
-        run: |
-          # 1. Create AppDir structure
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          
-          # 2. Copy assets
-          VERSION="${{ steps.get_tag.outputs.version }}"
-          cp build_cmake/dist/bengal-download-manager-${VERSION}-x86_64 AppDir/usr/bin/bengal-download-manager
-          cp assets/bengal-download-manager.desktop AppDir/
-          cp assets/logo.png AppDir/bengal-download-manager.png
-          cp assets/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
-          
-          # 3. Create AppRun script
-          cat > AppDir/AppRun <<EOF
-          #!/bin/sh
-          HERE="\$(dirname "\$(readlink -f "\${0}")")"
-          exec "\${HERE}/usr/bin/bengal-download-manager" "\$@"
-          EOF
-          chmod +x AppDir/AppRun
-          
-          # 4. Download appimagetool (Using continuous release as recommended)
-          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          
-          # 5. Build AppImage (Extract and run to avoid FUSE issues in CI)
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir bengal-download-manager-${VERSION}-x86_64.AppImage
+        uses: ./.github/actions/build-appimage
+        with:
+          version: ${{ steps.get_tag.outputs.version }}
 
       - name: Build Extension
         run: |
