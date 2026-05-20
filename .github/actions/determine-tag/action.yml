@@ -1,0 +1,54 @@
+name: 'Determine Tag'
+description: 'Determines the release tag and version string based on branch and history'
+inputs:
+  manual_tag:
+    description: 'Manually provided tag from workflow_dispatch'
+    required: false
+    default: ''
+outputs:
+  tag:
+    description: 'The final determined tag (e.g., v0.1.5-alpha.2)'
+    value: ${{ steps.logic.outputs.tag }}
+  version:
+    description: 'The version string without leading v (e.g., 0.1.5-alpha.2)'
+    value: ${{ steps.logic.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run Tag Determination Logic
+      id: logic
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.manual_tag }}" ]; then
+          TAG="${{ inputs.manual_tag }}"
+        else
+          # Find latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0-alpha.0")
+          echo "Latest tag found: $LATEST_TAG"
+          
+          # Regex to match vX.Y.Z-suffix.N
+          if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-([a-zA-Z]+)\.([0-9]+)$ ]]; then
+              X="${BASH_REMATCH[1]}"
+              Y="${BASH_REMATCH[2]}"
+              Z="${BASH_REMATCH[3]}"
+              SUFFIX="${BASH_REMATCH[4]}"
+              N="${BASH_REMATCH[5]}"
+              
+              if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+                  # PR Merge to Main: Increment Patch (Z) and reset N to 1
+                  NEXT_Z=$((Z + 1))
+                  TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
+              else
+                  # Push to Dev or others: Increment trailing counter N
+                  NEXT_N=$((N + 1))
+                  TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+              fi
+          else
+              # Fallback for unknown format
+              TAG="${LATEST_TAG}-build-${{ github.run_number }}"
+          fi
+        fi
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+        echo "Determined Tag: $TAG"
