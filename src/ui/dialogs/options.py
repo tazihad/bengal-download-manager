@@ -395,12 +395,13 @@ class OptionsDialog(QDialog):
         layout.addWidget(desc)
         
         grp_aria = QGroupBox("Aria2 RPC Settings")
-        form_layout = QGridLayout(grp_aria)
-        form_layout.setContentsMargins(20, 25, 20, 20)
-        form_layout.setSpacing(15)
+        vbox_aria = QVBoxLayout(grp_aria)
+        vbox_aria.setContentsMargins(15, 20, 15, 15)
+        vbox_aria.setSpacing(12)
         
         # Protocol
-        form_layout.addWidget(QLabel("Protocol:"), 0, 0)
+        proto_layout = QHBoxLayout()
+        proto_layout.addWidget(QLabel("Protocol:"))
         self.combo_aria_proto = QComboBox()
         # Add items with user data to map display text to protocol code
         self.combo_aria_proto.addItem("http", "http")
@@ -419,35 +420,42 @@ class OptionsDialog(QDialog):
              else:
                  self.combo_aria_proto.setCurrentIndex(2)
 
-        form_layout.addWidget(self.combo_aria_proto, 0, 1)
+        proto_layout.addWidget(self.combo_aria_proto)
+        proto_layout.addStretch()
+        vbox_aria.addLayout(proto_layout)
         
         # Port
-        form_layout.addWidget(QLabel("Port:"), 1, 0)
+        port_layout = QHBoxLayout()
+        port_layout.addWidget(QLabel("Port:"))
         self.spin_aria_port = QSpinBox()
         self.spin_aria_port.setRange(1, 65535)
         self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
-        form_layout.addWidget(self.spin_aria_port, 1, 1)
+        port_layout.addWidget(self.spin_aria_port)
+        port_layout.addStretch()
+        vbox_aria.addLayout(port_layout)
         
         # Token
-        form_layout.addWidget(QLabel("Secret Token:"), 2, 0)
+        token_layout = QHBoxLayout()
+        token_layout.addWidget(QLabel("Secret Token:"))
         self.txt_aria_token = QLineEdit()
         self.txt_aria_token.setPlaceholderText("Optional secret token")
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
-        form_layout.addWidget(self.txt_aria_token, 2, 1)
+        token_layout.addWidget(self.txt_aria_token)
+        vbox_aria.addLayout(token_layout)
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
         self.chk_show_token.toggled.connect(self.on_toggle_show_token)
-        form_layout.addWidget(self.chk_show_token, 3, 1)
+        vbox_aria.addWidget(self.chk_show_token)
         
         layout.addWidget(grp_aria)
 
         # Extension Helper Section
         grp_helper = QGroupBox("Extension Helper")
         helper_layout = QVBoxLayout(grp_helper)
-        helper_layout.setContentsMargins(20, 20, 20, 20)
-        helper_layout.setSpacing(10)
+        helper_layout.setContentsMargins(15, 20, 15, 15)
+        helper_layout.setSpacing(12)
         
         helper_desc = QLabel(
             "If the browser extension is unable to communicate with Bengal DM, "
