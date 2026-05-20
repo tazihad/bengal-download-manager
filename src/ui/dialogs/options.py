@@ -4,7 +4,8 @@ import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
-    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox
+    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
+    QApplication
 )
 from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
