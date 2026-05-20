@@ -1,0 +1,20 @@
+name: 'Build Binary'
+description: 'Builds the standalone python binary using PyInstaller and CMake'
+inputs:
+  version:
+    description: 'Version string (without leading v)'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build Application
+      shell: bash
+      run: |
+        mkdir -p build_cmake
+        cd build_cmake
+        cmake -DPython3_EXECUTABLE=$(which python) ..
+        cmake --build .
+        # Rename binary for release
+        VERSION="${{ inputs.version }}"
+        mv dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-x86_64
