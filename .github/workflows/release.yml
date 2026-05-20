@@ -1,0 +1,90 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (leave empty for auto-increment)'
+        required: false
+        default: ''
+  push:
+    branches:
+      - dev
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libqt6gui6 cmake zip
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller PyQt6
+
+      - name: Determine Tag
+        id: get_tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          else
+            # Find latest tag
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0-alpha.0")
+            echo "Latest tag found: $LATEST_TAG"
+            
+            # Match vX.Y.Z-suffix.N
+            if [[ $LATEST_TAG =~ ^(v[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z]+\.)([0-9]+)$ ]]; then
+                BASE="${BASH_REMATCH[1]}"
+                NUM="${BASH_REMATCH[2]}"
+                NEXT_NUM=$((NUM + 1))
+                TAG="${BASE}${NEXT_NUM}"
+            else
+                # Fallback for simple vX.Y.Z or unknown format
+                TAG="${LATEST_TAG}-build-${{ github.run_number }}"
+            fi
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Release Tag: $TAG"
+
+      - name: Build Application
+        run: |
+          mkdir build_cmake
+          cd build_cmake
+          cmake ..
+          cmake --build .
+
+      - name: Build Extension
+        run: |
+          cd extension
+          zip -r ../extension-firefox.xpi . -x "*.git*" -x "__pycache__*"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: Release ${{ steps.get_tag.outputs.tag }}
+          files: |
+            build_cmake/dist/bengal-download-manager
+            extension-firefox.xpi
+          draft: false
+          prerelease: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
