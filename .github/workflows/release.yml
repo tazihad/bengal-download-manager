@@ -106,8 +106,8 @@ jobs:
           EOF
           chmod +x AppDir/AppRun
           
-          # 4. Download appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          # 4. Download appimagetool (Using continuous release as recommended)
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           
           # 5. Build AppImage (Extract and run to avoid FUSE issues in CI)
