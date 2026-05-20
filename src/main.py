@@ -288,9 +288,12 @@ class MainWindow(QMainWindow):
         
         if final_icon:
             self.setWindowIcon(final_icon)
+            QApplication.setWindowIcon(final_icon)
         else:
             # System fallback for window
-            self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
+            fallback_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+            self.setWindowIcon(fallback_icon)
+            QApplication.setWindowIcon(fallback_icon)
             
         self.setGeometry(200, 150, 1000, 600)
         
