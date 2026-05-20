@@ -22,11 +22,13 @@ endif()
 set(APP_NAME "bengal-download-manager")
 set(MAIN_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/src/main.py")
 
-# Determine the correct executable suffix based on the OS
+# Determine the correct executable suffix and path separator based on the OS
 if(WIN32)
     set(EXECUTABLE_NAME "${APP_NAME}.exe")
+    set(SEP ";")
 else()
     set(EXECUTABLE_NAME "${APP_NAME}")
+    set(SEP ":")
 endif()
 
 # Define output directories strictly inside the CMake binary dir (keeps source tree clean)
@@ -44,6 +46,7 @@ add_custom_command(
             --paths "${CMAKE_CURRENT_SOURCE_DIR}/src"
             --collect-all core
             --collect-all ui
+            --add-data "${CMAKE_CURRENT_SOURCE_DIR}/assets${SEP}assets"
             # Optional: Add --windowed here if you want to hide the console window on Windows/macOS
             --distpath "${DIST_DIR}"
             --workpath "${BUILD_DIR}"
