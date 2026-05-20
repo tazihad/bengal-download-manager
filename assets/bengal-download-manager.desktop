@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Bengal Download Manager
+Exec=bengal-download-manager
+Icon=bengal-download-manager
+Type=Application
+Categories=Network;FileTransfer;
+Terminal=false
+Comment=A simple, multi-threaded download manager built with PyQt6.
