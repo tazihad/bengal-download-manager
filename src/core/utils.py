@@ -134,6 +134,13 @@ def get_config_dir():
     os.makedirs(path, exist_ok=True)
     return path
 
+def get_cache_dir():
+    home = os.path.expanduser("~")
+    base = os.environ.get('XDG_CACHE_HOME') or os.path.join(home, '.cache')
+    path = os.path.join(base, 'bengal-download-manager')
+    os.makedirs(path, exist_ok=True)
+    return path
+
 def load_proxy_config():
     path = os.path.join(get_config_dir(), "proxy.json")
     default = {
