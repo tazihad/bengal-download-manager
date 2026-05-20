@@ -5,6 +5,8 @@ from urllib.parse import urlparse, unquote
 from PyQt6.QtCore import QThread, pyqtSignal
 from core.utils import get_unique_filepath, load_extension_config, call_aria2_rpc, resolve_filename
 
+import shutil
+
 class Aria2Worker(QThread):
     main_progress_signal = pyqtSignal(int, tuple) 
     main_bar_signal = pyqtSignal(object, object) 
@@ -13,11 +15,12 @@ class Aria2Worker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None):
         super().__init__()
         self.url = url
         self.row_index = row_index
         self.save_dir = save_dir
+        self.temp_dir = temp_dir
         self.user_agent = user_agent
         self.cookies = cookies
         self.is_running = True
@@ -33,11 +36,18 @@ class Aria2Worker(QThread):
         else:
             self.filename = resolve_filename(self.url, {})
 
+        # Final target path
         self.target_path = os.path.join(self.save_dir, self.filename)
         # Ensure unique if not resumed
         if not resume_filename:
             self.target_path = get_unique_filepath(self.target_path)
             self.filename = os.path.basename(self.target_path)
+
+        # Working directory: Use temp_dir if provided, else final save_dir
+        self.working_dir = self.temp_dir if self.temp_dir else self.save_dir
+        if not os.path.exists(self.working_dir):
+            try: os.makedirs(self.working_dir, exist_ok=True)
+            except: self.working_dir = self.save_dir
 
     def call_rpc(self, method, params=None):
         return call_aria2_rpc(method, params=params, port=self.rpc_port, token=self.rpc_token)
@@ -54,8 +64,9 @@ class Aria2Worker(QThread):
         
         self.init_segments_signal.emit(max_conn_val) 
         
+        # Download to working_dir (could be temp)
         options = {
-            "dir": self.save_dir, 
+            "dir": self.working_dir, 
             "out": self.filename, 
             "split": max_conn, 
             "max-connection-per-server": max_conn, 
@@ -233,6 +244,27 @@ class Aria2Worker(QThread):
 
             if state == "complete":
                 self.log_signal.emit("Aria2 download completed successfully.")
+                
+                # Move file from working_dir (temp) to final save_dir if different
+                if self.working_dir != self.save_dir:
+                    try:
+                        temp_path = os.path.join(self.working_dir, self.filename)
+                        if os.path.exists(temp_path):
+                            self.log_signal.emit(f"Finalizing: Moving file to {self.save_dir}")
+                            # Remove existing target if any
+                            if os.path.exists(self.target_path):
+                                os.remove(self.target_path)
+                            shutil.move(temp_path, self.target_path)
+                            
+                            # Cleanup .aria2 control file in temp
+                            control_file = temp_path + ".aria2"
+                            if os.path.exists(control_file):
+                                os.remove(control_file)
+                    except Exception as e:
+                        self.log_signal.emit(f"Error moving file to final destination: {e}")
+                        self.finished_signal.emit(self.row_index, "Error")
+                        break
+
                 self.finished_signal.emit(self.row_index, "Complete")
                 break
             elif state in ["error", "removed"]:

@@ -128,6 +128,8 @@ class SegmentWorker(QThread):
     def set_pause(self, paused):
         self.is_paused = paused
 
+import shutil
+
 class DownloadWorker(QThread):
     main_progress_signal = pyqtSignal(int, tuple) 
     main_bar_signal = pyqtSignal(object, object) 
@@ -136,11 +138,12 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None):
         super().__init__()
         self.url = url
         self.row_index = row_index
         self.save_dir = save_dir
+        self.temp_dir = temp_dir
         self.user_agent = user_agent
         self.cookies = cookies
         self.is_running = True
@@ -162,7 +165,13 @@ class DownloadWorker(QThread):
             self.target_path = get_unique_filepath(self.target_path)
             self.filename = os.path.basename(self.target_path)
 
-        self.save_path = self.target_path + ".tmpbdm"
+        # Working directory: Use temp_dir if provided, else final save_dir
+        self.working_dir = self.temp_dir if self.temp_dir else self.save_dir
+        if not os.path.exists(self.working_dir):
+            try: os.makedirs(self.working_dir, exist_ok=True)
+            except: self.working_dir = self.save_dir
+
+        self.save_path = os.path.join(self.working_dir, self.filename + ".tmpbdm")
         self.state_file = self.save_path + ".bdmx"
         self.workers = []
         self.segment_stats = {} 
@@ -320,9 +329,10 @@ class DownloadWorker(QThread):
                 self.log_signal.emit("File assembled. Verifying...")
                 
                 try:
+                    self.log_signal.emit(f"Finalizing: Moving file to {self.save_dir}")
                     if os.path.exists(self.target_path):
                          os.remove(self.target_path) 
-                    os.rename(self.save_path, self.target_path)
+                    shutil.move(self.save_path, self.target_path)
                     
                     self.log_signal.emit("Download completed.")
                     self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size))
@@ -331,7 +341,7 @@ class DownloadWorker(QThread):
                     if os.path.exists(self.state_file):
                         os.remove(self.state_file)
                 except Exception as e:
-                    self.log_signal.emit(f"Error renaming file: {e}")
+                    self.log_signal.emit(f"Error finalizing file: {e}")
                     self.finished_signal.emit(self.row_index, "Error")
             else:
                 self.save_state(total_size) 

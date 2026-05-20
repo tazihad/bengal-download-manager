@@ -1400,11 +1400,13 @@ class MainWindow(QMainWindow):
             try: os.makedirs(save_dir)
             except: save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
 
-        # SMART ROUTING: Use Aria2 as the primary engine. 
+        temp_dir = config.get("temp_dir")
+
+        # SMART ROUTING: Use Aria2 as the primary engine.
         # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.
         use_aria2 = True
         try:
-            # Quick check if it's alive, but don't strictly require it to be responsive 
+            # Quick check if it's alive, but don't strictly require it to be responsive
             # at this exact millisecond (it might be starting up or busy).
             if not hasattr(self, 'aria2_process') or not self.aria2_process:
                 use_aria2 = False
@@ -1412,10 +1414,9 @@ class MainWindow(QMainWindow):
             use_aria2 = False
 
         if use_aria2:
-            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies)
+            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
         else:
-            worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies)
-        
+            worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
         item_ref.setText(worker.filename)
         
