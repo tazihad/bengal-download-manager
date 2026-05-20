@@ -396,8 +396,8 @@ class OptionsDialog(QDialog):
         
         grp_aria = QGroupBox("Aria2 RPC Settings")
         form_layout = QGridLayout(grp_aria)
-        form_layout.setContentsMargins(10, 15, 10, 15)
-        form_layout.setSpacing(12)
+        form_layout.setContentsMargins(20, 25, 20, 20)
+        form_layout.setSpacing(15)
         
         # Protocol
         form_layout.addWidget(QLabel("Protocol:"), 0, 0)
@@ -446,7 +446,8 @@ class OptionsDialog(QDialog):
         # Extension Helper Section
         grp_helper = QGroupBox("Extension Helper")
         helper_layout = QVBoxLayout(grp_helper)
-        helper_layout.setContentsMargins(10, 15, 10, 15)
+        helper_layout.setContentsMargins(20, 20, 20, 20)
+        helper_layout.setSpacing(10)
         
         helper_desc = QLabel(
             "If the browser extension is unable to communicate with Bengal DM, "
