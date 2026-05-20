@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout
 )
 from core.utils import get_unique_filepath
+from core.config import load_category_config
 
 class DownloadFileInfoDialog(QDialog):
     def __init__(self, file_info, parent=None):
@@ -11,6 +12,7 @@ class DownloadFileInfoDialog(QDialog):
         self.setWindowTitle("Download File Info")
         self.setFixedWidth(520)
         self.file_info = file_info
+        self.config = load_category_config()
         
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(15, 15, 15, 15)
@@ -94,10 +96,12 @@ class DownloadFileInfoDialog(QDialog):
         
     def update_save_path(self):
         cat = self.category_combo.currentText()
-        if cat == "General":
-            base_dir = os.path.join(os.path.expanduser("~"), "Downloads", "bengal-download-manager")
+        categories = self.config.get("categories", {})
+        
+        if cat in categories:
+            base_dir = categories[cat]["path"]
         else:
-            base_dir = os.path.join(os.path.expanduser("~"), "Downloads", "bengal-download-manager", cat)
+            base_dir = os.path.join(os.path.expanduser("~"), "Downloads")
         
         try: os.makedirs(base_dir, exist_ok=True)
         except: pass
