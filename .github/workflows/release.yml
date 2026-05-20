@@ -49,14 +49,25 @@ jobs:
             LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0-alpha.0")
             echo "Latest tag found: $LATEST_TAG"
             
-            # Match vX.Y.Z-suffix.N
-            if [[ $LATEST_TAG =~ ^(v[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z]+\.)([0-9]+)$ ]]; then
-                BASE="${BASH_REMATCH[1]}"
-                NUM="${BASH_REMATCH[2]}"
-                NEXT_NUM=$((NUM + 1))
-                TAG="${BASE}${NEXT_NUM}"
+            # Regex to match vX.Y.Z-suffix.N
+            if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-([a-zA-Z]+)\.([0-9]+)$ ]]; then
+                X="${BASH_REMATCH[1]}"
+                Y="${BASH_REMATCH[2]}"
+                Z="${BASH_REMATCH[3]}"
+                SUFFIX="${BASH_REMATCH[4]}"
+                N="${BASH_REMATCH[5]}"
+                
+                if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+                    # PR Merge to Main: Increment Patch (Z) and reset N to 1
+                    NEXT_Z=$((Z + 1))
+                    TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
+                else
+                    # Push to Dev or others: Increment trailing counter N
+                    NEXT_N=$((N + 1))
+                    TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+                fi
             else
-                # Fallback for simple vX.Y.Z or unknown format
+                # Fallback for unknown format
                 TAG="${LATEST_TAG}-build-${{ github.run_number }}"
             fi
           fi
