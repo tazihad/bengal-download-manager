@@ -26,10 +26,10 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QFileDialog, QDialog, 
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
-    QSystemTrayIcon
+    QSystemTrayIcon, QRubberBand
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
-from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect
 
 from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
@@ -156,15 +156,49 @@ class EmptyAreaClickFilter(QObject):
     def __init__(self, table, parent=None):
         super().__init__(parent)
         self.table = table
+        self.rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.table.viewport())
+        self.origin = QPoint()
 
     def eventFilter(self, obj, event):
+        if obj != self.table.viewport():
+            return super().eventFilter(obj, event)
+
         if event.type() == QEvent.Type.MouseButtonPress:
-            item = self.table.itemAt(event.pos())
-            if not item:
-                self.table.clearSelection()
-                self.table.setCurrentItem(None)
-                # Allow the press to pass through so QAbstractItemView can start rubber band selection
+            if event.button() == Qt.MouseButton.LeftButton:
+                item = self.table.itemAt(event.pos())
+                if not item:
+                    # Starting selection from empty area
+                    if not (event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)):
+                        self.table.clearSelection()
+                    self.table.setCurrentItem(None)
+                    self.origin = event.pos()
+                    self.rubber_band.setGeometry(QRect(self.origin, QSize()))
+                    self.rubber_band.show()
+                    return True
+        elif event.type() == QEvent.Type.MouseMove:
+            if self.rubber_band.isVisible():
+                self.rubber_band.setGeometry(QRect(self.origin, event.pos()).normalized())
+                self.update_selection(event.modifiers())
+                return True
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            if self.rubber_band.isVisible():
+                self.rubber_band.hide()
+                return True
         return super().eventFilter(obj, event)
+
+    def update_selection(self, modifiers):
+        rect = self.rubber_band.geometry()
+        
+        # We handle standard replacement selection
+        if not (modifiers & Qt.KeyboardModifier.ControlModifier):
+            self.table.clearSelection()
+        
+        for row in range(self.table.rowCount()):
+            row_y = self.table.rowViewportPosition(row)
+            row_height = self.table.rowHeight(row)
+            # Selection happens if the rubber band vertically overlaps the row
+            if rect.bottom() >= row_y and rect.top() <= (row_y + row_height):
+                self.table.selectRow(row)
 
 # --- HELPER FOR SORTING ---
 class SortableTableWidgetItem(QTableWidgetItem):
