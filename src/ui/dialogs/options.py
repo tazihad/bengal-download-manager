@@ -1,14 +1,16 @@
 import os
 import subprocess
+import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
-    load_extension_config, save_extension_config, call_aria2_rpc
+    load_extension_config, save_extension_config, call_aria2_rpc,
+    find_aria2
 )
 from core.config import load_category_config, save_category_config
 
@@ -16,7 +18,10 @@ class OptionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Options")
-        self.setMinimumSize(500, 400)
+        self.setFixedSize(500, 520)
+        
+        # Remove maximize button and prevent resizing via window flags
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowMaximizeButtonHint)
         
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
@@ -44,7 +49,7 @@ class OptionsDialog(QDialog):
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "Extensions")
+        self.tabs.addTab(self.extension_tab, "BDM Integration Module")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -69,72 +74,87 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        grp_integration = QGroupBox("System Integration")
-        vbox_int = QVBoxLayout()
-        vbox_int.setContentsMargins(10, 15, 10, 10)
-        vbox_int.setSpacing(10)
-        vbox_int.addWidget(QLabel("Launch Bengal DM on system startup"))
-        vbox_int.addWidget(QLabel("Integrate into browsers"))
-        grp_integration.setLayout(vbox_int)
-        layout.addWidget(grp_integration)
+        # 1. Startup & Integration
+        grp_startup = QGroupBox("Startup & Integration")
+        vbox_startup = QVBoxLayout()
+        vbox_startup.setContentsMargins(10, 15, 10, 10)
+        vbox_startup.setSpacing(10)
         
-        grp_settings = QGroupBox("Engine Settings")
-        vbox_settings = QVBoxLayout()
-        vbox_settings.setContentsMargins(10, 15, 10, 10)
-        vbox_settings.setSpacing(10)
+        self.chk_start_minimized = QCheckBox("Start Bengal DM minimized in system tray")
+        # Load from parent (MainWindow) settings
+        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized", False))
+        vbox_startup.addWidget(self.chk_start_minimized)
+        
+        self.chk_startup = QCheckBox("Launch Bengal DM on system startup (Coming Soon)")
+        self.chk_startup.setEnabled(False)
+        vbox_startup.addWidget(self.chk_startup)
+        
+        self.chk_browser = QCheckBox("Integrate into browsers (Coming Soon)")
+        self.chk_browser.setEnabled(False)
+        vbox_startup.addWidget(self.chk_browser)
+        
+        grp_startup.setLayout(vbox_startup)
+        layout.addWidget(grp_startup)
+        
+        # 2. Engine Settings
+        grp_engine = QGroupBox("Engine Settings")
+        vbox_engine = QVBoxLayout()
+        vbox_engine.setContentsMargins(10, 15, 10, 10)
+        vbox_engine.setSpacing(12)
         
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        vbox_settings.addWidget(self.lbl_engine)
+        vbox_engine.addWidget(self.lbl_engine)
+        
+        # Max connections per download
+        conn_layout = QHBoxLayout()
+        conn_layout.addWidget(QLabel("Max connections per download:"))
+        self.spin_max_conn = QSpinBox()
+        self.spin_max_conn.setRange(1, 16)
+        self.spin_max_conn.setValue(self.extension_data.get("max_connections", 8))
+        self.spin_max_conn.setFixedWidth(60)
+        conn_layout.addWidget(self.spin_max_conn)
+        conn_layout.addStretch()
+        vbox_engine.addLayout(conn_layout)
         
         # Initial check
         self.refresh_engine_status()
         
-        vbox_settings.addWidget(QLabel("Default Connections: 8"))
-        
-        version_info = "Not found"
-        aria2_path = os.path.expanduser("~/bin/aria2c")
-        if os.path.exists(aria2_path):
-            try:
-                out = subprocess.check_output([aria2_path, "--version"], text=True).splitlines()[0]
-                version_info = f"{out} ({aria2_path})"
-            except: pass
-        else:
-            try:
-                out = subprocess.check_output(["aria2c", "--version"], text=True).splitlines()[0]
-                version_info = f"{out} (System Path)"
-            except: pass
-                
-        vbox_settings.addWidget(QLabel(f"Aria2 Binary: {version_info}"))
-        grp_settings.setLayout(vbox_settings)
-        layout.addWidget(grp_settings)
+        grp_engine.setLayout(vbox_engine)
+        layout.addWidget(grp_engine)
         layout.addStretch()
 
     def refresh_engine_status(self):
-        """Re-tests the Aria2 RPC connection and updates the label."""
+        """Re-tests the Aria2 RPC connection and updates the label in background."""
+        if not hasattr(self, 'lbl_engine'): return
+        
         token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
         rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
         
-        proxy = load_proxy_config()
+        self.lbl_engine.setText("Active Engine: <span style='color: #3498db;'>●</span> Checking...")
         
-        # Default status
-        engine_status = "<span style='color: orange; font-weight: bold;'>Fallback (Custom Python)</span>"
-        
-        try:
-            # Force local check via raw socket
-            result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
-            if result:
-                version = result.get('version', 'Unknown')
-                engine_status = f"<span style='color: green; font-weight: bold;'>Aria2 Connected (v{version})</span>"
-            elif proxy.get("mode") == "manual":
-                # If manual proxy is on, aria2 might be starting or taking time through proxychains
-                engine_status = "<span style='color: blue; font-weight: bold;'>Aria2 Starting (via Proxychains)...</span>"
-        except:
-            pass
-        
-        if hasattr(self, 'lbl_engine'):
-            self.lbl_engine.setText(f"Active Engine: {engine_status}")
+        def check():
+            proxy = load_proxy_config()
+            engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
+            try:
+                # This is a blocking network call (3s timeout)
+                result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
+                if result:
+                    version = result.get('version', 'Unknown')
+                    engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
+                elif proxy.get("mode") == "manual":
+                    engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting (via Proxychains)..."
+            except:
+                pass
+            
+            aria2_bin = find_aria2() or "Not found"
+            final_text = f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>"
+            
+            # Update UI safely from background thread
+            QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
+
+        threading.Thread(target=check, daemon=True).start()
 
     def setup_saveto_tab(self):
         layout = QVBoxLayout(self.saveto_tab)
@@ -354,7 +374,21 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        desc = QLabel("Configure connection settings for Aria2 RPC integration.")
+        # Header with App Icon
+        header_layout = QHBoxLayout()
+        icon_label = QLabel()
+        icon_label.setPixmap(self.windowIcon().pixmap(32, 32))
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(QLabel("<b>BDM Integration Module</b>"))
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+        
+        # Help Text
+        help_text = (
+            "This module allows Bengal Download Manager to communicate with browser "
+            "extensions to capture downloads automatically."
+        )
+        desc = QLabel(help_text)
         desc.setWordWrap(True)
         layout.addWidget(desc)
         
@@ -402,15 +436,47 @@ class OptionsDialog(QDialog):
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
-        self.chk_show_token.toggled.connect(
-            lambda checked: self.txt_aria_token.setEchoMode(
-                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-            )
-        )
+        self.chk_show_token.toggled.connect(self.on_toggle_show_token)
         form_layout.addWidget(self.chk_show_token, 3, 1)
         
         layout.addWidget(grp_aria)
+
+        # Extension Helper Section
+        grp_helper = QGroupBox("Extension Helper")
+        helper_layout = QVBoxLayout(grp_helper)
+        helper_layout.setContentsMargins(10, 15, 10, 15)
+        
+        helper_desc = QLabel(
+            "If the browser extension is unable to communicate with Bengal DM, "
+            "you may need to reinstall the native messaging host."
+        )
+        helper_desc.setWordWrap(True)
+        helper_desc.setStyleSheet("color: #666; font-size: 11px;")
+        helper_layout.addWidget(helper_desc)
+        
+        self.btn_reinstall_helper = QPushButton("Reinstall Extension Helper")
+        self.btn_reinstall_helper.clicked.connect(self.reinstall_extension_helper)
+        helper_layout.addWidget(self.btn_reinstall_helper)
+        
+        layout.addWidget(grp_helper)
+        
         layout.addStretch()
+
+    def on_toggle_show_token(self, checked):
+        """Toggles the echo mode of the token field."""
+        if checked:
+            self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
+
+    def reinstall_extension_helper(self):
+        """Placeholder for reinstalling native messaging host."""
+        QMessageBox.information(
+            self, 
+            "Extension Helper", 
+            "Native messaging host reinstallation is not yet implemented in this version.\n\n"
+            "Please check back in a future update or consult the manual installation guide."
+        )
 
     def update_proxy_ui(self):
         manual = self.rb_manual.isChecked()
@@ -442,7 +508,8 @@ class OptionsDialog(QDialog):
             "protocol": self.combo_aria_proto.currentData(), 
             "host": "localhost",
             "port": self.spin_aria_port.value(),
-            "token": self.txt_aria_token.text().strip()
+            "token": self.txt_aria_token.text().strip(),
+            "max_connections": self.spin_max_conn.value()
         }
         save_extension_config(self.extension_data)
 
@@ -473,6 +540,14 @@ class OptionsDialog(QDialog):
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
+        
+        # Save start_minimized to parent (MainWindow)
+        if self.parent():
+            setattr(self.parent(), "start_minimized", self.chk_start_minimized.isChecked())
+            save_fn = getattr(self.parent(), "save_settings", None)
+            if callable(save_fn):
+                save_fn()
+
         self.save_proxy_data()
         self.save_extension_data()
         self.accept()

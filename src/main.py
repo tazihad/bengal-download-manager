@@ -40,7 +40,7 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename
+    show_in_folder, resolve_filename, open_file_generic, open_with
 )
 
 # Default TCP port for extension communication
@@ -255,9 +255,37 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bengal Download Manager")
-        icon_path = os.path.join(get_data_dir(), "assets", "icon.png")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+        
+        # --- ROBUST LOGO LOADING ---
+        # Search multiple locations:
+        # 1. MEIPASS (PyInstaller)
+        # 2. ../assets/ (Development from src/)
+        # 3. assets/ (Running from root)
+        # 4. ~/.local/share/bengal-download-manager/assets/ (Installed)
+        
+        icon_locations = [
+            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
+            os.path.join(os.path.dirname(current_dir), "assets", "logo.png"),
+            os.path.join(current_dir, "assets", "logo.png"),
+            os.path.join(get_data_dir(), "assets", "logo.png"),
+            # SVG fallbacks
+            os.path.join(os.path.dirname(current_dir), "assets", "logo.svg"),
+            os.path.join(current_dir, "assets", "logo.svg")
+        ]
+        
+        final_icon = None
+        for loc in icon_locations:
+            if loc and os.path.exists(loc):
+                final_icon = QIcon(loc)
+                if not final_icon.isNull():
+                    break
+        
+        if final_icon:
+            self.setWindowIcon(final_icon)
+        else:
+            # System fallback for window
+            self.setWindowIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
+            
         self.setGeometry(200, 150, 1000, 600)
         
         self.setup_actions()
@@ -268,6 +296,13 @@ class MainWindow(QMainWindow):
         
         self.settings = self.load_settings()
         
+        # FEATURE: Start Minimized logic
+        if getattr(self, "start_minimized", False):
+            # We use a timer to hide because some window managers might show it briefly otherwise
+            QTimer.singleShot(0, self.hide)
+            # Update tray icon action to "Show"
+            QTimer.singleShot(0, self.update_tray_action)
+        
         self.active_downloads = {} 
         self.active_file_info_dialogs = {}
         self.load_data()
@@ -277,6 +312,9 @@ class MainWindow(QMainWindow):
         self.timestamp_timer.timeout.connect(self.update_timestamp_display)
         self.timestamp_timer.start(60000) # Update every 60 seconds (1 minute)
         
+        # Enable Drag-and-Drop
+        self.setAcceptDrops(True)
+
         # --- IPC Setup: Listener for Browser Extension ---
         self.ipc_emitter = SignalEmitter()
         # Connect the thread's signal to the GUI slot (start_download)
@@ -311,13 +349,14 @@ class MainWindow(QMainWindow):
             ext_data = load_extension_config()
             port = ext_data.get("port", 56800)
             token = ext_data.get("token", "")
+            max_conn = str(ext_data.get("max_connections", 8))
 
             # Note: --no-proxy is not needed for the server side of RPC
             cmd = [
                 aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
                 "--rpc-listen-all=false", "--rpc-allow-origin-all",
-                "--max-connection-per-server=8", "--min-split-size=1M",
-                "--split=8", "--daemon=false",
+                f"--max-connection-per-server={max_conn}", "--min-split-size=1M",
+                f"--split={max_conn}", "--daemon=false",
                 "--no-proxy=127.0.0.1,localhost"
             ]
             if token: cmd.append(f"--rpc-secret={token}")
@@ -373,6 +412,15 @@ class MainWindow(QMainWindow):
     def quit_app(self):
         self.is_quitting = True
         self.close()
+
+    # --- DRAG AND DROP HANDLERS ---
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            self.process_incoming_url(url.toString())
 
     def setup_actions(self):
         self.action_add_url = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), "Add URL", self)
@@ -559,14 +607,12 @@ class MainWindow(QMainWindow):
     def setup_tray_icon(self):
         """Sets up the system tray icon and its context menu."""
         self.tray_icon = QSystemTrayIcon(self)
-        
-        # Set icon
-        icon_path = os.path.join(get_data_dir(), "assets", "icon.png")
-        if os.path.exists(icon_path):
-            self.tray_icon.setIcon(QIcon(icon_path))
-        else:
-            self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon))
-        
+
+        # Set icon from window icon
+        icon = self.windowIcon()
+        if icon.isNull():
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+        self.tray_icon.setIcon(icon)        
         # Create tray menu
         tray_menu = QMenu(self)
         
@@ -587,7 +633,7 @@ class MainWindow(QMainWindow):
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
 
     def on_tray_icon_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
             self.toggle_window()
 
     def toggle_window(self):
@@ -907,7 +953,8 @@ class MainWindow(QMainWindow):
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
-                "column_data": column_data
+                "column_data": column_data,
+                "start_minimized": getattr(self, "start_minimized", False)
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -928,6 +975,8 @@ class MainWindow(QMainWindow):
                 if "windowState" in settings:
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                 
+                self.start_minimized = settings.get("start_minimized", False)
+
                 header = self.download_table.horizontalHeader()
                 if "column_data" in settings:
                     for i, col in enumerate(settings["column_data"]):
@@ -1055,7 +1104,8 @@ class MainWindow(QMainWindow):
         item_0 = self.download_table.item(row, 0)
         path = item_0.data(Qt.ItemDataRole.UserRole + 1)
         if path and os.path.exists(path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            if not open_file_generic(path):
+                QMessageBox.critical(self, "Error", "Failed to open the file with the system default application.")
         else:
             QMessageBox.warning(self, "Error", "File does not exist.")
 
@@ -1066,9 +1116,12 @@ class MainWindow(QMainWindow):
         if not path or not os.path.exists(path):
              QMessageBox.warning(self, "Error", "File does not exist.")
              return
-        app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
-        if app_path:
-            subprocess.Popen([app_path, path])
+        
+        if not open_with(path):
+            # Final fallback: Manual picker if system utilities fail
+            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
+            if app_path:
+                subprocess.Popen([app_path, path])
 
     def ctx_open_folder(self, item):
         row = item.row()
@@ -1135,10 +1188,14 @@ class MainWindow(QMainWindow):
         row = item.row()
         item_0 = self.download_table.item(row, 0)
         url = item_0.data(Qt.ItemDataRole.UserRole)
-        new_url, ok = QInputDialog.getText(self, "Refresh Address", "Enter new URL:", text=url)
-        if ok and new_url:
-            item_0.setData(Qt.ItemDataRole.UserRole, new_url)
-            self.save_data()
+        
+        from ui.dialogs import RefreshAddressDialog
+        dlg = RefreshAddressDialog(url, self)
+        if dlg.exec():
+            new_url = dlg.get_url()
+            if new_url:
+                item_0.setData(Qt.ItemDataRole.UserRole, new_url)
+                self.save_data()
 
     def ctx_properties(self, item):
         row = item.row()
@@ -1751,7 +1808,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(self, "About Bengal DM", 
             "<h2>Bengal Download Manager</h2>"
             "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
-            "<p>Version: 1.0</p>"
+            "<p>Version: 1.1</p>"
             "<p>Built for the XDG standard on Linux.</p>"
         )
 
@@ -1762,5 +1819,6 @@ if __name__ == "__main__":
     app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
-    window.show()
+    if not getattr(window, "start_minimized", False):
+        window.show()
     sys.exit(app.exec())

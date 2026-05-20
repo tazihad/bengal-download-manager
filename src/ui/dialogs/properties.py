@@ -4,13 +4,18 @@ from PyQt6.QtWidgets import (
     QGroupBox, QGridLayout
 )
 
+from core.utils import open_file_generic
+
 class PropertiesDialog(QDialog):
     def __init__(self, file_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Properties - {file_data.get('filename', 'Unknown')}")
-        self.setMinimumSize(400, 300)
+        self.setFixedWidth(500)
+        self.file_data = file_data
         
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         
         grp_file = QGroupBox("File Information")
         grid = QGridLayout()
@@ -35,13 +40,7 @@ class PropertiesDialog(QDialog):
             val_widget = QLineEdit(str(value))
             val_widget.setReadOnly(True)
             val_widget.setCursorPosition(0) 
-            val_widget.setStyleSheet("""
-                QLineEdit { 
-                    background: transparent; 
-                    color: white; 
-                    border: none; 
-                }
-            """)
+            val_widget.setStyleSheet("background: transparent; border: none; color: #444;")
             
             grid.addWidget(lbl_widget, i, 0)
             grid.addWidget(val_widget, i, 1)
@@ -49,14 +48,29 @@ class PropertiesDialog(QDialog):
         grp_file.setLayout(grid)
         layout.addWidget(grp_file)
         
+        layout.addSpacing(5)
+        
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
         self.btn_open = QPushButton("Open")
-        self.btn_open.clicked.connect(self.accept) 
+        self.btn_open.setFixedWidth(80)
+        self.btn_open.setFixedHeight(30)
+        self.btn_open.clicked.connect(self.on_open) 
+        
         self.btn_close = QPushButton("Close")
-        self.btn_close.clicked.connect(self.reject)
+        self.btn_close.setFixedWidth(80)
+        self.btn_close.setFixedHeight(30)
+        self.btn_close.clicked.connect(self.accept)
         
         btn_layout.addWidget(self.btn_open)
         btn_layout.addWidget(self.btn_close)
         layout.addLayout(btn_layout)
+
+    def on_open(self):
+        path = self.file_data.get('path')
+        if path and os.path.exists(path):
+            open_file_generic(path)
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Error", "File does not exist.")

@@ -213,6 +213,7 @@ class DownloadProgressDialog(QDialog):
         btn_layout = QHBoxLayout()
         self.btn_details = QPushButton("Details >>")
         self.btn_details.setCheckable(True)
+        self.btn_details.setFixedWidth(100)
         self.btn_details.setFixedHeight(30)
         self.btn_details.clicked.connect(self.toggle_details)
         btn_layout.addWidget(self.btn_details)
@@ -220,13 +221,13 @@ class DownloadProgressDialog(QDialog):
         btn_layout.addStretch()
         
         self.btn_pause = QPushButton("Pause")
-        self.btn_pause.setFixedWidth(70)
+        self.btn_pause.setFixedWidth(80)
         self.btn_pause.setFixedHeight(30)
         self.btn_pause.clicked.connect(self.toggle_pause) 
         btn_layout.addWidget(self.btn_pause)
 
         self.btn_cancel = QPushButton("Cancel")
-        self.btn_cancel.setFixedWidth(70)
+        self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)
         self.btn_cancel.clicked.connect(self.cancel_download)
         btn_layout.addWidget(self.btn_cancel)

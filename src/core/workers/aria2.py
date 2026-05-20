@@ -44,9 +44,23 @@ class Aria2Worker(QThread):
 
     def run(self):
         self.log_signal.emit("Connecting to Aria2 engine...")
-        self.init_segments_signal.emit(8) 
         
-        options = {"dir": self.save_dir, "out": self.filename, "split": "8", "max-connection-per-server": "8", "continue": "true"}
+        ext_data = load_extension_config()
+        max_conn_val = ext_data.get("max_connections", 8)
+        if not isinstance(max_conn_val, int) or max_conn_val < 1:
+            max_conn_val = 8 # Fallback to default if invalid or 0
+        
+        max_conn = str(max_conn_val)
+        
+        self.init_segments_signal.emit(max_conn_val) 
+        
+        options = {
+            "dir": self.save_dir, 
+            "out": self.filename, 
+            "split": max_conn, 
+            "max-connection-per-server": max_conn, 
+            "continue": "true"
+        }
         
         # --- FULL BROWSER HEADERS (Mimic JD2) ---
         ua = self.user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
@@ -76,8 +90,9 @@ class Aria2Worker(QThread):
 
         self.log_signal.emit(f"Download started via Aria2 (GID: {self.gid[:6]})")
         
-        simulated_dls = [0] * 8
-        simulated_speeds = [0] * 8
+        max_conn_int = max_conn_val
+        simulated_dls = [0] * max_conn_int
+        simulated_speeds = [0] * max_conn_int
         active_indices = []
         last_update_time = time.time()
         
@@ -127,8 +142,8 @@ class Aria2Worker(QThread):
             dt = current_time - last_update_time
             last_update_time = current_time
             
-            real_seg_dls = [0] * 8
-            real_seg_totals = [0] * 8
+            real_seg_dls = [0] * max_conn_int
+            real_seg_totals = [0] * max_conn_int
 
             bitfield = status.get("bitfield", "")
             numPieces = int(status.get("numPieces", 0))
@@ -143,32 +158,32 @@ class Aria2Worker(QThread):
                     bits = []
 
                 if bits:
-                    chunk_req = numPieces / 8.0
-                    for i in range(8):
+                    chunk_req = numPieces / float(max_conn_int)
+                    for i in range(max_conn_int):
                         start_idx = int(i * chunk_req)
                         end_idx = int((i + 1) * chunk_req)
-                        if i == 7: end_idx = numPieces
+                        if i == max_conn_int - 1: end_idx = numPieces
                         
                         chunk_bits = bits[start_idx:end_idx]
                         seg_total = len(chunk_bits) * pieceLength
-                        if i == 7 and total_length > 0:
+                        if i == max_conn_int - 1 and total_length > 0:
                              seg_total = max(0, total_length - (start_idx * pieceLength))
                         
                         real_seg_dls[i] = min(sum(chunk_bits) * pieceLength, seg_total)
                         real_seg_totals[i] = seg_total
             else:
                 if total_length > 0:
-                    part = total_length // 8
-                    for i in range(8):
-                        seg_total = part if i < 7 else max(0, total_length - part * 7)
+                    part = total_length // max_conn_int
+                    for i in range(max_conn_int):
+                        seg_total = part if i < max_conn_int - 1 else max(0, total_length - part * (max_conn_int - 1))
                         real_seg_totals[i] = seg_total
                         real_seg_dls[i] = max(0, min(completed_length - (i * part), seg_total))
 
             if sum(real_seg_totals) > 0:
-                incomplete_indices = [i for i in range(8) if real_seg_dls[i] < real_seg_totals[i]]
+                incomplete_indices = [i for i in range(max_conn_int) if real_seg_dls[i] < real_seg_totals[i]]
                 active_indices = [i for i in active_indices if i in incomplete_indices]
                 
-                target_connections = min(connections if connections > 0 else 8, len(incomplete_indices))
+                target_connections = min(connections if connections > 0 else max_conn_int, len(incomplete_indices))
                 if download_speed > 0 and target_connections == 0 and incomplete_indices:
                     target_connections = 1
                     
@@ -183,7 +198,7 @@ class Aria2Worker(QThread):
                 if download_speed > 0 and active_indices:
                     weights = [random.uniform(0.8, 1.2) for _ in active_indices]
                     tot_w = sum(weights)
-                    for idx in range(8):
+                    for idx in range(max_conn_int):
                         if idx in active_indices:
                             w_i = active_indices.index(idx)
                             speed_alloc = download_speed * (weights[w_i] / tot_w)
@@ -192,9 +207,9 @@ class Aria2Worker(QThread):
                         else:
                             simulated_speeds[idx] = 0
                 else:
-                    simulated_speeds = [0] * 8
+                    simulated_speeds = [0] * max_conn_int
                     
-                for i in range(8):
+                for i in range(max_conn_int):
                     simulated_dls[i] = max(simulated_dls[i], real_seg_dls[i])
                     upper = real_seg_totals[i]
                     if real_seg_dls[i] < real_seg_totals[i]:

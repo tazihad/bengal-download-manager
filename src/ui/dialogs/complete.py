@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtCore import Qt, QUrl
-from core.utils import show_in_folder, open_with
+from core.utils import show_in_folder, open_with, open_file_generic
 
 class DownloadCompleteDialog(QDialog):
     def __init__(self, file_data, parent=None):
@@ -49,9 +49,16 @@ class DownloadCompleteDialog(QDialog):
         # Buttons
         btn_layout = QHBoxLayout()
         self.btn_open = QPushButton("Open")
+        self.btn_open.setFixedWidth(80)
+        
         self.btn_open_with = QPushButton("Open with...")
+        self.btn_open_with.setFixedWidth(100)
+        
         self.btn_open_folder = QPushButton("Open Folder")
+        self.btn_open_folder.setFixedWidth(100)
+        
         self.btn_close = QPushButton("Close")
+        self.btn_close.setFixedWidth(80)
         
         # Set height for buttons to look more like IDM
         for btn in [self.btn_open, self.btn_open_with, self.btn_open_folder, self.btn_close]:
@@ -69,8 +76,10 @@ class DownloadCompleteDialog(QDialog):
     def on_open(self):
         path = self.file_data.get('path')
         if path and os.path.exists(path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-            self.accept()
+            if open_file_generic(path):
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to open the file with the system default application.")
         else:
             QMessageBox.warning(self, "Error", "File does not exist.")
             
