@@ -1808,7 +1808,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(self, "About Bengal DM", 
             "<h2>Bengal Download Manager</h2>"
             "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
-            "<p>Version: 1.0</p>"
+            "<p>Version: 1.1</p>"
             "<p>Built for the XDG standard on Linux.</p>"
         )
 
