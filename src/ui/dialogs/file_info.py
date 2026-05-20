@@ -95,9 +95,9 @@ class DownloadFileInfoDialog(QDialog):
     def update_save_path(self):
         cat = self.category_combo.currentText()
         if cat == "General":
-            base_dir = os.path.join(os.path.expanduser("~"), "Downloads", "Bengal DM")
+            base_dir = os.path.join(os.path.expanduser("~"), "Downloads", "bengal-download-manager")
         else:
-            base_dir = os.path.join(os.path.expanduser("~"), "Downloads", "Bengal DM", cat)
+            base_dir = os.path.join(os.path.expanduser("~"), "Downloads", "bengal-download-manager", cat)
         
         try: os.makedirs(base_dir, exist_ok=True)
         except: pass

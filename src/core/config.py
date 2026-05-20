@@ -1,6 +1,6 @@
 import os
 import json
-from .utils import get_config_dir
+from .utils import get_config_dir, get_cache_dir
 
 DEFAULT_CATEGORIES = {
     "General": {
@@ -39,7 +39,7 @@ DEFAULT_CATEGORIES = {
 
 def load_category_config():
     path = os.path.join(get_config_dir(), "categories.json")
-    data = {"categories": DEFAULT_CATEGORIES, "temp_dir": os.path.join(os.path.expanduser("~"), ".cache", "bengal-dm")}
+    data = {"categories": DEFAULT_CATEGORIES, "temp_dir": get_cache_dir()}
     if os.path.exists(path):
         try:
             with open(path, "r") as f:

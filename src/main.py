@@ -1560,13 +1560,31 @@ class MainWindow(QMainWindow):
                     if path and os.path.exists(path):
                         try: os.remove(path)
                         except: pass
-                    if path and os.path.exists(path + ".tmpbdm"):
-                        try: os.remove(path + ".tmpbdm")
+
+                # --- ALWAYS CLEAR CACHE/TEMP FILES ---
+                filename = item_name.text()
+                temp_dir = config.get("temp_dir")
+                if temp_dir:
+                    # 1. Aria2 files
+                    aria_temp = os.path.join(temp_dir, filename)
+                    aria_control = aria_temp + ".aria2"
+                    if os.path.exists(aria_temp):
+                        try: os.remove(aria_temp)
                         except: pass
-                    if path and os.path.exists(path + ".tmpbdm.bdmx"):
-                        try: os.remove(path + ".tmpbdm.bdmx")
+                    if os.path.exists(aria_control):
+                        try: os.remove(aria_control)
                         except: pass
-                
+                    
+                    # 2. Internal downloader files
+                    internal_temp = os.path.join(temp_dir, filename + ".tmpbdm")
+                    internal_state = internal_temp + ".bdmx"
+                    if os.path.exists(internal_temp):
+                        try: os.remove(internal_temp)
+                        except: pass
+                    if os.path.exists(internal_state):
+                        try: os.remove(internal_state)
+                        except: pass
+
                 self.download_table.removeRow(row)
             self.save_data()
             self.update_ui_states()
@@ -1817,6 +1835,8 @@ if __name__ == "__main__":
     from PyQt6.QtCore import Qt
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
+    app.setOrganizationName("bengal-download-manager")
+    app.setApplicationName("bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 9))
     window = MainWindow()
