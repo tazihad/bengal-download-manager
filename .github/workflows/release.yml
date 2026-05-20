@@ -61,6 +61,7 @@ jobs:
             fi
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
           echo "Release Tag: $TAG"
 
       - name: Build Application
@@ -69,6 +70,9 @@ jobs:
           cd build_cmake
           cmake -DPython3_EXECUTABLE=$(which python) ..
           cmake --build .
+          # Rename binary to requested format: bengal-download-manager-<version>-x86_64
+          VERSION="${{ steps.get_tag.outputs.version }}"
+          mv dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-x86_64
 
       - name: Build Extension
         run: |
@@ -81,7 +85,7 @@ jobs:
           tag_name: ${{ steps.get_tag.outputs.tag }}
           name: Release ${{ steps.get_tag.outputs.tag }}
           files: |
-            build_cmake/dist/bengal-download-manager
+            build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64
             extension-firefox.xpi
           draft: false
           prerelease: true
