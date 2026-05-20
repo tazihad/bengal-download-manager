@@ -163,6 +163,7 @@ class EmptyAreaClickFilter(QObject):
             if not item:
                 self.table.clearSelection()
                 self.table.setCurrentItem(None)
+                # Allow the press to pass through so QAbstractItemView can start rubber band selection
         return super().eventFilter(obj, event)
 
 # --- HELPER FOR SORTING ---
