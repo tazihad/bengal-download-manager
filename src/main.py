@@ -1547,6 +1547,7 @@ class MainWindow(QMainWindow):
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
             delete_disk = dialog.should_delete_from_disk()
+            config = load_category_config()
             for row in rows:
                 item_name = self.download_table.item(row, 0)
                 key = id(item_name)
@@ -1562,32 +1563,37 @@ class MainWindow(QMainWindow):
                         except: pass
 
                 # --- ALWAYS CLEAR CACHE/TEMP FILES ---
-                filename = item_name.text()
-                temp_dir = config.get("temp_dir")
-                if temp_dir:
-                    # 1. Aria2 files
-                    aria_temp = os.path.join(temp_dir, filename)
-                    aria_control = aria_temp + ".aria2"
-                    if os.path.exists(aria_temp):
-                        try: os.remove(aria_temp)
-                        except: pass
-                    if os.path.exists(aria_control):
-                        try: os.remove(aria_control)
-                        except: pass
-                    
-                    # 2. Internal downloader files
-                    internal_temp = os.path.join(temp_dir, filename + ".tmpbdm")
-                    internal_state = internal_temp + ".bdmx"
-                    if os.path.exists(internal_temp):
-                        try: os.remove(internal_temp)
-                        except: pass
-                    if os.path.exists(internal_state):
-                        try: os.remove(internal_state)
-                        except: pass
+                self._clear_cache_files(item_name, config)
 
                 self.download_table.removeRow(row)
             self.save_data()
             self.update_ui_states()
+
+    def _clear_cache_files(self, item_name, config):
+        """Helper to remove temporary/cache files associated with a download item."""
+        filename = item_name.text()
+        temp_dir = config.get("temp_dir")
+        if not temp_dir: return
+
+        # 1. Aria2 files
+        aria_temp = os.path.join(temp_dir, filename)
+        aria_control = aria_temp + ".aria2"
+        if os.path.exists(aria_temp):
+            try: os.remove(aria_temp)
+            except: pass
+        if os.path.exists(aria_control):
+            try: os.remove(aria_control)
+            except: pass
+        
+        # 2. Internal downloader files
+        internal_temp = os.path.join(temp_dir, filename + ".tmpbdm")
+        internal_state = internal_temp + ".bdmx"
+        if os.path.exists(internal_temp):
+            try: os.remove(internal_temp)
+            except: pass
+        if os.path.exists(internal_state):
+            try: os.remove(internal_state)
+            except: pass
 
     def clear_finished_downloads(self):
         rows_to_clear = []
@@ -1609,6 +1615,7 @@ class MainWindow(QMainWindow):
 
         if not rows_to_clear: return
 
+        config = load_category_config()
         # Reverse sort to delete from bottom up correctly
         for row in sorted(rows_to_clear, reverse=True):
             item_name = self.download_table.item(row, 0)
@@ -1618,6 +1625,10 @@ class MainWindow(QMainWindow):
                     dlg = self.active_downloads[key]
                     dlg.worker.stop()
                     dlg.reject()
+                
+                # Clear cache files for finished items too
+                self._clear_cache_files(item_name, config)
+
             self.download_table.removeRow(row)
 
         self.save_data()
