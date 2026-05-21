@@ -61,7 +61,7 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        from core.utils import load_extension_config
+
         ext_data = load_extension_config()
         config_json = json.dumps({
             "status": "Bengal DM is running",
@@ -126,8 +126,10 @@ class TcpListenerThread(QThread):
     def stop(self):
         if self.server:
             # shutdown() must be called from another thread
-            import threading
-            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            def cleanup():
+                self.server.shutdown()
+                self.server.server_close()
+            threading.Thread(target=cleanup, daemon=True).start()
 
 class EmptyAreaClickFilter(QObject):
     def __init__(self, table, parent=None):
