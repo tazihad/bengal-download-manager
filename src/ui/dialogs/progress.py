@@ -206,10 +206,6 @@ class DownloadProgressDialog(QDialog):
         
         details_layout.addWidget(self.seg_table)
         self.details_frame.hide()
-        main_layout.addWidget(self.details_frame)
-
-        # Add padding above buttons
-        main_layout.addSpacing(5)
 
         btn_layout = QHBoxLayout()
         self.btn_details = QPushButton("Details >>")
@@ -234,6 +230,7 @@ class DownloadProgressDialog(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         
         main_layout.addLayout(btn_layout)
+        main_layout.addWidget(self.details_frame)
 
     def apply_speed_limit(self):
         is_enabled = self.chk_limit.isChecked()
