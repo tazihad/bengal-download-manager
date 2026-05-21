@@ -1342,7 +1342,8 @@ class MainWindow(QMainWindow):
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
-        row = self.download_table.rowCount()
+        # Insert new downloads at the top of the table
+        row = 0
         self.download_table.insertRow(row)
         
         try:
