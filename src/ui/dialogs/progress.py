@@ -20,7 +20,7 @@ class DownloadProgressDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Window) 
         
         self.fixed_width = 520
-        self.base_height = 230
+        self.base_height = 236
         self.setFixedSize(self.fixed_width, self.base_height)
         
         self.is_expanded = False
@@ -41,67 +41,64 @@ class DownloadProgressDialog(QDialog):
 
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)
-        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setContentsMargins(5, 0, 5, 5)
         layout.setSpacing(0)
 
         url_text = self.worker.url
 
-        self.lbl_url = QLineEdit(url_text)
-        self.lbl_url.setReadOnly(True)
-        self.lbl_url.setCursorPosition(0)
+        # Use a label with elided text for the URL
+        self.lbl_url = QLabel()
         self.lbl_url.setToolTip(url_text)
-        self.lbl_url.setStyleSheet("""
-            QLineEdit {
-                background: transparent;
-                border: none;
-                font-size: 8pt;
-            }
-        """)
+        self.lbl_url.setStyleSheet("font-size: 8pt; color: #555;")
+        
+        # Elide the URL text to fit the window width (with padding)
+        metrics = self.lbl_url.fontMetrics()
+        elided_url = metrics.elidedText(url_text, Qt.TextElideMode.ElideRight, self.fixed_width - 30)
+        self.lbl_url.setText(elided_url)
+        
         layout.addWidget(self.lbl_url)
-        status_layout = QHBoxLayout()
-        status_layout.setSpacing(5)
-        lbl_status_title = QLabel("Status:")
-        status_layout.addWidget(lbl_status_title)
-        self.lbl_main_status = QLabel("Connecting...")
-        self.lbl_main_status.setStyleSheet("color: #0078d4; font-weight: bold;") 
-        status_layout.addWidget(self.lbl_main_status)
-        status_layout.addStretch()
-        layout.addLayout(status_layout)
 
         grid = QGridLayout()
-        grid.setSpacing(1)
-        grid.setContentsMargins(0, 2, 0, 2)
+        grid.setSpacing(10) 
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnMinimumWidth(0, 150)
         
-        def add_row(label, widget, row):
-            l = QLabel(label)
+        def add_row(label_text, value_widget, row):
+            l = QLabel(label_text)
+            l.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             grid.addWidget(l, row, 0)
-            grid.addWidget(widget, row, 1)
+            value_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            grid.addWidget(value_widget, row, 1)
+
+        self.lbl_main_status = QLabel("Connecting...")
+        self.lbl_main_status.setStyleSheet("color: #0078d4; font-weight: bold;") 
+        add_row("Status:", self.lbl_main_status, 0)
 
         self.lbl_size = QLabel("Calculating...")
         self.lbl_size.setStyleSheet("font-weight: bold;")
-        add_row("File size:", self.lbl_size, 0)
+        add_row("File size:", self.lbl_size, 1)
         
         self.lbl_downloaded = QLabel("0 bytes")
         self.lbl_downloaded.setStyleSheet("font-weight: bold;")
-        add_row("Downloaded:", self.lbl_downloaded, 1)
+        add_row("Downloaded:", self.lbl_downloaded, 2)
 
         self.lbl_speed = QLabel("0 KB/sec")
         self.lbl_speed.setStyleSheet("font-weight: bold;")
-        add_row("Transfer rate:", self.lbl_speed, 2)
+        add_row("Transfer rate:", self.lbl_speed, 3)
 
         self.lbl_time = QLabel("Calculating...")
         self.lbl_time.setStyleSheet("font-weight: bold;")
-        add_row("Time left:", self.lbl_time, 3)
+        add_row("Time left:", self.lbl_time, 4)
         
         self.lbl_resume = QLabel("Unknown")
-        add_row("Resume capability:", self.lbl_resume, 4)
+        add_row("Resume capability:", self.lbl_resume, 5)
 
         grid.setColumnStretch(1, 1)
         layout.addLayout(grid)
     
     def setup_limiter_tab(self):
         layout = QVBoxLayout(self.limiter_tab)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(10, 5, 10, 5)
         layout.setSpacing(5)
         
         lbl_desc = QLabel("Limit download speed to avoid slowing down internet browsing.")
@@ -131,11 +128,12 @@ class DownloadProgressDialog(QDialog):
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(10, 5, 10, 5)
         main_layout.setSpacing(0)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         self.tabs = QTabWidget()
-        self.tabs.setFixedHeight(150)
+        self.tabs.setFixedHeight(170)
         main_layout.addWidget(self.tabs)
         
         self.status_tab = QWidget()
@@ -147,7 +145,7 @@ class DownloadProgressDialog(QDialog):
         self.tabs.addTab(self.limiter_tab, "Speed Limiter")
 
         # Add padding above the progress bar
-        main_layout.addSpacing(7)
+        main_layout.addSpacing(5)
 
         self.pbar = QProgressBar()
         self.pbar.setFixedHeight(16)
@@ -166,7 +164,7 @@ class DownloadProgressDialog(QDialog):
         main_layout.addWidget(self.pbar)
 
         # Space between progress bar and buttons
-        main_layout.addSpacing(7)
+        main_layout.addSpacing(5)
 
         btn_layout = QHBoxLayout()
         self.btn_details = QPushButton("Details >>")
@@ -215,15 +213,16 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Rate", "Status"])
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
-        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; }")
+        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-family: 'monospace', 'Courier New'; }")
 
         header = self.seg_table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.seg_table.setColumnWidth(0, 25)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.seg_table.setColumnWidth(1, 80) 
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.seg_table.setColumnWidth(2, 70)
+        self.seg_table.setColumnWidth(2, 100)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) 
         
         self.seg_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -233,9 +232,6 @@ class DownloadProgressDialog(QDialog):
         details_layout.addWidget(self.seg_table)
         self.details_frame.hide()
         main_layout.addWidget(self.details_frame)
-        
-        # Add a stretch at the bottom to push everything up
-        main_layout.addStretch()
 
     def apply_speed_limit(self):
         is_enabled = self.chk_limit.isChecked()
@@ -275,12 +271,12 @@ class DownloadProgressDialog(QDialog):
             self.seg_table.setFixedHeight(table_height)
             
             # Expand window vertically while keeping width 520
-            details_height = table_height + 50
+            details_height = table_height + 42
             self.setFixedSize(self.fixed_width, self.base_height + details_height)
         else:
             self.details_frame.hide()
             self.btn_details.setText("Details >>")
-            # Restore to base IDM size 520x250
+            # Restore to base IDM size 520x236
             self.setFixedSize(self.fixed_width, self.base_height)
 
     def init_segment_table(self, num_segments):
