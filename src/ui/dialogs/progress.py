@@ -308,8 +308,8 @@ class DownloadProgressDialog(QDialog):
         for i in range(total_display):
             self.seg_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
             if i < num_segments:
-                self.seg_table.setItem(i, 1, QTableWidgetItem("0 B")) 
-                self.seg_table.setItem(i, 2, QTableWidgetItem("0 B/s"))
+                self.seg_table.setItem(i, 1, QTableWidgetItem(self.worker.format_bytes(0, precision=3, pad=False))) 
+                self.seg_table.setItem(i, 2, QTableWidgetItem(f"{self.worker.format_bytes(0, precision=3, pad=False)}/s"))
                 self.seg_table.setItem(i, 3, QTableWidgetItem("Pending..."))
             else:
                 self.seg_table.setItem(i, 1, QTableWidgetItem("-")) 
@@ -325,10 +325,10 @@ class DownloadProgressDialog(QDialog):
                 self.segment_bars[index].setMaximum(0)
                 self.segment_bars[index].setValue(0)
             
-            dl_str = self.worker.format_bytes(dl)
+            dl_str = self.worker.format_bytes(dl, precision=3, pad=False)
             self.seg_table.setItem(index, 1, QTableWidgetItem(dl_str))
             
-            speed_str = f"{self.worker.format_bytes(speed)}/s"
+            speed_str = f"{self.worker.format_bytes(speed, precision=3, pad=False)}/s"
             self.seg_table.setItem(index, 2, QTableWidgetItem(speed_str))
             
             if status == "Receiving data...":
