@@ -286,7 +286,7 @@ class DownloadWorker(QThread):
                     self.save_state(total_size) 
                     self.main_progress_signal.emit(self.row_index, (
                         self.filename, 
-                        self.format_bytes(total_size) if total_size > 0 else "Unknown", 
+                        self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", 
                         "Paused", 
                         "", 
                         "0 KB/s",
@@ -309,10 +309,10 @@ class DownloadWorker(QThread):
                 self.main_bar_signal.emit(total_dl, total_size)
                 self.main_progress_signal.emit(self.row_index, (
                     self.filename,
-                    self.format_bytes(total_size) if total_size > 0 else "Unknown",
+                    self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown",
                     "Receiving data..." if not self.is_paused else "Paused", 
                     self.format_time(time_left),
-                    f"{self.format_bytes(total_speed)}/s",
+                    f"{self.format_bytes(total_speed, precision=4, pad=False)}/s",
                     total_dl,
                     total_size
                 ))
@@ -335,7 +335,7 @@ class DownloadWorker(QThread):
                     shutil.move(self.save_path, self.target_path)
                     
                     self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size))
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size))
                     self.finished_signal.emit(self.row_index, "Complete")
                     
                     if os.path.exists(self.state_file):
@@ -408,14 +408,18 @@ class DownloadWorker(QThread):
         for w in self.workers:
             w.set_pause(False)
 
-    def format_bytes(self, size):
-        power = 2**10
+    def format_bytes(self, size, precision=3, pad=True):
+        power = 1024
         n = 0
         power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-        while size > power:
+        while size >= power and n < 4:
             size /= power
             n += 1
-        return f"{size:.2f} {power_labels.get(n, '')}B"
+        if pad:
+            width = precision + 5
+            return f"{size:{width}.{precision}f} {power_labels.get(n, '')}B"
+        else:
+            return f"{size:.{precision}f} {power_labels.get(n, '')}B"
 
     def format_time(self, seconds):
         if seconds < 60:
