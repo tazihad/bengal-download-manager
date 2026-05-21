@@ -4,7 +4,8 @@ import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
-    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox
+    QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
+    QApplication
 )
 from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
@@ -50,7 +51,7 @@ class OptionsDialog(QDialog):
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "BDM Integration Module")
+        self.tabs.addTab(self.extension_tab, "Extensions")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -383,23 +384,15 @@ class OptionsDialog(QDialog):
         header_layout.addWidget(QLabel("<b>BDM Integration Module</b>"))
         header_layout.addStretch()
         layout.addLayout(header_layout)
-        
-        # Help Text
-        help_text = (
-            "This module allows Bengal Download Manager to communicate with browser "
-            "extensions to capture downloads automatically."
-        )
-        desc = QLabel(help_text)
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
+
         
         grp_aria = QGroupBox("Aria2 RPC Settings")
-        form_layout = QGridLayout(grp_aria)
-        form_layout.setContentsMargins(10, 15, 10, 15)
-        form_layout.setSpacing(12)
+        aria_layout = QGridLayout(grp_aria)
+        aria_layout.setContentsMargins(10, 15, 10, 15)
+        aria_layout.setSpacing(12)
         
         # Protocol
-        form_layout.addWidget(QLabel("Protocol:"), 0, 0)
+        aria_layout.addWidget(QLabel("Protocol:"), 0, 0)
         self.combo_aria_proto = QComboBox()
         # Add items with user data to map display text to protocol code
         self.combo_aria_proto.addItem("http", "http")
@@ -418,27 +411,27 @@ class OptionsDialog(QDialog):
              else:
                  self.combo_aria_proto.setCurrentIndex(2)
 
-        form_layout.addWidget(self.combo_aria_proto, 0, 1)
+        aria_layout.addWidget(self.combo_aria_proto, 0, 1)
         
         # Port
-        form_layout.addWidget(QLabel("Port:"), 1, 0)
+        aria_layout.addWidget(QLabel("Port:"), 1, 0)
         self.spin_aria_port = QSpinBox()
         self.spin_aria_port.setRange(1, 65535)
         self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
-        form_layout.addWidget(self.spin_aria_port, 1, 1)
+        aria_layout.addWidget(self.spin_aria_port, 1, 1)
         
         # Token
-        form_layout.addWidget(QLabel("Secret Token:"), 2, 0)
+        aria_layout.addWidget(QLabel("Secret Token:"), 2, 0)
         self.txt_aria_token = QLineEdit()
         self.txt_aria_token.setPlaceholderText("Optional secret token")
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
-        form_layout.addWidget(self.txt_aria_token, 2, 1)
+        aria_layout.addWidget(self.txt_aria_token, 2, 1)
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
         self.chk_show_token.toggled.connect(self.on_toggle_show_token)
-        form_layout.addWidget(self.chk_show_token, 3, 1)
+        aria_layout.addWidget(self.chk_show_token, 3, 1)
         
         layout.addWidget(grp_aria)
 
@@ -446,6 +439,7 @@ class OptionsDialog(QDialog):
         grp_helper = QGroupBox("Extension Helper")
         helper_layout = QVBoxLayout(grp_helper)
         helper_layout.setContentsMargins(10, 15, 10, 15)
+        helper_layout.setSpacing(12)
         
         helper_desc = QLabel(
             "If the browser extension is unable to communicate with Bengal DM, "

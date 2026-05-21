@@ -49,6 +49,12 @@ class AddUrlDialog(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
 
+        # Auto-paste from clipboard if it contains a URL
+        clipboard_text = QApplication.clipboard().text().strip()
+        if clipboard_text.startswith(("http://", "https://", "ftp://", "magnet:")):
+            self.url_input.setText(clipboard_text)
+            self.url_input.selectAll()
+
     def paste_url(self):
         clipboard = QApplication.clipboard()
         self.url_input.setText(clipboard.text())

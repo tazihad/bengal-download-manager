@@ -132,7 +132,7 @@ class DownloadProgressDialog(QDialog):
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(5)
+        main_layout.setSpacing(0)
         
         self.tabs = QTabWidget()
         self.tabs.setFixedHeight(150)
@@ -147,8 +147,7 @@ class DownloadProgressDialog(QDialog):
         self.tabs.addTab(self.limiter_tab, "Speed Limiter")
 
         # Add padding above the progress bar
-        main_layout.addSpacing(5)
-        main_layout.addSpacing(2)
+        main_layout.addSpacing(7)
 
         self.pbar = QProgressBar()
         self.pbar.setFixedHeight(16)
@@ -166,7 +165,34 @@ class DownloadProgressDialog(QDialog):
         """)
         main_layout.addWidget(self.pbar)
 
-        # Details frame (placed above buttons)
+        # Space between progress bar and buttons
+        main_layout.addSpacing(7)
+
+        btn_layout = QHBoxLayout()
+        self.btn_details = QPushButton("Details >>")
+        self.btn_details.setCheckable(True)
+        self.btn_details.setFixedWidth(100)
+        self.btn_details.setFixedHeight(30)
+        self.btn_details.clicked.connect(self.toggle_details)
+        btn_layout.addWidget(self.btn_details)
+        
+        btn_layout.addStretch()
+        
+        self.btn_pause = QPushButton("Pause")
+        self.btn_pause.setFixedWidth(80)
+        self.btn_pause.setFixedHeight(30)
+        self.btn_pause.clicked.connect(self.toggle_pause) 
+        btn_layout.addWidget(self.btn_pause)
+
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setFixedWidth(80)
+        self.btn_cancel.setFixedHeight(30)
+        self.btn_cancel.clicked.connect(self.cancel_download)
+        btn_layout.addWidget(self.btn_cancel)
+        
+        main_layout.addLayout(btn_layout)
+
+        # Details frame (placed at the bottom)
         self.details_frame = QFrame()
         details_layout = QVBoxLayout(self.details_frame)
         details_layout.setContentsMargins(0, 5, 0, 0)
@@ -207,33 +233,9 @@ class DownloadProgressDialog(QDialog):
         details_layout.addWidget(self.seg_table)
         self.details_frame.hide()
         main_layout.addWidget(self.details_frame)
-
-        # Add padding above buttons
-        main_layout.addSpacing(5)
-
-        btn_layout = QHBoxLayout()
-        self.btn_details = QPushButton("Details >>")
-        self.btn_details.setCheckable(True)
-        self.btn_details.setFixedWidth(100)
-        self.btn_details.setFixedHeight(30)
-        self.btn_details.clicked.connect(self.toggle_details)
-        btn_layout.addWidget(self.btn_details)
         
-        btn_layout.addStretch()
-        
-        self.btn_pause = QPushButton("Pause")
-        self.btn_pause.setFixedWidth(80)
-        self.btn_pause.setFixedHeight(30)
-        self.btn_pause.clicked.connect(self.toggle_pause) 
-        btn_layout.addWidget(self.btn_pause)
-
-        self.btn_cancel = QPushButton("Cancel")
-        self.btn_cancel.setFixedWidth(80)
-        self.btn_cancel.setFixedHeight(30)
-        self.btn_cancel.clicked.connect(self.cancel_download)
-        btn_layout.addWidget(self.btn_cancel)
-        
-        main_layout.addLayout(btn_layout)
+        # Add a stretch at the bottom to push everything up
+        main_layout.addStretch()
 
     def apply_speed_limit(self):
         is_enabled = self.chk_limit.isChecked()

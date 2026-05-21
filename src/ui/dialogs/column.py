@@ -19,6 +19,7 @@ class ColumnDialog(QDialog):
         
         # List widget for columns
         self.list_widget = QTableWidget(len(self.columns), 1)
+        self.list_widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.list_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.list_widget.verticalHeader().setVisible(False)

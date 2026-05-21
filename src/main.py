@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import socket
 import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
@@ -26,10 +27,10 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QFileDialog, QDialog, 
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
-    QSystemTrayIcon
+    QSystemTrayIcon, QRubberBand
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
-from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 
 from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
@@ -51,119 +52,148 @@ class SignalEmitter(QObject):
     """Utility to emit signals safely to the GUI thread."""
     new_download_signal = pyqtSignal(str)
 
+class IPCRequestHandler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def do_GET(self):
+
+        ext_data = load_extension_config()
+        config_json = json.dumps({
+            "status": "Bengal DM is running",
+            "aria2": {
+                "port": ext_data.get("port", 56800),
+                "token": ext_data.get("token", "")
+            }
+        })
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(config_json.encode('utf-8'))
+
+    def do_POST(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
+        
+        url = ""
+        user_agent = ""
+        cookies = ""
+        
+        try:
+            payload = json.loads(body)
+            url = payload.get("url", "")
+            user_agent = payload.get("userAgent", "")
+            cookies = payload.get("cookies", "")
+        except json.JSONDecodeError:
+            url = body
+            
+        if url and url.startswith("http"):
+            # self.server.emitter is passed when initializing the server
+            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}")
+            
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+        else:
+            self.send_response(400)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+    def log_message(self, format, *args):
+        pass # Suppress default logging to stderr
+
 class TcpListenerThread(QThread):
     def __init__(self, port, emitter, parent=None):
         super().__init__(parent)
         self.port = port
         self.emitter = emitter
-        self.is_running = True
-        self.server_socket = None
+        self.server = None
 
     def run(self):
         try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.server_socket.bind(("127.0.0.1", self.port)) 
-            self.server_socket.listen(1)
-            
-            while self.is_running:
-                self.server_socket.settimeout(1.0)
-                try:
-                    conn, addr = self.server_socket.accept()
-                    with conn:
-                        data = conn.recv(4096).decode('utf-8') 
-                        if not data: continue
-
-                        # 1. Handle CORS Preflight (Browser security check)
-                        if data.startswith("OPTIONS"):
-                            response = (
-                                "HTTP/1.1 200 OK\r\n"
-                                "Access-Control-Allow-Origin: *\r\n"
-                                "Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n"
-                                "Access-Control-Allow-Headers: Content-Type\r\n\r\n"
-                            )
-                            conn.sendall(response.encode('utf-8'))
-                            continue
-                        
-                        # 2. Handle Status Ping and Config Sync
-                        if data.startswith("GET"):
-                            ext_data = load_extension_config()
-                            config_json = json.dumps({
-                                "status": "Bengal DM is running",
-                                "aria2": {
-                                    "port": ext_data.get("port", 56800),
-                                    "token": ext_data.get("token", "")
-                                }
-                            })
-                            response = (
-                                "HTTP/1.1 200 OK\r\n"
-                                "Access-Control-Allow-Origin: *\r\n"
-                                "Content-Type: application/json\r\n\r\n" + config_json
-                            )
-                            conn.sendall(response.encode('utf-8'))
-                            continue
-
-                        # 3. Handle actual download POST request
-                        url = ""
-                        user_agent = ""
-                        cookies = ""
-                        if data.startswith("POST"):
-                            # The URL is in the body of the HTTP request, after the headers (\r\n\r\n)
-                            parts = data.split("\r\n\r\n", 1)
-                            if len(parts) == 2:
-                                body = parts[1].strip()
-                                try:
-                                    # Try parsing as JSON first (new method)
-                                    payload = json.loads(body)
-                                    url = payload.get("url", "")
-                                    user_agent = payload.get("userAgent", "")
-                                    cookies = payload.get("cookies", "")
-                                except:
-                                    # Fallback to plain text (old method)
-                                    url = body
-                        elif data.startswith("URL:"): # Fallback for your old method
-                            url = data[4:].strip()
-
-                        if url and url.startswith("http"):
-                            # Send the URL, User-Agent, and Cookies to the PyQt GUI!
-                            self.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}") 
-                            
-                            response = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-                            conn.sendall(response.encode('utf-8'))
-                        else:
-                            response = "HTTP/1.1 400 Bad Request\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-                            conn.sendall(response.encode('utf-8'))
-
-                except socket.timeout:
-                    continue 
-                except OSError as e:
-                    if not self.is_running: break
-                except Exception as e:
-                    pass
-
+            self.server = HTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
+            # Attach emitter to server so handler can access it
+            self.server.emitter = self.emitter 
+            self.server.serve_forever()
         except Exception as e:
             pass
 
     def stop(self):
-        self.is_running = False
-        if self.server_socket:
-            try:
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("127.0.0.1", self.port))
-                self.server_socket.close()
-            except: pass
+        if self.server:
+            # shutdown() must be called from another thread
+            def cleanup():
+                self.server.shutdown()
+                self.server.server_close()
+            threading.Thread(target=cleanup, daemon=True).start()
 
 class EmptyAreaClickFilter(QObject):
     def __init__(self, table, parent=None):
         super().__init__(parent)
         self.table = table
+        self.rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.table.viewport())
+        self.origin = QPoint()
 
     def eventFilter(self, obj, event):
+        if obj != self.table.viewport():
+            return super().eventFilter(obj, event)
+
         if event.type() == QEvent.Type.MouseButtonPress:
-            item = self.table.itemAt(event.pos())
-            if not item:
-                self.table.clearSelection()
-                self.table.setCurrentItem(None)
+            if event.button() == Qt.MouseButton.LeftButton:
+                item = self.table.itemAt(event.pos())
+                if not item:
+                    # Starting selection from empty area
+                    if not (event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)):
+                        self.table.clearSelection()
+                    self.table.setCurrentItem(None)
+                    self.origin = event.pos()
+                    self.rubber_band.setGeometry(QRect(self.origin, QSize()))
+                    self.rubber_band.show()
+                    return True
+        elif event.type() == QEvent.Type.MouseMove:
+            if self.rubber_band.isVisible():
+                self.rubber_band.setGeometry(QRect(self.origin, event.pos()).normalized())
+                self.update_selection(event.modifiers())
+                return True
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            if self.rubber_band.isVisible():
+                self.rubber_band.hide()
+                return True
         return super().eventFilter(obj, event)
+
+    def update_selection(self, modifiers):
+        rect = self.rubber_band.geometry()
+        selection_model = self.table.selectionModel()
+        
+        # Determine selection command
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            command = QItemSelectionModel.SelectionFlag.Select
+        else:
+            command = QItemSelectionModel.SelectionFlag.ClearAndSelect
+            
+        command |= QItemSelectionModel.SelectionFlag.Rows
+        
+        selection = QItemSelection()
+        any_selected = False
+        
+        for row in range(self.table.rowCount()):
+            row_y = self.table.rowViewportPosition(row)
+            row_height = self.table.rowHeight(row)
+            # Selection happens if the rubber band vertically overlaps the row
+            if rect.bottom() >= row_y and rect.top() <= (row_y + row_height):
+                index = self.table.model().index(row, 0)
+                selection.select(index, index)
+                any_selected = True
+        
+        if any_selected:
+            selection_model.select(selection, command)
+        elif not (modifiers & Qt.KeyboardModifier.ControlModifier):
+            # If nothing touched and no Ctrl, clear everything
+            self.table.clearSelection()
 
 # --- HELPER FOR SORTING ---
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -425,6 +455,7 @@ class MainWindow(QMainWindow):
 
     def setup_actions(self):
         self.action_add_url = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), "Add URL", self)
+        self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
         self.action_add_url.triggered.connect(self.open_add_url)
 
         self.action_exit = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "Exit", self)
@@ -561,6 +592,7 @@ class MainWindow(QMainWindow):
         # Ensure row selection is correctly set up
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.download_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         # Install event filter to clear selection on empty area click
         self.empty_area_filter = EmptyAreaClickFilter(self.download_table, self)
@@ -744,8 +776,9 @@ class MainWindow(QMainWindow):
         self.action_stop_all.setEnabled(has_active_downloads)
         
         # RESUME action is for starting a paused/errored/cancelled download
-        self.action_resume.setEnabled(selection_has_resumable and not selection_has_active)
-        self.action_download_now.setEnabled(selection_has_resumable and not selection_has_active)
+        # Logic fix: Allow resume even if active (window open) if the status is logically paused
+        self.action_resume.setEnabled(selection_has_resumable)
+        self.action_download_now.setEnabled(selection_has_resumable)
         
         self.action_delete.setEnabled(has_selection)
         self.action_redownload.setEnabled(has_selection)
@@ -1309,7 +1342,8 @@ class MainWindow(QMainWindow):
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
-        row = self.download_table.rowCount()
+        # Insert new downloads at the top of the table
+        row = 0
         self.download_table.insertRow(row)
         
         try:
@@ -1449,9 +1483,16 @@ class MainWindow(QMainWindow):
         for row in rows:
             item_name = self.download_table.item(row, 0)
             
-            # If already active, bring dialog to front
+            # If already active, bring dialog to front or resume if paused
             if id(item_name) in self.active_downloads:
                 dialog = self.active_downloads[id(item_name)]
+                status_item = self.download_table.item(row, 2)
+                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                
+                if logic_status in ["Paused", "Cancelled", "Error"]:
+                    # Forward resume to existing worker
+                    dialog.worker.resume()
+                
                 dialog.activateWindow()
                 dialog.raise_()
                 continue
@@ -1722,8 +1763,12 @@ class MainWindow(QMainWindow):
                 status_item.setText("Complete")
                 status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 
-            if final_display != old_status:
+            # Check if internal logical status changed to trigger UI update
+            old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+            
+            if final_display != old_status or display_status != old_logic_status:
                 status_item.setText(final_display)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
                 self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
@@ -1769,10 +1814,11 @@ class MainWindow(QMainWindow):
                 status_item = QTableWidgetItem()
                 self.download_table.setItem(row, 2, status_item)
             
-            # Formatting final display text
+            # Formatting final display text and updating logical status
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            
             if display_status == "Complete":
                 final_display = "Complete"
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct if pct else "0.0%"

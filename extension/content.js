@@ -5,21 +5,20 @@ document.addEventListener('click', (event) => {
     // 1. Skip if modifier keys are pressed (let browser handle new tabs/windows natively)
     if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) return;
 
-    // 2. heuristic: only intercept if it matches our target extension list
-    const targetExts = [
-        '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
-        'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
-        'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
-        'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
-        'xz', 'bz', 'lzma', 'war', 'ear',
-        'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv', 'ppsx'
+    // 2. heuristic: intercept everything with an extension UNLESS it's a web asset or image
+    const ignoredExts = [
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',
+        'html', 'htm', 'php', 'js', 'css', 'xml', 'json', 'txt', 'md',
+        'woff', 'woff2', 'eot', 'ttf', 'otf'
     ];
 
     const url = new URL(link.href);
     const pathname = url.pathname.toLowerCase();
-    const extension = pathname.split('.').pop().split('?')[0];
+    const parts = pathname.split('?')[0].split('#')[0].split('.');
+    const extension = parts.length > 1 ? parts.pop() : "";
 
-    if (!targetExts.includes(extension)) return;
+    // Intercept if it HAS an extension and that extension is NOT ignored
+    if (!extension || ignoredExts.includes(extension)) return;
 
     // 3. Block navigation for verified potential downloads
     event.preventDefault();
