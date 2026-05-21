@@ -776,8 +776,9 @@ class MainWindow(QMainWindow):
         self.action_stop_all.setEnabled(has_active_downloads)
         
         # RESUME action is for starting a paused/errored/cancelled download
-        self.action_resume.setEnabled(selection_has_resumable and not selection_has_active)
-        self.action_download_now.setEnabled(selection_has_resumable and not selection_has_active)
+        # Logic fix: Allow resume even if active (window open) if the status is logically paused
+        self.action_resume.setEnabled(selection_has_resumable)
+        self.action_download_now.setEnabled(selection_has_resumable)
         
         self.action_delete.setEnabled(has_selection)
         self.action_redownload.setEnabled(has_selection)
@@ -1481,9 +1482,16 @@ class MainWindow(QMainWindow):
         for row in rows:
             item_name = self.download_table.item(row, 0)
             
-            # If already active, bring dialog to front
+            # If already active, bring dialog to front or resume if paused
             if id(item_name) in self.active_downloads:
                 dialog = self.active_downloads[id(item_name)]
+                status_item = self.download_table.item(row, 2)
+                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                
+                if logic_status in ["Paused", "Cancelled", "Error"]:
+                    # Forward resume to existing worker
+                    dialog.worker.resume()
+                
                 dialog.activateWindow()
                 dialog.raise_()
                 continue
@@ -1754,8 +1762,12 @@ class MainWindow(QMainWindow):
                 status_item.setText("Complete")
                 status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 
-            if final_display != old_status:
+            # Check if internal logical status changed to trigger UI update
+            old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+            
+            if final_display != old_status or display_status != old_logic_status:
                 status_item.setText(final_display)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
                 self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
@@ -1801,10 +1813,11 @@ class MainWindow(QMainWindow):
                 status_item = QTableWidgetItem()
                 self.download_table.setItem(row, 2, status_item)
             
-            # Formatting final display text
+            # Formatting final display text and updating logical status
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            
             if display_status == "Complete":
                 final_display = "Complete"
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct if pct else "0.0%"
