@@ -69,8 +69,8 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
     'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
     'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
     'xz', 'bz', 'lzma', 'war', 'ear',
-    'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv', 'ppsx'
-    ];
+    'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv'
+  ];
   
   const lowerUrl = details.url.split('?')[0].toLowerCase();
   const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
@@ -106,22 +106,8 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
       sendToBengalDM(details.url, cookieString);
     });
     
-    // CRITICAL: Immediately cancel the browser's request
-    // If it's a main frame navigation that was just opened, we'll try to close the tab.
-    if (details.type === "main_frame") {
-        setTimeout(() => {
-            chrome.tabs.get(details.tabId, (tab) => {
-                if (chrome.runtime.lastError || !tab) return;
-                // Only close if it's a "clean" tab (no title or just the URL)
-                // or if it was opened specifically for this download.
-                if (!tab.url || tab.url === details.url || tab.url === 'about:blank') {
-                    chrome.tabs.remove(details.tabId);
-                }
-            });
-        }, 500);
-    }
-
-    return { cancel: true };
+    // CRITICAL: Immediately block the browser's download to prevent "Failed" ghost entries
+    return { redirectUrl: 'javascript:void(0)' };
   }
 }, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }, ["blocking", "responseHeaders"]);
 
