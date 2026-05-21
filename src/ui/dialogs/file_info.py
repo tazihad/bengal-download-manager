@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QFileDialog, QFormLayout, QApplication
 )
+from PyQt6.QtCore import Qt
 from core.utils import get_unique_filepath
 from core.config import load_category_config
 
@@ -12,6 +13,12 @@ class DownloadFileInfoDialog(QDialog):
         self.setWindowTitle("Download File Info")
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)
+        
+        # Ensure it behaves like a separate window in the OS to avoid bringing 
+        # the main window to foreground when this dialog is shown.
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.Window)
+        
         self.file_info = file_info
         self.config = load_category_config()
         

@@ -1286,7 +1286,8 @@ class MainWindow(QMainWindow):
 
     def on_file_info_fetched(self, file_info):
         from ui.dialogs import DownloadFileInfoDialog
-        dialog = DownloadFileInfoDialog(file_info, self)
+        # Use None as parent to prevent the main window from being brought to the foreground
+        dialog = DownloadFileInfoDialog(file_info, None)
         
         # Add to list but don't start downloading yet (wait for user confirmation)
         results = dialog.get_results()
@@ -1301,10 +1302,19 @@ class MainWindow(QMainWindow):
             cookies=file_info.get("cookies")
         )
         
+        # Track the dialog to prevent garbage collection and allow cleanup
+        dialog_id = id(item_ref)
+        self.active_file_info_dialogs[dialog_id] = dialog
+        dialog.finished.connect(lambda: self.active_file_info_dialogs.pop(dialog_id, None))
+
         # Connect signals to handle the dialog result
         dialog.accepted.connect(lambda: self._handle_download_dialog_accepted(dialog, file_info, item_ref))
         dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_ref))
+        
+        # Show and bring to foreground without stealing focus for the main app
         dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def _handle_download_dialog_accepted(self, dialog, file_info, item_ref):
         results = dialog.get_results()
