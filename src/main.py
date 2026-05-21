@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import socket
 import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
@@ -51,106 +52,82 @@ class SignalEmitter(QObject):
     """Utility to emit signals safely to the GUI thread."""
     new_download_signal = pyqtSignal(str)
 
+class IPCRequestHandler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def do_GET(self):
+        from core.utils import load_extension_config
+        ext_data = load_extension_config()
+        config_json = json.dumps({
+            "status": "Bengal DM is running",
+            "aria2": {
+                "port": ext_data.get("port", 56800),
+                "token": ext_data.get("token", "")
+            }
+        })
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(config_json.encode('utf-8'))
+
+    def do_POST(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
+        
+        url = ""
+        user_agent = ""
+        cookies = ""
+        
+        try:
+            payload = json.loads(body)
+            url = payload.get("url", "")
+            user_agent = payload.get("userAgent", "")
+            cookies = payload.get("cookies", "")
+        except json.JSONDecodeError:
+            url = body
+            
+        if url and url.startswith("http"):
+            # self.server.emitter is passed when initializing the server
+            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}")
+            
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+        else:
+            self.send_response(400)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+    def log_message(self, format, *args):
+        pass # Suppress default logging to stderr
+
 class TcpListenerThread(QThread):
     def __init__(self, port, emitter, parent=None):
         super().__init__(parent)
         self.port = port
         self.emitter = emitter
-        self.is_running = True
-        self.server_socket = None
+        self.server = None
 
     def run(self):
         try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.server_socket.bind(("127.0.0.1", self.port)) 
-            self.server_socket.listen(1)
-            
-            while self.is_running:
-                self.server_socket.settimeout(1.0)
-                try:
-                    conn, addr = self.server_socket.accept()
-                    with conn:
-                        data = conn.recv(4096).decode('utf-8') 
-                        if not data: continue
-
-                        # 1. Handle CORS Preflight (Browser security check)
-                        if data.startswith("OPTIONS"):
-                            response = (
-                                "HTTP/1.1 200 OK\r\n"
-                                "Access-Control-Allow-Origin: *\r\n"
-                                "Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n"
-                                "Access-Control-Allow-Headers: Content-Type\r\n\r\n"
-                            )
-                            conn.sendall(response.encode('utf-8'))
-                            continue
-                        
-                        # 2. Handle Status Ping and Config Sync
-                        if data.startswith("GET"):
-                            ext_data = load_extension_config()
-                            config_json = json.dumps({
-                                "status": "Bengal DM is running",
-                                "aria2": {
-                                    "port": ext_data.get("port", 56800),
-                                    "token": ext_data.get("token", "")
-                                }
-                            })
-                            response = (
-                                "HTTP/1.1 200 OK\r\n"
-                                "Access-Control-Allow-Origin: *\r\n"
-                                "Content-Type: application/json\r\n\r\n" + config_json
-                            )
-                            conn.sendall(response.encode('utf-8'))
-                            continue
-
-                        # 3. Handle actual download POST request
-                        url = ""
-                        user_agent = ""
-                        cookies = ""
-                        if data.startswith("POST"):
-                            # The URL is in the body of the HTTP request, after the headers (\r\n\r\n)
-                            parts = data.split("\r\n\r\n", 1)
-                            if len(parts) == 2:
-                                body = parts[1].strip()
-                                try:
-                                    # Try parsing as JSON first (new method)
-                                    payload = json.loads(body)
-                                    url = payload.get("url", "")
-                                    user_agent = payload.get("userAgent", "")
-                                    cookies = payload.get("cookies", "")
-                                except:
-                                    # Fallback to plain text (old method)
-                                    url = body
-                        elif data.startswith("URL:"): # Fallback for your old method
-                            url = data[4:].strip()
-
-                        if url and url.startswith("http"):
-                            # Send the URL, User-Agent, and Cookies to the PyQt GUI!
-                            self.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}") 
-                            
-                            response = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-                            conn.sendall(response.encode('utf-8'))
-                        else:
-                            response = "HTTP/1.1 400 Bad Request\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-                            conn.sendall(response.encode('utf-8'))
-
-                except socket.timeout:
-                    continue 
-                except OSError as e:
-                    if not self.is_running: break
-                except Exception as e:
-                    pass
-
+            self.server = HTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
+            # Attach emitter to server so handler can access it
+            self.server.emitter = self.emitter 
+            self.server.serve_forever()
         except Exception as e:
             pass
 
     def stop(self):
-        self.is_running = False
-        if self.server_socket:
-            try:
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("127.0.0.1", self.port))
-                self.server_socket.close()
-            except: pass
+        if self.server:
+            # shutdown() must be called from another thread
+            import threading
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
 
 class EmptyAreaClickFilter(QObject):
     def __init__(self, table, parent=None):
