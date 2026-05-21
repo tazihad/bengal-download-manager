@@ -1,3 +1,19 @@
+// --- EXTENSION HELPERS ---
+const targetExts = [
+  '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
+  'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
+  'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
+  'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
+  'xz', 'bz', 'lzma', 'war', 'ear',
+  'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv', 'ppsx'
+];
+
+function getExtension(str) {
+  if (!str) return "";
+  const parts = str.split('?')[0].split('#')[0].split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : "";
+}
+
 // --- REDIRECT TRACKING ---
 const urlMap = new Map();
 
@@ -62,18 +78,9 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
   contentDisposition = contentDisposition.toLowerCase();
   contentType = contentType.toLowerCase();
 
-  // 3. Check for target extensions from our categorized list
-  const targetExts = [
-    '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
-    'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
-    'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
-    'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
-    'xz', 'bz', 'lzma', 'war', 'ear',
-    'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv', 'ppsx'
-    ];
-  
-  const lowerUrl = details.url.split('?')[0].toLowerCase();
-  const hasTargetExt = targetExts.some(ext => lowerUrl.endsWith('.' + ext));
+  const lowerUrl = details.url.toLowerCase();
+  const urlExt = getExtension(lowerUrl);
+  const hasTargetExt = targetExts.includes(urlExt);
 
   // CRITICAL BYPASS: If the response is HTML, it's a landing page (like VLC).
   // We MUST let the browser open it.
@@ -85,14 +92,15 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
   if (hasTargetExt) {
     isDownload = true;
   } else if (contentDisposition.includes('attachment')) {
-    // Optional: Keep this if you want to catch files explicitly marked as attachment 
-    // even if they aren't in the list. To strictly stick to the list, we remove this.
-    // Given your request "only stick to download format that are categorized", we'll verify extension even for attachments.
-    
     // Check if attachment filename has target extension
-    const cdMatch = contentDisposition.match(/filename="?(.+?\.(.+?))"?($|;)/i);
-    if (cdMatch && cdMatch[2]) {
-        const cdExt = cdMatch[2].toLowerCase();
+    let cdFilename = "";
+    const cdMatch = contentDisposition.match(/filename\*?=["']?(?:UTF-8'')?([^"';]+)["']?/i);
+    if (cdMatch && cdMatch[1]) {
+        cdFilename = decodeURIComponent(cdMatch[1]);
+    }
+    
+    if (cdFilename) {
+        const cdExt = getExtension(cdFilename);
         if (targetExts.includes(cdExt)) {
             isDownload = true;
         }

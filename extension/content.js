@@ -17,7 +17,8 @@ document.addEventListener('click', (event) => {
 
     const url = new URL(link.href);
     const pathname = url.pathname.toLowerCase();
-    const extension = pathname.split('.').pop().split('?')[0];
+    const parts = pathname.split('?')[0].split('#')[0].split('.');
+    const extension = parts.length > 1 ? parts.pop() : "";
 
     if (!targetExts.includes(extension)) return;
 
