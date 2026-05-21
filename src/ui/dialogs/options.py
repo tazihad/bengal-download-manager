@@ -51,7 +51,7 @@ class OptionsDialog(QDialog):
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "BDM Integration Module")
+        self.tabs.addTab(self.extension_tab, "Extensions")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -384,15 +384,7 @@ class OptionsDialog(QDialog):
         header_layout.addWidget(QLabel("<b>BDM Integration Module</b>"))
         header_layout.addStretch()
         layout.addLayout(header_layout)
-        
-        # Help Text
-        help_text = (
-            "This module allows Bengal Download Manager to communicate with browser "
-            "extensions to capture downloads automatically."
-        )
-        desc = QLabel(help_text)
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
+
         
         grp_aria = QGroupBox("Aria2 RPC Settings")
         aria_layout = QGridLayout(grp_aria)
