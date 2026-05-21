@@ -84,7 +84,11 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
     let cdFilename = "";
     const cdMatch = contentDisposition.match(/filename\*?=["']?(?:UTF-8'')?([^"';]+)["']?/i);
     if (cdMatch && cdMatch[1]) {
-        cdFilename = decodeURIComponent(cdMatch[1]);
+        try {
+            cdFilename = decodeURIComponent(cdMatch[1]).replace(/[\/\\]/g, '_');
+        } catch (e) {
+            cdFilename = cdMatch[1].replace(/[\/\\]/g, '_');
+        }
     }
     
     if (cdFilename) {
