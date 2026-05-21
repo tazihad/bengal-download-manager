@@ -1,11 +1,8 @@
 // --- EXTENSION HELPERS ---
-const targetExts = [
-  '3gp', '7z', 'aac', 'ace', 'aif', 'arj', 'asf', 'avi', 'bin', 'bz2', 'exe', 'gz', 'gzip', 
-  'img', 'iso', 'lzh', 'm4a', 'm4v', 'mkv', 'mov', 'mp3', 'mp4', 'mpa', 'mpe', 'mpeg', 'mpg', 
-  'msi', 'msu', 'ogg', 'ogv', 'pdf', 'plj', 'pps', 'ppt', 'rar', 'rmvb', 'sea', 'sit', 'sitx', 
-  'tar', 'tif', 'tiff', 'wav', 'wma', 'wmv', 'zip', 'deb', 'rpm', 'appimage',
-  'xz', 'bz', 'lzma', 'war', 'ear',
-  'doc', 'docx', 'xls', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'csv', 'ppsx', 'dot'
+const ignoredExts = [
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',
+  'html', 'htm', 'php', 'js', 'css', 'xml', 'json', 'txt', 'md',
+  'woff', 'woff2', 'eot', 'ttf', 'otf'
 ];
 
 function getExtension(str) {
@@ -80,19 +77,10 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
 
   const lowerUrl = details.url.toLowerCase();
   const urlExt = getExtension(lowerUrl);
-  const hasTargetExt = targetExts.includes(urlExt);
+  const isIgnoredExt = urlExt && ignoredExts.includes(urlExt);
 
-  // CRITICAL BYPASS: If the response is HTML, it's a landing page (like VLC).
-  // We MUST let the browser open it.
-  if (contentType.includes('text/html') && !contentDisposition.includes('attachment')) {
-      return; 
-  }
-
-  // Only download if it's one of our target extensions or an explicit attachment
-  if (hasTargetExt) {
-    isDownload = true;
-  } else if (contentDisposition.includes('attachment')) {
-    // Check if attachment filename has target extension
+  // 1. If explicit attachment, always download (unless it's an ignored extension)
+  if (contentDisposition.includes('attachment')) {
     let cdFilename = "";
     const cdMatch = contentDisposition.match(/filename\*?=["']?(?:UTF-8'')?([^"';]+)["']?/i);
     if (cdMatch && cdMatch[1]) {
@@ -101,9 +89,23 @@ chrome.webRequest.onHeadersReceived.addListener((details) => {
     
     if (cdFilename) {
         const cdExt = getExtension(cdFilename);
-        if (targetExts.includes(cdExt)) {
+        if (cdExt && !ignoredExts.includes(cdExt)) {
+            isDownload = true;
+        } else if (!cdExt) {
+            // No extension in filename, trust it's a download if it's an attachment
             isDownload = true;
         }
+    } else {
+        // Attachment with no filename info, trust it
+        isDownload = true;
+    }
+  } 
+  
+  // 2. If not already flagged, check if it has a target extension (non-ignored)
+  if (!isDownload && urlExt && !isIgnoredExt) {
+    // Basic safety: don't intercept image/html types unless they were explicit attachments
+    if (!contentType.includes('text/html') && !contentType.includes('image/')) {
+        isDownload = true;
     }
   }
 
