@@ -92,7 +92,7 @@ class FileInfoFetcherWorker(QThread):
                     content_length = final_headers.get("Content-Length")
                     if content_length and content_length.isdigit():
                         result["size_bytes"] = int(content_length)
-                        result["size_str"] = self.format_bytes(result["size_bytes"], precision=2, pad=False, space_count=2)
+                        result["size_str"] = self.format_bytes(result["size_bytes"])
                     
                     resp.close()
                     self.finished_signal.emit(result)
@@ -105,17 +105,15 @@ class FileInfoFetcherWorker(QThread):
             
         self.finished_signal.emit(result)
         
-    def format_bytes(self, size, precision=3, pad=True, space_count=1):
+    def format_bytes(self, size, precision=3, pad=True):
         power = 1024
         n = 0
         power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
         while size >= power and n < 4:
             size /= power
             n += 1
-        
-        spaces = " " * space_count
         if pad:
             width = precision + 5
-            return f"{size:{width}.{precision}f}{spaces}{power_labels.get(n, '')}B"
+            return f"{size:{width}.{precision}f} {power_labels.get(n, '')}B"
         else:
-            return f"{size:.{precision}f}{spaces}{power_labels.get(n, '')}B"
+            return f"{size:.{precision}f} {power_labels.get(n, '')}B"
