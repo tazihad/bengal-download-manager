@@ -1947,9 +1947,10 @@ class MainWindow(QMainWindow):
     def show_about(self):
         QMessageBox.about(self, "About Bengal DM", 
             "<h2>Bengal Download Manager</h2>"
-            "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
-            "<p>Version: 1.1</p>"
-            "<p>Built for the XDG standard on Linux.</p>"
+            "<p>**Bengal Download Manager** is an open-source, lightweight download manager built with PyQt6 and Aria2 featuring multi-threaded downloading.</p>"
+            "<p>Version: 0.1.16-alpha.1</p>"
+            "<p>Copyright © 2026 <a href='https://zihad.com.bd'>tazihad</a> | "
+            "Contact: <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a></p>"
         )
 
 if __name__ == "__main__":
