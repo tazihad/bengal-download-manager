@@ -114,6 +114,6 @@ class FileInfoFetcherWorker(QThread):
             n += 1
         if pad:
             width = precision + 5
-            return f"{size:{width}.{precision}f} {power_labels.get(n, '')}B"
+            return f"{size:{width}.{precision}f}  {power_labels.get(n, '')}B"
         else:
-            return f"{size:.{precision}f} {power_labels.get(n, '')}B"
+            return f"{size:.{precision}f}  {power_labels.get(n, '')}B"

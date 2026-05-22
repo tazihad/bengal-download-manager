@@ -144,7 +144,7 @@ class Aria2Worker(QThread):
                 self.format_bytes(total_length, precision=2, pad=False) if total_length > 0 else "Unknown",
                 display_state,
                 self.format_time(time_left),
-                f"{self.format_bytes(download_speed, precision=4, pad=False)}/s",
+                f"{self.format_bytes(download_speed, precision=2, pad=False)}/s",
                 completed_length,
                 total_length
             ))
@@ -310,9 +310,9 @@ class Aria2Worker(QThread):
             n += 1
         if pad:
             width = precision + 5
-            return f"{size:{width}.{precision}f} {power_labels.get(n, '')}B"
+            return f"{size:{width}.{precision}f}  {power_labels.get(n, '')}B"
         else:
-            return f"{size:.{precision}f} {power_labels.get(n, '')}B"
+            return f"{size:.{precision}f}  {power_labels.get(n, '')}B"
 
     def format_time(self, seconds):
         if seconds < 60: return f"{int(seconds)} sec"
