@@ -41,8 +41,7 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename, open_file_generic, open_with,
-    load_ui_settings, save_ui_settings
+    show_in_folder, resolve_filename, open_file_generic, open_with
 )
 
 # Default TCP port for extension communication
