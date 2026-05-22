@@ -35,4 +35,5 @@ runs:
         chmod +x appimagetool-x86_64.AppImage
         
         # 5. Build AppImage (Extract and run to avoid FUSE issues in CI)
-        ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir bengal-download-manager-${VERSION}-x86_64.AppImage
+        UPDATE_INFO="gh-releases-zsync|tazihad|bengal-download-manager|latest|bengal-download-manager-*-x86_64.AppImage.zsync"
+        ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run -u "$UPDATE_INFO" AppDir bengal-download-manager-${VERSION}-x86_64.AppImage
