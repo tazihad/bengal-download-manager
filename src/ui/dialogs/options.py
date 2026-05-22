@@ -28,6 +28,7 @@ class OptionsDialog(QDialog):
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
         self.extension_data = load_extension_config()
+        self.ui_settings = load_ui_settings()
         self.current_category = "General"
         
         layout = QVBoxLayout(self)
