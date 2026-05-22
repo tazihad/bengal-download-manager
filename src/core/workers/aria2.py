@@ -141,10 +141,10 @@ class Aria2Worker(QThread):
 
             self.main_progress_signal.emit(self.row_index, (
                 self.filename,
-                self.format_bytes(total_length) if total_length > 0 else "Unknown",
+                self.format_bytes(total_length, precision=2, pad=False) if total_length > 0 else "Unknown",
                 display_state,
                 self.format_time(time_left),
-                f"{self.format_bytes(download_speed)}/s",
+                f"{self.format_bytes(download_speed, precision=2, pad=False)}/s",
                 completed_length,
                 total_length
             ))
@@ -301,14 +301,18 @@ class Aria2Worker(QThread):
         if self.gid:
             self.call_rpc("aria2.changeOption", [self.gid, {"max-download-limit": str(int(limit))}])
 
-    def format_bytes(self, size):
-        power = 2**10
+    def format_bytes(self, size, precision=3, pad=True):
+        power = 1024
         n = 0
         power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-        while size > power:
+        while size >= power and n < 4:
             size /= power
             n += 1
-        return f"{size:.2f} {power_labels.get(n, '')}B"
+        if pad:
+            width = precision + 5
+            return f"{size:{width}.{precision}f}  {power_labels.get(n, '')}B"
+        else:
+            return f"{size:.{precision}f}  {power_labels.get(n, '')}B"
 
     def format_time(self, seconds):
         if seconds < 60: return f"{int(seconds)} sec"

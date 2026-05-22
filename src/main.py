@@ -951,7 +951,14 @@ class MainWindow(QMainWindow):
                 if "%" in raw_status:
                     status_item.setData(Qt.ItemDataRole.UserRole, raw_status)
                 
-                self.download_table.setItem(row, 2, status_item)
+                # Apply bold monospaced font
+                self._set_status_text(row, display_status)
+                
+                # Re-fetch status_item because _set_status_text might have created/updated it
+                status_item = self.download_table.item(row, 2)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, internal_state)
+                if "%" in raw_status:
+                    status_item.setData(Qt.ItemDataRole.UserRole, raw_status)
                 self._set_sortable_item(row, 3, d.get("time_left", ""), parse_time_to_sec)
                 self._set_sortable_item(row, 4, d.get("rate", ""), parse_size_to_bytes)
                 
@@ -965,10 +972,46 @@ class MainWindow(QMainWindow):
             pass
 
     def _set_sortable_item(self, row, col, text, parser_func):
-        item = SortableTableWidgetItem(text)
+        item = self.download_table.item(row, col)
+        created = False
+        if not item:
+            item = SortableTableWidgetItem(text)
+            self.download_table.setItem(row, col, item)
+            created = True
+        elif item.text() != text:
+            item.setText(text)
+            
+        # Apply font/styling only if needed or newly created
+        if col in [1, 2, 3, 4]:
+            # Use UserRole+10 as a flag to avoid redundant font applications
+            if created or not item.data(Qt.ItemDataRole.UserRole + 10):
+                font = QFont("monospace")
+                font.setStyleHint(QFont.StyleHint.Monospace)
+                font.setBold(True)
+                item.setFont(font)
+                item.setData(Qt.ItemDataRole.UserRole + 10, True)
+            
         raw_val = parser_func(text)
-        item.setData(Qt.ItemDataRole.UserRole, raw_val)
-        self.download_table.setItem(row, col, item)
+        if item.data(Qt.ItemDataRole.UserRole) != raw_val:
+            item.setData(Qt.ItemDataRole.UserRole, raw_val)
+
+    def _set_status_text(self, row, text):
+        item = self.download_table.item(row, 2)
+        created = False
+        if not item:
+            item = QTableWidgetItem(text)
+            self.download_table.setItem(row, 2, item)
+            created = True
+        elif item.text() != text:
+            item.setText(text)
+            
+        # Apply bold monospaced font only if needed
+        if created or not item.data(Qt.ItemDataRole.UserRole + 10):
+            font = QFont("monospace")
+            font.setStyleHint(QFont.StyleHint.Monospace)
+            font.setBold(True)
+            item.setFont(font)
+            item.setData(Qt.ItemDataRole.UserRole + 10, True)
 
     def save_settings(self):
         try:
@@ -1209,7 +1252,7 @@ class MainWindow(QMainWindow):
             try: os.remove(path + ".tmpbdm.bdmx")
             except: pass
         
-        self.download_table.setItem(row, 2, QTableWidgetItem("Pending..."))
+        self._set_status_text(row, "Pending...")
         
         # Update last try timestamp immediately before restarting
         new_timestamp = str(time.time())
@@ -1330,7 +1373,7 @@ class MainWindow(QMainWindow):
 
         # If "Start Download" was clicked, initiate the worker
         if results["action"] == 'start':
-            self.download_table.setItem(row, 2, QTableWidgetItem("Starting..."))
+            self._set_status_text(row, "Starting...")
             self._start_download_worker(
                 file_info["url"], 
                 item_ref, 
@@ -1339,7 +1382,7 @@ class MainWindow(QMainWindow):
                 user_agent=file_info.get("user_agent")
             )
         elif results["action"] == 'later':
-            self.download_table.setItem(row, 2, QTableWidgetItem("Paused"))
+            self._set_status_text(row, "Paused")
 
     def _handle_download_dialog_rejected(self, item_ref):
         # User cancelled - remove the proposed download from the table
@@ -1383,7 +1426,7 @@ class MainWindow(QMainWindow):
         self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
         
         status_txt = "Paused" if start_paused else "Pending..."
-        self.download_table.setItem(row, 2, QTableWidgetItem(status_txt))
+        self._set_status_text(row, status_txt)
         
         self._set_sortable_item(row, 3, "", parse_time_to_sec) if start_paused else self._set_sortable_item(row, 3, "...", parse_time_to_sec)
         self._set_sortable_item(row, 4, "", parse_size_to_bytes) if start_paused else self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
@@ -1512,8 +1555,7 @@ class MainWindow(QMainWindow):
             filename = item_name.text()
             
             if url:
-                self.download_table.setItem(row, 2, QTableWidgetItem("Resuming..."))
-                
+                self._set_status_text(row, "Resuming...")                
                 # Update last try timestamp before resuming
                 new_timestamp = str(time.time())
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
@@ -1700,7 +1742,10 @@ class MainWindow(QMainWindow):
             if internal_status == "Complete":
                 return
         
-        # --- FIX: Block signals during bulk update to prevent flickering ---
+        # --- FIX: Block signals and disable sorting during update to prevent flickering ---
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
         self.download_table.blockSignals(True)
         
         try:
@@ -1721,8 +1766,8 @@ class MainWindow(QMainWindow):
             status_item = self.download_table.item(row, 2)
             old_status = ""
             if not status_item:
-                 status_item = QTableWidgetItem()
-                 self.download_table.setItem(row, 2, status_item)
+                 self._set_status_text(row, "")
+                 status_item = self.download_table.item(row, 2)
             else:
                  old_status = status_item.text()
                  
@@ -1758,7 +1803,7 @@ class MainWindow(QMainWindow):
                     if comp >= tot: 
                         display_status = "Complete"
                         # FORCE UI TEXT IMMEDIATELY
-                        status_item.setText("Complete")
+                        self._set_status_text(row, "Complete")
                         status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             
             if display_status == "Downloading":
@@ -1770,16 +1815,19 @@ class MainWindow(QMainWindow):
             # CRITICAL: Always force "Complete" if that's the determined status
             if display_status == "Complete":
                 final_display = "Complete"
-                status_item.setText("Complete")
+                self._set_status_text(row, "Complete")
                 status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 
             # Check if internal logical status changed to trigger UI update
             old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
             
             if final_display != old_status or display_status != old_logic_status:
-                status_item.setText(final_display)
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-                self.update_ui_states()
+                self._set_status_text(row, final_display)
+                
+                # Update logical status and trigger UI states only if logical status changed
+                if display_status != old_logic_status:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+                    self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
             if display_status in ["Complete", "Error"]:
@@ -1793,12 +1841,17 @@ class MainWindow(QMainWindow):
             
             # Col 5: Last Try (Formatted for display)
             # This is already being updated here for active downloads
-            self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(new_timestamp, max_relative_seconds=300)))
+            formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
+            last_try_item = self.download_table.item(row, 5)
+            if not last_try_item:
+                self.download_table.setItem(row, 5, QTableWidgetItem(formatted_last_try))
+            elif last_try_item.text() != formatted_last_try:
+                last_try_item.setText(formatted_last_try)
             
         finally:
             self.download_table.blockSignals(False)
-            # Request viewport repaint after updates are done
-            self.download_table.viewport().update()
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
 
     def download_finished(self, item_ref, status_text):
         # Normalize status
@@ -1821,8 +1874,8 @@ class MainWindow(QMainWindow):
         if row != -1:
             status_item = self.download_table.item(row, 2)
             if not status_item:
-                status_item = QTableWidgetItem()
-                self.download_table.setItem(row, 2, status_item)
+                self._set_status_text(row, "")
+                status_item = self.download_table.item(row, 2)
             
             # Formatting final display text and updating logical status
             status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
@@ -1835,7 +1888,7 @@ class MainWindow(QMainWindow):
             else:
                 final_display = display_status
             
-            status_item.setText(final_display)
+            self._set_status_text(row, final_display)
             
             if display_status in ["Complete", "Error"]:
                  self._set_sortable_item(row, 3, "", parse_time_to_sec)
@@ -1880,7 +1933,7 @@ class MainWindow(QMainWindow):
 
     def _handle_options_accepted(self):
         # Restart aria2 daemon to apply new port/token
-        if self.aria2_process:
+        if hasattr(self, 'aria2_process') and self.aria2_process:
             try:
                 self.aria2_process.terminate()
                 try:

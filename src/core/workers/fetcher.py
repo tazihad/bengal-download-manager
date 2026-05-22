@@ -105,11 +105,15 @@ class FileInfoFetcherWorker(QThread):
             
         self.finished_signal.emit(result)
         
-    def format_bytes(self, size):
-        power = 2**10
+    def format_bytes(self, size, precision=3, pad=True):
+        power = 1024
         n = 0
         power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-        while size > power:
+        while size >= power and n < 4:
             size /= power
             n += 1
-        return f"{size:.2f} {power_labels.get(n, '')}B"
+        if pad:
+            width = precision + 5
+            return f"{size:{width}.{precision}f}  {power_labels.get(n, '')}B"
+        else:
+            return f"{size:.{precision}f}  {power_labels.get(n, '')}B"
