@@ -336,6 +336,7 @@ class MainWindow(QMainWindow):
         
         self.active_downloads = {} 
         self.active_file_info_dialogs = {}
+        self.active_complete_dialogs = {}
         self.load_data()
         
         # FEATURE: Timer for periodic timestamp updates (Run every 60 seconds)
@@ -1916,8 +1917,11 @@ class MainWindow(QMainWindow):
                 "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
                 "size": self.download_table.item(row, 1).text() if row != -1 else "?"
             }
-            self._complete_dlg = DownloadCompleteDialog(file_data, self)
-            self._complete_dlg.show()
+            # Use None as parent to avoid bringing main window to foreground
+            dialog = DownloadCompleteDialog(file_data, None)
+            self.active_complete_dialogs[key] = dialog
+            dialog.finished.connect(lambda: self.active_complete_dialogs.pop(key, None))
+            dialog.show()
             
         self.update_ui_states()
         self.save_data()
