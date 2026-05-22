@@ -82,6 +82,23 @@ class OptionsDialog(QDialog):
         vbox_startup.setContentsMargins(10, 15, 10, 10)
         vbox_startup.setSpacing(10)
         
+        # Theme Selection
+        theme_layout = QHBoxLayout()
+        theme_layout.addWidget(QLabel("Appearance Theme:"))
+        self.combo_theme = QComboBox()
+        self.combo_theme.addItem("Follow System", "system")
+        self.combo_theme.addItem("Light", "light")
+        self.combo_theme.addItem("Dark", "dark")
+        
+        current_theme = self.ui_settings.get("theme", "system")
+        theme_idx = self.combo_theme.findData(current_theme)
+        if theme_idx >= 0:
+            self.combo_theme.setCurrentIndex(theme_idx)
+            
+        theme_layout.addWidget(self.combo_theme)
+        theme_layout.addStretch()
+        vbox_startup.addLayout(theme_layout)
+        
         self.chk_start_minimized = QCheckBox("Start Bengal DM minimized in system tray")
         # Load from parent (MainWindow) settings
         self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized", False))
@@ -535,6 +552,10 @@ class OptionsDialog(QDialog):
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
+        
+        # Save UI Settings
+        self.ui_settings["theme"] = self.combo_theme.currentData()
+        save_ui_settings(self.ui_settings)
         
         # Save start_minimized to parent (MainWindow)
         if self.parent():

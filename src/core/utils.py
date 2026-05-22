@@ -189,6 +189,25 @@ def save_extension_config(data):
             json.dump(data, f, indent=4)
     except: pass
 
+def load_ui_settings():
+    path = os.path.join(get_config_dir(), "ui_settings.json")
+    default = {
+        "theme": "system" # system, light, dark
+    }
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except: pass
+    return default
+
+def save_ui_settings(data):
+    path = os.path.join(get_config_dir(), "ui_settings.json")
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=4)
+    except: pass
+
 def get_proxychains_bin():
     return shutil.which("proxychains4") or shutil.which("proxychains")
 

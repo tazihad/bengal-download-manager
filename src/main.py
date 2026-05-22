@@ -1932,6 +1932,80 @@ class MainWindow(QMainWindow):
         self._options_dlg.show()
 
     def _handle_options_accepted(self):
+        # Apply theme immediately
+        self.apply_theme()
+        
+        # Restart aria2 daemon to apply new port/token
+        if self.aria2_process:
+            try:
+                self.aria2_process.terminate()
+                try:
+                    self.aria2_process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    self.aria2_process.kill()
+            except:
+                pass
+        self.aria2_process = self.start_aria2_daemon()
+
+    def show_about(self):
+        QMessageBox.about(self, "About Bengal DM", 
+            "<h2>Bengal Download Manager</h2>"
+            "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
+            "<p>Version: 1.1</p>"
+            "<p>Built for the XDG standard on Linux.</p>"
+        )
+
+if __name__ == "__main__":
+    from PyQt6.QtCore import Qt
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    app = QApplication(sys.argv)
+    app.setOrganizationName("bengal-download-manager")
+    app.setApplicationName("bengal-download-manager")
+    app.setQuitOnLastWindowClosed(False)
+    app.setFont(QFont("Segoe UI", 9))
+    
+    # Initialize and set global application icon
+    app_icon = get_app_icon()
+    if app_icon.isNull():
+        # Last resort fallback to standard Qt icon
+        app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+    app.setWindowIcon(app_icon)
+    
+    window = MainWindow()
+    if not getattr(window, "start_minimized", False):
+        window.show()
+    sys.exit(app.exec())            QToolTip { color: #ffffff; background-color: #2b2b2b; border: 1px solid white; }
+                QHeaderView::section { background-color: #333333; color: white; border: 1px solid #444; }
+                QTableWidget { gridline-color: #444; }
+                QTabWidget::pane { border: 1px solid #444; }
+                QTabBar::tab { background: #333; color: #ccc; border: 1px solid #444; padding: 5px; }
+                QTabBar::tab:selected { background: #444; color: white; }
+            """)
+        elif theme == "light":
+            light_palette = QPalette()
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Window, QColor(240, 240, 240))
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.WindowText, Qt.GlobalColor.black)
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Base, Qt.GlobalColor.white)
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipBase, Qt.GlobalColor.white)
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipText, Qt.GlobalColor.black)
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Text, Qt.GlobalColor.black)
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Button, QColor(240, 240, 240))
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ButtonText, Qt.GlobalColor.black)
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Link, QColor(0, 0, 255))
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Highlight, QColor(0, 120, 215))
+            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
+            QApplication.instance().setPalette(light_palette)
+            QApplication.instance().setStyleSheet("")
+
+    def open_options(self):
+        from ui.dialogs import OptionsDialog
+        # Keep a reference to prevent garbage collection
+        self._options_dlg = OptionsDialog(self)
+        self._options_dlg.accepted.connect(self._handle_options_accepted)
+        self._options_dlg.show()
+
+    def _handle_options_accepted(self):
         # Restart aria2 daemon to apply new port/token
         if self.aria2_process:
             try:
