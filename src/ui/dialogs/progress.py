@@ -300,7 +300,11 @@ class DownloadProgressDialog(QDialog):
             bar = QProgressBar()
             bar.setTextVisible(False)
             bar.setStyleSheet("""
-                QProgressBar { border: 1px solid #555; background-color: #333; border-radius: 0px; }
+                QProgressBar { 
+                    border: 1px solid palette(mid); 
+                    background-color: palette(base); 
+                    border-radius: 0px; 
+                }
                 QProgressBar::chunk { 
                     background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4a90e2, stop:1 #0056b3); 
                 }
