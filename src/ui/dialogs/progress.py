@@ -90,7 +90,8 @@ class DownloadProgressDialog(QDialog):
         add_row("Transfer rate:", self.lbl_speed, 3)
 
         self.lbl_time = QLabel("Calculating...")
-        self.lbl_time.setStyleSheet("font-weight: bold;")
+        self.lbl_time.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        self.lbl_time.setFixedWidth(180)
         add_row("Time left:", self.lbl_time, 4)
         
         self.lbl_resume = QLabel("Unknown")

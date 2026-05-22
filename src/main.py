@@ -983,8 +983,8 @@ class MainWindow(QMainWindow):
             item.setText(text)
             
         # Apply font/styling
-        # Col 1 (Size), Col 2 (Status) and Col 4 (Transfer Rate): use bold monospaced font
-        if col in [1, 2, 4]:
+        # Col 1 (Size), Col 2 (Status), Col 3 (Time Left) and Col 4 (Transfer Rate): use bold monospaced font
+        if col in [1, 2, 3, 4]:
             font = item.font()
             font.setFamily("monospace")
             font.setStyleHint(QFont.StyleHint.Monospace)
