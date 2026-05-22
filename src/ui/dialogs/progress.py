@@ -82,8 +82,9 @@ class DownloadProgressDialog(QDialog):
         self.lbl_downloaded.setStyleSheet("font-weight: bold;")
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
-        self.lbl_speed = QLabel("0 KB/sec")
-        self.lbl_speed.setStyleSheet("font-weight: bold;")
+        self.lbl_speed = QLabel("0.00  B/s")
+        self.lbl_speed.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        self.lbl_speed.setFixedWidth(180)
         add_row("Transfer rate:", self.lbl_speed, 3)
 
         self.lbl_time = QLabel("Calculating...")

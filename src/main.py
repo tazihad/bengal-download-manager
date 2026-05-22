@@ -966,6 +966,14 @@ class MainWindow(QMainWindow):
 
     def _set_sortable_item(self, row, col, text, parser_func):
         item = SortableTableWidgetItem(text)
+        # Col 4 is Transfer Rate: use monospaced font to prevent jitter
+        if col == 4:
+            font = item.font()
+            font.setFamily("monospace")
+            # Fallback family for systems where 'monospace' isn't the primary key
+            font.setStyleHint(QFont.StyleHint.Monospace)
+            item.setFont(font)
+            
         raw_val = parser_func(text)
         item.setData(Qt.ItemDataRole.UserRole, raw_val)
         self.download_table.setItem(row, col, item)
