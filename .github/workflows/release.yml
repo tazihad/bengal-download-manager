@@ -68,6 +68,7 @@ jobs:
           files: |
             build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64
             bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage
+            bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage.zsync
             extension-firefox.xpi
           draft: false
           prerelease: true
