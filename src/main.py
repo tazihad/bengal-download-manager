@@ -1972,5 +1972,4 @@ if __name__ == "__main__":
     window = MainWindow()
     if not getattr(window, "start_minimized", False):
         window.show()
-    sys.exit(app.exec())how()
     sys.exit(app.exec())
