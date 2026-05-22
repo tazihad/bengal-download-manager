@@ -41,7 +41,8 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename, open_file_generic, open_with
+    show_in_folder, resolve_filename, open_file_generic, open_with,
+    load_ui_settings, save_ui_settings
 )
 
 # Default TCP port for extension communication
@@ -1936,7 +1937,7 @@ class MainWindow(QMainWindow):
         self.apply_theme()
         
         # Restart aria2 daemon to apply new port/token
-        if self.aria2_process:
+        if hasattr(self, 'aria2_process') and self.aria2_process:
             try:
                 self.aria2_process.terminate()
                 try:
@@ -1947,34 +1948,33 @@ class MainWindow(QMainWindow):
                 pass
         self.aria2_process = self.start_aria2_daemon()
 
-    def show_about(self):
-        QMessageBox.about(self, "About Bengal DM", 
-            "<h2>Bengal Download Manager</h2>"
-            "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
-            "<p>Version: 1.1</p>"
-            "<p>Built for the XDG standard on Linux.</p>"
-        )
-
-if __name__ == "__main__":
-    from PyQt6.QtCore import Qt
-    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    app = QApplication(sys.argv)
-    app.setOrganizationName("bengal-download-manager")
-    app.setApplicationName("bengal-download-manager")
-    app.setQuitOnLastWindowClosed(False)
-    app.setFont(QFont("Segoe UI", 9))
-    
-    # Initialize and set global application icon
-    app_icon = get_app_icon()
-    if app_icon.isNull():
-        # Last resort fallback to standard Qt icon
-        app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
-    app.setWindowIcon(app_icon)
-    
-    window = MainWindow()
-    if not getattr(window, "start_minimized", False):
-        window.show()
-    sys.exit(app.exec())            QToolTip { color: #ffffff; background-color: #2b2b2b; border: 1px solid white; }
+    def apply_theme(self):
+        ui_settings = load_ui_settings()
+        theme = ui_settings.get("theme", "system")
+        
+        if theme == "system":
+            # Clear any forced stylesheet/palette to follow system
+            QApplication.instance().setPalette(QApplication.style().standardPalette())
+            QApplication.instance().setStyleSheet("")
+        elif theme == "dark":
+            dark_palette = QPalette()
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Window, QColor(45, 45, 45))
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Base, QColor(30, 30, 30))
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.AlternateBase, QColor(45, 45, 45))
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipBase, Qt.GlobalColor.white)
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipText, Qt.GlobalColor.white)
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Text, Qt.GlobalColor.white)
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Button, QColor(45, 45, 45))
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ButtonText, Qt.GlobalColor.white)
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Link, QColor(42, 130, 218))
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
+            QApplication.instance().setPalette(dark_palette)
+            
+            # Additional dark mode styling for some widgets
+            QApplication.instance().setStyleSheet("""
+                QToolTip { color: #ffffff; background-color: #2b2b2b; border: 1px solid white; }
                 QHeaderView::section { background-color: #333333; color: white; border: 1px solid #444; }
                 QTableWidget { gridline-color: #444; }
                 QTabWidget::pane { border: 1px solid #444; }
@@ -1997,26 +1997,6 @@ if __name__ == "__main__":
             light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
             QApplication.instance().setPalette(light_palette)
             QApplication.instance().setStyleSheet("")
-
-    def open_options(self):
-        from ui.dialogs import OptionsDialog
-        # Keep a reference to prevent garbage collection
-        self._options_dlg = OptionsDialog(self)
-        self._options_dlg.accepted.connect(self._handle_options_accepted)
-        self._options_dlg.show()
-
-    def _handle_options_accepted(self):
-        # Restart aria2 daemon to apply new port/token
-        if self.aria2_process:
-            try:
-                self.aria2_process.terminate()
-                try:
-                    self.aria2_process.wait(timeout=2.0)
-                except subprocess.TimeoutExpired:
-                    self.aria2_process.kill()
-            except:
-                pass
-        self.aria2_process = self.start_aria2_daemon()
 
     def show_about(self):
         QMessageBox.about(self, "About Bengal DM", 
