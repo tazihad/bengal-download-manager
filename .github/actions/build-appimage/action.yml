@@ -19,6 +19,10 @@ runs:
         VERSION="${{ inputs.version }}"
         cp build_cmake/dist/bengal-download-manager-${VERSION}-x86_64 AppDir/usr/bin/bengal-download-manager
         cp assets/bengal-download-manager.desktop AppDir/
+        
+        # Add X-AppImage-Version to the desktop file
+        echo "X-AppImage-Version=${VERSION}" >> AppDir/bengal-download-manager.desktop
+        
         cp assets/logo.png AppDir/bengal-download-manager.png
         cp assets/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
         
