@@ -951,7 +951,14 @@ class MainWindow(QMainWindow):
                 if "%" in raw_status:
                     status_item.setData(Qt.ItemDataRole.UserRole, raw_status)
                 
-                self.download_table.setItem(row, 2, status_item)
+                # Apply bold monospaced font
+                self._set_status_text(row, display_status)
+                
+                # Re-fetch status_item because _set_status_text might have created/updated it
+                status_item = self.download_table.item(row, 2)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, internal_state)
+                if "%" in raw_status:
+                    status_item.setData(Qt.ItemDataRole.UserRole, raw_status)
                 self._set_sortable_item(row, 3, d.get("time_left", ""), parse_time_to_sec)
                 self._set_sortable_item(row, 4, d.get("rate", ""), parse_size_to_bytes)
                 
@@ -976,8 +983,8 @@ class MainWindow(QMainWindow):
             item.setText(text)
             
         # Apply font/styling
-        # Col 1 (Size) and Col 4 (Transfer Rate): use bold monospaced font to prevent jitter
-        if col in [1, 4]:
+        # Col 1 (Size), Col 2 (Status) and Col 4 (Transfer Rate): use bold monospaced font
+        if col in [1, 2, 4]:
             font = item.font()
             font.setFamily("monospace")
             font.setStyleHint(QFont.StyleHint.Monospace)
@@ -986,6 +993,20 @@ class MainWindow(QMainWindow):
             
         raw_val = parser_func(text)
         item.setData(Qt.ItemDataRole.UserRole, raw_val)
+
+    def _set_status_text(self, row, text):
+        item = self.download_table.item(row, 2)
+        if not item:
+            item = QTableWidgetItem(text)
+            self.download_table.setItem(row, 2, item)
+        else:
+            item.setText(text)
+            
+        font = item.font()
+        font.setFamily("monospace")
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        font.setBold(True)
+        item.setFont(font)
 
     def save_settings(self):
         try:
@@ -1226,7 +1247,7 @@ class MainWindow(QMainWindow):
             try: os.remove(path + ".tmpbdm.bdmx")
             except: pass
         
-        self.download_table.setItem(row, 2, QTableWidgetItem("Pending..."))
+        self._set_status_text(row, "Pending...")
         
         # Update last try timestamp immediately before restarting
         new_timestamp = str(time.time())
@@ -1347,7 +1368,7 @@ class MainWindow(QMainWindow):
 
         # If "Start Download" was clicked, initiate the worker
         if results["action"] == 'start':
-            self.download_table.setItem(row, 2, QTableWidgetItem("Starting..."))
+            self._set_status_text(row, "Starting...")
             self._start_download_worker(
                 file_info["url"], 
                 item_ref, 
@@ -1356,7 +1377,7 @@ class MainWindow(QMainWindow):
                 user_agent=file_info.get("user_agent")
             )
         elif results["action"] == 'later':
-            self.download_table.setItem(row, 2, QTableWidgetItem("Paused"))
+            self._set_status_text(row, "Paused")
 
     def _handle_download_dialog_rejected(self, item_ref):
         # User cancelled - remove the proposed download from the table
@@ -1400,7 +1421,7 @@ class MainWindow(QMainWindow):
         self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
         
         status_txt = "Paused" if start_paused else "Pending..."
-        self.download_table.setItem(row, 2, QTableWidgetItem(status_txt))
+        self._set_status_text(row, status_txt)
         
         self._set_sortable_item(row, 3, "", parse_time_to_sec) if start_paused else self._set_sortable_item(row, 3, "...", parse_time_to_sec)
         self._set_sortable_item(row, 4, "", parse_size_to_bytes) if start_paused else self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
@@ -1529,8 +1550,7 @@ class MainWindow(QMainWindow):
             filename = item_name.text()
             
             if url:
-                self.download_table.setItem(row, 2, QTableWidgetItem("Resuming..."))
-                
+                self._set_status_text(row, "Resuming...")                
                 # Update last try timestamp before resuming
                 new_timestamp = str(time.time())
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
@@ -1738,8 +1758,8 @@ class MainWindow(QMainWindow):
             status_item = self.download_table.item(row, 2)
             old_status = ""
             if not status_item:
-                 status_item = QTableWidgetItem()
-                 self.download_table.setItem(row, 2, status_item)
+                 self._set_status_text(row, "")
+                 status_item = self.download_table.item(row, 2)
             else:
                  old_status = status_item.text()
                  
@@ -1794,7 +1814,7 @@ class MainWindow(QMainWindow):
             old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
             
             if final_display != old_status or display_status != old_logic_status:
-                status_item.setText(final_display)
+                self._set_status_text(row, final_display)
                 status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
                 self.update_ui_states()
             
@@ -1843,8 +1863,8 @@ class MainWindow(QMainWindow):
         if row != -1:
             status_item = self.download_table.item(row, 2)
             if not status_item:
-                status_item = QTableWidgetItem()
-                self.download_table.setItem(row, 2, status_item)
+                self._set_status_text(row, "")
+                status_item = self.download_table.item(row, 2)
             
             # Formatting final display text and updating logical status
             status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
@@ -1857,7 +1877,7 @@ class MainWindow(QMainWindow):
             else:
                 final_display = display_status
             
-            status_item.setText(final_display)
+            self._set_status_text(row, final_display)
             
             if display_status in ["Complete", "Error"]:
                  self._set_sortable_item(row, 3, "", parse_time_to_sec)
