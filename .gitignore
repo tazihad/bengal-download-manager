@@ -28,3 +28,6 @@ docs/
 .worktrees/
 extension-firefox.xpi
 conductor/
+build_test/
+tests/
+test_app.py
