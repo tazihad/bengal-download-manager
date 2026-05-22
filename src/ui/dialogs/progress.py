@@ -75,11 +75,13 @@ class DownloadProgressDialog(QDialog):
         add_row("Status:", self.lbl_main_status, 0)
 
         self.lbl_size = QLabel("Calculating...")
-        self.lbl_size.setStyleSheet("font-weight: bold;")
+        self.lbl_size.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        self.lbl_size.setFixedWidth(180)
         add_row("File size:", self.lbl_size, 1)
         
         self.lbl_downloaded = QLabel("0 bytes")
-        self.lbl_downloaded.setStyleSheet("font-weight: bold;")
+        self.lbl_downloaded.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        self.lbl_downloaded.setFixedWidth(180)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
         self.lbl_speed = QLabel("0.00  B/s")
@@ -214,7 +216,7 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Rate", "Status"])
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
-        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-family: 'monospace', 'Courier New'; }")
+        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-family: 'monospace', 'Courier New'; font-weight: bold; }")
 
         header = self.seg_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)

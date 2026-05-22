@@ -965,18 +965,27 @@ class MainWindow(QMainWindow):
             pass
 
     def _set_sortable_item(self, row, col, text, parser_func):
-        item = SortableTableWidgetItem(text)
-        # Col 4 is Transfer Rate: use monospaced font to prevent jitter
-        if col == 4:
+        item = self.download_table.item(row, col)
+        if not item:
+            item = SortableTableWidgetItem(text)
+            self.download_table.setItem(row, col, item)
+        elif item.text() == text:
+            # Avoid redundant updates which cause flickering
+            return
+        else:
+            item.setText(text)
+            
+        # Apply font/styling
+        # Col 1 (Size) and Col 4 (Transfer Rate): use bold monospaced font to prevent jitter
+        if col in [1, 4]:
             font = item.font()
             font.setFamily("monospace")
-            # Fallback family for systems where 'monospace' isn't the primary key
             font.setStyleHint(QFont.StyleHint.Monospace)
+            font.setBold(True)
             item.setFont(font)
             
         raw_val = parser_func(text)
         item.setData(Qt.ItemDataRole.UserRole, raw_val)
-        self.download_table.setItem(row, col, item)
 
     def save_settings(self):
         try:
@@ -1801,7 +1810,12 @@ class MainWindow(QMainWindow):
             
             # Col 5: Last Try (Formatted for display)
             # This is already being updated here for active downloads
-            self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(new_timestamp, max_relative_seconds=300)))
+            formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
+            last_try_item = self.download_table.item(row, 5)
+            if not last_try_item:
+                self.download_table.setItem(row, 5, QTableWidgetItem(formatted_last_try))
+            elif last_try_item.text() != formatted_last_try:
+                last_try_item.setText(formatted_last_try)
             
         finally:
             self.download_table.blockSignals(False)
