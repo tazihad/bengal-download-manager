@@ -1933,9 +1933,6 @@ class MainWindow(QMainWindow):
         self._options_dlg.show()
 
     def _handle_options_accepted(self):
-        # Apply theme immediately
-        self.apply_theme()
-        
         # Restart aria2 daemon to apply new port/token
         if hasattr(self, 'aria2_process') and self.aria2_process:
             try:
@@ -1947,56 +1944,6 @@ class MainWindow(QMainWindow):
             except:
                 pass
         self.aria2_process = self.start_aria2_daemon()
-
-    def apply_theme(self):
-        ui_settings = load_ui_settings()
-        theme = ui_settings.get("theme", "system")
-        
-        if theme == "system":
-            # Clear any forced stylesheet/palette to follow system
-            QApplication.instance().setPalette(QApplication.style().standardPalette())
-            QApplication.instance().setStyleSheet("")
-        elif theme == "dark":
-            dark_palette = QPalette()
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Window, QColor(45, 45, 45))
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Base, QColor(30, 30, 30))
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.AlternateBase, QColor(45, 45, 45))
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipBase, Qt.GlobalColor.white)
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipText, Qt.GlobalColor.white)
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Text, Qt.GlobalColor.white)
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Button, QColor(45, 45, 45))
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ButtonText, Qt.GlobalColor.white)
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Link, QColor(42, 130, 218))
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Highlight, QColor(42, 130, 218))
-            dark_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
-            QApplication.instance().setPalette(dark_palette)
-            
-            # Additional dark mode styling for some widgets
-            QApplication.instance().setStyleSheet("""
-                QToolTip { color: #ffffff; background-color: #2b2b2b; border: 1px solid white; }
-                QHeaderView::section { background-color: #333333; color: white; border: 1px solid #444; }
-                QTableWidget { gridline-color: #444; }
-                QTabWidget::pane { border: 1px solid #444; }
-                QTabBar::tab { background: #333; color: #ccc; border: 1px solid #444; padding: 5px; }
-                QTabBar::tab:selected { background: #444; color: white; }
-            """)
-        elif theme == "light":
-            light_palette = QPalette()
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Window, QColor(240, 240, 240))
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.WindowText, Qt.GlobalColor.black)
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Base, Qt.GlobalColor.white)
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipBase, Qt.GlobalColor.white)
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ToolTipText, Qt.GlobalColor.black)
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Text, Qt.GlobalColor.black)
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Button, QColor(240, 240, 240))
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.ButtonText, Qt.GlobalColor.black)
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Link, QColor(0, 0, 255))
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.Highlight, QColor(0, 120, 215))
-            light_palette.setColor(QPalette.ColorGroup.All, QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
-            QApplication.instance().setPalette(light_palette)
-            QApplication.instance().setStyleSheet("")
 
     def show_about(self):
         QMessageBox.about(self, "About Bengal DM", 
@@ -2025,4 +1972,5 @@ if __name__ == "__main__":
     window = MainWindow()
     if not getattr(window, "start_minimized", False):
         window.show()
+    sys.exit(app.exec())how()
     sys.exit(app.exec())
