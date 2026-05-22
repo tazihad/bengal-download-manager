@@ -23,8 +23,8 @@ class DownloadFileInfoDialog(QDialog):
         self.config = load_category_config()
         
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(15, 15, 15, 15)
-        self.layout.setSpacing(10)
+        self.layout.setContentsMargins(15, 10, 15, 10)
+        self.layout.setSpacing(8)
         
         # Determine category automatically
         self.ext_map = {
@@ -36,6 +36,7 @@ class DownloadFileInfoDialog(QDialog):
         }
         
         form_layout = QFormLayout()
+        form_layout.setVerticalSpacing(8)
         
         self.url_input = QLineEdit(file_info.get("url", ""))
         self.url_input.setReadOnly(True)
@@ -67,7 +68,7 @@ class DownloadFileInfoDialog(QDialog):
         self.category_combo.currentTextChanged.connect(self.update_save_path)
         
         btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        btn_layout.setContentsMargins(0, 10, 0, 0)
         
         self.btn_later = QPushButton("Download Later")
         self.btn_later.setFixedWidth(110)
@@ -87,6 +88,7 @@ class DownloadFileInfoDialog(QDialog):
         self.btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addWidget(self.btn_later)
+        btn_layout.addStretch(1) # Push 'Download Later' to left, others to right
         btn_layout.addWidget(self.btn_start)
         btn_layout.addWidget(self.btn_cancel)
         self.layout.addLayout(btn_layout)
