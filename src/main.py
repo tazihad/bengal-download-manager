@@ -1945,14 +1945,34 @@ class MainWindow(QMainWindow):
         self.aria2_process = self.start_aria2_daemon()
 
     def show_about(self):
-        QMessageBox.about(self, "About Bengal DM", 
-            "<h2>Bengal Download Manager</h2>"
-            "<p>A simple, multi-threaded download manager built with PyQt6 for fast, resumable downloads.</p>"
-            "<p>Version: 1.1</p>"
-            "<p>Built for the XDG standard on Linux.</p>"
+        from core.version import VERSION
+        QMessageBox.about(
+            self,
+            "About Bengal Download Manager",
+            f"""
+            <h2>Bengal Download Manager</h2>
+
+            <p>
+            Lightweight open-source download manager built with PyQt6 and Aria2
+            featuring multi-threaded downloading.
+            </p>
+
+            <p>
+            <b>Version:</b> {VERSION}<br>
+            <b>License:</b> MIT License<br>
+            © 2026 <a>tazihad</a> <a href='https://zihad.com.bd'>https://zihad.com.bd</a><br>
+            Contact: <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a>
+            </p>
+
+            <p>
+            <b>Project Site:</b><br>
+            <a href='https://github.com/tazihad/bengal-download-manager'>https://github.com/tazihad/bengal-download-manager</a>
+            </p>
+            """
         )
 
 if __name__ == "__main__":
+
     from PyQt6.QtCore import Qt
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)

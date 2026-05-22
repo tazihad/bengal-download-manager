@@ -8,6 +8,13 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Update Version
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        echo "Updating VERSION to $VERSION"
+        echo "VERSION = \"$VERSION\"" > src/core/version.py
+
     - name: Build Application
       shell: bash
       run: |

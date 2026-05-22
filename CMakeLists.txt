@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 # We use LANGUAGES NONE because this is a Python project, not C/C++
-project(BengalDownloadManager VERSION 1.1.0 LANGUAGES NONE)
+project(BengalDownloadManager LANGUAGES NONE)
 
 # Find the Python3 interpreter
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
