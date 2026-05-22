@@ -12,6 +12,7 @@ class AddUrlDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
+        layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
         
         layout.addWidget(QLabel("Address:"))
         

@@ -93,6 +93,8 @@ class DownloadFileInfoDialog(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         self.layout.addLayout(btn_layout)
         
+        self.adjustSize()
+        
         self.action_result = None 
         
     def auto_detect_category(self):
