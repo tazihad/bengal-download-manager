@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    find_aria2
+    find_aria2, load_ui_settings, save_ui_settings
 )
 from core.config import load_category_config, save_category_config
 
