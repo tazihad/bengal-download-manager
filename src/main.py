@@ -973,40 +973,45 @@ class MainWindow(QMainWindow):
 
     def _set_sortable_item(self, row, col, text, parser_func):
         item = self.download_table.item(row, col)
+        created = False
         if not item:
             item = SortableTableWidgetItem(text)
             self.download_table.setItem(row, col, item)
-        elif item.text() == text:
-            # Avoid redundant updates which cause flickering
-            return
-        else:
+            created = True
+        elif item.text() != text:
             item.setText(text)
             
-        # Apply font/styling
-        # Col 1 (Size), Col 2 (Status), Col 3 (Time Left) and Col 4 (Transfer Rate): use bold monospaced font
+        # Apply font/styling only if needed or newly created
         if col in [1, 2, 3, 4]:
-            font = item.font()
-            font.setFamily("monospace")
-            font.setStyleHint(QFont.StyleHint.Monospace)
-            font.setBold(True)
-            item.setFont(font)
+            # Use UserRole+10 as a flag to avoid redundant font applications
+            if created or not item.data(Qt.ItemDataRole.UserRole + 10):
+                font = QFont("monospace")
+                font.setStyleHint(QFont.StyleHint.Monospace)
+                font.setBold(True)
+                item.setFont(font)
+                item.setData(Qt.ItemDataRole.UserRole + 10, True)
             
         raw_val = parser_func(text)
-        item.setData(Qt.ItemDataRole.UserRole, raw_val)
+        if item.data(Qt.ItemDataRole.UserRole) != raw_val:
+            item.setData(Qt.ItemDataRole.UserRole, raw_val)
 
     def _set_status_text(self, row, text):
         item = self.download_table.item(row, 2)
+        created = False
         if not item:
             item = QTableWidgetItem(text)
             self.download_table.setItem(row, 2, item)
-        else:
+            created = True
+        elif item.text() != text:
             item.setText(text)
             
-        font = item.font()
-        font.setFamily("monospace")
-        font.setStyleHint(QFont.StyleHint.Monospace)
-        font.setBold(True)
-        item.setFont(font)
+        # Apply bold monospaced font only if needed
+        if created or not item.data(Qt.ItemDataRole.UserRole + 10):
+            font = QFont("monospace")
+            font.setStyleHint(QFont.StyleHint.Monospace)
+            font.setBold(True)
+            item.setFont(font)
+            item.setData(Qt.ItemDataRole.UserRole + 10, True)
 
     def save_settings(self):
         try:
@@ -1737,7 +1742,10 @@ class MainWindow(QMainWindow):
             if internal_status == "Complete":
                 return
         
-        # --- FIX: Block signals during bulk update to prevent flickering ---
+        # --- FIX: Block signals and disable sorting during update to prevent flickering ---
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
         self.download_table.blockSignals(True)
         
         try:
@@ -1795,7 +1803,7 @@ class MainWindow(QMainWindow):
                     if comp >= tot: 
                         display_status = "Complete"
                         # FORCE UI TEXT IMMEDIATELY
-                        status_item.setText("Complete")
+                        self._set_status_text(row, "Complete")
                         status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
             
             if display_status == "Downloading":
@@ -1807,7 +1815,7 @@ class MainWindow(QMainWindow):
             # CRITICAL: Always force "Complete" if that's the determined status
             if display_status == "Complete":
                 final_display = "Complete"
-                status_item.setText("Complete")
+                self._set_status_text(row, "Complete")
                 status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 
             # Check if internal logical status changed to trigger UI update
@@ -1815,8 +1823,11 @@ class MainWindow(QMainWindow):
             
             if final_display != old_status or display_status != old_logic_status:
                 self._set_status_text(row, final_display)
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-                self.update_ui_states()
+                
+                # Update logical status and trigger UI states only if logical status changed
+                if display_status != old_logic_status:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+                    self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
             if display_status in ["Complete", "Error"]:
@@ -1839,8 +1850,8 @@ class MainWindow(QMainWindow):
             
         finally:
             self.download_table.blockSignals(False)
-            # Request viewport repaint after updates are done
-            self.download_table.viewport().update()
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
 
     def download_finished(self, item_ref, status_text):
         # Normalize status
