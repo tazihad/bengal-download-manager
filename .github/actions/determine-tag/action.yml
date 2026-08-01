@@ -23,30 +23,51 @@ runs:
         if [ -n "${{ inputs.manual_tag }}" ]; then
           TAG="${{ inputs.manual_tag }}"
         else
-          # Find latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0-alpha.0")
+          # Get highest tag sorted by version refname
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0-alpha.0")
+          fi
           echo "Latest tag found: $LATEST_TAG"
           
-          # Regex to match vX.Y.Z-suffix.N
-          if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-([a-zA-Z]+)\.([0-9]+)$ ]]; then
+          # Regex to match vX.Y.Z-suffix.N or vX.Y.Z
+          if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
               X="${BASH_REMATCH[1]}"
               Y="${BASH_REMATCH[2]}"
               Z="${BASH_REMATCH[3]}"
-              SUFFIX="${BASH_REMATCH[4]}"
-              N="${BASH_REMATCH[5]}"
+              SUFFIX="${BASH_REMATCH[5]:-alpha}"
+              N="${BASH_REMATCH[6]:-0}"
               
               if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-                  # PR Merge to Main: Increment Patch (Z) and reset N to 1
-                  NEXT_Z=$((Z + 1))
-                  TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
+                  # PR Merge to Main: Create stable release tag vX.Y.Z
+                  NEXT_Z=$Z
+                  if [[ -z "${BASH_REMATCH[4]}" ]]; then
+                      NEXT_Z=$((Z + 1))
+                  fi
+                  TAG="v${X}.${Y}.${NEXT_Z}"
+                  
+                  # Guarantee TAG is brand new and does not already exist
+                  while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
+                      NEXT_Z=$((NEXT_Z + 1))
+                      TAG="v${X}.${Y}.${NEXT_Z}"
+                  done
               else
-                  # Push to Dev or others: Increment trailing counter N
+                  # Push to Dev or other branch: Create pre-release tag vX.Y.Z-alpha.N
                   NEXT_N=$((N + 1))
                   TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+                  
+                  # Guarantee TAG is brand new and does not already exist
+                  while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
+                      NEXT_N=$((NEXT_N + 1))
+                      TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+                  done
               fi
           else
               # Fallback for unknown format
               TAG="${LATEST_TAG}-build-${{ github.run_number }}"
+              while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
+                  TAG="${LATEST_TAG}-build-${{ github.run_number }}-${RANDOM}"
+              done
           fi
         fi
         echo "tag=$TAG" >> $GITHUB_OUTPUT
