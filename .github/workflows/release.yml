@@ -62,6 +62,34 @@ jobs:
           cd extension
           zip -r ../extension-firefox.xpi . -x "*.git*" -x "__pycache__*"
 
+      - name: Build Flatpak Bundle
+        run: |
+          sudo apt-get update && sudo apt-get install -y flatpak
+          APP_ID="io.github.tazihad.bengal-download-manager"
+          BUILD_DIR="flatpak_app_dir"
+          mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo"
+          cp build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64 "$BUILD_DIR/files/bin/bengal-download-manager"
+          chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
+          cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
+          cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
+          cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+          cat << EOF > "$BUILD_DIR/metadata"
+          [Application]
+          name=$APP_ID
+          runtime=org.kde.Platform/x86_64/6.8
+          sdk=org.kde.Sdk/x86_64/6.8
+          command=bengal-download-manager
+
+          [Context]
+          shared=network;ipc;
+          sockets=x11;fallback-x11;wayland;pulseaudio;
+          filesystems=host;xdg-download;
+          devices=dri;
+          EOF
+          flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
+          flatpak build-export repo "$BUILD_DIR"
+          flatpak build-bundle repo bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.flatpak $APP_ID
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -71,6 +99,7 @@ jobs:
             build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64
             bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage
             bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage.zsync
+            bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.flatpak
             extension-chromium.crx
             extension-firefox.xpi
             flatpak/io.github.tazihad.bengal-download-manager.yml
