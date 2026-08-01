@@ -26,6 +26,7 @@ Thumbs.db
 docs/
 .superpowers/
 .worktrees/
+.agents/
 extension-firefox.xpi
 conductor/
 build_test/

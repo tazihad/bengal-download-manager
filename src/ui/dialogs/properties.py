@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QGridLayout, QApplication
 )
 
+from PyQt6.QtGui import QFont
 from core.utils import open_file_generic
 
 class PropertiesDialog(QDialog):
@@ -41,7 +42,10 @@ class PropertiesDialog(QDialog):
             val_widget = QLineEdit(str(value))
             val_widget.setReadOnly(True)
             val_widget.setCursorPosition(0) 
-            val_widget.setStyleSheet("background: transparent; border: none; color: #444;")
+            val_font = QFont(val_widget.font())
+            val_font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            val_widget.setFont(val_font)
+            val_widget.setStyleSheet("background: transparent; border: none; color: #444; font-feature-settings: 'tnum' 1;")
             
             grid.addWidget(lbl_widget, i, 0)
             grid.addWidget(val_widget, i, 1)

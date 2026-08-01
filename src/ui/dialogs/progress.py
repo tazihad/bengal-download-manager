@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QSpinBox, QApplication
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from core.utils import show_in_folder
 
 class DownloadProgressDialog(QDialog):
@@ -74,23 +75,41 @@ class DownloadProgressDialog(QDialog):
         self.lbl_main_status.setStyleSheet("color: #0078d4; font-weight: bold;") 
         add_row("Status:", self.lbl_main_status, 0)
 
+        tnum_tag = QFont.Tag.fromString('tnum')
+
         self.lbl_size = QLabel("Calculating...")
-        self.lbl_size.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        font_size = QFont(self.lbl_size.font())
+        font_size.setBold(True)
+        font_size.setFeature(tnum_tag, 1)
+        self.lbl_size.setFont(font_size)
+        self.lbl_size.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
         self.lbl_size.setFixedWidth(180)
         add_row("File size:", self.lbl_size, 1)
         
         self.lbl_downloaded = QLabel("0 bytes")
-        self.lbl_downloaded.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        font_dl = QFont(self.lbl_downloaded.font())
+        font_dl.setBold(True)
+        font_dl.setFeature(tnum_tag, 1)
+        self.lbl_downloaded.setFont(font_dl)
+        self.lbl_downloaded.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
         self.lbl_downloaded.setFixedWidth(180)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
-        self.lbl_speed = QLabel("0.00  B/s")
-        self.lbl_speed.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        self.lbl_speed = QLabel("0.00 B/s")
+        font_sp = QFont(self.lbl_speed.font())
+        font_sp.setBold(True)
+        font_sp.setFeature(tnum_tag, 1)
+        self.lbl_speed.setFont(font_sp)
+        self.lbl_speed.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
         self.lbl_speed.setFixedWidth(180)
         add_row("Transfer rate:", self.lbl_speed, 3)
 
         self.lbl_time = QLabel("Calculating...")
-        self.lbl_time.setStyleSheet("font-weight: bold; font-family: 'monospace', 'Courier New';")
+        font_tm = QFont(self.lbl_time.font())
+        font_tm.setBold(True)
+        font_tm.setFeature(tnum_tag, 1)
+        self.lbl_time.setFont(font_tm)
+        self.lbl_time.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
         self.lbl_time.setFixedWidth(180)
         add_row("Time left:", self.lbl_time, 4)
         
@@ -217,7 +236,7 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Rate", "Status"])
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
-        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-family: 'monospace', 'Courier New'; font-weight: bold; }")
+        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-weight: bold; font-feature-settings: 'tnum' 1; }")
 
         header = self.seg_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)

@@ -601,8 +601,10 @@ class MainWindow(QMainWindow):
 
         # FIX: Remove blue cell highlight (focus rectangle) on selection
 
-        # Using a comprehensive style to kill the default focus visual
         self.download_table.setStyleSheet("""
+            QTableWidget {
+                font-feature-settings: 'tnum' 1;
+            }
             QTableWidget::item:focus { 
                 border: none; 
                 outline: 0; 
@@ -952,7 +954,7 @@ class MainWindow(QMainWindow):
                 if "%" in raw_status:
                     status_item.setData(Qt.ItemDataRole.UserRole, raw_status)
                 
-                # Apply bold monospaced font
+                # Apply bold tabular numbers font
                 self._set_status_text(row, display_status)
                 
                 # Re-fetch status_item because _set_status_text might have created/updated it
@@ -964,8 +966,8 @@ class MainWindow(QMainWindow):
                 self._set_sortable_item(row, 4, d.get("rate", ""), parse_size_to_bytes)
                 
                 # Display formatted timestamps (Last Try uses 5 min/300s threshold, Date Added uses 30s)
-                self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(last_try_ts, max_relative_seconds=300)))
-                self.download_table.setItem(row, 6, QTableWidgetItem(format_timestamp_relative(date_added_ts, max_relative_seconds=30)))
+                self._set_timestamp_item(row, 5, format_timestamp_relative(last_try_ts, max_relative_seconds=300))
+                self._set_timestamp_item(row, 6, format_timestamp_relative(date_added_ts, max_relative_seconds=30))
 
             self.download_table.setSortingEnabled(True)
             
@@ -983,12 +985,13 @@ class MainWindow(QMainWindow):
             item.setText(text)
             
         # Apply font/styling only if needed or newly created
-        if col in [1, 2, 3, 4]:
+        if col in [1, 2, 3, 4, 5, 6]:
             # Use UserRole+10 as a flag to avoid redundant font applications
             if created or not item.data(Qt.ItemDataRole.UserRole + 10):
-                font = QFont("monospace")
-                font.setStyleHint(QFont.StyleHint.Monospace)
-                font.setBold(True)
+                font = QFont(QApplication.font())
+                font.setFeature(QFont.Tag.fromString('tnum'), 1)
+                if col in [1, 2, 3, 4]:
+                    font.setBold(True)
                 item.setFont(font)
                 item.setData(Qt.ItemDataRole.UserRole + 10, True)
             
@@ -1006,13 +1009,28 @@ class MainWindow(QMainWindow):
         elif item.text() != text:
             item.setText(text)
             
-        # Apply bold monospaced font only if needed
+        # Apply bold font with tabular figures only if needed
         if created or not item.data(Qt.ItemDataRole.UserRole + 10):
-            font = QFont("monospace")
-            font.setStyleHint(QFont.StyleHint.Monospace)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
             font.setBold(True)
             item.setFont(font)
             item.setData(Qt.ItemDataRole.UserRole + 10, True)
+
+    def _set_timestamp_item(self, row, col, text):
+        item = self.download_table.item(row, col)
+        if not item:
+            item = QTableWidgetItem(text)
+            self.download_table.setItem(row, col, item)
+        elif item.text() != text:
+            item.setText(text)
+            
+        if not item.data(Qt.ItemDataRole.UserRole + 10):
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
+            item.setData(Qt.ItemDataRole.UserRole + 10, True)
+        return item
 
     def save_settings(self):
         try:
@@ -1258,7 +1276,7 @@ class MainWindow(QMainWindow):
         # Update last try timestamp immediately before restarting
         new_timestamp = str(time.time())
         item_0.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-        self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(new_timestamp, max_relative_seconds=300)))
+        self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
 
         self._start_download_worker(url, item_0)
 
@@ -1433,8 +1451,8 @@ class MainWindow(QMainWindow):
         self._set_sortable_item(row, 4, "", parse_size_to_bytes) if start_paused else self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
         
         # Display formatted timestamp
-        self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(current_ts, max_relative_seconds=300)))
-        self.download_table.setItem(row, 6, QTableWidgetItem(format_timestamp_relative(current_ts, max_relative_seconds=30)))
+        self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
+        self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
 
         self.download_table.setSortingEnabled(sorting_was_enabled)
         
@@ -1560,7 +1578,7 @@ class MainWindow(QMainWindow):
                 # Update last try timestamp before resuming
                 new_timestamp = str(time.time())
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(new_timestamp, max_relative_seconds=300)))
+                self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                 
                 self._start_download_worker(url, item_name, resume_filename=filename)
 
@@ -1589,7 +1607,7 @@ class MainWindow(QMainWindow):
                     item_ref = self.download_table.item(item.row(), 0)
                     new_timestamp = str(time.time())
                     item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                    self.download_table.setItem(item.row(), 5, QTableWidgetItem(format_timestamp_relative(new_timestamp, max_relative_seconds=300)))
+                    self._set_timestamp_item(item.row(), 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     
                     # Close the dialog which will trigger the finished signal connected to refresh_toolbar_state_on_dialog_close
                     dialog.reject() 
@@ -1614,7 +1632,7 @@ class MainWindow(QMainWindow):
                     
                     new_timestamp = str(time.time())
                     item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                    self.download_table.setItem(r, 5, QTableWidgetItem(format_timestamp_relative(new_timestamp, max_relative_seconds=300)))
+                    self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     break
             dialog.reject()
 
@@ -1845,7 +1863,7 @@ class MainWindow(QMainWindow):
             formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
             last_try_item = self.download_table.item(row, 5)
             if not last_try_item:
-                self.download_table.setItem(row, 5, QTableWidgetItem(formatted_last_try))
+                self._set_timestamp_item(row, 5, formatted_last_try)
             elif last_try_item.text() != formatted_last_try:
                 last_try_item.setText(formatted_last_try)
             
@@ -1899,7 +1917,7 @@ class MainWindow(QMainWindow):
 
             final_timestamp = str(time.time())
             item_ref.setData(Qt.ItemDataRole.UserRole + 2, final_timestamp)
-            self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(final_timestamp, max_relative_seconds=300)))
+            self._set_timestamp_item(row, 5, format_timestamp_relative(final_timestamp, max_relative_seconds=300))
 
         # Handle UI Popups / Dialogs
         key = id(item_ref)
@@ -1983,7 +2001,9 @@ if __name__ == "__main__":
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
-    app.setFont(QFont("Segoe UI", 9))
+    app_font = QFont("Segoe UI", 9)
+    app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
+    app.setFont(app_font)
     
     # Initialize and set global application icon
     app_icon = get_app_icon()

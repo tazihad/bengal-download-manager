@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QFormLayout, QMessageBox, QFileDialog, QApplication
 )
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtCore import Qt, QUrl
 from core.utils import show_in_folder, open_with, open_file_generic
 
@@ -48,7 +48,11 @@ class DownloadCompleteDialog(QDialog):
         
         # Size
         self.lbl_size = QLabel(file_data.get('size', 'Unknown'))
-        self.lbl_size.setStyleSheet("font-weight: bold;")
+        font_size = QFont(self.lbl_size.font())
+        font_size.setBold(True)
+        font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
+        self.lbl_size.setFont(font_size)
+        self.lbl_size.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
         form_layout_row = form.addRow("Size:", self.lbl_size)
         
         layout.addLayout(form)
