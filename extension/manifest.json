@@ -20,9 +20,7 @@
     "default_popup": "popup.html"
   },
   "background": {
-    "scripts": [
-      "background.js"
-    ]
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -40,22 +38,16 @@
     "storage",
     "contextMenus",
     "webRequest",
-    "webRequestBlocking",
-    "cookies"
+    "cookies",
+    "notifications"
   ],
   "host_permissions": [
-    "<all_urls>",
     "http://127.0.0.1/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "<all_urls>"
   ],
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "connector@bengal-dm.org",
-      "strict_min_version": "109.0"
-    }
   }
 }

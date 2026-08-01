@@ -1,220 +1,225 @@
-// --- EXTENSION HELPERS ---
-const ignoredExts = [
+// --- CONSTANTS & HELPERS ---
+const DEFAULT_IGNORED_EXTS = [
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',
   'html', 'htm', 'php', 'js', 'css', 'xml', 'json', 'txt', 'md',
   'woff', 'woff2', 'eot', 'ttf', 'otf'
 ];
 
-function getExtension(str) {
-  if (!str) return "";
-  const parts = str.split('?')[0].split('#')[0].split('.');
+function getFileExtension(urlOrFilename) {
+  if (!urlOrFilename) return "";
+  const clean = urlOrFilename.split('?')[0].split('#')[0];
+  const parts = clean.split('.');
   return parts.length > 1 ? parts.pop().toLowerCase() : "";
 }
 
-// --- REDIRECT TRACKING ---
-const urlMap = new Map();
-
-chrome.webRequest.onBeforeRedirect.addListener((details) => {
-  const original = urlMap.get(details.url) || details.url;
-  urlMap.set(details.redirectUrl, original);
-  setTimeout(() => urlMap.delete(details.redirectUrl), 60000);
-}, { urls: ["<all_urls>"] });
-
-// --- CONNECTION VERIFICATION ---
-async function isAria2Online() {
-  const items = await chrome.storage.local.get({ port: 56800, token: "" });
-  const url = `http://127.0.0.1:${items.port}/jsonrpc`;
-  const params = items.token ? [`token:${items.token}`] : [];
-  const payload = { jsonrpc: "2.0", id: "bg-check", method: "aria2.getVersion", params: params };
-
+// --- CHECK BENGAL DM APP CONNECTION ---
+async function isBengalDMOnline() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-      cache: 'no-store'
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const response = await fetch("http://127.0.0.1:9000/", {
+      method: 'GET',
+      signal: controller.signal
     });
-    
     clearTimeout(timeoutId);
-    const data = await response.json();
-    return !!(data.result && data.result.version);
-  } catch (e) {
-    // If 127.0.0.1 fails, try localhost as fallback
+    return response.ok;
+  } catch {
     try {
-        const response = await fetch(`http://localhost:${items.port}/jsonrpc`, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        return !!(data.result && data.result.version);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+      const response = await fetch("http://localhost:9000/", {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return response.ok;
     } catch {
-        return false;
+      return false;
     }
   }
 }
 
-// --- DEEP INTERCEPTION ---
-chrome.webRequest.onHeadersReceived.addListener((details) => {
-  if (details.method !== "GET") return;
+// --- SEND DOWNLOAD TO BENGAL DM ---
+async function sendToBengalDM(downloadData) {
+  const { url, userAgent, cookies, filename, referrer } = downloadData;
 
-  const headers = details.responseHeaders;
-  let isDownload = false;
-  let contentType = "";
-  let contentDisposition = "";
-
-  for (const header of headers) {
-    const name = header.name.toLowerCase();
-    if (name === 'content-type') contentType = header.value || "";
-    if (name === 'content-disposition') contentDisposition = header.value || "";
-  }
-
-  contentDisposition = contentDisposition.toLowerCase();
-  contentType = contentType.toLowerCase();
-
-  const lowerUrl = details.url.toLowerCase();
-  const urlExt = getExtension(lowerUrl);
-  const isIgnoredExt = urlExt && ignoredExts.includes(urlExt);
-
-  // 1. If explicit attachment, always download (unless it's an ignored extension)
-  if (contentDisposition.includes('attachment')) {
-    let cdFilename = "";
-    const cdMatch = contentDisposition.match(/filename\*?=["']?(?:UTF-8'')?([^"';]+)["']?/i);
-    if (cdMatch && cdMatch[1]) {
-        try {
-            cdFilename = decodeURIComponent(cdMatch[1]).replace(/[\/\\]/g, '_');
-        } catch (e) {
-            cdFilename = cdMatch[1].replace(/[\/\\]/g, '_');
-        }
-    }
-    
-    if (cdFilename) {
-        const cdExt = getExtension(cdFilename);
-        if (cdExt && !ignoredExts.includes(cdExt)) {
-            isDownload = true;
-        } else if (!cdExt) {
-            // No extension in filename, trust it's a download if it's an attachment
-            isDownload = true;
-        }
-    } else {
-        // Attachment with no filename info, trust it
-        isDownload = true;
-    }
-  } 
-  
-  // 2. If not already flagged, check if it has a target extension (non-ignored)
-  if (!isDownload && urlExt && !isIgnoredExt) {
-    // Basic safety: don't intercept image/html types unless they were explicit attachments
-    if (!contentType.includes('text/html') && !contentType.includes('image/')) {
-        isDownload = true;
-    }
-  }
-
-  if (isDownload) {
-    // Asynchronously send to Bengal DM so we don't block the sync return
-    chrome.cookies.getAll({ url: details.url }, (cookies) => {
-      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      sendToBengalDM(details.url, cookieString);
-    });
-    
-    // CRITICAL: Immediately cancel the browser's request
-    // If it's a main frame navigation that was just opened, we'll try to close the tab.
-    if (details.type === "main_frame") {
-        setTimeout(() => {
-            chrome.tabs.get(details.tabId, (tab) => {
-                if (chrome.runtime.lastError || !tab) return;
-                // Only close if it's a "clean" tab (no title or just the URL)
-                // or if it was opened specifically for this download.
-                if (!tab.url || tab.url === details.url || tab.url === 'about:blank') {
-                    chrome.tabs.remove(details.tabId);
-                }
-            });
-        }, 500);
-    }
-
-    return { cancel: true };
-  }
-}, { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }, ["blocking", "responseHeaders"]);
-
-// --- HELPER: Send URL to Python App ---
-async function sendToBengalDM(targetUrl, cookies = "") {
-  // Try port 9000 check first
-  try {
-    const response = await fetch("http://127.0.0.1:9000/", { method: 'GET' });
-    if (!response.ok) return false;
-  } catch {
-    // Try localhost if 127.0.0.1 fails
-    try {
-        await fetch("http://localhost:9000/", { method: 'GET' });
-    } catch {
-        return false;
-    }
-  }
-
-  // Then verify Aria2 Sync
-  const online = await isAria2Online();
-  if (!online) {
-    console.warn("Aria2 out of sync or unreachable via 127.0.0.1/localhost");
+  const isOnline = await isBengalDMOnline();
+  if (!isOnline) {
+    console.warn("Bengal DM application is not running on port 9000.");
     return false;
   }
 
-  const originalUrl = urlMap.get(targetUrl) || targetUrl;
+  const payload = {
+    url: url,
+    userAgent: userAgent || navigator.userAgent,
+    cookies: cookies || "",
+    filename: filename || "",
+    referrer: referrer || ""
+  };
+
   try {
-    await fetch("http://127.0.0.1:9000/", {
+    const response = await fetch("http://127.0.0.1:9000/", {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        url: originalUrl,
-        userAgent: navigator.userAgent,
-        cookies: cookies
-      })
+      body: JSON.stringify(payload)
     });
-    return true;
+    return response.ok;
   } catch (err) {
-    return false;
+    try {
+      const response = await fetch("http://localhost:9000/", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      return response.ok;
+    } catch (e) {
+      console.error("Failed to send download to Bengal DM:", e);
+      return false;
+    }
   }
 }
 
-// --- PORT MIGRATION & INITIALIZATION ---
+// --- NOTIFICATION HELPER ---
+function notifyUser(title, message) {
+  if (chrome.notifications) {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'assets/icon-48.png',
+      title: title,
+      message: message
+    });
+  }
+}
+
+// --- DOWNLOAD INTERCEPTOR (MV3 downloads API) ---
+chrome.downloads.onCreated.addListener(async (item) => {
+  if (!item || !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:")) {
+    return;
+  }
+
+  // Check user preference for automatic interception
+  const prefs = await chrome.storage.local.get({ enableInterception: true });
+  if (!prefs.enableInterception) return;
+
+  const urlExt = getFileExtension(item.url);
+  const fileExt = getFileExtension(item.filename);
+  const ext = fileExt || urlExt;
+
+  if (ext && DEFAULT_IGNORED_EXTS.includes(ext)) {
+    return; // Don't intercept web assets/pages
+  }
+
+  // Check if Bengal DM backend is active
+  const isOnline = await isBengalDMOnline();
+  if (!isOnline) return;
+
+  // Intercept the download
+  try {
+    await chrome.downloads.cancel(item.id);
+    await chrome.downloads.erase({ id: item.id });
+  } catch (e) {
+    console.warn("Could not cancel Chrome download:", e);
+  }
+
+  // Retrieve cookies for authorization
+  let cookieString = "";
+  try {
+    const cookies = await chrome.cookies.getAll({ url: item.url });
+    cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+  } catch (e) {
+    console.warn("Could not retrieve cookies:", e);
+  }
+
+  const success = await sendToBengalDM({
+    url: item.url,
+    userAgent: navigator.userAgent,
+    cookies: cookieString,
+    filename: item.filename,
+    referrer: item.referrer
+  });
+
+  if (success) {
+    notifyUser("Bengal DM Intercepted", `Sent download to Bengal DM:\n${item.filename || item.url}`);
+  }
+});
+
+// --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['port'], (items) => {
+  chrome.storage.local.get(['port', 'enableInterception'], (items) => {
     if (!items.port || items.port === 6800 || items.port === 50001 || items.port === 6801) {
       chrome.storage.local.set({ port: 56800 });
     }
+    if (items.enableInterception === undefined) {
+      chrome.storage.local.set({ enableInterception: true });
+    }
   });
 
-  chrome.contextMenus.create({
-    id: "download-with-bengal",
-    title: "Download with Bengal DM",
-    contexts: ["link", "image", "video", "audio", "selection"]
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "download-with-bengal",
+      title: "Download with Bengal DM",
+      contexts: ["link", "image", "video", "audio", "selection"]
+    });
   });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "download-with-bengal") {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
-    if (targetUrl && targetUrl.startsWith("http")) {
-      const cookies = await chrome.cookies.getAll({ url: targetUrl });
-      const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      await sendToBengalDM(targetUrl, cookieString);
+    if (targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
+      let cookieString = "";
+      try {
+        const cookies = await chrome.cookies.getAll({ url: targetUrl });
+        cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      } catch (e) {
+        console.warn("Could not get cookies:", e);
+      }
+
+      const success = await sendToBengalDM({
+        url: targetUrl,
+        userAgent: navigator.userAgent,
+        cookies: cookieString
+      });
+
+      if (success) {
+        notifyUser("Bengal DM", "Download sent to Bengal DM successfully!");
+      } else {
+        notifyUser("Bengal DM Error", "Could not send download to Bengal DM. Is the app running?");
+      }
     }
   }
 });
 
-// --- MESSAGE INTERCEPTOR ---
+// --- MESSAGE HANDLER ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "silent_download" || request.action === "check_link_preflight") {
-    // We let the onHeadersReceived listener do the heavy lifting for navigation links.
-    // For manual triggers or pre-flight check, we just tell content.js to go ahead
-    // and the deep network interceptor will catch it if it's a real file.
-    if (request.action === "check_link_preflight") {
-        sendResponse({ handledByBengal: false });
-    }
-    return true; 
+  if (request.action === "send_to_bengal") {
+    (async () => {
+      let cookieString = "";
+      try {
+        const cookies = await chrome.cookies.getAll({ url: request.url });
+        cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      } catch (e) {}
+
+      const success = await sendToBengalDM({
+        url: request.url,
+        userAgent: navigator.userAgent,
+        cookies: cookieString
+      });
+      sendResponse({ success });
+    })();
+    return true;
+  }
+
+  if (request.action === "check_status") {
+    (async () => {
+      const isOnline = await isBengalDMOnline();
+      sendResponse({ online: isOnline });
+    })();
+    return true;
   }
 });
+

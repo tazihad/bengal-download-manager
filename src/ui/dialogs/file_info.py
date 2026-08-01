@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QFileDialog, QFormLayout, QApplication
 )
+from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 from core.utils import get_unique_filepath
 from core.config import load_category_config
@@ -58,7 +59,11 @@ class DownloadFileInfoDialog(QDialog):
         form_layout.addRow("Save As:", save_layout)
         
         self.lbl_size = QLabel(file_info.get("size_str", "Unknown"))
-        self.lbl_size.setStyleSheet("font-weight: bold;")
+        font_size = QFont(self.lbl_size.font())
+        font_size.setBold(True)
+        font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
+        self.lbl_size.setFont(font_size)
+        self.lbl_size.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
         form_layout.addRow("File Size:", self.lbl_size)
         
         self.layout.addLayout(form_layout)
