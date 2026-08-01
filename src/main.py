@@ -310,8 +310,9 @@ def get_app_icon():
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, start_ipc=True):
         super().__init__()
+        self.start_ipc = start_ipc
         self.setWindowTitle("Bengal Download Manager")
         
         # Set window icon from global app icon
@@ -356,7 +357,8 @@ class MainWindow(QMainWindow):
         
         self.active_fetchers = [] # Prevent fetcher threads from being garbage collected
 
-        self.listener_thread.start()
+        if self.start_ipc:
+            self.listener_thread.start()
 
         # Initial UI State Update
         self.update_ui_states()
@@ -1028,6 +1030,10 @@ class MainWindow(QMainWindow):
             item.setFont(font)
             item.setData(Qt.ItemDataRole.UserRole + 10, True)
         return item
+
+    def add_new_download(self, url, category="General", save_path=""):
+        if url:
+            self.start_download(url, custom_save_dir=save_path if save_path else None)
 
     def get_qml_downloads_data(self):
         data = []
@@ -2046,6 +2052,25 @@ if __name__ == "__main__":
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
     app.setFont(app_font)
+    app.setStyleSheet("""
+        QMenu {
+            border: 1px solid #707070;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 5px 24px 5px 12px;
+            border-radius: 2px;
+        }
+        QMenu::item:selected {
+            background-color: #0078d4;
+            color: #ffffff;
+        }
+        QMenu::separator {
+            height: 1px;
+            background-color: #707070;
+            margin: 4px 6px;
+        }
+    """)
     
     # Initialize and set global application icon
     app_icon = get_app_icon()

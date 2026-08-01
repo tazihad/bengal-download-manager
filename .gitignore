@@ -31,5 +31,5 @@ docs/
 extension-firefox.xpi
 conductor/
 build_test/
-tests/
+!tests/
 test_app.py
