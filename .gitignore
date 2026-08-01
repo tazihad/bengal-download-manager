@@ -24,6 +24,7 @@ Thumbs.db
 
 # custom
 docs/
+!docs/superpowers/specs/
 .superpowers/
 .worktrees/
 .agents/
