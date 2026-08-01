@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.tazihad.bengal-download-manager</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Bengal Download Manager</name>
+  <summary>High-speed multi-threaded download manager</summary>
+  <description>
+    <p>
+      Bengal Download Manager is a lightweight, open-source download manager
+      built with PyQt6, KDE Kirigami, and Aria2. It features multi-threaded segment
+      acceleration, browser extension integration, proxy/socks support, and
+      category organization.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.tazihad.bengal-download-manager.desktop</launchable>
+  <url type="homepage">https://github.com/tazihad/bengal-download-manager</url>
+  <url type="bugtracker">https://github.com/tazihad/bengal-download-manager/issues</url>
+  <releases>
+    <release version="0.1.20" date="2026-08-01"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>
