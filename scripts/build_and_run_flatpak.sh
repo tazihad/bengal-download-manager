@@ -32,8 +32,8 @@ cp dist/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
 chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
 
 cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
-cp io.github.tazihad.bengal-download-manager.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
-cp io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+cp flatpak/io.github.tazihad.bengal-download-manager.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
+cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]

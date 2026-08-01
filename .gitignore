@@ -32,4 +32,5 @@ extension-firefox.xpi
 conductor/
 build_test/
 !tests/
+flatpak_app_dir/
 test_app.py

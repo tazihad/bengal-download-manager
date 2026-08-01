@@ -25,6 +25,6 @@ if [ ! -f "dist/bengal-download-manager" ]; then
 fi
 
 echo "=== 3. Flatpak Manifest Ready ==="
-echo "Manifest: io.github.tazihad.bengal-download-manager.yml"
-echo "Desktop Entry: io.github.tazihad.bengal-download-manager.desktop"
-echo "AppStream Metainfo: io.github.tazihad.bengal-download-manager.metainfo.xml"
+echo "Manifest: flatpak/io.github.tazihad.bengal-download-manager.yml"
+echo "Desktop Entry: flatpak/io.github.tazihad.bengal-download-manager.desktop"
+echo "AppStream Metainfo: flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml"
