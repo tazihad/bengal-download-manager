@@ -602,9 +602,6 @@ class MainWindow(QMainWindow):
         # FIX: Remove blue cell highlight (focus rectangle) on selection
 
         self.download_table.setStyleSheet("""
-            QTableWidget {
-                font-feature-settings: 'tnum' 1;
-            }
             QTableWidget::item:focus { 
                 border: none; 
                 outline: 0; 
