@@ -57,6 +57,8 @@ jobs:
 
       - name: Build Extension
         run: |
+          python scripts/pack_extension.py
+          cp dist/bengal-download-manager-extension.crx extension-chromium.crx
           cd extension
           zip -r ../extension-firefox.xpi . -x "*.git*" -x "__pycache__*"
 
@@ -69,9 +71,10 @@ jobs:
             build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64
             bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage
             bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.AppImage.zsync
+            extension-chromium.crx
             extension-firefox.xpi
           draft: false
-          prerelease: true
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
