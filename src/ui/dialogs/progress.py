@@ -50,7 +50,7 @@ class DownloadProgressDialog(QDialog):
         # Use a label with elided text for the URL
         self.lbl_url = QLabel()
         self.lbl_url.setToolTip(url_text)
-        self.lbl_url.setStyleSheet("font-size: 9.5pt; color: #3daee9; padding-bottom: 4px;")
+        self.lbl_url.setStyleSheet("font-size: 8.5pt; color: #cccccc; padding-bottom: 4px;")
         self.lbl_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         
         # Elide the URL text to fit the window width (with padding)
