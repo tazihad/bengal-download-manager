@@ -281,12 +281,17 @@ def format_timestamp_relative(timestamp_str, max_relative_seconds=30):
 
 
 def get_app_icon():
-    """Robustly finds and returns the application icon."""
+    """Robustly finds and returns the application icon across local, AppImage, and Flatpak environments."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
     icon_locations = [
         os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
         os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.svg"),
+        # Flatpak specific icon paths
+        "/app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
+        "/app/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
+        "/app/share/icons/hicolor/256x256/apps/bengal-download-manager.png",
+        os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png"),
         # AppImage specific locations
         os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
         os.path.join(os.environ.get('APPDIR', ''), "bengal-download-manager.png"),
@@ -304,6 +309,12 @@ def get_app_icon():
             icon = QIcon(loc)
             if not icon.isNull():
                 return icon
+
+    # Theme icon fallbacks (Flatpak / Desktop theme name)
+    for theme_name in ["io.github.tazihad.bengal-download-manager", "bengal-download-manager"]:
+        icon = QIcon.fromTheme(theme_name)
+        if not icon.isNull():
+            return icon
                 
     # Fallback to system icon if nothing found
     return QIcon.fromTheme("system-run", QIcon(":/icons/fallback.png")) # Just a safe fallback
@@ -702,32 +713,40 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
     def setup_tray_icon(self):
-        """Sets up the system tray icon and its context menu."""
-        self.tray_icon = QSystemTrayIcon(self)
+        """Sets up the system tray icon and its context menu safely."""
+        self.tray_icon = None
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
 
-        # Set icon from window icon
-        icon = self.windowIcon()
-        if icon.isNull():
-            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
-        self.tray_icon.setIcon(icon)        
-        # Create tray menu
-        tray_menu = QMenu(self)
-        
-        # Show/Hide Action
-        self.action_tray_toggle = QAction("Hide", self) # Default to Hide as window starts visible
-        self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
-        self.action_tray_toggle.triggered.connect(self.toggle_window)
-        
-        tray_menu.addAction(self.action_tray_toggle)
-        tray_menu.addAction(self.action_options)
-        tray_menu.addSeparator()
-        tray_menu.addAction(self.action_exit)
-        
-        self.tray_icon.setContextMenu(tray_menu)
-        self.tray_icon.show()
-        
-        # Double click to show/hide
-        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        try:
+            self.tray_icon = QSystemTrayIcon(self)
+
+            # Set icon from window icon
+            icon = self.windowIcon()
+            if icon.isNull():
+                icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+            self.tray_icon.setIcon(icon)        
+            # Create tray menu
+            tray_menu = QMenu(self)
+            
+            # Show/Hide Action
+            self.action_tray_toggle = QAction("Hide", self) # Default to Hide as window starts visible
+            self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
+            self.action_tray_toggle.triggered.connect(self.toggle_window)
+            
+            tray_menu.addAction(self.action_tray_toggle)
+            tray_menu.addAction(self.action_options)
+            tray_menu.addSeparator()
+            tray_menu.addAction(self.action_exit)
+            
+            self.tray_icon.setContextMenu(tray_menu)
+            self.tray_icon.show()
+            
+            # Double click to show/hide
+            self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        except Exception as e:
+            print(f"Warning: System tray icon initialization failed ({e})")
+            self.tray_icon = None
 
     def on_tray_icon_activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
@@ -2155,7 +2174,16 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
+    app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
+
+    # Configure icon search paths for Flatpak and XDG locations
+    search_paths = QIcon.themeSearchPaths()
+    for p in ["/app/share/icons", "/usr/share/icons", os.path.expanduser("~/.local/share/icons")]:
+        if os.path.exists(p) and p not in search_paths:
+            search_paths.append(p)
+    QIcon.setThemeSearchPaths(search_paths)
+
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
     app.setFont(app_font)
