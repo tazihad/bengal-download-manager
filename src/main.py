@@ -1351,8 +1351,6 @@ class MainWindow(QMainWindow):
         folder = os.path.dirname(old_path)
 
         new_path = choose_portal_save_path("Save File As", filename, folder)
-        if new_path is None:
-            new_path, _ = QFileDialog.getSaveFileName(self, "Save File As", old_path)
 
         if new_path and new_path != old_path:
             try:
