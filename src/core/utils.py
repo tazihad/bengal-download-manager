@@ -404,10 +404,7 @@ def open_file_generic(path):
 def open_with(path):
     """
     Shows the OS-native "Open With" dialog for the given path.
-    Uses a multi-stage approach on Linux:
-    1. XDG Portal (D-Bus) to force a native app picker.
-    2. xdg-open (system default / picker for unknown types).
-    3. mimeopen -d (CLI picker).
+    Uses modern XDG Desktop Portal (OpenURI with ask=true) on Linux for native app picker.
     """
     if not path or not os.path.exists(path):
         return False
@@ -429,7 +426,7 @@ def open_with(path):
     from PyQt6.QtCore import QUrl
     uri = QUrl.fromLocalFile(path).toString()
     
-    # 1. Try XDG Desktop Portal via D-Bus (Forces Picker Choice)
+    # 1. Try XDG Desktop Portal via gdbus (Forces modern native app picker dialog)
     if shutil.which("gdbus"):
         try:
             cmd = [
@@ -439,19 +436,36 @@ def open_with(path):
                 "--method", "org.freedesktop.portal.OpenURI.OpenURI", 
                 "", uri, "{'ask': <true>}"
             ]
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=clean_env)
-            return True
-        except: pass
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
 
-    # 2. Try xdg-open (User suggested method)
-    # This uses system defaults, but will often show a picker for unknown file types.
+    # 2. Try XDG Desktop Portal via dbus-send fallback
+    if shutil.which("dbus-send"):
+        try:
+            cmd = [
+                "dbus-send", "--session", "--print-reply",
+                "--dest=org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.OpenURI.OpenURI",
+                "string:", f"string:{uri}", "dict:string:variant:ask,boolean:true"
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+
+    # 3. Try xdg-open / mimeopen fallback
     if shutil.which("xdg-open"):
         try:
             subprocess.Popen(['xdg-open', path], env=clean_env)
             return True
-        except: pass
+        except Exception:
+            pass
 
-    # 3. Try mimeopen -d (Standard CLI app picker)
     if shutil.which("mimeopen"):
         try:
             term = shutil.which("x-terminal-emulator") or shutil.which("gnome-terminal") or shutil.which("konsole")
@@ -460,7 +474,8 @@ def open_with(path):
             else:
                 subprocess.Popen(["mimeopen", "-d", path], env=clean_env)
             return True
-        except: pass
+        except Exception:
+            pass
 
     return False
 
