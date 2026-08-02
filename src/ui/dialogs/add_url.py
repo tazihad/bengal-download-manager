@@ -63,11 +63,12 @@ class AddUrlDialog(QDialog):
         clipboard_text = QApplication.clipboard().text().strip()
         if clipboard_text.startswith(("http://", "https://", "ftp://", "magnet:")):
             self.url_input.setText(clipboard_text)
-            self.url_input.selectAll()
+            self.url_input.setCursorPosition(0)
 
     def paste_url(self):
         clipboard = QApplication.clipboard()
-        self.url_input.setText(clipboard.text())
+        self.url_input.setText(clipboard.text().strip())
+        self.url_input.setCursorPosition(0)
 
     def get_url(self):
         return self.url_input.text().strip()
