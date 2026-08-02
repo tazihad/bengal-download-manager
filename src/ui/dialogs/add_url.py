@@ -12,47 +12,42 @@ class AddUrlDialog(QDialog):
         self.resize(750, 160)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         
         lbl_addr = QLabel("Address:")
-        lbl_addr.setStyleSheet("font-size: 13px; font-weight: 600;")
         layout.addWidget(lbl_addr)
         
         input_layout = QHBoxLayout()
         input_layout.setSpacing(8)
 
         self.btn_paste = QPushButton("Paste")
-        self.btn_paste.setFixedWidth(75)
-        self.btn_paste.setFixedHeight(32)
+        self.btn_paste.setFixedWidth(70)
+        self.btn_paste.setFixedHeight(28)
         self.btn_paste.setToolTip("Paste from clipboard")
-        self.btn_paste.setStyleSheet("font-size: 13px;")
         self.btn_paste.clicked.connect(self.paste_url)
         input_layout.addWidget(self.btn_paste)
         
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("http://")
-        self.url_input.setFixedHeight(32)
-        self.url_input.setStyleSheet("font-size: 13px; padding: 4px 8px;")
+        self.url_input.setFixedHeight(28)
         input_layout.addWidget(self.url_input)
         layout.addLayout(input_layout)
         
-        layout.addSpacing(6)
-        
         btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(0, 8, 0, 0)
+        btn_layout.setSpacing(8)
         btn_layout.addStretch()
         
         self.btn_download = QPushButton("OK")
         self.btn_download.setDefault(True)
-        self.btn_download.setFixedWidth(90)
-        self.btn_download.setFixedHeight(32)
-        self.btn_download.setStyleSheet("font-size: 13px; font-weight: 600;")
+        self.btn_download.setFixedWidth(80)
+        self.btn_download.setFixedHeight(30)
         self.btn_download.clicked.connect(self.accept)
         
         self.btn_cancel = QPushButton("Cancel")
-        self.btn_cancel.setFixedWidth(90)
-        self.btn_cancel.setFixedHeight(32)
-        self.btn_cancel.setStyleSheet("font-size: 13px;")
+        self.btn_cancel.setFixedWidth(80)
+        self.btn_cancel.setFixedHeight(30)
         self.btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addWidget(self.btn_download)
