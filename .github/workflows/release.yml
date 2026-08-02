@@ -14,6 +14,7 @@ on:
 
 jobs:
   release:
+    name: Build & Publish Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -61,47 +62,12 @@ jobs:
           version: ${{ steps.get_tag.outputs.version }}
 
       - name: Build Extension
-        run: |
-          python scripts/pack_extension.py
-          cp dist/bengal-download-manager-extension.crx extension-chromium.crx
-          cd extension
-          zip -r ../extension-firefox.xpi . -x "*.git*" -x "__pycache__*"
+        uses: ./.github/actions/build-extension
 
       - name: Build Flatpak Bundle
-        run: |
-          sudo apt-get update && sudo apt-get install -y flatpak
-          APP_ID="io.github.tazihad.bengal-download-manager"
-          BUILD_DIR="flatpak_app_dir"
-          mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo"
-          cp build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64 "$BUILD_DIR/files/bin/bengal-download-manager"
-          chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
-          cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
-          cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
-          cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
-          cat << EOF > "$BUILD_DIR/metadata"
-          [Application]
-          name=$APP_ID
-          runtime=org.kde.Platform/x86_64/6.11
-          sdk=org.kde.Sdk/x86_64/6.11
-          command=bengal-download-manager
-
-          [Context]
-          shared=network;ipc;
-          sockets=x11;fallback-x11;wayland;pulseaudio;
-          filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;xdg-data/icons:ro;~/.icons:ro;~/.local/share/icons:ro;
-          devices=dri;
-
-          [Session Bus Policy]
-          org.freedesktop.portal.Desktop=talk
-          org.freedesktop.portal.Settings=talk
-          org.freedesktop.Notifications=talk
-
-          [Environment]
-          QT_QPA_PLATFORMTHEME=xdgdesktopportal
-          EOF
-          flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
-          flatpak build-export repo "$BUILD_DIR"
-          flatpak build-bundle repo bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.flatpak $APP_ID
+        uses: ./.github/actions/build-flatpak
+        with:
+          version: ${{ steps.get_tag.outputs.version }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

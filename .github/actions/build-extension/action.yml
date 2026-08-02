@@ -1,0 +1,13 @@
+name: 'Build Extension'
+description: 'Builds Chrome (.crx) and Firefox (.xpi) browser extension packages'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build Extension Packages
+      shell: bash
+      run: |
+        python scripts/pack_extension.py
+        cp dist/bengal-download-manager-extension.crx extension-chromium.crx
+        cd extension
+        zip -r ../extension-firefox.xpi . -x "*.git*" -x "__pycache__*"
