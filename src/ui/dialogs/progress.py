@@ -96,7 +96,7 @@ class DownloadProgressDialog(QDialog):
         self.lbl_downloaded.setFixedWidth(180)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
-        self.lbl_speed = QLabel("0.000 B/s")
+        self.lbl_speed = QLabel("0.00 B/s")
         font_sp = QFont(self.lbl_speed.font())
         font_sp.setBold(True)
         font_sp.setFeature(tnum_tag, 1)
@@ -410,11 +410,11 @@ class DownloadProgressDialog(QDialog):
         
         # Calculate percentage properly based on progress bar values
         if total_bytes > 0:
-            percent = f"{(current_bytes / total_bytes) * 100:.1f}%"
+            percent = f"{(current_bytes / total_bytes) * 100:.3f}%"
         else:
-            percent = "Unknown %" if current_bytes > 0 else "0.0%"
+            percent = "Unknown %" if current_bytes > 0 else "0.000%"
             
-        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
+        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=3, pad=False)} ({percent})")
         
         # Map worker status to display status
         worker_status = data[2]
@@ -476,14 +476,14 @@ class DownloadProgressDialog(QDialog):
                 self.current_bytes = self.total_bytes
                 self.pbar.setMaximum(10000)
                 self.pbar.setValue(10000)
-                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.total_bytes, precision=2, pad=False)} (100.0%)")
+                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.total_bytes, precision=3, pad=False)} (100.000%)")
             else:
                 self.pbar.setMaximum(10000)
                 self.pbar.setValue(10000)
-                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes, precision=2, pad=False)} (100.0%)")
+                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes, precision=3, pad=False)} (100.000%)")
                 
             self.lbl_time.setText("0 sec")
-            self.lbl_speed.setText("0.000 B/s")
+            self.lbl_speed.setText("0.00 B/s")
             
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")

@@ -1007,7 +1007,7 @@ class MainWindow(QMainWindow):
                 
                 self._set_sortable_item(row, 1, d.get("size", "..."), parse_size_to_bytes)
                 # Col 2: Status (Sanitize: show percentage, never "Paused")
-                raw_status = d.get("status", "0.0%")
+                raw_status = d.get("status", "0.00%")
                 display_status = raw_status
                 
                 # Determine internal state based on status text
@@ -1022,7 +1022,7 @@ class MainWindow(QMainWindow):
                     display_status = raw_status
                     internal_state = "Paused"
                 elif raw_status in ["Paused", "Cancelled", "Error"]:
-                    display_status = "0.0%" if raw_status != "Error" else "Error"
+                    display_status = "0.00%" if raw_status != "Error" else "Error"
                     internal_state = raw_status
                 else:
                     internal_state = raw_status
@@ -2077,7 +2077,7 @@ class MainWindow(QMainWindow):
                 final_display = "Complete"
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
-                final_display = pct if pct else "0.0%"
+                final_display = pct if pct else "0.00%"
             else:
                 final_display = display_status
             
