@@ -144,7 +144,7 @@ class Aria2Worker(QThread):
                 self.format_bytes(total_length, precision=2, pad=False) if total_length > 0 else "Unknown",
                 display_state,
                 self.format_time(time_left),
-                f"{self.format_bytes(download_speed, precision=2, pad=False)}/s",
+                f"{self.format_bytes(download_speed, precision=3, pad=False)}/s",
                 completed_length,
                 total_length
             ))

@@ -50,7 +50,8 @@ class DownloadProgressDialog(QDialog):
         # Use a label with elided text for the URL
         self.lbl_url = QLabel()
         self.lbl_url.setToolTip(url_text)
-        self.lbl_url.setStyleSheet("font-size: 8pt; color: #555;")
+        self.lbl_url.setStyleSheet("font-size: 8.5pt; color: #cccccc; padding-bottom: 4px;")
+        self.lbl_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         
         # Elide the URL text to fit the window width (with padding)
         metrics = self.lbl_url.fontMetrics()
@@ -95,7 +96,7 @@ class DownloadProgressDialog(QDialog):
         self.lbl_downloaded.setFixedWidth(180)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
-        self.lbl_speed = QLabel("0.00 B/s")
+        self.lbl_speed = QLabel("0.000 B/s")
         font_sp = QFont(self.lbl_speed.font())
         font_sp.setBold(True)
         font_sp.setFeature(tnum_tag, 1)
@@ -482,7 +483,7 @@ class DownloadProgressDialog(QDialog):
                 self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes, precision=2, pad=False)} (100.0%)")
                 
             self.lbl_time.setText("0 sec")
-            self.lbl_speed.setText("0 B/s")
+            self.lbl_speed.setText("0.000 B/s")
             
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")

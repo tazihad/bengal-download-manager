@@ -579,15 +579,76 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.category_tree = QTreeWidget()
         self.category_tree.setHeaderHidden(True)
-        self.category_tree.itemClicked.connect(self.filter_downloads) 
-        
+        self.category_tree.setRootIsDecorated(False)
+        self.category_tree.setIconSize(QSize(18, 18))
+        self.category_tree.setIndentation(10)
+        self.category_tree.setAnimated(True)
+        self.category_tree.itemClicked.connect(self.filter_downloads)
+
+        self.category_tree.setStyleSheet("""
+            QTreeWidget {
+                show-decoration-selected: 0;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 4px 2px;
+                border: none;
+                outline: 0;
+            }
+            QTreeWidget::item {
+                height: 26px;
+                padding: 2px 8px;
+                margin: 1px 2px;
+                border-radius: 4px;
+            }
+            QTreeWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+            QTreeWidget::item:hover {
+                background-color: rgba(61, 174, 233, 0.15);
+            }
+            QTreeWidget::item:selected {
+                background-color: #3daee9;
+                color: #ffffff;
+                font-weight: 600;
+            }
+            QTreeWidget::branch {
+                background: transparent;
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            QTreeWidget::branch:selected,
+            QTreeWidget::branch:selected:active,
+            QTreeWidget::branch:selected:inactive,
+            QTreeWidget::branch:hover {
+                background: transparent;
+                background-color: transparent;
+            }
+        """)
+
         all_downloads = QTreeWidgetItem(self.category_tree, ["All Downloads"])
+        all_downloads.setIcon(0, QIcon.fromTheme("folder-download", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)))
         all_downloads.setExpanded(True)
-        categories = ["Compressed", "Documents", "Music", "Programs", "Video"]
-        for cat in categories:
-            QTreeWidgetItem(all_downloads, [cat])
-        QTreeWidgetItem(self.category_tree, ["Unfinished"])
-        QTreeWidgetItem(self.category_tree, ["Finished"])
+
+        cat_icons = {
+            "Compressed": QIcon.fromTheme("package-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_DriveFDIcon)),
+            "Documents": QIcon.fromTheme("x-office-document", self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)),
+            "Music": QIcon.fromTheme("audio-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)),
+            "Programs": QIcon.fromTheme("system-run", self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMenuButton)),
+            "Video": QIcon.fromTheme("video-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+        }
+        for cat_name, cat_icon in cat_icons.items():
+            child = QTreeWidgetItem(all_downloads, [cat_name])
+            child.setIcon(0, cat_icon)
+
+        item_unfinished = QTreeWidgetItem(self.category_tree, ["Unfinished"])
+        item_unfinished.setIcon(0, QIcon.fromTheme("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)))
+
+        item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
+        item_finished.setIcon(0, QIcon.fromTheme("emblem-success", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)))
+
+        self.category_tree.setCurrentItem(all_downloads)
         
         self.download_table = QTableWidget()
         self.download_table.setColumnCount(7)
@@ -636,7 +697,7 @@ class MainWindow(QMainWindow):
 
         splitter.addWidget(self.category_tree)
         splitter.addWidget(self.download_table)
-        splitter.setSizes([200, 800])
+        splitter.setSizes([230, 770])
         splitter.setCollapsible(0, False)
         self.setCentralWidget(splitter)
 
@@ -1362,9 +1423,9 @@ class MainWindow(QMainWindow):
 
     def open_add_url(self):
         from ui.dialogs import AddUrlDialog
-        dialog = AddUrlDialog(self)
-        dialog.accepted.connect(lambda: self._handle_add_url_accepted(dialog))
-        dialog.show()
+        self._add_url_dialog = AddUrlDialog(self)
+        if self._add_url_dialog.exec():
+            self._handle_add_url_accepted(self._add_url_dialog)
 
     def _handle_add_url_accepted(self, dialog):
         url = dialog.get_url()
