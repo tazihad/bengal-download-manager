@@ -581,7 +581,7 @@ class MainWindow(QMainWindow):
         self.category_tree.setHeaderHidden(True)
         self.category_tree.setRootIsDecorated(False)
         self.category_tree.setIconSize(QSize(18, 18))
-        self.category_tree.setIndentation(0)
+        self.category_tree.setIndentation(10)
         self.category_tree.setAnimated(True)
         self.category_tree.itemClicked.connect(self.filter_downloads)
 

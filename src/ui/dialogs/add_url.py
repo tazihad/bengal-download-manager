@@ -4,10 +4,16 @@ from PyQt6.QtWidgets import (
 
 class AddUrlDialog(QDialog):
     def __init__(self, parent=None):
-        super().__init__(parent)
         self.setWindowTitle("Enter new address to download")
         self.setWindowIcon(QApplication.windowIcon())
-        self.setFixedWidth(920)
+        
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_w = screen.availableGeometry().width()
+            target_width = min(1350, max(1000, int(screen_w * 0.85)))
+        else:
+            target_width = 1350
+        self.setFixedWidth(target_width)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
