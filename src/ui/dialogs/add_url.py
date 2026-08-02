@@ -8,18 +8,12 @@ class AddUrlDialog(QDialog):
         self.setWindowTitle("Enter new address to download")
         self.setWindowIcon(QApplication.windowIcon())
         
-        screen = QApplication.primaryScreen()
-        if screen:
-            screen_w = screen.availableGeometry().width()
-            target_width = min(1350, max(1000, int(screen_w * 0.85)))
-        else:
-            target_width = 1350
-        self.setFixedWidth(target_width)
+        self.setMinimumWidth(750)
+        self.resize(750, 160)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
-        layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
         
         lbl_addr = QLabel("Address:")
         lbl_addr.setStyleSheet("font-size: 13px; font-weight: 600;")
