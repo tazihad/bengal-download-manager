@@ -9,11 +9,11 @@ class AddUrlDialog(QDialog):
         self.setWindowIcon(QApplication.windowIcon())
         
         self.setMinimumWidth(750)
-        self.resize(750, 160)
+        self.resize(750, 115)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
         
         lbl_addr = QLabel("Address:")
         layout.addWidget(lbl_addr)
@@ -35,7 +35,7 @@ class AddUrlDialog(QDialog):
         layout.addLayout(input_layout)
         
         btn_layout = QHBoxLayout()
-        btn_layout.setContentsMargins(0, 8, 0, 0)
+        btn_layout.setContentsMargins(0, 6, 0, 0)
         btn_layout.setSpacing(8)
         btn_layout.addStretch()
         
