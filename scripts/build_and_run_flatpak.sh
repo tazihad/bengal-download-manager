@@ -45,7 +45,7 @@ command=bengal-download-manager
 [Context]
 shared=network;ipc;
 sockets=x11;fallback-x11;wayland;pulseaudio;
-filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;xdg-data/icons:ro;~/.icons:ro;~/.local/share/icons:ro;/usr/share/icons:ro;
+filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;xdg-data/icons:ro;~/.icons:ro;~/.local/share/icons:ro;
 devices=dri;
 
 [Session Bus Policy]
