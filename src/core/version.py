@@ -1,1 +1,28 @@
-VERSION = "0.1.15-alpha.1"
+import os
+import subprocess
+
+def _get_version():
+    if os.environ.get("APP_VERSION"):
+        return os.environ.get("APP_VERSION")
+    if os.environ.get("BENGAL_DM_VERSION"):
+        return os.environ.get("BENGAL_DM_VERSION")
+    try:
+        git_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+        res = subprocess.run(
+            ["git", "describe", "--tags", "--always"],
+            cwd=git_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=1
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            ver = res.stdout.strip()
+            if ver.startswith("v"):
+                ver = ver[1:]
+            return ver
+    except Exception:
+        pass
+    return "0.1.20"
+
+VERSION = _get_version()

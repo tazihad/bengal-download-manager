@@ -457,22 +457,22 @@ class MainWindow(QMainWindow):
             self.process_incoming_url(url.toString())
 
     def setup_actions(self):
-        self.action_add_url = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), "Add URL", self)
+        self.action_add_url = QAction(QIcon.fromTheme("list-add", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)), "Add URL", self)
         self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
         self.action_add_url.triggered.connect(self.open_add_url)
 
-        self.action_exit = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "Exit", self)
+        self.action_exit = QAction(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)), "Exit", self)
         self.action_exit.triggered.connect(self.quit_app)
 
-        self.action_stop = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop), "Stop/Pause", self)
+        self.action_stop = QAction(QIcon.fromTheme("media-playback-pause", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)), "Stop/Pause", self)
         self.action_stop.triggered.connect(self.stop_selected_download)
         self.action_stop.setEnabled(False)
 
-        self.action_stop_all = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton), "Stop All", self)
+        self.action_stop_all = QAction(QIcon.fromTheme("process-stop", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)), "Stop All", self)
         self.action_stop_all.triggered.connect(self.stop_all_downloads)
         self.action_stop_all.setEnabled(False)
 
-        self.action_resume = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay), "Resume", self)
+        self.action_resume = QAction(QIcon.fromTheme("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)), "Resume", self)
         self.action_resume.triggered.connect(self.resume_selected_download)
         self.action_resume.setEnabled(False)
         
@@ -482,18 +482,18 @@ class MainWindow(QMainWindow):
         self.action_redownload = QAction("Redownload", self)
         self.action_redownload.triggered.connect(self.redownload_selected)
 
-        self.action_delete = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Delete", self)
+        self.action_delete = QAction(QIcon.fromTheme("user-trash", self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)), "Delete", self)
         self.action_delete.triggered.connect(self.delete_selected_download)
         self.action_delete.setEnabled(False)
         self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.action_clear = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "Clear Completed", self)
+        self.action_clear = QAction(QIcon.fromTheme("edit-clear", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton)), "Clear Completed", self)
         self.action_clear.triggered.connect(self.clear_finished_downloads)
         
-        self.action_options = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Options", self)
+        self.action_options = QAction(QIcon.fromTheme("configure", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)), "Options", self)
         self.action_options.triggered.connect(self.open_options)
 
-        self.action_open_folder = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon), "Open Downloads Folder", self)
+        self.action_open_folder = QAction(QIcon.fromTheme("folder-open", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)), "Open Downloads Folder", self)
         self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
 
     def setup_menu_bar(self):
@@ -563,6 +563,7 @@ class MainWindow(QMainWindow):
                 toolbar.removeAction(action)
         
         toolbar.setMovable(False)
+        toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QSize(24, 24))
 
