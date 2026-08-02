@@ -71,6 +71,7 @@ class DownloadFileInfoDialog(QDialog):
         self.auto_detect_category()
         self.update_save_path()
         self.category_combo.currentTextChanged.connect(self.update_save_path)
+        self.save_input.textChanged.connect(self.on_save_input_changed)
         
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(0, 10, 0, 0)
@@ -101,6 +102,11 @@ class DownloadFileInfoDialog(QDialog):
         self.adjustSize()
         
         self.action_result = None 
+
+    def on_save_input_changed(self, text):
+        new_name = os.path.basename(text.strip())
+        if new_name:
+            self.file_info["filename"] = new_name
         
     def auto_detect_category(self):
         filename = self.file_info.get("filename", "").lower()
@@ -123,14 +129,16 @@ class DownloadFileInfoDialog(QDialog):
         try: os.makedirs(base_dir, exist_ok=True)
         except: pass
         
-        target_path = os.path.join(base_dir, self.file_info.get("filename", "file"))
+        filename = self.file_info.get("filename") or os.path.basename(self.save_input.text().strip()) or "file"
+        target_path = os.path.join(base_dir, filename)
         target_path = get_unique_filepath(target_path)
         self.save_input.setText(target_path)
         self.save_input.setCursorPosition(0)
         
     def browse_save_path(self):
-        folder = os.path.dirname(self.save_input.text())
-        filename = os.path.basename(self.save_input.text())
+        current_text = self.save_input.text().strip()
+        folder = os.path.dirname(current_text) if current_text else os.path.expanduser("~/Downloads")
+        filename = os.path.basename(current_text) if current_text else self.file_info.get("filename", "")
         path = choose_portal_save_path("Save File As", filename, folder)
         if path:
             self.file_info["filename"] = os.path.basename(path)
