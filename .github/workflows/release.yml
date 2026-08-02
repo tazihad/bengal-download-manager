@@ -45,6 +45,11 @@ jobs:
         with:
           manual_tag: ${{ github.event.inputs.tag_name }}
 
+      - name: Update Version File
+        uses: ./.github/actions/update-version
+        with:
+          version: ${{ steps.get_tag.outputs.version }}
+
       - name: Build Binary
         uses: ./.github/actions/build-binary
         with:
