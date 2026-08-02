@@ -15,6 +15,10 @@ finish-args:
   - --filesystem=xdg-config/kdeglobals:ro
   - --filesystem=xdg-config/gtk-3.0:ro
   - --filesystem=xdg-config/gtk-4.0:ro
+  - --filesystem=xdg-data/icons:ro
+  - --filesystem=/usr/share/icons:ro
+  - --filesystem=~/.icons:ro
+  - --filesystem=~/.local/share/icons:ro
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.portal.Desktop
