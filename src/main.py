@@ -41,7 +41,7 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename, open_file_generic, open_with
+    show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path
 )
 
 # Default TCP port for extension communication
@@ -1347,7 +1347,13 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "File not found to move.")
             return
 
-        new_path, _ = QFileDialog.getSaveFileName(self, "Move/Rename File", old_path)
+        filename = os.path.basename(old_path)
+        folder = os.path.dirname(old_path)
+
+        new_path = choose_portal_save_path("Save File As", filename, folder)
+        if not new_path:
+            new_path, _ = QFileDialog.getSaveFileName(self, "Save File As", old_path)
+
         if new_path and new_path != old_path:
             try:
                 shutil.move(old_path, new_path)
