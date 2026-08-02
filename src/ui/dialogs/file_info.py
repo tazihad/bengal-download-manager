@@ -1,7 +1,7 @@
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QComboBox, QFileDialog, QFormLayout, QApplication
+    QComboBox, QFormLayout, QApplication
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -132,8 +132,6 @@ class DownloadFileInfoDialog(QDialog):
         folder = os.path.dirname(self.save_input.text())
         filename = os.path.basename(self.save_input.text())
         path = choose_portal_save_path("Save File As", filename, folder)
-        if path is None:
-            path, _ = QFileDialog.getSaveFileName(self, "Save File As", self.save_input.text())
         if path:
             self.save_input.setText(path)
             self.save_input.setCursorPosition(0)

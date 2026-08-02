@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QStatusBar, QStyle,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
-    QFileIconProvider, QInputDialog, QFileDialog, QDialog, 
+    QFileIconProvider, QInputDialog, QDialog, 
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
     QSystemTrayIcon, QRubberBand
 )

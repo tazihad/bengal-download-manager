@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QFormLayout, QMessageBox, QFileDialog, QApplication
+    QFormLayout, QMessageBox, QApplication
 )
 from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtCore import Qt, QUrl
