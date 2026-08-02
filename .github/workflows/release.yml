@@ -76,15 +76,23 @@ jobs:
           cat << EOF > "$BUILD_DIR/metadata"
           [Application]
           name=$APP_ID
-          runtime=org.kde.Platform/x86_64/6.8
-          sdk=org.kde.Sdk/x86_64/6.8
+          runtime=org.kde.Platform/x86_64/6.11
+          sdk=org.kde.Sdk/x86_64/6.11
           command=bengal-download-manager
 
           [Context]
           shared=network;ipc;
           sockets=x11;fallback-x11;wayland;pulseaudio;
-          filesystems=host;xdg-download;
+          filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
           devices=dri;
+
+          [Session Bus Policy]
+          org.freedesktop.portal.Desktop=talk
+          org.freedesktop.portal.Settings=talk
+          org.freedesktop.Notifications=talk
+
+          [Environment]
+          QT_QPA_PLATFORMTHEME=xdgdesktopportal
           EOF
           flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
           flatpak build-export repo "$BUILD_DIR"

@@ -1,6 +1,6 @@
 app-id: io.github.tazihad.bengal-download-manager
 runtime: org.kde.Platform
-runtime-version: '6.8'
+runtime-version: '6.11'
 sdk: org.kde.Sdk
 command: bengal-download-manager
 
@@ -12,8 +12,14 @@ finish-args:
   - --share=network
   - --filesystem=host
   - --filesystem=xdg-download
+  - --filesystem=xdg-config/kdeglobals:ro
+  - --filesystem=xdg-config/gtk-3.0:ro
+  - --filesystem=xdg-config/gtk-4.0:ro
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.portal.Settings
+  - --env=QT_QPA_PLATFORMTHEME=xdgdesktopportal
 
 modules:
   - name: bengal-download-manager
