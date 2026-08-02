@@ -133,6 +133,7 @@ class DownloadFileInfoDialog(QDialog):
         filename = os.path.basename(self.save_input.text())
         path = choose_portal_save_path("Save File As", filename, folder)
         if path:
+            self.file_info["filename"] = os.path.basename(path)
             self.save_input.setText(path)
             self.save_input.setCursorPosition(0)
             
