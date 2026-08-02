@@ -565,6 +565,9 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
     clean_env = get_clean_env()
 
     options = f'{{"current_name": <"{filename}">}}'
+    if folder and os.path.exists(folder):
+        abs_folder = os.path.abspath(folder)
+        options = f'{{"current_name": <"{filename}">, "current_folder": <@ay b"{abs_folder}\\0">}}'
 
     try:
         # Use stdbuf -oL if available to unbuffer stdout lines
