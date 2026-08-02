@@ -52,6 +52,10 @@ devices=dri;
 org.freedesktop.portal.Desktop=talk
 org.freedesktop.portal.Settings=talk
 org.freedesktop.Notifications=talk
+org.kde.StatusNotifierWatcher=talk
+org.freedesktop.StatusNotifierWatcher=talk
+org.kde.StatusNotifierItem-*=own
+org.freedesktop.StatusNotifierItem-*=own
 
 [Environment]
 QT_QPA_PLATFORMTHEME=xdgdesktopportal
