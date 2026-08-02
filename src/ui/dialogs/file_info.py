@@ -126,11 +126,13 @@ class DownloadFileInfoDialog(QDialog):
         target_path = os.path.join(base_dir, self.file_info.get("filename", "file"))
         target_path = get_unique_filepath(target_path)
         self.save_input.setText(target_path)
+        self.save_input.setCursorPosition(0)
         
     def browse_save_path(self):
         path, _ = QFileDialog.getSaveFileName(self, "Save File As", self.save_input.text())
         if path:
             self.save_input.setText(path)
+            self.save_input.setCursorPosition(0)
             
     def get_results(self):
         return {
