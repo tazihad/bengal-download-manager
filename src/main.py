@@ -595,9 +595,13 @@ class MainWindow(QMainWindow):
             }
             QTreeWidget::item {
                 height: 26px;
-                padding: 2px 4px;
+                padding: 2px 6px;
                 margin: 1px 0px;
                 border-radius: 4px;
+            }
+            QTreeWidget::item:focus {
+                outline: none;
+                border: none;
             }
             QTreeWidget::item:hover {
                 background-color: rgba(61, 174, 233, 0.15);
@@ -609,9 +613,11 @@ class MainWindow(QMainWindow):
             }
             QTreeWidget::branch {
                 background: transparent;
-                width: 0px;
-                margin: 0px;
-                padding: 0px;
+                border: none;
+                outline: none;
+            }
+            QTreeWidget::branch:selected, QTreeWidget::branch:hover {
+                background: transparent;
             }
         """)
 
@@ -1411,9 +1417,9 @@ class MainWindow(QMainWindow):
 
     def open_add_url(self):
         from ui.dialogs import AddUrlDialog
-        dialog = AddUrlDialog(self)
-        dialog.accepted.connect(lambda: self._handle_add_url_accepted(dialog))
-        dialog.show()
+        self._add_url_dialog = AddUrlDialog(self)
+        if self._add_url_dialog.exec():
+            self._handle_add_url_accepted(self._add_url_dialog)
 
     def _handle_add_url_accepted(self, dialog):
         url = dialog.get_url()
