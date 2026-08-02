@@ -587,16 +587,17 @@ class MainWindow(QMainWindow):
 
         self.category_tree.setStyleSheet("""
             QTreeWidget {
+                show-decoration-selected: 0;
                 font-size: 13px;
                 font-weight: 500;
-                padding: 4px 0px;
+                padding: 4px 2px;
                 border: none;
                 outline: 0;
             }
             QTreeWidget::item {
                 height: 26px;
-                padding: 2px 6px;
-                margin: 1px 0px;
+                padding: 2px 8px;
+                margin: 1px 2px;
                 border-radius: 4px;
             }
             QTreeWidget::item:focus {
@@ -613,11 +614,16 @@ class MainWindow(QMainWindow):
             }
             QTreeWidget::branch {
                 background: transparent;
+                background-color: transparent;
                 border: none;
                 outline: none;
             }
-            QTreeWidget::branch:selected, QTreeWidget::branch:hover {
+            QTreeWidget::branch:selected,
+            QTreeWidget::branch:selected:active,
+            QTreeWidget::branch:selected:inactive,
+            QTreeWidget::branch:hover {
                 background: transparent;
+                background-color: transparent;
             }
         """)
 
