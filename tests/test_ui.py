@@ -110,3 +110,24 @@ def test_main_window_move_file(qapp, tmp_path, monkeypatch):
     assert not test_file.exists()
     assert item0.text() == "moved.zip"
     assert item0.data(Qt.ItemDataRole.UserRole + 1) == str(dest_file)
+
+def test_adaptive_icon_theme(qapp):
+    from PyQt6.QtGui import QPalette, QColor
+    from PyQt6.QtWidgets import QStyle
+    from main import get_themed_icon, ensure_adaptive_icon_theme
+
+    # Set dark palette
+    dark_pal = QPalette()
+    dark_pal.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
+    dark_pal.setColor(QPalette.ColorRole.WindowText, QColor(250, 250, 250))
+    qapp.setPalette(dark_pal)
+
+    ensure_adaptive_icon_theme(qapp)
+    icon = get_themed_icon("list-add", qapp.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder))
+    assert not icon.isNull()
+    
+    # Verify icon pixmap is non-empty and has high contrast
+    pm = icon.pixmap(24, 24)
+    assert not pm.isNull()
+    assert pm.width() == 24 and pm.height() == 24
+

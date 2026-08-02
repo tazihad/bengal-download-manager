@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
     QSystemTrayIcon, QRubberBand
 )
-from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence
+from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 
 from core.workers import DownloadWorker, Aria2Worker
@@ -233,12 +233,113 @@ def parse_time_to_sec(text):
     except:
         return 0
 
+def ensure_adaptive_icon_theme(app=None):
+    """
+    Ensures icon search paths and active icon theme adapt cleanly to system/app
+    light and dark themes (specifically resolving dark toolbar icons in Flatpak mode).
+    """
+    search_paths = QIcon.themeSearchPaths()
+    for p in ["/app/share/icons", "/usr/share/icons", os.path.expanduser("~/.local/share/icons")]:
+        if os.path.exists(p) and p not in search_paths:
+            search_paths.append(p)
+    QIcon.setThemeSearchPaths(search_paths)
+
+    if app is None:
+        app = QApplication.instance()
+    if not app:
+        return
+
+    window_color = app.palette().color(QPalette.ColorRole.Window)
+    text_color = app.palette().color(QPalette.ColorRole.WindowText)
+    is_dark = window_color.value() < 128 or text_color.value() > 128
+
+    current_theme = QIcon.themeName()
+    if is_dark:
+        if not (current_theme.endswith("-dark") or "dark" in current_theme.lower()):
+            dark_candidates = [f"{current_theme}-dark", "breeze-dark", "ubuntu-mono-dark", "Adwaita-dark"]
+            for candidate in dark_candidates:
+                found = False
+                for sp in search_paths:
+                    if os.path.exists(os.path.join(sp, candidate)):
+                        QIcon.setThemeName(candidate)
+                        found = True
+                        break
+                if found:
+                    break
+
+
+def _get_pixmap_luminance(pm):
+    img = pm.toImage()
+    if img.isNull() or img.width() == 0 or img.height() == 0:
+        return None
+    r, g, b, count = 0, 0, 0, 0
+    for x in range(img.width()):
+        for y in range(img.height()):
+            c = img.pixelColor(x, y)
+            if c.alpha() > 50:
+                r += c.red()
+                g += c.green()
+                b += c.blue()
+                count += 1
+    if count == 0:
+        return None
+    avg_r, avg_g, avg_b = r / count, g / count, b / count
+    return 0.299 * avg_r + 0.587 * avg_g + 0.114 * avg_b
+
+
+def _invert_pixmap(pm):
+    img = pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    for x in range(img.width()):
+        for y in range(img.height()):
+            c = img.pixelColor(x, y)
+            if c.alpha() > 0:
+                img.setPixelColor(x, y, QColor(255 - c.red(), 255 - c.green(), 255 - c.blue(), c.alpha()))
+    return QPixmap.fromImage(img)
+
+
+def get_themed_icon(name, fallback=None):
+    """
+    Returns a QIcon for the given theme icon name, adapting it to current theme
+    (light vs dark) and ensuring good contrast against toolbar/window background.
+    """
+    ensure_adaptive_icon_theme()
+    icon = QIcon.fromTheme(name)
+    if (icon.isNull() or icon.name() == "") and fallback:
+        icon = fallback if isinstance(fallback, QIcon) else QIcon(fallback)
+    
+    if icon.isNull():
+        return icon
+
+    app = QApplication.instance()
+    if not app:
+        return icon
+
+    window_color = app.palette().color(QPalette.ColorRole.Window)
+    text_color = app.palette().color(QPalette.ColorRole.WindowText)
+    is_dark = window_color.value() < 128 or text_color.value() > 128
+
+    pm = icon.pixmap(24, 24)
+    lum = _get_pixmap_luminance(pm)
+
+    if lum is not None:
+        if is_dark and lum < 120:
+            # Low-luminance icon on a dark theme background: invert pixmap for high contrast
+            new_icon = QIcon()
+            new_icon.addPixmap(_invert_pixmap(pm))
+            pm48 = icon.pixmap(48, 48)
+            if not pm48.isNull():
+                new_icon.addPixmap(_invert_pixmap(pm48))
+            return new_icon
+
+    return icon
+
+
 def get_file_icon(filename):
     db = QMimeDatabase()
     mime = db.mimeTypeForFile(filename, QMimeDatabase.MatchMode.MatchExtension)
     if mime.isValid():
         icon_name = mime.iconName()
-        icon = QIcon.fromTheme(icon_name)
+        icon = get_themed_icon(icon_name)
         if not icon.isNull():
             return icon
     info = QFileInfo(filename)
@@ -458,6 +559,13 @@ class MainWindow(QMainWindow):
         self.is_quitting = True
         self.close()
 
+    def changeEvent(self, event):
+        if event and event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            ensure_adaptive_icon_theme(QApplication.instance())
+            self.setup_actions()
+            self.setup_toolbar()
+        super().changeEvent(event)
+
     # --- DRAG AND DROP HANDLERS ---
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -468,22 +576,22 @@ class MainWindow(QMainWindow):
             self.process_incoming_url(url.toString())
 
     def setup_actions(self):
-        self.action_add_url = QAction(QIcon.fromTheme("list-add", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)), "Add URL", self)
+        self.action_add_url = QAction(get_themed_icon("list-add", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)), "Add URL", self)
         self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
         self.action_add_url.triggered.connect(self.open_add_url)
 
-        self.action_exit = QAction(QIcon.fromTheme("application-exit", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)), "Exit", self)
+        self.action_exit = QAction(get_themed_icon("application-exit", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)), "Exit", self)
         self.action_exit.triggered.connect(self.quit_app)
 
-        self.action_stop = QAction(QIcon.fromTheme("media-playback-pause", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)), "Stop/Pause", self)
+        self.action_stop = QAction(get_themed_icon("media-playback-pause", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)), "Stop/Pause", self)
         self.action_stop.triggered.connect(self.stop_selected_download)
         self.action_stop.setEnabled(False)
 
-        self.action_stop_all = QAction(QIcon.fromTheme("process-stop", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)), "Stop All", self)
+        self.action_stop_all = QAction(get_themed_icon("process-stop", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)), "Stop All", self)
         self.action_stop_all.triggered.connect(self.stop_all_downloads)
         self.action_stop_all.setEnabled(False)
 
-        self.action_resume = QAction(QIcon.fromTheme("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)), "Resume", self)
+        self.action_resume = QAction(get_themed_icon("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)), "Resume", self)
         self.action_resume.triggered.connect(self.resume_selected_download)
         self.action_resume.setEnabled(False)
         
@@ -493,18 +601,18 @@ class MainWindow(QMainWindow):
         self.action_redownload = QAction("Redownload", self)
         self.action_redownload.triggered.connect(self.redownload_selected)
 
-        self.action_delete = QAction(QIcon.fromTheme("user-trash", self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)), "Delete", self)
+        self.action_delete = QAction(get_themed_icon("user-trash", self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)), "Delete", self)
         self.action_delete.triggered.connect(self.delete_selected_download)
         self.action_delete.setEnabled(False)
         self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.action_clear = QAction(QIcon.fromTheme("edit-clear", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton)), "Clear Completed", self)
+        self.action_clear = QAction(get_themed_icon("edit-clear", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton)), "Clear Completed", self)
         self.action_clear.triggered.connect(self.clear_finished_downloads)
         
-        self.action_options = QAction(QIcon.fromTheme("configure", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)), "Options", self)
+        self.action_options = QAction(get_themed_icon("configure", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)), "Options", self)
         self.action_options.triggered.connect(self.open_options)
 
-        self.action_open_folder = QAction(QIcon.fromTheme("folder-open", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)), "Open Downloads Folder", self)
+        self.action_open_folder = QAction(get_themed_icon("folder-open", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)), "Open Downloads Folder", self)
         self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
 
     def setup_menu_bar(self):
@@ -639,25 +747,25 @@ class MainWindow(QMainWindow):
         """)
 
         all_downloads = QTreeWidgetItem(self.category_tree, ["All Downloads"])
-        all_downloads.setIcon(0, QIcon.fromTheme("folder-download", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)))
+        all_downloads.setIcon(0, get_themed_icon("folder-download", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)))
         all_downloads.setExpanded(True)
 
         cat_icons = {
-            "Compressed": QIcon.fromTheme("package-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_DriveFDIcon)),
-            "Documents": QIcon.fromTheme("x-office-document", self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)),
-            "Music": QIcon.fromTheme("audio-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)),
-            "Programs": QIcon.fromTheme("system-run", self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMenuButton)),
-            "Video": QIcon.fromTheme("video-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+            "Compressed": get_themed_icon("package-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_DriveFDIcon)),
+            "Documents": get_themed_icon("x-office-document", self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)),
+            "Music": get_themed_icon("audio-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)),
+            "Programs": get_themed_icon("system-run", self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMenuButton)),
+            "Video": get_themed_icon("video-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
         }
         for cat_name, cat_icon in cat_icons.items():
             child = QTreeWidgetItem(all_downloads, [cat_name])
             child.setIcon(0, cat_icon)
 
         item_unfinished = QTreeWidgetItem(self.category_tree, ["Unfinished"])
-        item_unfinished.setIcon(0, QIcon.fromTheme("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)))
+        item_unfinished.setIcon(0, get_themed_icon("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)))
 
         item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
-        item_finished.setIcon(0, QIcon.fromTheme("emblem-success", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)))
+        item_finished.setIcon(0, get_themed_icon("emblem-success", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)))
 
         self.category_tree.setCurrentItem(all_downloads)
         
@@ -2177,12 +2285,8 @@ if __name__ == "__main__":
     app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
 
-    # Configure icon search paths for Flatpak and XDG locations
-    search_paths = QIcon.themeSearchPaths()
-    for p in ["/app/share/icons", "/usr/share/icons", os.path.expanduser("~/.local/share/icons")]:
-        if os.path.exists(p) and p not in search_paths:
-            search_paths.append(p)
-    QIcon.setThemeSearchPaths(search_paths)
+    # Configure icon search paths and adaptive theme for Flatpak and XDG locations
+    ensure_adaptive_icon_theme(app)
 
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
