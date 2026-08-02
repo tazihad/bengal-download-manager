@@ -557,7 +557,7 @@ def show_in_folder(path):
 def choose_portal_save_path(title="Save File As", filename="file", folder=""):
     """
     Triggers XDG Desktop Portal FileChooser.SaveFile via gdbus to open the native XDG Portal File Picker.
-    Returns the chosen destination file path string, or None if cancelled/unavailable.
+    Returns the chosen destination file path string, "" if user cancelled, or None if portal unavailable.
     """
     if not shutil.which("gdbus"):
         return None
@@ -569,10 +569,14 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
         options = f'{{"current_name": <"{filename}">, "current_folder": <"{folder}">}}'
 
     try:
+        # Use stdbuf -oL if available to unbuffer stdout lines
+        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop']
+        if shutil.which("stdbuf"):
+            monitor_cmd = ['stdbuf', '-oL'] + monitor_cmd
+
         # Start monitor first to capture the Response signal
         monitor = subprocess.Popen(
-            ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop'],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
+            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
         )
 
         cmd = [
@@ -591,7 +595,7 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
 
         req_path = match.group(0).strip("'")
 
-        chosen_path = None
+        chosen_path = ""
         start_time = time.time()
         while time.time() - start_time < 300: # Wait up to 5 minutes
             line = monitor.stdout.readline()
