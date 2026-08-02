@@ -404,7 +404,8 @@ def open_file_generic(path):
 def open_with(path):
     """
     Shows the OS-native "Open With" dialog for the given path.
-    Uses modern XDG Desktop Portal (OpenURI with ask=true) on Linux for native app picker.
+    Uses XDG Desktop Portal OpenFile method via gdbus with stdin file descriptor redirection
+    to force the modern native XDG Desktop Portal App Picker dialog.
     """
     if not path or not os.path.exists(path):
         return False
@@ -423,10 +424,26 @@ def open_with(path):
         return True
 
     # Linux / Unix
+    # 1. Primary Method: XDG Desktop Portal OpenFile via gdbus with stdin file descriptor redirection (forces native XDG portal file picker)
+    if shutil.which("gdbus"):
+        try:
+            cmd = [
+                "gdbus", "call", "--session", 
+                "--dest", "org.freedesktop.portal.Desktop", 
+                "--object-path", "/org/freedesktop/portal/desktop", 
+                "--method", "org.freedesktop.portal.OpenURI.OpenFile", 
+                "", "0", '{"ask": <true>}'
+            ]
+            with open(path, "rb") as f:
+                res = subprocess.run(cmd, stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+                if res.returncode == 0:
+                    return True
+        except Exception:
+            pass
+
+    # 2. Fallback: XDG Desktop Portal OpenURI via gdbus
     from PyQt6.QtCore import QUrl
     uri = QUrl.fromLocalFile(path).toString()
-    
-    # 1. Try XDG Desktop Portal via gdbus (Forces modern native app picker dialog)
     if shutil.which("gdbus"):
         try:
             cmd = [
