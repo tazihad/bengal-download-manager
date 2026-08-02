@@ -102,9 +102,6 @@ jobs:
             bengal-download-manager-${{ steps.get_tag.outputs.version }}-x86_64.flatpak
             extension-chromium.crx
             extension-firefox.xpi
-            flatpak/io.github.tazihad.bengal-download-manager.yml
-            flatpak/io.github.tazihad.bengal-download-manager.desktop
-            flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml
           draft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           generate_release_notes: true
