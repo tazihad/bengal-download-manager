@@ -579,24 +579,25 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.category_tree = QTreeWidget()
         self.category_tree.setHeaderHidden(True)
-        self.category_tree.setIconSize(QSize(20, 20))
-        self.category_tree.setIndentation(18)
+        self.category_tree.setRootIsDecorated(False)
+        self.category_tree.setIconSize(QSize(18, 18))
+        self.category_tree.setIndentation(12)
         self.category_tree.setAnimated(True)
         self.category_tree.itemClicked.connect(self.filter_downloads)
 
         self.category_tree.setStyleSheet("""
             QTreeWidget {
-                font-size: 13.5px;
+                font-size: 13px;
                 font-weight: 500;
-                padding: 8px 4px;
+                padding: 4px 2px;
                 border: none;
                 outline: 0;
             }
             QTreeWidget::item {
-                height: 32px;
-                padding: 4px 10px;
-                margin: 2px 4px;
-                border-radius: 6px;
+                height: 26px;
+                padding: 2px 6px;
+                margin: 1px 2px;
+                border-radius: 4px;
             }
             QTreeWidget::item:hover {
                 background-color: rgba(61, 174, 233, 0.15);
@@ -608,6 +609,7 @@ class MainWindow(QMainWindow):
             }
             QTreeWidget::branch {
                 background: transparent;
+                width: 0px;
             }
         """)
 
