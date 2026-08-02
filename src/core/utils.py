@@ -301,23 +301,69 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
             try: s.shutdown(socket.SHUT_RDWR); s.close()
             except: pass
 
+def get_system_arch():
+    """Returns normalized architecture name: x86_64, aarch64, etc."""
+    raw = platform.machine().lower()
+    if raw in ["x86_64", "amd64"]:
+        return "x86_64"
+    elif raw in ["aarch64", "arm64"]:
+        return "aarch64"
+    elif raw in ["i386", "i686"]:
+        return "i686"
+    return raw
+
 def find_aria2():
-    """Non-blocking check for aria2c binary without downloading."""
+    """
+    Non-blocking check for aria2c binary.
+    Prioritizes bundled embedded binaries, Flatpak sandbox paths, and local assets before falling back to system PATH.
+    """
+    arch = get_system_arch()
+    
+    # 1. PyInstaller bundled location (sys._MEIPASS)
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass:
+        for candidate in [
+            os.path.join(meipass, "assets", "bin", arch, "aria2c"),
+            os.path.join(meipass, "assets", "bin", "aria2c"),
+            os.path.join(meipass, "bin", "aria2c")
+        ]:
+            if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+
+    # 2. Flatpak sandbox location
+    for candidate in [
+        "/app/bin/aria2c",
+        f"/app/share/bengal-download-manager/assets/bin/{arch}/aria2c"
+    ]:
+        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    # 3. Source repository / local asset directory
+    # __file__ is src/core/utils.py -> root_dir is repo root
+    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root_dir = os.path.dirname(src_dir)
+    for candidate in [
+        os.path.join(root_dir, "assets", "bin", arch, "aria2c"),
+        os.path.join(root_dir, "assets", "bin", "aria2c"),
+        os.path.join(src_dir, "assets", "bin", arch, "aria2c")
+    ]:
+        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    # 4. System PATH
     system_aria2 = shutil.which("aria2c")
     if system_aria2:
         return system_aria2
-    
-    # Check common local locations
+
+    # 5. Application data directory / local user bin
     data_dir = get_data_dir()
-    local_aria2 = os.path.join(data_dir, "bin", "aria2c")
-    if os.path.exists(local_aria2):
-        return local_aria2
-    
-    # Check ~/.local/bin specifically
-    local_bin_aria2 = os.path.expanduser("~/.local/bin/aria2c")
-    if os.path.exists(local_bin_aria2):
-        return local_bin_aria2
-        
+    for candidate in [
+        os.path.join(data_dir, "bin", "aria2c"),
+        os.path.expanduser("~/.local/bin/aria2c")
+    ]:
+        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
     return None
 
 def ensure_aria2():
@@ -331,25 +377,28 @@ def ensure_aria2():
     local_aria2 = os.path.join(bin_dir, "aria2c")
     
     try:
-        arch = platform.machine().lower()
-        if arch in ["x86_64", "amd64"]:
-            url = "https://github.com/abcfy2/aria2-static-build/releases/download/v1.37.0/aria2-1.37.0-linux-gnu-64bit-build1.tar.bz2"
-        elif arch in ["i386", "i686"]:
-            url = "https://github.com/abcfy2/aria2-static-build/releases/download/v1.37.0/aria2-1.37.0-linux-gnu-32bit-build1.tar.bz2"
-        elif "armv7" in arch:
-            url = "https://github.com/abcfy2/aria2-static-build/releases/download/v1.37.0/aria2-1.37.0-linux-gnu-arm-el-build1.tar.bz2"
-        elif "aarch64" in arch or "arm64" in arch:
-            url = "https://github.com/abcfy2/aria2-static-build/releases/download/v1.37.0/aria2-1.37.0-linux-gnu-arm64-build1.tar.bz2"
+        arch = get_system_arch()
+        if arch == "x86_64":
+            url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-x86_64-linux-musl_static.zip"
+        elif arch == "aarch64":
+            url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-aarch64-linux-musl_static.zip"
+        elif arch == "i686":
+            url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-i686-linux-musl_static.zip"
         else: return None
             
-        temp_file = os.path.join(data_dir, "aria2.tar.bz2")
-        urllib.request.urlretrieve(url, temp_file)
+        temp_file = os.path.join(data_dir, "aria2.zip")
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as resp:
+            with open(temp_file, "wb") as out:
+                out.write(resp.read())
         
-        with tarfile.open(temp_file, "r:bz2") as tar:
-            for member in tar.getmembers():
-                if member.name.endswith("/aria2c"):
-                    member.name = os.path.basename(member.name)
-                    tar.extract(member, bin_dir)
+        import zipfile
+        with zipfile.ZipFile(temp_file, "r") as z:
+            for name in z.namelist():
+                if name.endswith("aria2c"):
+                    data = z.read(name)
+                    with open(local_aria2, "wb") as out:
+                        out.write(data)
                     break
         os.remove(temp_file)
         os.chmod(local_aria2, 0o755)
@@ -361,7 +410,7 @@ def ensure_aria2():
             try: os.symlink(local_aria2, symlink_path)
             except: pass
         return local_aria2
-    except:
+    except Exception:
         return None
 
 def get_clean_env():

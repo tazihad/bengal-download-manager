@@ -48,3 +48,13 @@ def test_get_unique_filepath(tmp_path):
 def test_get_config_dir():
     config_dir = get_config_dir()
     assert os.path.exists(config_dir)
+
+def test_find_aria2_bundled():
+    from core.utils import find_aria2, get_system_arch
+    arch = get_system_arch()
+    assert arch in ["x86_64", "aarch64", "i686"]
+    
+    aria2_path = find_aria2()
+    assert aria2_path is not None
+    assert os.path.exists(aria2_path)
+    assert os.access(aria2_path, os.X_OK)

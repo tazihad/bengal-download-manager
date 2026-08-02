@@ -31,6 +31,20 @@ mkdir -p "$BUILD_DIR/files/share/metainfo"
 cp dist/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
 chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
 
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+    ARCH_NAME="x86_64"
+elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    ARCH_NAME="aarch64"
+else
+    ARCH_NAME="x86_64"
+fi
+
+if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
+    cp "assets/bin/$ARCH_NAME/aria2c" "$BUILD_DIR/files/bin/aria2c"
+    chmod +x "$BUILD_DIR/files/bin/aria2c"
+fi
+
 cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
 cp flatpak/io.github.tazihad.bengal-download-manager.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
 cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"

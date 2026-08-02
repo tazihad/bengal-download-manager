@@ -4,6 +4,10 @@ inputs:
   version:
     description: 'Version string (without leading v)'
     required: true
+  arch:
+    description: 'Target architecture (x86_64 or aarch64)'
+    required: false
+    default: 'x86_64'
 
 runs:
   using: "composite"
@@ -14,17 +18,25 @@ runs:
         sudo apt-get update && sudo apt-get install -y flatpak
         APP_ID="io.github.tazihad.bengal-download-manager"
         BUILD_DIR="flatpak_app_dir"
+        VERSION="${{ inputs.version }}"
+        ARCH="${{ inputs.arch }}"
         mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo"
-        cp build_cmake/dist/bengal-download-manager-${{ inputs.version }}-x86_64 "$BUILD_DIR/files/bin/bengal-download-manager"
+        cp build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH} "$BUILD_DIR/files/bin/bengal-download-manager"
         chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
+        
+        if [ -f "assets/bin/${ARCH}/aria2c" ]; then
+          cp "assets/bin/${ARCH}/aria2c" "$BUILD_DIR/files/bin/aria2c"
+          chmod +x "$BUILD_DIR/files/bin/aria2c"
+        fi
+
         cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
         cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
         name=$APP_ID
-        runtime=org.kde.Platform/x86_64/6.11
-        sdk=org.kde.Sdk/x86_64/6.11
+        runtime=org.kde.Platform/${ARCH}/6.11
+        sdk=org.kde.Sdk/${ARCH}/6.11
         command=bengal-download-manager
 
         [Context]
@@ -47,4 +59,4 @@ runs:
         EOF
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
         flatpak build-export repo "$BUILD_DIR"
-        flatpak build-bundle repo bengal-download-manager-${{ inputs.version }}-x86_64.flatpak $APP_ID
+        flatpak build-bundle repo bengal-download-manager-${VERSION}-${ARCH}.flatpak $APP_ID

@@ -4,6 +4,10 @@ inputs:
   version:
     description: 'Version string (without leading v)'
     required: true
+  arch:
+    description: 'Target architecture (x86_64 or aarch64)'
+    required: false
+    default: 'x86_64'
 
 runs:
   using: "composite"
@@ -11,13 +15,12 @@ runs:
     - name: Build AppImage
       shell: bash
       run: |
-        # 1. Create AppDir structure
+        VERSION="${{ inputs.version }}"
+        ARCH="${{ inputs.arch }}"
         mkdir -p AppDir/usr/bin
         mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
         
-        # 2. Copy assets
-        VERSION="${{ inputs.version }}"
-        cp build_cmake/dist/bengal-download-manager-${VERSION}-x86_64 AppDir/usr/bin/bengal-download-manager
+        cp build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH} AppDir/usr/bin/bengal-download-manager
         cp assets/bengal-download-manager.desktop AppDir/
         
         # Add X-AppImage-Version to the desktop file
@@ -26,7 +29,6 @@ runs:
         cp assets/logo.png AppDir/bengal-download-manager.png
         cp assets/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
         
-        # 3. Create AppRun script
         cat > AppDir/AppRun <<EOF
         #!/bin/sh
         HERE="\$(dirname "\$(readlink -f "\${0}")")"
@@ -34,10 +36,9 @@ runs:
         EOF
         chmod +x AppDir/AppRun
         
-        # 4. Download appimagetool (Using continuous release as recommended)
-        wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-        chmod +x appimagetool-x86_64.AppImage
+        TOOL_ARCH="${ARCH}"
+        wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${TOOL_ARCH}.AppImage -O appimagetool.AppImage || wget -q https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-${TOOL_ARCH}.AppImage -O appimagetool.AppImage
+        chmod +x appimagetool.AppImage
         
-        # 5. Build AppImage (Extract and run to avoid FUSE issues in CI)
-        UPDATE_INFO="gh-releases-zsync|tazihad|bengal-download-manager|latest|bengal-download-manager-*-x86_64.AppImage.zsync"
-        ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run -u "$UPDATE_INFO" AppDir bengal-download-manager-${VERSION}-x86_64.AppImage
+        UPDATE_INFO="gh-releases-zsync|tazihad|bengal-download-manager|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
+        ARCH=${ARCH} ./appimagetool.AppImage --appimage-extract-and-run -u "$UPDATE_INFO" AppDir bengal-download-manager-${VERSION}-${ARCH}.AppImage
