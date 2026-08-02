@@ -289,9 +289,10 @@ class DownloadWorker(QThread):
                         self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", 
                         "Paused", 
                         "", 
-                        "0 KB/s",
+                        "0.00 B/s",
                         total_dl,
-                        total_size
+                        total_size,
+                        0
                     ))
                     continue
                 
@@ -312,9 +313,10 @@ class DownloadWorker(QThread):
                     self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown",
                     "Receiving data..." if not self.is_paused else "Paused", 
                     self.format_time(time_left),
-                    f"{self.format_bytes(total_speed, precision=3, pad=False)}/s",
+                    f"{self.format_bytes(total_speed, precision=2, pad=False)}/s",
                     total_dl,
-                    total_size
+                    total_size,
+                    total_speed
                 ))
 
                 save_counter += 1
@@ -335,7 +337,7 @@ class DownloadWorker(QThread):
                     shutil.move(self.save_path, self.target_path)
                     
                     self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size))
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size, 0))
                     self.finished_signal.emit(self.row_index, "Complete")
                     
                     if os.path.exists(self.state_file):
