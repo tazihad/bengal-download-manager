@@ -4,6 +4,10 @@ inputs:
   version:
     description: 'Version string (without leading v)'
     required: true
+  arch:
+    description: 'Target architecture (x86_64 or aarch64)'
+    required: false
+    default: 'x86_64'
 
 runs:
   using: "composite"
@@ -24,4 +28,5 @@ runs:
         cmake --build .
         # Rename binary for release
         VERSION="${{ inputs.version }}"
-        mv dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-x86_64
+        ARCH="${{ inputs.arch }}"
+        mv dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-${ARCH}
