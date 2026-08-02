@@ -47,6 +47,18 @@ class DownloadBridge(QObject):
             self._main_window.qml_delete_download(index)
             self.downloadsChanged.emit()
 
+    @pyqtSlot(int)
+    def moveDownload(self, index):
+        if self._main_window:
+            self._main_window.qml_move_download(index)
+            self.downloadsChanged.emit()
+
+    @pyqtSlot(int)
+    def renameDownload(self, index):
+        if self._main_window:
+            self._main_window.qml_rename_download(index)
+            self.downloadsChanged.emit()
+
     @pyqtSlot(str)
     def openFile(self, path):
         if path and os.path.exists(path):

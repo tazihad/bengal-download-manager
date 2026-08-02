@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    find_aria2, choose_portal_save_path
+    find_aria2, choose_portal_save_path, choose_portal_folder_path
 )
 from core.config import load_category_config, save_category_config
 
@@ -529,10 +529,8 @@ class OptionsDialog(QDialog):
 
     def browse_folder(self, line_edit):
         current_path = line_edit.text().strip()
-        folder = current_path if os.path.isdir(current_path) else os.path.dirname(current_path)
-        filename = os.path.basename(current_path) if not os.path.isdir(current_path) else ""
-        
-        path = choose_portal_save_path("Save File As", filename, folder)
+        folder = current_path if os.path.exists(current_path) else os.path.expanduser("~/Downloads")
+        path = choose_portal_folder_path("Select Directory", folder)
         if path:
             line_edit.setText(path)
 

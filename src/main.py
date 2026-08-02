@@ -35,7 +35,7 @@ from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, 
 from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
     AddUrlDialog, OptionsDialog, DownloadProgressDialog, 
-    PropertiesDialog, DownloadCompleteDialog, ColumnDialog, DeleteDialog
+    PropertiesDialog, DownloadCompleteDialog, ColumnDialog, DeleteDialog, RenameDialog
 )
 from core.config import load_category_config
 from core.utils import (
@@ -1142,6 +1142,18 @@ class MainWindow(QMainWindow):
         if 0 <= index < self.download_table.rowCount():
             self.download_table.removeRow(index)
 
+    def qml_move_download(self, index):
+        if 0 <= index < self.download_table.rowCount():
+            item = self.download_table.item(index, 0)
+            if item:
+                self.ctx_move(item)
+
+    def qml_rename_download(self, index):
+        if 0 <= index < self.download_table.rowCount():
+            item = self.download_table.item(index, 0)
+            if item:
+                self.ctx_rename(item)
+
     def save_settings(self):
         try:
             config_dir = get_config_dir()
@@ -1261,13 +1273,15 @@ class MainWindow(QMainWindow):
         act_open = QAction("Open", self)
         act_open_with = QAction("Open with...", self)
         act_open_folder = QAction("Open folder", self)
-        act_move = QAction("Move/Rename", self)
+        act_move = QAction("Move...", self)
+        act_rename = QAction("Rename...", self)
         
         act_move.setEnabled(is_completed)
+        act_rename.setEnabled(is_completed)
         act_open.setEnabled(is_completed)
         act_open_with.setEnabled(is_completed)
         
-        menu.addActions([act_open, act_open_with, act_open_folder, act_move])
+        menu.addActions([act_open, act_open_with, act_open_folder, act_move, act_rename])
         menu.addSeparator()
         
         # Enhanced State Logic for Context Menu
@@ -1298,7 +1312,8 @@ class MainWindow(QMainWindow):
         act_open.triggered.connect(lambda: self.ctx_open_file(item))
         act_open_with.triggered.connect(lambda: self.ctx_open_with(item))
         act_open_folder.triggered.connect(lambda: self.ctx_open_folder(item))
-        act_move.triggered.connect(lambda: self.ctx_move_rename(item))
+        act_move.triggered.connect(lambda: self.ctx_move(item))
+        act_rename.triggered.connect(lambda: self.ctx_rename(item))
         act_redownload.triggered.connect(lambda: self.ctx_redownload(item))
         act_refresh.triggered.connect(lambda: self.ctx_refresh_address(item))
         act_props.triggered.connect(lambda: self.ctx_properties(item))
@@ -1335,7 +1350,7 @@ class MainWindow(QMainWindow):
         path = os.path.join(os.path.expanduser("~"), "Downloads")
         show_in_folder(path)
 
-    def ctx_move_rename(self, item):
+    def ctx_move(self, item):
         row = item.row()
         item_0 = self.download_table.item(row, 0)
         old_path = item_0.data(Qt.ItemDataRole.UserRole + 1)
@@ -1346,7 +1361,7 @@ class MainWindow(QMainWindow):
         filename = os.path.basename(old_path)
         folder = os.path.dirname(old_path)
 
-        new_path = choose_portal_save_path("Save File As", filename, folder)
+        new_path = choose_portal_save_path("Move File", filename, folder)
 
         if new_path and new_path != old_path:
             try:
@@ -1357,6 +1372,36 @@ class MainWindow(QMainWindow):
                 self.save_data()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to move file: {e}")
+
+    def ctx_rename(self, item):
+        row = item.row()
+        item_0 = self.download_table.item(row, 0)
+        old_path = item_0.data(Qt.ItemDataRole.UserRole + 1)
+        if not old_path or not os.path.exists(old_path):
+            QMessageBox.warning(self, "Error", "File not found to rename.")
+            return
+
+        folder = os.path.dirname(old_path)
+        old_filename = os.path.basename(old_path)
+
+        dialog = RenameDialog(old_filename, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_filename = dialog.get_filename()
+
+            if new_filename and new_filename != old_filename:
+                new_path = os.path.join(folder, new_filename)
+
+                if os.path.exists(new_path):
+                    QMessageBox.warning(self, "Error", f"A file named '{new_filename}' already exists in this directory.")
+                    return
+
+                try:
+                    shutil.move(old_path, new_path)
+                    item_0.setText(new_filename)
+                    item_0.setData(Qt.ItemDataRole.UserRole + 1, new_path)
+                    self.save_data()
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to rename file: {e}")
 
     def ctx_redownload(self, item):
         row = item.row()

@@ -556,9 +556,72 @@ def show_in_folder(path):
 
 def choose_portal_save_path(title="Save File As", filename="file", folder=""):
     """
-    Triggers XDG Desktop Portal FileChooser.SaveFile via gdbus to open the native XDG Portal File Picker.
+    Triggers XDG Desktop Portal FileChooser.SaveFile via DBus to open the native XDG Portal File Picker.
     Returns the chosen destination file path string, "" if user cancelled, or None if portal unavailable.
     """
+    # 1. Primary Method: Native QtDBus (QDBusConnection)
+    try:
+        from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+        from PyQt6.QtCore import QByteArray, QEventLoop, QObject, pyqtSlot
+
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.FileChooser",
+                "SaveFile"
+            )
+
+            options = {"current_name": filename}
+            if folder and os.path.exists(folder):
+                abs_folder = os.path.abspath(folder)
+                options["current_folder"] = QByteArray(abs_folder.encode('utf-8'))
+
+            msg.setArguments(["", title, options])
+            reply = bus.call(msg)
+
+            if reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments():
+                request_handle = reply.arguments()[0]
+                chosen_path = ""
+                loop = QEventLoop()
+
+                class PortalReceiver(QObject):
+                    @pyqtSlot(QDBusMessage)
+                    def on_response(self, response_msg):
+                        nonlocal chosen_path
+                        args = response_msg.arguments()
+                        if len(args) >= 2 and args[0] == 0:
+                            results = args[1]
+                            if isinstance(results, dict) and "uris" in results:
+                                uris = results["uris"]
+                                if uris:
+                                    target_uri = uris[0]
+                                    chosen_path = unquote(urlparse(target_uri).path)
+                        loop.quit()
+
+                receiver = PortalReceiver()
+                connected = bus.connect(
+                    "org.freedesktop.portal.Desktop",
+                    request_handle,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    receiver.on_response
+                )
+                if connected:
+                    loop.exec()
+                    bus.disconnect(
+                        "org.freedesktop.portal.Desktop",
+                        request_handle,
+                        "org.freedesktop.portal.Request",
+                        "Response",
+                        receiver.on_response
+                    )
+                    return chosen_path
+    except Exception:
+        pass
+
+    # 2. Fallback: gdbus command-line tool
     if not shutil.which("gdbus"):
         return None
 
@@ -596,17 +659,24 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
 
         chosen_path = ""
         start_time = time.time()
+        accumulated = ""
+        reading_response = False
+
         while time.time() - start_time < 300: # Wait up to 5 minutes
             line = monitor.stdout.readline()
             if not line:
                 break
-            if "Response" in line:
-                if "(0," in line and "file://" in line:
-                    uri_match = re.search(r"file://[^\s'\">\]]+", line)
+            if "Response" in line or reading_response:
+                reading_response = True
+                accumulated += " " + line.strip()
+                if "file://" in accumulated:
+                    uri_match = re.search(r"file://[^\s'\">\]]+", accumulated)
                     if uri_match:
                         raw_uri = uri_match.group(0)
-                        chosen_path = urllib.parse.unquote(urllib.parse.urlparse(raw_uri).path)
-                break
+                        chosen_path = unquote(urlparse(raw_uri).path)
+                    break
+                if ")" in line and "Response" not in line:
+                    break
 
         try:
             monitor.kill()
@@ -619,9 +689,72 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
 
 def choose_portal_folder_path(title="Select Directory", folder=""):
     """
-    Triggers XDG Desktop Portal FileChooser.OpenFile with directory=true via gdbus to open native XDG Portal Directory Picker.
+    Triggers XDG Desktop Portal FileChooser.OpenFile with directory=true via DBus to open native XDG Portal Directory Picker.
     Returns the chosen folder path string, "" if user cancelled, or None if portal unavailable.
     """
+    # 1. Primary Method: Native QtDBus (QDBusConnection)
+    try:
+        from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+        from PyQt6.QtCore import QByteArray, QEventLoop, QObject, pyqtSlot
+
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.FileChooser",
+                "OpenFile"
+            )
+
+            options = {"directory": True}
+            if folder and os.path.exists(folder):
+                abs_folder = os.path.abspath(folder)
+                options["current_folder"] = QByteArray(abs_folder.encode('utf-8'))
+
+            msg.setArguments(["", title, options])
+            reply = bus.call(msg)
+
+            if reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments():
+                request_handle = reply.arguments()[0]
+                chosen_path = ""
+                loop = QEventLoop()
+
+                class PortalReceiver(QObject):
+                    @pyqtSlot(QDBusMessage)
+                    def on_response(self, response_msg):
+                        nonlocal chosen_path
+                        args = response_msg.arguments()
+                        if len(args) >= 2 and args[0] == 0:
+                            results = args[1]
+                            if isinstance(results, dict) and "uris" in results:
+                                uris = results["uris"]
+                                if uris:
+                                    target_uri = uris[0]
+                                    chosen_path = unquote(urlparse(target_uri).path)
+                        loop.quit()
+
+                receiver = PortalReceiver()
+                connected = bus.connect(
+                    "org.freedesktop.portal.Desktop",
+                    request_handle,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    receiver.on_response
+                )
+                if connected:
+                    loop.exec()
+                    bus.disconnect(
+                        "org.freedesktop.portal.Desktop",
+                        request_handle,
+                        "org.freedesktop.portal.Request",
+                        "Response",
+                        receiver.on_response
+                    )
+                    return chosen_path
+    except Exception:
+        pass
+
+    # 2. Fallback: gdbus command-line tool
     if not shutil.which("gdbus"):
         return None
 
@@ -659,17 +792,24 @@ def choose_portal_folder_path(title="Select Directory", folder=""):
 
         chosen_path = ""
         start_time = time.time()
+        accumulated = ""
+        reading_response = False
+
         while time.time() - start_time < 300: # Wait up to 5 minutes
             line = monitor.stdout.readline()
             if not line:
                 break
-            if "Response" in line:
-                if "(0," in line and "file://" in line:
-                    uri_match = re.search(r"file://[^\s'\">\]]+", line)
+            if "Response" in line or reading_response:
+                reading_response = True
+                accumulated += " " + line.strip()
+                if "file://" in accumulated:
+                    uri_match = re.search(r"file://[^\s'\">\]]+", accumulated)
                     if uri_match:
                         raw_uri = uri_match.group(0)
-                        chosen_path = urllib.parse.unquote(urllib.parse.urlparse(raw_uri).path)
-                break
+                        chosen_path = unquote(urlparse(raw_uri).path)
+                    break
+                if ")" in line and "Response" not in line:
+                    break
 
         try:
             monitor.kill()
