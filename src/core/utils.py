@@ -404,10 +404,8 @@ def open_file_generic(path):
 def open_with(path):
     """
     Shows the OS-native "Open With" dialog for the given path.
-    Uses a multi-stage approach on Linux:
-    1. XDG Portal (D-Bus) to force a native app picker.
-    2. xdg-open (system default / picker for unknown types).
-    3. mimeopen -d (CLI picker).
+    Uses XDG Desktop Portal OpenFile method via gdbus with stdin file descriptor redirection
+    to force the modern native XDG Desktop Portal App Picker dialog.
     """
     if not path or not os.path.exists(path):
         return False
@@ -426,10 +424,26 @@ def open_with(path):
         return True
 
     # Linux / Unix
+    # 1. Primary Method: XDG Desktop Portal OpenFile via gdbus with stdin file descriptor redirection (forces native XDG portal file picker)
+    if shutil.which("gdbus"):
+        try:
+            cmd = [
+                "gdbus", "call", "--session", 
+                "--dest", "org.freedesktop.portal.Desktop", 
+                "--object-path", "/org/freedesktop/portal/desktop", 
+                "--method", "org.freedesktop.portal.OpenURI.OpenFile", 
+                "", "0", '{"ask": <true>}'
+            ]
+            with open(path, "rb") as f:
+                res = subprocess.run(cmd, stdin=f, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+                if res.returncode == 0:
+                    return True
+        except Exception:
+            pass
+
+    # 2. Fallback: XDG Desktop Portal OpenURI via gdbus
     from PyQt6.QtCore import QUrl
     uri = QUrl.fromLocalFile(path).toString()
-    
-    # 1. Try XDG Desktop Portal via D-Bus (Forces Picker Choice)
     if shutil.which("gdbus"):
         try:
             cmd = [
@@ -439,19 +453,36 @@ def open_with(path):
                 "--method", "org.freedesktop.portal.OpenURI.OpenURI", 
                 "", uri, "{'ask': <true>}"
             ]
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=clean_env)
-            return True
-        except: pass
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
 
-    # 2. Try xdg-open (User suggested method)
-    # This uses system defaults, but will often show a picker for unknown file types.
+    # 2. Try XDG Desktop Portal via dbus-send fallback
+    if shutil.which("dbus-send"):
+        try:
+            cmd = [
+                "dbus-send", "--session", "--print-reply",
+                "--dest=org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.OpenURI.OpenURI",
+                "string:", f"string:{uri}", "dict:string:variant:ask,boolean:true"
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+
+    # 3. Try xdg-open / mimeopen fallback
     if shutil.which("xdg-open"):
         try:
             subprocess.Popen(['xdg-open', path], env=clean_env)
             return True
-        except: pass
+        except Exception:
+            pass
 
-    # 3. Try mimeopen -d (Standard CLI app picker)
     if shutil.which("mimeopen"):
         try:
             term = shutil.which("x-terminal-emulator") or shutil.which("gnome-terminal") or shutil.which("konsole")
@@ -460,7 +491,8 @@ def open_with(path):
             else:
                 subprocess.Popen(["mimeopen", "-d", path], env=clean_env)
             return True
-        except: pass
+        except Exception:
+            pass
 
     return False
 
@@ -521,3 +553,269 @@ def show_in_folder(path):
         except Exception:
             parent = os.path.dirname(path)
             subprocess.Popen(['xdg-open', parent], env=clean_env)
+
+def choose_portal_save_path(title="Save File As", filename="file", folder=""):
+    """
+    Triggers XDG Desktop Portal FileChooser.SaveFile via DBus to open the native XDG Portal File Picker.
+    Returns the chosen destination file path string, "" if user cancelled, or None if portal unavailable.
+    """
+    # 1. Primary Method: Native QtDBus (QDBusConnection)
+    try:
+        from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+        from PyQt6.QtCore import QByteArray, QEventLoop, QObject, pyqtSlot
+
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.FileChooser",
+                "SaveFile"
+            )
+
+            options = {"current_name": filename}
+            if folder and os.path.exists(folder):
+                abs_folder = os.path.abspath(folder)
+                options["current_folder"] = QByteArray(abs_folder.encode('utf-8'))
+
+            msg.setArguments(["", title, options])
+            reply = bus.call(msg)
+
+            if reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments():
+                request_handle = reply.arguments()[0]
+                chosen_path = ""
+                loop = QEventLoop()
+
+                class PortalReceiver(QObject):
+                    @pyqtSlot(QDBusMessage)
+                    def on_response(self, response_msg):
+                        nonlocal chosen_path
+                        args = response_msg.arguments()
+                        if len(args) >= 2 and args[0] == 0:
+                            results = args[1]
+                            if isinstance(results, dict) and "uris" in results:
+                                uris = results["uris"]
+                                if uris:
+                                    target_uri = uris[0]
+                                    chosen_path = unquote(urlparse(target_uri).path)
+                        loop.quit()
+
+                receiver = PortalReceiver()
+                connected = bus.connect(
+                    "org.freedesktop.portal.Desktop",
+                    request_handle,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    receiver.on_response
+                )
+                if connected:
+                    loop.exec()
+                    bus.disconnect(
+                        "org.freedesktop.portal.Desktop",
+                        request_handle,
+                        "org.freedesktop.portal.Request",
+                        "Response",
+                        receiver.on_response
+                    )
+                    return chosen_path
+    except Exception:
+        pass
+
+    # 2. Fallback: gdbus command-line tool
+    if not shutil.which("gdbus"):
+        return None
+
+    clean_env = get_clean_env()
+
+    options = f'{{"current_name": <"{filename}">}}'
+    if folder and os.path.exists(folder):
+        abs_folder = os.path.abspath(folder)
+        options = f'{{"current_name": <"{filename}">, "current_folder": <@ay b"{abs_folder}\\0">}}'
+
+    cmd = [
+        'gdbus', 'call', '--session',
+        '--dest', 'org.freedesktop.portal.Desktop',
+        '--object-path', '/org/freedesktop/portal/desktop',
+        '--method', 'org.freedesktop.portal.FileChooser.SaveFile',
+        '', title, options
+    ]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
+        if not match:
+            return None
+        req_path = match.group(0).strip("'")
+    except Exception:
+        return None
+
+    try:
+        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop', '--object-path', req_path]
+        if shutil.which("stdbuf"):
+            monitor_cmd = ['stdbuf', '-oL'] + monitor_cmd
+
+        monitor = subprocess.Popen(
+            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, env=clean_env
+        )
+
+        chosen_path = ""
+        start_time = time.time()
+        accumulated = ""
+        reading_response = False
+
+        while time.time() - start_time < 300: # Wait up to 5 minutes
+            line = monitor.stdout.readline()
+            if not line:
+                break
+            if "Response" in line or reading_response:
+                reading_response = True
+                accumulated += " " + line.strip()
+                if "file://" in accumulated:
+                    uri_match = re.search(r"file://[^\s'\">\]]+", accumulated)
+                    if uri_match:
+                        raw_uri = uri_match.group(0)
+                        chosen_path = unquote(urlparse(raw_uri).path)
+                    break
+                if ")" in line and "Response" not in line:
+                    break
+
+        try:
+            monitor.kill()
+        except Exception:
+            pass
+
+        return chosen_path
+    except Exception:
+        return None
+
+def choose_portal_folder_path(title="Select Directory", folder=""):
+    """
+    Triggers XDG Desktop Portal FileChooser.OpenFile with directory=true via DBus to open native XDG Portal Directory Picker.
+    Returns the chosen folder path string, "" if user cancelled, or None if portal unavailable.
+    """
+    # 1. Primary Method: Native QtDBus (QDBusConnection)
+    try:
+        from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+        from PyQt6.QtCore import QByteArray, QEventLoop, QObject, pyqtSlot
+
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.FileChooser",
+                "OpenFile"
+            )
+
+            options = {"directory": True}
+            if folder and os.path.exists(folder):
+                abs_folder = os.path.abspath(folder)
+                options["current_folder"] = QByteArray(abs_folder.encode('utf-8'))
+
+            msg.setArguments(["", title, options])
+            reply = bus.call(msg)
+
+            if reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments():
+                request_handle = reply.arguments()[0]
+                chosen_path = ""
+                loop = QEventLoop()
+
+                class PortalReceiver(QObject):
+                    @pyqtSlot(QDBusMessage)
+                    def on_response(self, response_msg):
+                        nonlocal chosen_path
+                        args = response_msg.arguments()
+                        if len(args) >= 2 and args[0] == 0:
+                            results = args[1]
+                            if isinstance(results, dict) and "uris" in results:
+                                uris = results["uris"]
+                                if uris:
+                                    target_uri = uris[0]
+                                    chosen_path = unquote(urlparse(target_uri).path)
+                        loop.quit()
+
+                receiver = PortalReceiver()
+                connected = bus.connect(
+                    "org.freedesktop.portal.Desktop",
+                    request_handle,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    receiver.on_response
+                )
+                if connected:
+                    loop.exec()
+                    bus.disconnect(
+                        "org.freedesktop.portal.Desktop",
+                        request_handle,
+                        "org.freedesktop.portal.Request",
+                        "Response",
+                        receiver.on_response
+                    )
+                    return chosen_path
+    except Exception:
+        pass
+
+    # 2. Fallback: gdbus command-line tool
+    if not shutil.which("gdbus"):
+        return None
+
+    clean_env = get_clean_env()
+
+    options = '{"directory": <true>}'
+    if folder and os.path.exists(folder):
+        abs_folder = os.path.abspath(folder)
+        options = f'{{"directory": <true>, "current_folder": <@ay b"{abs_folder}\\0">}}'
+
+    cmd = [
+        'gdbus', 'call', '--session',
+        '--dest', 'org.freedesktop.portal.Desktop',
+        '--object-path', '/org/freedesktop/portal/desktop',
+        '--method', 'org.freedesktop.portal.FileChooser.OpenFile',
+        '', title, options
+    ]
+    try:
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
+        if not match:
+            return None
+        req_path = match.group(0).strip("'")
+    except Exception:
+        return None
+
+    try:
+        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop', '--object-path', req_path]
+        if shutil.which("stdbuf"):
+            monitor_cmd = ['stdbuf', '-oL'] + monitor_cmd
+
+        monitor = subprocess.Popen(
+            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, env=clean_env
+        )
+
+        chosen_path = ""
+        start_time = time.time()
+        accumulated = ""
+        reading_response = False
+
+        while time.time() - start_time < 300: # Wait up to 5 minutes
+            line = monitor.stdout.readline()
+            if not line:
+                break
+            if "Response" in line or reading_response:
+                reading_response = True
+                accumulated += " " + line.strip()
+                if "file://" in accumulated:
+                    uri_match = re.search(r"file://[^\s'\">\]]+", accumulated)
+                    if uri_match:
+                        raw_uri = uri_match.group(0)
+                        chosen_path = unquote(urlparse(raw_uri).path)
+                    break
+                if ")" in line and "Response" not in line:
+                    break
+
+        try:
+            monitor.kill()
+        except Exception:
+            pass
+
+        return chosen_path
+    except Exception:
+        return None

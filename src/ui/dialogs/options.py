@@ -3,7 +3,7 @@ import subprocess
 import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox, QFileDialog,
+    QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
     QApplication
 )
@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    find_aria2
+    find_aria2, choose_portal_save_path, choose_portal_folder_path
 )
 from core.config import load_category_config, save_category_config
 
@@ -528,9 +528,11 @@ class OptionsDialog(QDialog):
             self.config_data["categories"][self.current_category]["path"] = text
 
     def browse_folder(self, line_edit):
-        folder = QFileDialog.getExistingDirectory(self, "Select Directory", line_edit.text())
-        if folder:
-            line_edit.setText(folder)
+        current_path = line_edit.text().strip()
+        folder = current_path if os.path.exists(current_path) else os.path.expanduser("~/Downloads")
+        path = choose_portal_folder_path("Select Directory", folder)
+        if path:
+            line_edit.setText(path)
 
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()

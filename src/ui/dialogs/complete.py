@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QFormLayout, QMessageBox, QFileDialog, QApplication
+    QFormLayout, QMessageBox, QApplication
 )
 from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtCore import Qt, QUrl
@@ -106,12 +106,6 @@ class DownloadCompleteDialog(QDialog):
              
         if open_with(path):
             self.accept()
-        else:
-            # Final fallback: Manual picker if utility returns False
-            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
-            if app_path:
-                subprocess.Popen([app_path, path])
-                self.accept()
             
     def on_open_folder(self):
         path = self.file_data.get('path')
