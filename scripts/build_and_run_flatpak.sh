@@ -45,8 +45,16 @@ command=bengal-download-manager
 [Context]
 shared=network;ipc;
 sockets=x11;fallback-x11;wayland;pulseaudio;
-filesystems=host;xdg-download;
+filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
 devices=dri;
+
+[Session Bus Policy]
+org.freedesktop.portal.Desktop=talk
+org.freedesktop.portal.Settings=talk
+org.freedesktop.Notifications=talk
+
+[Environment]
+QT_QPA_PLATFORMTHEME=xdgdesktopportal
 EOF
 
 echo "=== 3. Flatpak Package Build Successfully Prepared in '$BUILD_DIR' ==="

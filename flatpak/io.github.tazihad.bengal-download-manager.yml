@@ -12,8 +12,14 @@ finish-args:
   - --share=network
   - --filesystem=host
   - --filesystem=xdg-download
+  - --filesystem=xdg-config/kdeglobals:ro
+  - --filesystem=xdg-config/gtk-3.0:ro
+  - --filesystem=xdg-config/gtk-4.0:ro
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.portal.Settings
+  - --env=QT_QPA_PLATFORMTHEME=xdgdesktopportal
 
 modules:
   - name: bengal-download-manager
