@@ -96,7 +96,7 @@ class DownloadProgressDialog(QDialog):
         self.lbl_downloaded.setFixedWidth(180)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
-        self.lbl_speed = QLabel("0.00 B/s")
+        self.lbl_speed = QLabel("0.000 B/s")
         font_sp = QFont(self.lbl_speed.font())
         font_sp.setBold(True)
         font_sp.setFeature(tnum_tag, 1)
@@ -483,7 +483,7 @@ class DownloadProgressDialog(QDialog):
                 self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes, precision=2, pad=False)} (100.0%)")
                 
             self.lbl_time.setText("0 sec")
-            self.lbl_speed.setText("0 B/s")
+            self.lbl_speed.setText("0.000 B/s")
             
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")

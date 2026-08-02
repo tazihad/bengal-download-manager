@@ -57,7 +57,7 @@ Kirigami.Card {
             Item { Layout.fillWidth: true }
 
             Controls.Label {
-                text: "Speed: " + (model.rate || "0.00 B/s")
+                text: "Speed: " + (model.rate || "0.000 B/s")
                 font.features: { "tnum": 1 }
                 font.pixelSize: Kirigami.Units.smallFont.pixelSize
                 opacity: 0.8

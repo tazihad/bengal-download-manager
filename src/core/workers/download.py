@@ -312,7 +312,7 @@ class DownloadWorker(QThread):
                     self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown",
                     "Receiving data..." if not self.is_paused else "Paused", 
                     self.format_time(time_left),
-                    f"{self.format_bytes(total_speed, precision=2, pad=False)}/s",
+                    f"{self.format_bytes(total_speed, precision=3, pad=False)}/s",
                     total_dl,
                     total_size
                 ))
