@@ -82,7 +82,7 @@ class DownloadProgressDialog(QDialog):
         font_size.setBold(True)
         font_size.setFeature(tnum_tag, 1)
         self.lbl_size.setFont(font_size)
-        self.lbl_size.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
+        self.lbl_size.setStyleSheet("font-weight: bold;")
         self.lbl_size.setFixedWidth(180)
         add_row("File size:", self.lbl_size, 1)
         
@@ -91,7 +91,7 @@ class DownloadProgressDialog(QDialog):
         font_dl.setBold(True)
         font_dl.setFeature(tnum_tag, 1)
         self.lbl_downloaded.setFont(font_dl)
-        self.lbl_downloaded.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
+        self.lbl_downloaded.setStyleSheet("font-weight: bold;")
         self.lbl_downloaded.setFixedWidth(180)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
@@ -100,7 +100,7 @@ class DownloadProgressDialog(QDialog):
         font_sp.setBold(True)
         font_sp.setFeature(tnum_tag, 1)
         self.lbl_speed.setFont(font_sp)
-        self.lbl_speed.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
+        self.lbl_speed.setStyleSheet("font-weight: bold;")
         self.lbl_speed.setFixedWidth(180)
         add_row("Transfer rate:", self.lbl_speed, 3)
 
@@ -109,7 +109,7 @@ class DownloadProgressDialog(QDialog):
         font_tm.setBold(True)
         font_tm.setFeature(tnum_tag, 1)
         self.lbl_time.setFont(font_tm)
-        self.lbl_time.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
+        self.lbl_time.setStyleSheet("font-weight: bold;")
         self.lbl_time.setFixedWidth(180)
         add_row("Time left:", self.lbl_time, 4)
         
@@ -236,7 +236,7 @@ class DownloadProgressDialog(QDialog):
         self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Rate", "Status"])
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
-        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-weight: bold; font-feature-settings: 'tnum' 1; }")
+        self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-weight: bold; }")
 
         header = self.seg_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)

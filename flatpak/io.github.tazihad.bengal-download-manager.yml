@@ -1,0 +1,28 @@
+app-id: io.github.tazihad.bengal-download-manager
+runtime: org.kde.Platform
+runtime-version: '6.8'
+sdk: org.kde.Sdk
+command: bengal-download-manager
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --share=network
+  - --filesystem=host
+  - --filesystem=xdg-download
+  - --device=dri
+  - --talk-name=org.freedesktop.Notifications
+
+modules:
+  - name: bengal-download-manager
+    buildsystem: simple
+    build-commands:
+      - install -D -m 755 dist/bengal-download-manager /app/bin/bengal-download-manager
+      - install -D -m 644 assets/logo.png /app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
+      - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.desktop /app/share/applications/io.github.tazihad.bengal-download-manager.desktop
+      - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml /app/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
+    sources:
+      - type: dir
+        path: .

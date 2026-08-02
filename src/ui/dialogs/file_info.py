@@ -63,7 +63,7 @@ class DownloadFileInfoDialog(QDialog):
         font_size.setBold(True)
         font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.lbl_size.setFont(font_size)
-        self.lbl_size.setStyleSheet("font-weight: bold; font-feature-settings: 'tnum' 1;")
+        self.lbl_size.setStyleSheet("font-weight: bold;")
         form_layout.addRow("File Size:", self.lbl_size)
         
         self.layout.addLayout(form_layout)

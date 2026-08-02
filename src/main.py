@@ -310,8 +310,9 @@ def get_app_icon():
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, start_ipc=True):
         super().__init__()
+        self.start_ipc = start_ipc
         self.setWindowTitle("Bengal Download Manager")
         
         # Set window icon from global app icon
@@ -356,7 +357,8 @@ class MainWindow(QMainWindow):
         
         self.active_fetchers = [] # Prevent fetcher threads from being garbage collected
 
-        self.listener_thread.start()
+        if self.start_ipc:
+            self.listener_thread.start()
 
         # Initial UI State Update
         self.update_ui_states()
@@ -602,9 +604,6 @@ class MainWindow(QMainWindow):
         # FIX: Remove blue cell highlight (focus rectangle) on selection
 
         self.download_table.setStyleSheet("""
-            QTableWidget {
-                font-feature-settings: 'tnum' 1;
-            }
             QTableWidget::item:focus { 
                 border: none; 
                 outline: 0; 
@@ -1031,6 +1030,55 @@ class MainWindow(QMainWindow):
             item.setFont(font)
             item.setData(Qt.ItemDataRole.UserRole + 10, True)
         return item
+
+    def add_new_download(self, url, category="General", save_path=""):
+        if url:
+            self.start_download(url, custom_save_dir=save_path if save_path else None)
+
+    def get_qml_downloads_data(self):
+        data = []
+        for r in range(self.download_table.rowCount()):
+            item0 = self.download_table.item(r, 0)
+            item1 = self.download_table.item(r, 1)
+            item2 = self.download_table.item(r, 2)
+            item3 = self.download_table.item(r, 3)
+            item4 = self.download_table.item(r, 4)
+            item5 = self.download_table.item(r, 5)
+            item6 = self.download_table.item(r, 6)
+            if item0:
+                data.append({
+                    "filename": item0.text(),
+                    "url": item0.data(Qt.ItemDataRole.UserRole) or "",
+                    "path": item0.data(Qt.ItemDataRole.UserRole + 1) or "",
+                    "size": item1.text() if item1 else "",
+                    "status": item2.text() if item2 else "",
+                    "time_left": item3.text() if item3 else "",
+                    "rate": item4.text() if item4 else "",
+                    "last_try": item5.text() if item5 else "",
+                    "date_added": item6.text() if item6 else "",
+                    "category": "General"
+                })
+        return data
+
+    def qml_pause_download(self, index):
+        if 0 <= index < self.download_table.rowCount():
+            item = self.download_table.item(index, 0)
+            if item:
+                key = id(item)
+                if key in self.active_downloads:
+                    self.active_downloads[key].worker.stop()
+
+    def qml_resume_download(self, index):
+        if 0 <= index < self.download_table.rowCount():
+            item = self.download_table.item(index, 0)
+            if item:
+                url = item.data(Qt.ItemDataRole.UserRole)
+                if url:
+                    self._start_download_worker(url, item, resume_filename=item.text())
+
+    def qml_delete_download(self, index):
+        if 0 <= index < self.download_table.rowCount():
+            self.download_table.removeRow(index)
 
     def save_settings(self):
         try:
@@ -2004,6 +2052,25 @@ if __name__ == "__main__":
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
     app.setFont(app_font)
+    app.setStyleSheet("""
+        QMenu {
+            border: 1px solid #707070;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 5px 24px 5px 12px;
+            border-radius: 2px;
+        }
+        QMenu::item:selected {
+            background-color: #0078d4;
+            color: #ffffff;
+        }
+        QMenu::separator {
+            height: 1px;
+            background-color: #707070;
+            margin: 4px 6px;
+        }
+    """)
     
     # Initialize and set global application icon
     app_icon = get_app_icon()
@@ -2013,6 +2080,29 @@ if __name__ == "__main__":
     app.setWindowIcon(app_icon)
     
     window = MainWindow()
+
+    use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
+    if use_qml:
+        try:
+            from PyQt6.QtQml import QQmlApplicationEngine
+            from PyQt6.QtCore import QUrl
+            from core.bridge import DownloadBridge
+
+            qml_engine = QQmlApplicationEngine()
+            qml_engine.addImportPath("/usr/lib/x86_64-linux-gnu/qt6/qml")
+            bridge = DownloadBridge(main_window=window)
+            qml_engine.rootContext().setContextProperty("downloadBridge", bridge)
+
+            qml_file = os.path.join(os.path.dirname(__file__), "ui", "qml", "Main.qml")
+            qml_engine.load(QUrl.fromLocalFile(qml_file))
+
+            if qml_engine.rootObjects():
+                sys.exit(app.exec())
+            else:
+                print("Failed to initialize QML root object. Falling back to native UI.")
+        except Exception as e:
+            print(f"Kirigami QML initialization skipped ({e}). Falling back to native UI.")
+
     if not getattr(window, "start_minimized", False):
         window.show()
     sys.exit(app.exec())

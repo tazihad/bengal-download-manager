@@ -24,11 +24,13 @@ Thumbs.db
 
 # custom
 docs/
+!docs/superpowers/specs/
 .superpowers/
 .worktrees/
 .agents/
 extension-firefox.xpi
 conductor/
 build_test/
-tests/
+!tests/
+flatpak_app_dir/
 test_app.py

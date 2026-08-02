@@ -45,7 +45,7 @@ class PropertiesDialog(QDialog):
             val_font = QFont(val_widget.font())
             val_font.setFeature(QFont.Tag.fromString('tnum'), 1)
             val_widget.setFont(val_font)
-            val_widget.setStyleSheet("background: transparent; border: none; color: #444; font-feature-settings: 'tnum' 1;")
+            val_widget.setStyleSheet("background: transparent; border: none;")
             
             grid.addWidget(lbl_widget, i, 0)
             grid.addWidget(val_widget, i, 1)
