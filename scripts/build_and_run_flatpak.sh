@@ -38,8 +38,8 @@ cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/fi
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]
 name=$APP_ID
-runtime=org.kde.Platform/x86_64/6.8
-sdk=org.kde.Sdk/x86_64/6.8
+runtime=org.kde.Platform/x86_64/6.11
+sdk=org.kde.Sdk/x86_64/6.11
 command=bengal-download-manager
 
 [Context]
