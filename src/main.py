@@ -581,7 +581,7 @@ class MainWindow(QMainWindow):
         self.category_tree.setHeaderHidden(True)
         self.category_tree.setRootIsDecorated(False)
         self.category_tree.setIconSize(QSize(18, 18))
-        self.category_tree.setIndentation(12)
+        self.category_tree.setIndentation(0)
         self.category_tree.setAnimated(True)
         self.category_tree.itemClicked.connect(self.filter_downloads)
 
@@ -589,14 +589,14 @@ class MainWindow(QMainWindow):
             QTreeWidget {
                 font-size: 13px;
                 font-weight: 500;
-                padding: 4px 2px;
+                padding: 4px 0px;
                 border: none;
                 outline: 0;
             }
             QTreeWidget::item {
                 height: 26px;
-                padding: 2px 6px;
-                margin: 1px 2px;
+                padding: 2px 4px;
+                margin: 1px 0px;
                 border-radius: 4px;
             }
             QTreeWidget::item:hover {
@@ -610,6 +610,8 @@ class MainWindow(QMainWindow):
             QTreeWidget::branch {
                 background: transparent;
                 width: 0px;
+                margin: 0px;
+                padding: 0px;
             }
         """)
 
