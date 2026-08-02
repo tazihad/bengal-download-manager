@@ -569,32 +569,30 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
         abs_folder = os.path.abspath(folder)
         options = f'{{"current_name": <"{filename}">, "current_folder": <@ay b"{abs_folder}\\0">}}'
 
+    cmd = [
+        'gdbus', 'call', '--session',
+        '--dest', 'org.freedesktop.portal.Desktop',
+        '--object-path', '/org/freedesktop/portal/desktop',
+        '--method', 'org.freedesktop.portal.FileChooser.SaveFile',
+        '', title, options
+    ]
     try:
-        # Use stdbuf -oL if available to unbuffer stdout lines
-        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop']
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
+        if not match:
+            return None
+        req_path = match.group(0).strip("'")
+    except Exception:
+        return None
+
+    try:
+        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop', '--object-path', req_path]
         if shutil.which("stdbuf"):
             monitor_cmd = ['stdbuf', '-oL'] + monitor_cmd
 
-        # Start monitor first to capture the Response signal
         monitor = subprocess.Popen(
-            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
+            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, env=clean_env
         )
-
-        cmd = [
-            'gdbus', 'call', '--session',
-            '--dest', 'org.freedesktop.portal.Desktop',
-            '--object-path', '/org/freedesktop/portal/desktop',
-            '--method', 'org.freedesktop.portal.FileChooser.SaveFile',
-            '', title, options
-        ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
-
-        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
-        if not match:
-            monitor.kill()
-            return None
-
-        req_path = match.group(0).strip("'")
 
         chosen_path = ""
         start_time = time.time()
@@ -602,7 +600,7 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
             line = monitor.stdout.readline()
             if not line:
                 break
-            if req_path in line and "Response" in line:
+            if "Response" in line:
                 if "(0," in line and "file://" in line:
                     uri_match = re.search(r"file://[^\s'\">\]]+", line)
                     if uri_match:
@@ -634,30 +632,30 @@ def choose_portal_folder_path(title="Select Directory", folder=""):
         abs_folder = os.path.abspath(folder)
         options = f'{{"directory": <true>, "current_folder": <@ay b"{abs_folder}\\0">}}'
 
+    cmd = [
+        'gdbus', 'call', '--session',
+        '--dest', 'org.freedesktop.portal.Desktop',
+        '--object-path', '/org/freedesktop/portal/desktop',
+        '--method', 'org.freedesktop.portal.FileChooser.OpenFile',
+        '', title, options
+    ]
     try:
-        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop']
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
+        if not match:
+            return None
+        req_path = match.group(0).strip("'")
+    except Exception:
+        return None
+
+    try:
+        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop', '--object-path', req_path]
         if shutil.which("stdbuf"):
             monitor_cmd = ['stdbuf', '-oL'] + monitor_cmd
 
         monitor = subprocess.Popen(
-            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
+            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1, env=clean_env
         )
-
-        cmd = [
-            'gdbus', 'call', '--session',
-            '--dest', 'org.freedesktop.portal.Desktop',
-            '--object-path', '/org/freedesktop/portal/desktop',
-            '--method', 'org.freedesktop.portal.FileChooser.OpenFile',
-            '', title, options
-        ]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
-
-        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
-        if not match:
-            monitor.kill()
-            return None
-
-        req_path = match.group(0).strip("'")
 
         chosen_path = ""
         start_time = time.time()
@@ -665,7 +663,7 @@ def choose_portal_folder_path(title="Select Directory", folder=""):
             line = monitor.stdout.readline()
             if not line:
                 break
-            if req_path in line and "Response" in line:
+            if "Response" in line:
                 if "(0," in line and "file://" in line:
                     uri_match = re.search(r"file://[^\s'\">\]]+", line)
                     if uri_match:
