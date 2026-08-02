@@ -106,12 +106,6 @@ class DownloadCompleteDialog(QDialog):
              
         if open_with(path):
             self.accept()
-        else:
-            # Final fallback: Manual picker if utility returns False
-            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
-            if app_path:
-                subprocess.Popen([app_path, path])
-                self.accept()
             
     def on_open_folder(self):
         path = self.file_data.get('path')

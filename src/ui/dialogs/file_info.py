@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from core.utils import get_unique_filepath
+from core.utils import get_unique_filepath, choose_portal_save_path
 from core.config import load_category_config
 
 class DownloadFileInfoDialog(QDialog):
@@ -129,7 +129,11 @@ class DownloadFileInfoDialog(QDialog):
         self.save_input.setCursorPosition(0)
         
     def browse_save_path(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save File As", self.save_input.text())
+        folder = os.path.dirname(self.save_input.text())
+        filename = os.path.basename(self.save_input.text())
+        path = choose_portal_save_path("Save File As", filename, folder)
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, "Save File As", self.save_input.text())
         if path:
             self.save_input.setText(path)
             self.save_input.setCursorPosition(0)

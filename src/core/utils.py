@@ -618,3 +618,66 @@ def choose_portal_save_path(title="Save File As", filename="file", folder=""):
         return chosen_path
     except Exception:
         return None
+
+def choose_portal_folder_path(title="Select Directory", folder=""):
+    """
+    Triggers XDG Desktop Portal FileChooser.OpenFile with directory=true via gdbus to open native XDG Portal Directory Picker.
+    Returns the chosen folder path string, "" if user cancelled, or None if portal unavailable.
+    """
+    if not shutil.which("gdbus"):
+        return None
+
+    clean_env = get_clean_env()
+
+    options = '{"directory": <true>}'
+    if folder and os.path.exists(folder):
+        abs_folder = os.path.abspath(folder)
+        options = f'{{"directory": <true>, "current_folder": <@ay b"{abs_folder}\\0">}}'
+
+    try:
+        monitor_cmd = ['gdbus', 'monitor', '--session', '--dest', 'org.freedesktop.portal.Desktop']
+        if shutil.which("stdbuf"):
+            monitor_cmd = ['stdbuf', '-oL'] + monitor_cmd
+
+        monitor = subprocess.Popen(
+            monitor_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
+        )
+
+        cmd = [
+            'gdbus', 'call', '--session',
+            '--dest', 'org.freedesktop.portal.Desktop',
+            '--object-path', '/org/freedesktop/portal/desktop',
+            '--method', 'org.freedesktop.portal.FileChooser.OpenFile',
+            '', title, options
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+
+        match = re.search(r"'/org/freedesktop/portal/desktop/request/[^']+'", res.stdout)
+        if not match:
+            monitor.kill()
+            return None
+
+        req_path = match.group(0).strip("'")
+
+        chosen_path = ""
+        start_time = time.time()
+        while time.time() - start_time < 300: # Wait up to 5 minutes
+            line = monitor.stdout.readline()
+            if not line:
+                break
+            if req_path in line and "Response" in line:
+                if "(0," in line and "file://" in line:
+                    uri_match = re.search(r"file://[^\s'\">\]]+", line)
+                    if uri_match:
+                        raw_uri = uri_match.group(0)
+                        chosen_path = urllib.parse.unquote(urllib.parse.urlparse(raw_uri).path)
+                break
+
+        try:
+            monitor.kill()
+        except Exception:
+            pass
+
+        return chosen_path
+    except Exception:
+        return None

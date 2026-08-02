@@ -1323,11 +1323,7 @@ class MainWindow(QMainWindow):
              QMessageBox.warning(self, "Error", "File does not exist.")
              return
         
-        if not open_with(path):
-            # Final fallback: Manual picker if system utilities fail
-            app_path, _ = QFileDialog.getOpenFileName(self, "Select Application", "/usr/bin", "Executables (*)")
-            if app_path:
-                subprocess.Popen([app_path, path])
+        open_with(path)
 
     def ctx_open_folder(self, item):
         row = item.row()
