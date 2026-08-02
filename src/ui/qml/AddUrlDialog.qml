@@ -11,7 +11,7 @@ Kirigami.Dialog {
 
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
-        implicitWidth: Kirigami.Units.gridUnit * 24
+        implicitWidth: Kirigami.Units.gridUnit * 34
 
         Kirigami.FormLayout {
             Layout.fillWidth: true
