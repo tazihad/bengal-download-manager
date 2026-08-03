@@ -17,8 +17,8 @@ on:
       - main
 
 jobs:
-  build-test-release:
-    name: Build, Test & Release (${{ matrix.arch }})
+  build:
+    name: Build (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
