@@ -1630,7 +1630,7 @@ class MainWindow(QMainWindow):
 
     def on_file_info_fetched(self, file_info):
         from ui.dialogs import DownloadFileInfoDialog
-        # Use None as parent to prevent the main window from being brought to the foreground
+        # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
         dialog = DownloadFileInfoDialog(file_info, None)
         
         # Add to list but don't start downloading yet (wait for user confirmation)
@@ -1812,7 +1812,7 @@ class MainWindow(QMainWindow):
         worker.main_progress_signal.connect(lambda _, data: self.update_download_row(item_ref, data))
         worker.finished_signal.connect(lambda _, status: self.download_finished(item_ref, status))
         
-        # DownloadProgressDialog is now a separate, non-modal window
+        # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
         progress_dialog = DownloadProgressDialog(worker, None)
         if show_dialog:
             progress_dialog.show()
@@ -2217,7 +2217,7 @@ class MainWindow(QMainWindow):
                 "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
                 "size": self.download_table.item(row, 1).text() if row != -1 else "?"
             }
-            # Use None as parent to avoid bringing main window to foreground
+            # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
             dialog = DownloadCompleteDialog(file_data, None)
             self.active_complete_dialogs[key] = dialog
             dialog.finished.connect(lambda: self.active_complete_dialogs.pop(key, None))

@@ -15,10 +15,9 @@ class DownloadFileInfoDialog(QDialog):
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)
         
-        # Ensure it behaves like a separate window in the OS to avoid bringing 
-        # the main window to foreground when this dialog is shown.
+        # Ensure it behaves like a separate top-level window in the OS taskbar while sharing WM_CLASS
         self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowType.Window)
+        self.setWindowFlags(Qt.WindowType.Window)
         
         self.file_info = file_info
         self.config = load_category_config()

@@ -8,3 +8,5 @@ Type=Application
 Categories=Network;FileTransfer;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 Keywords=download;manager;aria2;multithread;
+StartupWMClass=io.github.tazihad.bengal-download-manager
+
