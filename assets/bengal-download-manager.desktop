@@ -6,3 +6,5 @@ Type=Application
 Categories=Network;FileTransfer;
 Terminal=false
 Comment=Multi-threaded download manager built with Aria2 backend.
+StartupWMClass=io.github.tazihad.bengal-download-manager
+

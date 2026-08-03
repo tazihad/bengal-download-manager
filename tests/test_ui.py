@@ -131,3 +131,24 @@ def test_adaptive_icon_theme(qapp):
     assert not pm.isNull()
     assert pm.width() == 24 and pm.height() == 24
 
+def test_download_dialogs_window_stacking_parentage(qapp):
+    from ui.dialogs import DownloadProgressDialog, DownloadCompleteDialog, DownloadFileInfoDialog
+    from core.workers import DownloadWorker
+
+    worker = DownloadWorker("http://example.com/test.iso", 0, "/tmp")
+    progress_dlg = DownloadProgressDialog(worker, None)
+    assert progress_dlg.parent() is None
+    assert progress_dlg.windowModality() == Qt.WindowModality.NonModal
+    assert progress_dlg.isWindow()
+
+    complete_dlg = DownloadCompleteDialog({"url": "http://example.com/test.iso", "path": "/tmp/test.iso", "size": "10 MB"}, None)
+    assert complete_dlg.parent() is None
+    assert complete_dlg.windowModality() == Qt.WindowModality.NonModal
+    assert complete_dlg.isWindow()
+
+    info_dlg = DownloadFileInfoDialog({"url": "http://example.com/test.iso", "suggested_filename": "test.iso", "size_str": "10 MB", "size_bytes": 10485760}, None)
+    assert info_dlg.parent() is None
+    assert info_dlg.windowModality() == Qt.WindowModality.NonModal
+    assert info_dlg.isWindow()
+
+

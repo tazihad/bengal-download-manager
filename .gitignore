@@ -33,4 +33,6 @@ conductor/
 build_test/
 !tests/
 flatpak_app_dir/
+AppDir/
+appimagetool.AppImage
 test_app.py

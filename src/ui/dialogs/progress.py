@@ -10,13 +10,12 @@ from core.utils import show_in_folder
 
 class DownloadProgressDialog(QDialog):
     def __init__(self, worker, parent=None):
-        # Passing parent=None allows the window to be a separate top-level window
         super().__init__(parent)
         self.worker = worker
         self.setWindowTitle(f"{self.worker.filename}")
         self.setWindowIcon(QApplication.windowIcon())
         
-        # Ensure it behaves like a separate window in the OS
+        # Ensure it behaves like a separate top-level window in the OS taskbar while sharing WM_CLASS
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.setWindowFlags(Qt.WindowType.Window) 
         
