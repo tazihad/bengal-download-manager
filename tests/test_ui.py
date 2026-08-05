@@ -170,5 +170,34 @@ def test_download_progress_dialog_downloaded_formatting(qapp):
     progress_dlg.on_finished(0, "Complete")
     assert "(100.00%)" in progress_dlg.lbl_downloaded.text()
 
+def test_programs_category_and_icon_resolution(qapp):
+    from main import get_category_for_filename, get_file_icon, CATEGORY_EXTENSIONS
+
+    program_files = ["app.deb", "package.rpm", "app.apk", "tool.appimage", "installer.msi", "setup.exe", "script.sh"]
+    for fn in program_files:
+        assert get_category_for_filename(fn) == "Programs"
+        icon = get_file_icon(fn)
+        assert not icon.isNull()
+
+    assert ".deb" in CATEGORY_EXTENSIONS["Programs"]
+    assert ".rpm" in CATEGORY_EXTENSIONS["Programs"]
+    assert ".apk" in CATEGORY_EXTENSIONS["Programs"]
+    assert ".appimage" in CATEGORY_EXTENSIONS["Programs"]
+
+def test_header_highlight_sections_disabled_and_max_conn_default(qapp):
+    from main import MainWindow
+    from ui.dialogs import OptionsDialog
+
+    window = MainWindow()
+    assert window.download_table.horizontalHeader().highlightSections() is False
+
+    opt_dlg = OptionsDialog(window)
+    opt_dlg.save_extension_data()
+    assert opt_dlg.extension_data.get("max_connections") == 8
+    opt_dlg.close()
+    window.close()
+
+
+
 
 

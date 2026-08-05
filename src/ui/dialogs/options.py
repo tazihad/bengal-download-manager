@@ -11,7 +11,8 @@ from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    find_aria2, choose_portal_save_path, choose_portal_folder_path
+    find_aria2, choose_portal_save_path, choose_portal_folder_path,
+    is_autostart_enabled, set_autostart_enabled
 )
 from core.config import load_category_config, save_category_config
 
@@ -87,8 +88,8 @@ class OptionsDialog(QDialog):
         self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized", False))
         vbox_startup.addWidget(self.chk_start_minimized)
         
-        self.chk_startup = QCheckBox("Launch Bengal DM on system startup (Coming Soon)")
-        self.chk_startup.setEnabled(False)
+        self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
+        self.chk_startup.setChecked(is_autostart_enabled())
         vbox_startup.addWidget(self.chk_startup)
         
         self.chk_browser = QCheckBox("Integrate into browsers (Coming Soon)")
@@ -108,17 +109,6 @@ class OptionsDialog(QDialog):
         self.lbl_engine = QLabel("Active Engine: Checking...")
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
         vbox_engine.addWidget(self.lbl_engine)
-        
-        # Max connections per download
-        conn_layout = QHBoxLayout()
-        conn_layout.addWidget(QLabel("Max connections per download:"))
-        self.spin_max_conn = QSpinBox()
-        self.spin_max_conn.setRange(1, 16)
-        self.spin_max_conn.setValue(self.extension_data.get("max_connections", 8))
-        self.spin_max_conn.setFixedWidth(60)
-        conn_layout.addWidget(self.spin_max_conn)
-        conn_layout.addStretch()
-        vbox_engine.addLayout(conn_layout)
         
         # Initial check
         self.refresh_engine_status()
@@ -504,7 +494,7 @@ class OptionsDialog(QDialog):
             "host": "localhost",
             "port": self.spin_aria_port.value(),
             "token": self.txt_aria_token.text().strip(),
-            "max_connections": self.spin_max_conn.value()
+            "max_connections": 8
         }
         save_extension_config(self.extension_data)
 
@@ -545,6 +535,7 @@ class OptionsDialog(QDialog):
             if callable(save_fn):
                 save_fn()
 
+        set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
         self.save_proxy_data()
         self.save_extension_data()
         self.accept()

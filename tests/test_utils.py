@@ -58,3 +58,36 @@ def test_find_aria2_bundled():
     assert aria2_path is not None
     assert os.path.exists(aria2_path)
     assert os.access(aria2_path, os.X_OK)
+
+def test_autostart_environment_command_and_file_management(monkeypatch, tmp_path):
+    from core.utils import get_executable_command, set_autostart_enabled, is_autostart_enabled
+
+    # Test AppImage environment detection
+    fake_appimage = tmp_path / "Bengal.AppImage"
+    fake_appimage.write_text("#!/bin/sh")
+    monkeypatch.setenv("APPIMAGE", str(fake_appimage))
+    cmd = get_executable_command(start_minimized=True)
+    assert f'"{fake_appimage}" --minimized' in cmd
+    monkeypatch.delenv("APPIMAGE", raising=False)
+
+    # Test Flatpak environment detection
+    monkeypatch.setenv("FLATPAK_ID", "io.github.tazihad.bengal-download-manager")
+    cmd_flatpak = get_executable_command(start_minimized=False)
+    assert "flatpak run io.github.tazihad.bengal-download-manager" in cmd_flatpak
+    monkeypatch.delenv("FLATPAK_ID", raising=False)
+
+    # Test autostart creation and removal with custom path
+    test_autostart_file = str(tmp_path / "autostart" / "bengal-download-manager.desktop")
+    monkeypatch.setattr("core.utils.get_autostart_filepath", lambda: test_autostart_file)
+
+    assert is_autostart_enabled() is False
+    set_autostart_enabled(True, start_minimized=True)
+    assert is_autostart_enabled() is True
+    with open(test_autostart_file, "r") as f:
+        content = f.read()
+        assert "[Desktop Entry]" in content
+        assert "X-GNOME-Autostart-enabled=true" in content
+
+    set_autostart_enabled(False)
+    assert is_autostart_enabled() is False
+
