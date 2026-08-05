@@ -60,4 +60,4 @@ To package the browser extension for Firefox (AMO) or Chrome Web Store:
 python3 scripts/pack_extension.py
 ```
 
-See [EXTENSION_BUILD.md](EXTENSION_BUILD.md) and [extension/README.md](extension/README.md) for step-by-step build instructions, environment requirements, and Firefox reviewer documentation.
+See [README_EXTENSION.md](README_EXTENSION.md) and [extension/README.md](extension/README.md) for step-by-step build instructions, environment requirements, and Firefox reviewer documentation.
