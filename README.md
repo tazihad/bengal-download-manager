@@ -48,9 +48,16 @@ Build from source (see [DEPENDENCIES.md](DEPENDENCIES.md) for requirements):
 ```bash
 git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
-```
-
-```sh
 pip install -r requirements.txt
 python3 src/main.py
 ```
+
+### Browser Extension Build
+
+To package the browser extension for Firefox (AMO) or Chrome Web Store:
+
+```bash
+python3 scripts/pack_extension.py
+```
+
+See [EXTENSION_BUILD.md](EXTENSION_BUILD.md) and [extension/README.md](extension/README.md) for step-by-step build instructions, environment requirements, and Firefox reviewer documentation.
