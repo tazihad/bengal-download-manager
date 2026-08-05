@@ -73,14 +73,19 @@ runs:
             --icon-file assets/bengal-download-manager.png \
             --output appimage
 
-        GENERATED_APPIMAGE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
-        GENERATED_ZSYNC=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
-
-        if [ -n "$GENERATED_APPIMAGE" ]; then
-            mv "$GENERATED_APPIMAGE" "$TARGET_APPIMAGE"
+        # Ensure target files exist or move fallback generated files safely without failing set -e
+        if [ ! -f "$TARGET_APPIMAGE" ]; then
+            FALLBACK_APPIMAGE=$(find . -maxdepth 1 -iname "*bengal*download*manager*.AppImage" ! -name "$TARGET_APPIMAGE" -print -quit)
+            if [ -n "$FALLBACK_APPIMAGE" ]; then
+                mv "$FALLBACK_APPIMAGE" "$TARGET_APPIMAGE"
+            fi
         fi
-        if [ -n "$GENERATED_ZSYNC" ]; then
-            mv "$GENERATED_ZSYNC" "$TARGET_ZSYNC"
+
+        if [ ! -f "$TARGET_ZSYNC" ]; then
+            FALLBACK_ZSYNC=$(find . -maxdepth 1 -iname "*bengal*download*manager*.AppImage.zsync" ! -name "$TARGET_ZSYNC" -print -quit)
+            if [ -n "$FALLBACK_ZSYNC" ]; then
+                mv "$FALLBACK_ZSYNC" "$TARGET_ZSYNC"
+            fi
         fi
 
         echo "AppImage created: $TARGET_APPIMAGE"
