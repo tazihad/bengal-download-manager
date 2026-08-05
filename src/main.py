@@ -334,20 +334,64 @@ def get_themed_icon(name, fallback=None):
     return icon
 
 
+CATEGORY_EXTENSIONS = {
+    "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".bz2", ".xz", ".tgz"],
+    "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".rtf", ".odt"],
+    "Music": [".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma"],
+    "Programs": [".exe", ".msi", ".deb", ".rpm", ".apk", ".appimage", ".flatpak", ".snap", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"],
+    "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]
+}
+
+def get_category_for_filename(filename):
+    if not filename:
+        return "General"
+    fn = filename.lower()
+    for cat, exts in CATEGORY_EXTENSIONS.items():
+        if any(fn.endswith(ext) for ext in exts):
+            return cat
+    return "General"
+
 def get_file_icon(filename):
+    if not filename:
+        return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+
+    ext = os.path.splitext(filename)[1].lower()
+
+    # Prioritize specific crisp themed icons for Program/Software package files (.deb, .rpm, .apk, etc.)
+    if ext in [".deb", ".rpm", ".apk", ".appimage", ".flatpak", ".snap", ".exe", ".msi", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"]:
+        for name in ["application-x-executable", "package-x-generic", "system-run", "application-x-deb", "application-x-rpm"]:
+            ic = get_themed_icon(name)
+            if not ic.isNull() and ic.name() != "":
+                return ic
+
     db = QMimeDatabase()
     mime = db.mimeTypeForFile(filename, QMimeDatabase.MatchMode.MatchExtension)
     if mime.isValid():
         icon_name = mime.iconName()
         icon = get_themed_icon(icon_name)
-        if not icon.isNull():
+        if not icon.isNull() and icon.name() != "":
             return icon
+        generic_name = mime.genericIconName()
+        if generic_name:
+            g_icon = get_themed_icon(generic_name)
+            if not g_icon.isNull() and g_icon.name() != "":
+                return g_icon
+
     info = QFileInfo(filename)
     provider = QFileIconProvider()
     icon = provider.icon(info)
-    if icon.isNull():
-        return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
-    return icon
+    if not icon.isNull():
+        return icon
+
+    cat = get_category_for_filename(filename)
+    fallbacks = {
+        "Programs": get_themed_icon("system-run", QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMenuButton)),
+        "Compressed": get_themed_icon("package-x-generic", QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DriveFDIcon)),
+        "Documents": get_themed_icon("x-office-document", QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)),
+        "Music": get_themed_icon("audio-x-generic", QApplication.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)),
+        "Video": get_themed_icon("video-x-generic", QApplication.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)),
+    }
+    return fallbacks.get(cat, QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon))
 
 def format_timestamp_relative(timestamp_str, max_relative_seconds=30): 
     """
@@ -770,6 +814,7 @@ class MainWindow(QMainWindow):
         self.category_tree.setCurrentItem(all_downloads)
         
         self.download_table = QTableWidget()
+        self.download_table.setIconSize(QSize(16, 16))
         self.download_table.setColumnCount(7)
         self.download_table.verticalHeader().setVisible(False)
         
@@ -990,13 +1035,7 @@ class MainWindow(QMainWindow):
 
     def filter_downloads(self, item, column):
         category = item.text(0)
-        ext_map = {
-            "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso"],
-            "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx"],
-            "Music": [".mp3", ".wav", ".aac", ".flac", ".ogg"],
-            "Programs": [".exe", ".msi", ".sh", ".bin", ".deb", ".bat"],
-            "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv"]
-        }
+        ext_map = CATEGORY_EXTENSIONS
 
         for row in range(self.download_table.rowCount()):
             self.download_table.setRowHidden(row, False) 
@@ -1245,7 +1284,7 @@ class MainWindow(QMainWindow):
                     "rate": item4.text() if item4 else "",
                     "last_try": item5.text() if item5 else "",
                     "date_added": item6.text() if item6 else "",
-                    "category": "General"
+                    "category": get_category_for_filename(item0.text())
                 })
         return data
 

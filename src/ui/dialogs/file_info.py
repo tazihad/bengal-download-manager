@@ -28,11 +28,11 @@ class DownloadFileInfoDialog(QDialog):
         
         # Determine category automatically
         self.ext_map = {
-            "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso"],
-            "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx"],
-            "Music": [".mp3", ".wav", ".aac", ".flac", ".ogg"],
-            "Programs": [".exe", ".msi", ".sh", ".bin", ".deb", ".bat"],
-            "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv"]
+            "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".bz2", ".xz", ".tgz"],
+            "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".rtf", ".odt"],
+            "Music": [".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma"],
+            "Programs": [".exe", ".msi", ".deb", ".rpm", ".apk", ".appimage", ".flatpak", ".snap", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"],
+            "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]
         }
         
         form_layout = QFormLayout()

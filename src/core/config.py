@@ -21,7 +21,7 @@ DEFAULT_CATEGORIES = {
     },
     "Programs": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Programs"),
-        "extensions": "exe msi msu bin deb rpm appimage"
+        "extensions": "exe msi msu bin deb rpm appimage flatpak snap apk sh bat cmd run dmg pkg jar"
     },
     "Video": {
         "path": os.path.join(os.path.expanduser("~"), "Downloads", "Video"),

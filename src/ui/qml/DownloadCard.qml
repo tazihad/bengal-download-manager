@@ -117,11 +117,11 @@ Kirigami.Card {
     function getIconForFile(filename) {
         if (!filename) return "application-x-zerosize"
         var ext = filename.split('.').pop().toLowerCase()
-        if (["zip", "rar", "7z", "tar", "gz"].indexOf(ext) !== -1) return "package-x-generic"
-        if (["pdf", "doc", "docx", "txt"].indexOf(ext) !== -1) return "x-office-document"
-        if (["mp3", "wav", "flac"].indexOf(ext) !== -1) return "audio-x-generic"
-        if (["mp4", "mkv", "avi"].indexOf(ext) !== -1) return "video-x-generic"
-        if (["exe", "bin", "sh", "appimage"].indexOf(ext) !== -1) return "application-x-executable"
+        if (["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"].indexOf(ext) !== -1) return "package-x-generic"
+        if (["pdf", "doc", "docx", "txt", "ppt", "pptx", "xls", "xlsx"].indexOf(ext) !== -1) return "x-office-document"
+        if (["mp3", "wav", "flac", "aac", "ogg", "m4a"].indexOf(ext) !== -1) return "audio-x-generic"
+        if (["mp4", "mkv", "avi", "mov", "wmv", "webm"].indexOf(ext) !== -1) return "video-x-generic"
+        if (["exe", "msi", "deb", "rpm", "apk", "appimage", "flatpak", "snap", "sh", "bin", "bat", "cmd", "run", "dmg", "pkg", "jar"].indexOf(ext) !== -1) return "application-x-executable"
         return "document-new"
     }
 }

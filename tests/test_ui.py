@@ -170,5 +170,20 @@ def test_download_progress_dialog_downloaded_formatting(qapp):
     progress_dlg.on_finished(0, "Complete")
     assert "(100.00%)" in progress_dlg.lbl_downloaded.text()
 
+def test_programs_category_and_icon_resolution(qapp):
+    from main import get_category_for_filename, get_file_icon, CATEGORY_EXTENSIONS
+
+    program_files = ["app.deb", "package.rpm", "app.apk", "tool.appimage", "installer.msi", "setup.exe", "script.sh"]
+    for fn in program_files:
+        assert get_category_for_filename(fn) == "Programs"
+        icon = get_file_icon(fn)
+        assert not icon.isNull()
+
+    assert ".deb" in CATEGORY_EXTENSIONS["Programs"]
+    assert ".rpm" in CATEGORY_EXTENSIONS["Programs"]
+    assert ".apk" in CATEGORY_EXTENSIONS["Programs"]
+    assert ".appimage" in CATEGORY_EXTENSIONS["Programs"]
+
+
 
 
