@@ -7,6 +7,8 @@ import struct
 import hashlib
 import shutil
 
+import json
+
 def encode_varint(n):
     res = bytearray()
     while n >= 0x80:
@@ -19,16 +21,41 @@ def encode_bytes_field(field_num, data):
     tag = (field_num << 3) | 2
     return encode_varint(tag) + encode_varint(len(data)) + data
 
-def make_crx(extension_dir, output_crx, output_zip, pem_key_path=None):
-    os.makedirs(os.path.dirname(output_crx), exist_ok=True)
+def build_zip_package(extension_dir, output_zip, target="generic"):
+    os.makedirs(os.path.dirname(output_zip), exist_ok=True)
     
-    # 1. Create ZIP package
     with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
         for root, dirs, files in os.walk(extension_dir):
             for file in files:
                 abs_path = os.path.join(root, file)
                 rel_path = os.path.relpath(abs_path, extension_dir)
-                zf.write(abs_path, rel_path)
+                
+                if file == "manifest.json":
+                    with open(abs_path, 'r', encoding='utf-8') as f:
+                        manifest = json.load(f)
+                    
+                    if target == "chrome":
+                        if "background" in manifest and "scripts" in manifest["background"]:
+                            manifest["background"].pop("scripts", None)
+                    elif target == "firefox":
+                        if "background" in manifest and "service_worker" in manifest["background"]:
+                            manifest["background"].pop("service_worker", None)
+                        if "browser_specific_settings" not in manifest:
+                            manifest["browser_specific_settings"] = {}
+                        if "gecko" not in manifest["browser_specific_settings"]:
+                            manifest["browser_specific_settings"]["gecko"] = {}
+                        manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"] = {
+                            "required": ["none"]
+                        }
+                    
+                    manifest_bytes = json.dumps(manifest, indent=2).encode('utf-8')
+                    zf.writestr(rel_path, manifest_bytes)
+                else:
+                    zf.write(abs_path, rel_path)
+
+def make_crx(extension_dir, output_crx, output_zip, pem_key_path=None):
+    # 1. Create ZIP package tailored for Chrome
+    build_zip_package(extension_dir, output_zip, target="chrome")
                 
     with open(output_zip, 'rb') as f:
         zip_data = f.read()
@@ -107,9 +134,9 @@ if __name__ == "__main__":
     out_firefox_xpi = os.path.join(repo_root, "dist", "bengal-download-manager-firefox.xpi")
     
     make_crx(ext_dir, out_crx, out_zip)
-    shutil.copy(out_zip, out_chrome_zip)
-    shutil.copy(out_zip, out_firefox_zip)
-    shutil.copy(out_zip, out_firefox_xpi)
+    build_zip_package(ext_dir, out_chrome_zip, target="chrome")
+    build_zip_package(ext_dir, out_firefox_zip, target="firefox")
+    shutil.copy(out_firefox_zip, out_firefox_xpi)
     
     print(f"Chrome package created: {out_chrome_zip}")
     print(f"Firefox package created: {out_firefox_zip}")
