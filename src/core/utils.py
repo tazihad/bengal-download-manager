@@ -868,3 +868,70 @@ def choose_portal_folder_path(title="Select Directory", folder=""):
         return chosen_path
     except Exception:
         return None
+
+
+def get_autostart_filepath():
+    autostart_dir = os.path.expanduser("~/.config/autostart")
+    return os.path.join(autostart_dir, "bengal-download-manager.desktop")
+
+
+def is_autostart_enabled():
+    filepath = get_autostart_filepath()
+    return os.path.exists(filepath)
+
+
+def get_executable_command(start_minimized=False):
+    min_flag = " --minimized" if start_minimized else ""
+
+    # 1. Check if running from AppImage
+    appimage_path = os.environ.get("APPIMAGE")
+    if appimage_path and os.path.exists(appimage_path):
+        return f'"{appimage_path}"{min_flag}'
+
+    # 2. Check if running inside Flatpak
+    if os.path.exists("/.flatpak-info") or os.environ.get("FLATPAK_ID"):
+        flatpak_id = os.environ.get("FLATPAK_ID", "io.github.tazihad.bengal-download-manager")
+        return f'flatpak run {flatpak_id}{min_flag}'
+
+    # 3. Check if running as PyInstaller binary / frozen executable
+    if getattr(sys, 'frozen', False):
+        return f'"{sys.executable}"{min_flag}'
+
+    # 4. Standard Python / dev environment
+    main_py = os.path.abspath(sys.argv[0])
+    return f'"{sys.executable}" "{main_py}"{min_flag}'
+
+
+def set_autostart_enabled(enabled, start_minimized=False):
+    filepath = get_autostart_filepath()
+    if enabled:
+        exec_cmd = get_executable_command(start_minimized)
+        desktop_content = f"""[Desktop Entry]
+Type=Application
+Name=Bengal Download Manager
+Comment=High-performance multi-threaded download manager
+Exec={exec_cmd}
+Icon=bengal-download-manager
+Terminal=false
+Categories=Network;FileTransfer;
+X-GNOME-Autostart-enabled=true
+"""
+        try:
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(desktop_content)
+            os.chmod(filepath, 0o755)
+            return True
+        except Exception as e:
+            print(f"Failed to write autostart file: {e}")
+            return False
+    else:
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+                return True
+            except Exception as e:
+                print(f"Failed to remove autostart file: {e}")
+                return False
+        return True
+

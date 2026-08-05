@@ -2428,6 +2428,8 @@ if __name__ == "__main__":
     app.setWindowIcon(app_icon)
     
     window = MainWindow()
+    if "--minimized" in sys.argv:
+        window.start_minimized = True
 
     use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
     if use_qml:
