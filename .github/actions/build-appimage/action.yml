@@ -85,6 +85,8 @@ runs:
             FALLBACK_ZSYNC=$(find . -maxdepth 1 -iname "*bengal*download*manager*.AppImage.zsync" ! -name "$TARGET_ZSYNC" -print -quit)
             if [ -n "$FALLBACK_ZSYNC" ]; then
                 mv "$FALLBACK_ZSYNC" "$TARGET_ZSYNC"
+            elif command -v zsyncmake &>/dev/null; then
+                zsyncmake -u "$TARGET_APPIMAGE" -o "$TARGET_ZSYNC" "$TARGET_APPIMAGE"
             fi
         fi
 

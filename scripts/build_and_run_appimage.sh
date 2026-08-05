@@ -69,6 +69,8 @@ if [ ! -f "${OUTPUT_APPIMAGE}.zsync" ]; then
     FALLBACK_ZSYNC=$(find . -maxdepth 1 -iname "*bengal*download*manager*.AppImage.zsync" ! -name "${OUTPUT_APPIMAGE}.zsync" -print -quit)
     if [ -n "$FALLBACK_ZSYNC" ]; then
         mv "$FALLBACK_ZSYNC" "${OUTPUT_APPIMAGE}.zsync"
+    elif command -v zsyncmake &>/dev/null; then
+        zsyncmake -u "$(basename "$OUTPUT_APPIMAGE")" -o "${OUTPUT_APPIMAGE}.zsync" "$OUTPUT_APPIMAGE"
     fi
 fi
 
