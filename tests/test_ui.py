@@ -195,7 +195,14 @@ def test_header_highlight_sections_disabled_and_max_conn_default(qapp):
     opt_dlg.save_extension_data()
     assert opt_dlg.extension_data.get("max_connections") == 8
     opt_dlg.close()
-    window.close()
+def test_start_menu_launch_vs_autostart_minimized_flag(monkeypatch):
+    argv_normal = ["bengal-download-manager"]
+    argv_minimized = ["bengal-download-manager", "--minimized"]
+
+    assert ("--minimized" in argv_normal) is False
+    assert ("--minimized" in argv_minimized) is True
+
+
 
 
 

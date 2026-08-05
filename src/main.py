@@ -1345,7 +1345,7 @@ class MainWindow(QMainWindow):
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
                 "column_data": column_data,
-                "start_minimized": getattr(self, "start_minimized", False)
+                "start_minimized": getattr(self, "start_minimized_on_autostart", False)
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -1366,7 +1366,7 @@ class MainWindow(QMainWindow):
                 if "windowState" in settings:
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                 
-                self.start_minimized = settings.get("start_minimized", False)
+                self.start_minimized_on_autostart = settings.get("start_minimized", False)
 
                 header = self.download_table.horizontalHeader()
                 if "column_data" in settings:
@@ -2433,6 +2433,10 @@ if __name__ == "__main__":
     window = MainWindow()
     if "--minimized" in sys.argv:
         window.start_minimized = True
+        QTimer.singleShot(0, window.hide)
+        QTimer.singleShot(0, window.update_tray_action)
+    else:
+        window.start_minimized = False
 
     use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
     if use_qml:
