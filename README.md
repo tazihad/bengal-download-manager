@@ -26,7 +26,7 @@ Bengal Download Manager is a high-performance download management tool built wit
 ## Screenshots
 
 <p align="center">
-  <img width="80%" alt="Bengal Download Manager Interface Screenshot" src="assets/Screenshot_20260519_084849.png" />
+  <img width="80%" alt="Bengal Download Manager Interface Screenshot" src="assets/Screenshot_20260805_125846.png" />
 </p>
 
 ## Features
