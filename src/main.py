@@ -1611,12 +1611,54 @@ class MainWindow(QMainWindow):
         user_agent = parts[1] if len(parts) > 1 else ""
         cookies = parts[2] if len(parts) > 2 else ""
 
-        # 2. Start the fetcher
+        if not url:
+            return
+
+        GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
+
+        def _canonical_fn(target_url):
+            if not target_url: return ""
+            clean = target_url.split("?")[0].split("#")[0]
+            seg = [s for s in clean.split("/") if s and s not in ("http:", "https:")]
+            if not seg: return ""
+            last = seg[-1].lower()
+            if last in GENERIC_ENDPOINTS:
+                return ""
+            if "." in last and len(last.split(".")[-1]) <= 6:
+                return last
+            return ""
+
+        canon_name = _canonical_fn(url)
+
+        # 1. Check if a fetcher worker is already actively fetching info for this URL / filename
+        for fetcher in getattr(self, 'active_fetchers', []):
+            if hasattr(fetcher, 'url') and (fetcher.url == url or (_canonical_fn(fetcher.url) == canon_name and canon_name)):
+                return
+
+        # 2. Check if a popup dialog is ALREADY open for this URL / filename
+        for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
+            if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
+                existing_d_url = dialog.file_info.get("url")
+                if existing_d_url == url or (_canonical_fn(existing_d_url) == canon_name and canon_name):
+                    dialog.show()
+                    dialog.raise_()
+                    dialog.activateWindow()
+                    return
+
+        # 3. Check if download already exists in main download table for this URL / filename
+        for row in range(self.download_table.rowCount()):
+            item = self.download_table.item(row, 0)
+            if item:
+                existing_url = item.data(Qt.ItemDataRole.UserRole)
+                if existing_url == url or (_canonical_fn(existing_url) == canon_name and canon_name):
+                    return
+
+        # 4. Start the fetcher
         from core.workers import FileInfoFetcherWorker
         fetcher = FileInfoFetcherWorker(url, user_agent=user_agent, cookies=cookies)
         self.active_fetchers.append(fetcher)
         
-        # 3. Connect to a wrapper that cleans up the thread memory when done
+        # Connect to a wrapper that cleans up the thread memory when done
         fetcher.finished_signal.connect(lambda info, f=fetcher: self._handle_fetch_complete(info, f))
         fetcher.start()
 
@@ -1625,11 +1667,35 @@ class MainWindow(QMainWindow):
         if fetcher in self.active_fetchers:
             self.active_fetchers.remove(fetcher)
             
-        # Trigger your existing popup dialog!
+        # Trigger existing popup dialog!
         self.on_file_info_fetched(file_info)
 
     def on_file_info_fetched(self, file_info):
         from ui.dialogs import DownloadFileInfoDialog
+
+        def _canonical_fn(target_url):
+            if not target_url: return ""
+            clean = target_url.split("?")[0].split("#")[0]
+            seg = [s for s in clean.split("/") if s]
+            if not seg: return ""
+            last = seg[-1].lower()
+            if last == "download" and len(seg) > 1:
+                last = seg[-2].lower()
+            return last
+
+        # Deduplicate: if a popup dialog for this URL or canonical filename is ALREADY open, bring it to front
+        target_url = file_info.get("url") if isinstance(file_info, dict) else None
+        canon_name = _canonical_fn(target_url) if target_url else ""
+        if target_url:
+            for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
+                if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
+                    existing_d_url = dialog.file_info.get("url")
+                    if existing_d_url == target_url or (_canonical_fn(existing_d_url) == canon_name and canon_name):
+                        dialog.show()
+                        dialog.raise_()
+                        dialog.activateWindow()
+                        return
+
         # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
         dialog = DownloadFileInfoDialog(file_info, None)
         
