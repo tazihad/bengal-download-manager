@@ -109,17 +109,6 @@ class OptionsDialog(QDialog):
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
         vbox_engine.addWidget(self.lbl_engine)
         
-        # Max connections per download
-        conn_layout = QHBoxLayout()
-        conn_layout.addWidget(QLabel("Max connections per download:"))
-        self.spin_max_conn = QSpinBox()
-        self.spin_max_conn.setRange(1, 16)
-        self.spin_max_conn.setValue(self.extension_data.get("max_connections", 8))
-        self.spin_max_conn.setFixedWidth(60)
-        conn_layout.addWidget(self.spin_max_conn)
-        conn_layout.addStretch()
-        vbox_engine.addLayout(conn_layout)
-        
         # Initial check
         self.refresh_engine_status()
         
@@ -504,7 +493,7 @@ class OptionsDialog(QDialog):
             "host": "localhost",
             "port": self.spin_aria_port.value(),
             "token": self.txt_aria_token.text().strip(),
-            "max_connections": self.spin_max_conn.value()
+            "max_connections": 8
         }
         save_extension_config(self.extension_data)
 

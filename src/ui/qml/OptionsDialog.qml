@@ -24,14 +24,6 @@ Kirigami.Dialog {
             }
 
             Controls.SpinBox {
-                id: spinConn
-                Kirigami.FormData.label: "Max Connections per File:"
-                from: 1
-                to: 32
-                value: 8
-            }
-
-            Controls.SpinBox {
                 id: spinMaxDl
                 Kirigami.FormData.label: "Max Concurrent Downloads:"
                 from: 1

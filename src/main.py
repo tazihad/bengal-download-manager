@@ -835,6 +835,9 @@ class MainWindow(QMainWindow):
                 outline: 0; 
                 background: transparent; 
             }
+            QHeaderView::section {
+                font-weight: normal;
+            }
         """)
 
         self.download_table.itemSelectionChanged.connect(self.update_ui_states)
@@ -848,6 +851,7 @@ class MainWindow(QMainWindow):
         ])
         header = self.download_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        header.setHighlightSections(False)
         
         # Enable column customization features
         header.setSectionsMovable(True)

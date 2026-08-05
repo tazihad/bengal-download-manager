@@ -184,6 +184,20 @@ def test_programs_category_and_icon_resolution(qapp):
     assert ".apk" in CATEGORY_EXTENSIONS["Programs"]
     assert ".appimage" in CATEGORY_EXTENSIONS["Programs"]
 
+def test_header_highlight_sections_disabled_and_max_conn_default(qapp):
+    from main import MainWindow
+    from ui.dialogs import OptionsDialog
+
+    window = MainWindow()
+    assert window.download_table.horizontalHeader().highlightSections() is False
+
+    opt_dlg = OptionsDialog(window)
+    opt_dlg.save_extension_data()
+    assert opt_dlg.extension_data.get("max_connections") == 8
+    opt_dlg.close()
+    window.close()
+
+
 
 
 

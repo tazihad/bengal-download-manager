@@ -240,6 +240,7 @@ class DownloadProgressDialog(QDialog):
 
         header = self.seg_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        header.setHighlightSections(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.seg_table.setColumnWidth(0, 25)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
