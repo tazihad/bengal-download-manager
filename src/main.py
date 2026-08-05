@@ -872,6 +872,7 @@ class MainWindow(QMainWindow):
     def setup_tray_icon(self):
         """Sets up the system tray icon and its context menu safely."""
         self.tray_icon = None
+        self.action_tray_toggle = None
         if not QSystemTrayIcon.isSystemTrayAvailable():
             return
 
@@ -921,6 +922,8 @@ class MainWindow(QMainWindow):
 
     def update_tray_action(self):
         """Updates the tray action text and icon based on window visibility."""
+        if not hasattr(self, "action_tray_toggle") or self.action_tray_toggle is None:
+            return
         if self.isVisible():
             self.action_tray_toggle.setText("Hide")
             self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
