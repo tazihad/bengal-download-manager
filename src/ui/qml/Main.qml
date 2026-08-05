@@ -31,11 +31,13 @@ Kirigami.ApplicationWindow {
     actions: [
         Kirigami.Action {
             text: "Add URL"
+            tooltip: "Add a new download URL address"
             icon.name: "list-add"
             onTriggered: addUrlDialog.open()
         },
         Kirigami.Action {
             text: "Resume All"
+            tooltip: "Resume all paused downloads"
             icon.name: "media-playback-start"
             onTriggered: {
                 for (var i = 0; i < downloadBridge.downloads.length; i++) {
@@ -45,6 +47,7 @@ Kirigami.ApplicationWindow {
         },
         Kirigami.Action {
             text: "Pause All"
+            tooltip: "Pause all active downloads"
             icon.name: "media-playback-pause"
             onTriggered: {
                 for (var i = 0; i < downloadBridge.downloads.length; i++) {
@@ -54,6 +57,7 @@ Kirigami.ApplicationWindow {
         },
         Kirigami.Action {
             text: "Options"
+            tooltip: "Configure application preferences and settings"
             icon.name: "configure"
             onTriggered: optionsDialog.open()
         }
@@ -66,6 +70,14 @@ Kirigami.ApplicationWindow {
             Kirigami.Action {
                 displayComponent: Controls.TextField {
                     placeholderText: "Search downloads..."
+                    Controls.ToolTip.visible: searchMa.containsMouse
+                    Controls.ToolTip.text: "Filter downloads by file name"
+                    MouseArea {
+                        id: searchMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        propagateComposedEvents: true
+                    }
                     onTextChanged: root.searchQuery = text.toLowerCase()
                 }
             }

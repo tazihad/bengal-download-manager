@@ -87,6 +87,7 @@ Kirigami.Card {
     actions: [
         Kirigami.Action {
             text: model.status === "Complete" ? "Open" : "Resume"
+            tooltip: model.status === "Complete" ? "Open downloaded file" : "Resume downloading this file"
             icon.name: model.status === "Complete" ? "document-open" : "media-playback-start"
             onTriggered: {
                 if (model.status === "Complete") {
@@ -98,17 +99,20 @@ Kirigami.Card {
         },
         Kirigami.Action {
             text: "Pause"
+            tooltip: "Pause active download"
             icon.name: "media-playback-pause"
             visible: model.status !== "Complete"
             onTriggered: downloadBridge.pauseDownload(card.originalIdx)
         },
         Kirigami.Action {
             text: "Open Folder"
+            tooltip: "Open folder containing this file"
             icon.name: "folder-open"
             onTriggered: downloadBridge.openFolder(model.path)
         },
         Kirigami.Action {
             text: "Delete"
+            tooltip: "Remove this download from the list"
             icon.name: "edit-delete"
             onTriggered: downloadBridge.deleteDownload(card.originalIdx)
         }

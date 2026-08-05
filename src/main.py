@@ -622,41 +622,52 @@ class MainWindow(QMainWindow):
     def setup_actions(self):
         self.action_add_url = QAction(get_themed_icon("list-add", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)), "Add URL", self)
         self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
+        self.action_add_url.setToolTip("Add a new download URL address (Ctrl+V)")
         self.action_add_url.triggered.connect(self.open_add_url)
 
         self.action_exit = QAction(get_themed_icon("application-exit", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)), "Exit", self)
+        self.action_exit.setToolTip("Exit Bengal Download Manager")
         self.action_exit.triggered.connect(self.quit_app)
 
         self.action_stop = QAction(get_themed_icon("media-playback-pause", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)), "Stop/Pause", self)
+        self.action_stop.setToolTip("Pause or stop selected download(s)")
         self.action_stop.triggered.connect(self.stop_selected_download)
         self.action_stop.setEnabled(False)
 
         self.action_stop_all = QAction(get_themed_icon("process-stop", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)), "Stop All", self)
+        self.action_stop_all.setToolTip("Pause or stop all currently active downloads")
         self.action_stop_all.triggered.connect(self.stop_all_downloads)
         self.action_stop_all.setEnabled(False)
 
         self.action_resume = QAction(get_themed_icon("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)), "Resume", self)
+        self.action_resume.setToolTip("Resume downloading selected file(s)")
         self.action_resume.triggered.connect(self.resume_selected_download)
         self.action_resume.setEnabled(False)
         
         self.action_download_now = QAction("Download Now", self)
+        self.action_download_now.setToolTip("Start downloading selected file immediately")
         self.action_download_now.triggered.connect(self.resume_selected_download) 
         
         self.action_redownload = QAction("Redownload", self)
+        self.action_redownload.setToolTip("Restart download from the beginning")
         self.action_redownload.triggered.connect(self.redownload_selected)
 
         self.action_delete = QAction(get_themed_icon("user-trash", self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)), "Delete", self)
+        self.action_delete.setToolTip("Delete selected download(s) from the list (Delete key)")
         self.action_delete.triggered.connect(self.delete_selected_download)
         self.action_delete.setEnabled(False)
         self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
         self.action_clear = QAction(get_themed_icon("edit-clear", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton)), "Clear Completed", self)
+        self.action_clear.setToolTip("Remove completed downloads from the list")
         self.action_clear.triggered.connect(self.clear_finished_downloads)
         
         self.action_options = QAction(get_themed_icon("configure", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)), "Options", self)
+        self.action_options.setToolTip("Configure download manager options, connection limits, and engine settings")
         self.action_options.triggered.connect(self.open_options)
 
         self.action_open_folder = QAction(get_themed_icon("folder-open", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)), "Open Downloads Folder", self)
+        self.action_open_folder.setToolTip("Open default downloads directory")
         self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
 
     def setup_menu_bar(self):
@@ -792,6 +803,7 @@ class MainWindow(QMainWindow):
 
         all_downloads = QTreeWidgetItem(self.category_tree, ["All Downloads"])
         all_downloads.setIcon(0, get_themed_icon("folder-download", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)))
+        all_downloads.setToolTip(0, "Show all downloads regardless of category or status")
         all_downloads.setExpanded(True)
 
         cat_icons = {
@@ -804,12 +816,15 @@ class MainWindow(QMainWindow):
         for cat_name, cat_icon in cat_icons.items():
             child = QTreeWidgetItem(all_downloads, [cat_name])
             child.setIcon(0, cat_icon)
+            child.setToolTip(0, f"Filter downloads in {cat_name} category")
 
         item_unfinished = QTreeWidgetItem(self.category_tree, ["Unfinished"])
         item_unfinished.setIcon(0, get_themed_icon("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)))
+        item_unfinished.setToolTip(0, "Show active, paused, or pending downloads")
 
         item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
         item_finished.setIcon(0, get_themed_icon("emblem-success", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)))
+        item_finished.setToolTip(0, "Show completed downloads")
 
         self.category_tree.setCurrentItem(all_downloads)
         
@@ -845,11 +860,21 @@ class MainWindow(QMainWindow):
         self.download_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.download_table.customContextMenuRequested.connect(self.show_context_menu)
         
-        self.download_table.setHorizontalHeaderLabels([
-            "File Name", "Size", "Status", "Time Left", 
-            "Transfer Rate", "Last Try", "Date Added"
-        ])
+        header_labels_info = [
+            ("File Name", "Name of the downloaded file"),
+            ("Size", "Total file size"),
+            ("Status", "Current download status and percentage"),
+            ("Time Left", "Estimated time remaining until completion"),
+            ("Transfer Rate", "Current download transfer speed"),
+            ("Last Try", "Timestamp of the last download attempt"),
+            ("Date Added", "Timestamp when the download was added")
+        ]
+        self.download_table.setHorizontalHeaderLabels([h[0] for h in header_labels_info])
         header = self.download_table.horizontalHeader()
+        for idx, (_, tooltip) in enumerate(header_labels_info):
+            item = self.download_table.horizontalHeaderItem(idx)
+            if item:
+                item.setToolTip(tooltip)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         header.setHighlightSections(False)
         
@@ -1219,6 +1244,11 @@ class MainWindow(QMainWindow):
         elif item.text() != text:
             item.setText(text)
             
+        # Set descriptive tooltips based on column
+        col_names = {1: "Size", 3: "Time Left", 4: "Transfer Rate"}
+        if col in col_names:
+            item.setToolTip(f"{col_names[col]}: {text}" if text else f"{col_names[col]}: N/A")
+
         # Apply font/styling only if needed or newly created
         if col in [1, 2, 3, 4, 5, 6]:
             # Use UserRole+10 as a flag to avoid redundant font applications
@@ -1244,6 +1274,8 @@ class MainWindow(QMainWindow):
         elif item.text() != text:
             item.setText(text)
             
+        item.setToolTip(f"Status: {text}" if text else "Status: N/A")
+
         # Apply bold font with tabular figures only if needed
         if created or not item.data(Qt.ItemDataRole.UserRole + 10):
             font = QFont(QApplication.font())
@@ -1260,6 +1292,9 @@ class MainWindow(QMainWindow):
         elif item.text() != text:
             item.setText(text)
             
+        col_name = "Last Attempt" if col == 5 else "Date Added"
+        item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
+
         if not item.data(Qt.ItemDataRole.UserRole + 10):
             font = QFont(QApplication.font())
             font.setFeature(QFont.Tag.fromString('tnum'), 1)

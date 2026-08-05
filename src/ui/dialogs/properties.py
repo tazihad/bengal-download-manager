@@ -42,6 +42,7 @@ class PropertiesDialog(QDialog):
             val_widget = QLineEdit(str(value))
             val_widget.setReadOnly(True)
             val_widget.setCursorPosition(0) 
+            val_widget.setToolTip(f"{label_text} {value}")
             val_font = QFont(val_widget.font())
             val_font.setFeature(QFont.Tag.fromString('tnum'), 1)
             val_widget.setFont(val_font)
@@ -61,11 +62,13 @@ class PropertiesDialog(QDialog):
         self.btn_open = QPushButton("Open")
         self.btn_open.setFixedWidth(80)
         self.btn_open.setFixedHeight(30)
+        self.btn_open.setToolTip("Open this file with default application")
         self.btn_open.clicked.connect(self.on_open) 
         
         self.btn_close = QPushButton("Close")
         self.btn_close.setFixedWidth(80)
         self.btn_close.setFixedHeight(30)
+        self.btn_close.setToolTip("Close properties window")
         self.btn_close.clicked.connect(self.accept)
         
         btn_layout.addWidget(self.btn_open)

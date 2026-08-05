@@ -31,6 +31,7 @@ class AddUrlDialog(QDialog):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("http://")
         self.url_input.setFixedHeight(28)
+        self.url_input.setToolTip("Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)")
         input_layout.addWidget(self.url_input)
         layout.addLayout(input_layout)
         
@@ -43,11 +44,13 @@ class AddUrlDialog(QDialog):
         self.btn_download.setDefault(True)
         self.btn_download.setFixedWidth(80)
         self.btn_download.setFixedHeight(30)
+        self.btn_download.setToolTip("Fetch file information and start download")
         self.btn_download.clicked.connect(self.accept)
         
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)
+        self.btn_cancel.setToolTip("Cancel and close dialog")
         self.btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addWidget(self.btn_download)

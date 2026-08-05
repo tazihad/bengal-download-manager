@@ -41,17 +41,21 @@ class DownloadFileInfoDialog(QDialog):
         self.url_input = QLineEdit(file_info.get("url", ""))
         self.url_input.setReadOnly(True)
         self.url_input.setCursorPosition(0)
+        self.url_input.setToolTip("Full download source URL")
         form_layout.addRow("URL:", self.url_input)
         
         self.category_combo = QComboBox()
         categories = ["General", "Compressed", "Documents", "Music", "Programs", "Video"]
         self.category_combo.addItems(categories)
+        self.category_combo.setToolTip("Category to organize and route the download file")
         form_layout.addRow("Category:", self.category_combo)
         
         save_layout = QHBoxLayout()
         self.save_input = QLineEdit()
+        self.save_input.setToolTip("Destination path and filename for the download")
         self.btn_browse = QPushButton("...")
         self.btn_browse.setFixedWidth(40)
+        self.btn_browse.setToolTip("Browse folder to select save location")
         self.btn_browse.clicked.connect(self.browse_save_path)
         save_layout.addWidget(self.save_input)
         save_layout.addWidget(self.btn_browse)
@@ -63,6 +67,7 @@ class DownloadFileInfoDialog(QDialog):
         font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.lbl_size.setFont(font_size)
         self.lbl_size.setStyleSheet("font-weight: bold;")
+        self.lbl_size.setToolTip("Detected content size from server header")
         form_layout.addRow("File Size:", self.lbl_size)
         
         self.layout.addLayout(form_layout)
@@ -78,15 +83,18 @@ class DownloadFileInfoDialog(QDialog):
         self.btn_later = QPushButton("Download Later")
         self.btn_later.setFixedWidth(110)
         self.btn_later.setFixedHeight(30)
+        self.btn_later.setToolTip("Add download to list in paused state")
         
         self.btn_start = QPushButton("Start Download")
         self.btn_start.setFixedWidth(110)
         self.btn_start.setFixedHeight(30)
         self.btn_start.setDefault(True)
+        self.btn_start.setToolTip("Begin downloading this file immediately")
         
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)
+        self.btn_cancel.setToolTip("Cancel and discard download request")
         
         self.btn_start.clicked.connect(self.on_start)
         self.btn_later.clicked.connect(self.on_later)
