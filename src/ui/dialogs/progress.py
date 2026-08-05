@@ -173,6 +173,7 @@ class DownloadProgressDialog(QDialog):
         self.pbar = QProgressBar()
         self.pbar.setFixedHeight(16)
         self.pbar.setTextVisible(False)
+        self.pbar.setToolTip("Overall download progress")
         self.pbar.setStyleSheet("""
             QProgressBar {
                 border: 1px solid palette(mid);
@@ -194,6 +195,7 @@ class DownloadProgressDialog(QDialog):
         self.btn_details.setCheckable(True)
         self.btn_details.setFixedWidth(100)
         self.btn_details.setFixedHeight(30)
+        self.btn_details.setToolTip("Show or hide multi-connection segment metrics panel")
         self.btn_details.clicked.connect(self.toggle_details)
         btn_layout.addWidget(self.btn_details)
         
@@ -202,12 +204,14 @@ class DownloadProgressDialog(QDialog):
         self.btn_pause = QPushButton("Pause")
         self.btn_pause.setFixedWidth(80)
         self.btn_pause.setFixedHeight(30)
+        self.btn_pause.setToolTip("Pause or resume this download")
         self.btn_pause.clicked.connect(self.toggle_pause) 
         btn_layout.addWidget(self.btn_pause)
 
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)
+        self.btn_cancel.setToolTip("Cancel download and stop worker thread")
         self.btn_cancel.clicked.connect(self.cancel_download)
         btn_layout.addWidget(self.btn_cancel)
         
@@ -233,7 +237,11 @@ class DownloadProgressDialog(QDialog):
         
         self.seg_table = QTableWidget()
         self.seg_table.setColumnCount(4)
-        self.seg_table.setHorizontalHeaderLabels(["N.", "Downloaded", "Rate", "Status"])
+        seg_headers = [("N.", "Connection thread index"), ("Downloaded", "Bytes downloaded by thread"), ("Rate", "Current speed of thread"), ("Status", "Thread state")]
+        self.seg_table.setHorizontalHeaderLabels([h[0] for h in seg_headers])
+        for col_idx, (_, tt) in enumerate(seg_headers):
+            h_item = self.seg_table.horizontalHeaderItem(col_idx)
+            if h_item: h_item.setToolTip(tt)
         self.seg_table.verticalHeader().setVisible(False)
         self.seg_table.setShowGrid(False)
         self.seg_table.setStyleSheet("QTableWidget { border: 1px solid #aaa; font-size: 8pt; font-weight: bold; }")

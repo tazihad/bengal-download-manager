@@ -35,6 +35,7 @@ class DownloadCompleteDialog(QDialog):
         self.url_input = QLineEdit(file_data.get('url', ''))
         self.url_input.setReadOnly(True)
         self.url_input.setCursorPosition(0)
+        self.url_input.setToolTip(file_data.get('url', ''))
         self.url_input.setStyleSheet("background: transparent; border: none; color: #eff0f1;")
         form.addRow("Address:", self.url_input)
         
@@ -42,6 +43,7 @@ class DownloadCompleteDialog(QDialog):
         self.path_input = QLineEdit(file_data.get('path', ''))
         self.path_input.setReadOnly(True)
         self.path_input.setCursorPosition(0)
+        self.path_input.setToolTip(file_data.get('path', ''))
         self.path_input.setStyleSheet("background: transparent; border: none; font-weight: bold; color: #eff0f1;")
         form.addRow("The file saved as:", self.path_input)
         
@@ -52,6 +54,7 @@ class DownloadCompleteDialog(QDialog):
         font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.lbl_size.setFont(font_size)
         self.lbl_size.setStyleSheet("font-weight: bold;")
+        self.lbl_size.setToolTip(f"Downloaded file size: {file_data.get('size', 'Unknown')}")
         form_layout_row = form.addRow("Size:", self.lbl_size)
         
         layout.addLayout(form)
@@ -61,15 +64,19 @@ class DownloadCompleteDialog(QDialog):
         btn_layout.setContentsMargins(0, 5, 0, 0)
         self.btn_open = QPushButton("Open")
         self.btn_open.setFixedWidth(80)
+        self.btn_open.setToolTip("Open downloaded file with default application")
         
         self.btn_open_with = QPushButton("Open with...")
         self.btn_open_with.setFixedWidth(100)
+        self.btn_open_with.setToolTip("Select application to open this file")
         
         self.btn_open_folder = QPushButton("Open Folder")
         self.btn_open_folder.setFixedWidth(100)
+        self.btn_open_folder.setToolTip("Open folder containing the downloaded file")
         
         self.btn_close = QPushButton("Close")
         self.btn_close.setFixedWidth(80)
+        self.btn_close.setToolTip("Close completion dialog")
         
         # Set height for buttons to look more like IDM
         for btn in [self.btn_open, self.btn_open_with, self.btn_open_folder, self.btn_close]:

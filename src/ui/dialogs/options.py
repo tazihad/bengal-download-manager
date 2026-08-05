@@ -61,11 +61,13 @@ class OptionsDialog(QDialog):
         self.btn_ok.setFixedWidth(80)
         self.btn_ok.setFixedHeight(30)
         self.btn_ok.setDefault(True)
+        self.btn_ok.setToolTip("Save configuration changes and close dialog")
         self.btn_ok.clicked.connect(self.save_and_accept)
         
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)
+        self.btn_cancel.setToolTip("Discard changes and close dialog")
         self.btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addWidget(self.btn_ok)
@@ -85,11 +87,13 @@ class OptionsDialog(QDialog):
         
         self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
         self.chk_startup.setChecked(is_autostart_enabled())
+        self.chk_startup.setToolTip("Automatically launch Bengal Download Manager on system boot")
         vbox_startup.addWidget(self.chk_startup)
         
         self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
         # Load from parent (MainWindow) settings
         self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
+        self.chk_start_minimized.setToolTip("Launch hidden in system tray when autostarting")
         vbox_startup.addWidget(self.chk_start_minimized)
         
         grp_startup.setLayout(vbox_startup)
@@ -104,6 +108,7 @@ class OptionsDialog(QDialog):
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_engine.setToolTip("Connection status of backend Aria2 download engine")
         vbox_engine.addWidget(self.lbl_engine)
         
         # Initial check
@@ -176,11 +181,13 @@ class OptionsDialog(QDialog):
         self.combo_cat.addItems(sorted(self.config_data["categories"].keys()))
         idx = self.combo_cat.findText("General")
         if idx != -1: self.combo_cat.setCurrentIndex(idx)
+        self.combo_cat.setToolTip("Select category to configure download routing rules")
         self.combo_cat.currentTextChanged.connect(self.on_category_changed)
         grp_layout.addWidget(self.combo_cat)
 
         grp_layout.addWidget(QLabel('Automatically put in above category the following file types:'))
         self.txt_extensions = QLineEdit()
+        self.txt_extensions.setToolTip("Space-separated file extensions automatically assigned to this category")
         self.txt_extensions.textChanged.connect(self.on_extensions_changed)
         grp_layout.addWidget(self.txt_extensions)
         
@@ -189,16 +196,19 @@ class OptionsDialog(QDialog):
         
         dir_row = QHBoxLayout()
         self.txt_save_path = QLineEdit()
+        self.txt_save_path.setToolTip("Default save directory for files in selected category")
         self.txt_save_path.textChanged.connect(self.on_path_changed)
         dir_row.addWidget(self.txt_save_path)
         
         btn_browse_save = QPushButton("Browse")
+        btn_browse_save.setToolTip("Browse folder to set category save directory")
         btn_browse_save.clicked.connect(lambda: self.browse_folder(self.txt_save_path))
         dir_row.addWidget(btn_browse_save)
         grp_layout.addLayout(dir_row)
         
         self.chk_last_selected = QCheckBox('Change folder for selected category on last selected')
         self.chk_last_selected.setChecked(True)
+        self.chk_last_selected.setToolTip("Automatically update category directory when selecting a custom folder")
         grp_layout.addWidget(self.chk_last_selected)
 
         layout.addWidget(grp_save)
@@ -211,9 +221,11 @@ class OptionsDialog(QDialog):
         temp_dir_row = QHBoxLayout()
         self.txt_temp_path = QLineEdit()
         self.txt_temp_path.setText(self.config_data.get("temp_dir", ""))
+        self.txt_temp_path.setToolTip("Temporary directory used for downloading chunks before merging")
         temp_dir_row.addWidget(self.txt_temp_path)
         
         btn_browse_temp = QPushButton("Browse")
+        btn_browse_temp.setToolTip("Browse folder for temporary chunk storage")
         btn_browse_temp.clicked.connect(lambda: self.browse_folder(self.txt_temp_path))
         temp_layout.addLayout(temp_dir_row)
         
@@ -380,6 +392,7 @@ class OptionsDialog(QDialog):
         # Protocol
         aria_layout.addWidget(QLabel("Protocol:"), 0, 0)
         self.combo_aria_proto = QComboBox()
+        self.combo_aria_proto.setToolTip("Communication protocol for connecting to Aria2 RPC daemon")
         # Add items with user data to map display text to protocol code
         self.combo_aria_proto.addItem("http", "http")
         self.combo_aria_proto.addItem("https", "https")
@@ -404,6 +417,7 @@ class OptionsDialog(QDialog):
         self.spin_aria_port = QSpinBox()
         self.spin_aria_port.setRange(1, 65535)
         self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
+        self.spin_aria_port.setToolTip("Port number for Aria2 RPC daemon (default 56800)")
         aria_layout.addWidget(self.spin_aria_port, 1, 1)
         
         # Token
@@ -412,10 +426,12 @@ class OptionsDialog(QDialog):
         self.txt_aria_token.setPlaceholderText("Optional secret token")
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
+        self.txt_aria_token.setToolTip("Secret authentication token for Aria2 RPC requests")
         aria_layout.addWidget(self.txt_aria_token, 2, 1)
         
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
+        self.chk_show_token.setToolTip("Toggle secret token text visibility")
         self.chk_show_token.toggled.connect(self.on_toggle_show_token)
         aria_layout.addWidget(self.chk_show_token, 3, 1)
         
@@ -436,6 +452,7 @@ class OptionsDialog(QDialog):
         helper_layout.addWidget(helper_desc)
         
         self.btn_reinstall_helper = QPushButton("Reinstall Extension Helper")
+        self.btn_reinstall_helper.setToolTip("Re-register browser extension native messaging host manifest")
         self.btn_reinstall_helper.clicked.connect(self.reinstall_extension_helper)
         helper_layout.addWidget(self.btn_reinstall_helper)
         

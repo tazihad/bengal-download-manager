@@ -235,6 +235,28 @@ def test_download_table_item_filename_tooltip(qapp):
     
     assert item.toolTip() == "long_test_filename_document.pdf"
     assert window.download_table.item(0, 0).toolTip() == "long_test_filename_document.pdf"
+    window.close()
+
+def test_ui_comprehensive_tooltips(qapp):
+    from main import MainWindow
+
+    window = MainWindow()
+    
+    # Actions tooltips
+    assert window.action_add_url.toolTip() != ""
+    assert window.action_stop.toolTip() != ""
+    assert window.action_resume.toolTip() != ""
+    assert window.action_options.toolTip() != ""
+
+    # Tree tooltips
+    top_item = window.category_tree.topLevelItem(0)
+    assert top_item.toolTip(0) != ""
+
+    # Table column header tooltips
+    header_item = window.download_table.horizontalHeaderItem(0)
+    assert header_item.toolTip() != ""
+    window.close()
+
 
 
 
