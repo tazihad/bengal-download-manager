@@ -41,11 +41,16 @@ runs:
         export UPDATE_INFORMATION="${ZSYNC_INFO}"
         export LDAI_UPDATE_INFORMATION="${ZSYNC_INFO}"
 
-        # Locate compiled executable
-        EXE_PATH="build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}"
-        if [ ! -f "$EXE_PATH" ]; then
-            EXE_PATH="dist/bengal-download-manager"
+        # Locate compiled executable and normalize filename to match desktop Exec entry
+        RAW_EXE="build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}"
+        if [ ! -f "$RAW_EXE" ]; then
+            RAW_EXE="dist/bengal-download-manager"
         fi
+
+        mkdir -p dist_appimage
+        cp "$RAW_EXE" dist_appimage/bengal-download-manager
+        chmod +x dist_appimage/bengal-download-manager
+        EXE_PATH="dist_appimage/bengal-download-manager"
 
         rm -rf AppDir
         ./linuxdeploy.AppImage \
