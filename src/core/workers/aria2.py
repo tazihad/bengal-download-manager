@@ -306,7 +306,7 @@ class Aria2Worker(QThread):
         if self.gid:
             self.call_rpc("aria2.changeOption", [self.gid, {"max-download-limit": str(int(limit))}])
 
-    def format_bytes(self, size, precision=3, pad=False):
+    def format_bytes(self, size, precision=2, pad=False):
         power = 1024
         n = 0
         power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
