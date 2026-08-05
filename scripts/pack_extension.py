@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import struct
 import hashlib
+import shutil
 
 def encode_varint(n):
     res = bytearray()
@@ -101,4 +102,15 @@ if __name__ == "__main__":
     ext_dir = os.path.join(repo_root, "extension")
     out_crx = os.path.join(repo_root, "dist", "bengal-download-manager-extension.crx")
     out_zip = os.path.join(repo_root, "dist", "bengal-download-manager-extension.zip")
+    out_chrome_zip = os.path.join(repo_root, "dist", "bengal-download-manager-chrome.zip")
+    out_firefox_zip = os.path.join(repo_root, "dist", "bengal-download-manager-firefox.zip")
+    out_firefox_xpi = os.path.join(repo_root, "dist", "bengal-download-manager-firefox.xpi")
+    
     make_crx(ext_dir, out_crx, out_zip)
+    shutil.copy(out_zip, out_chrome_zip)
+    shutil.copy(out_zip, out_firefox_zip)
+    shutil.copy(out_zip, out_firefox_xpi)
+    
+    print(f"Chrome package created: {out_chrome_zip}")
+    print(f"Firefox package created: {out_firefox_zip}")
+    print(f"Firefox XPI package created: {out_firefox_xpi}")

@@ -15,7 +15,7 @@ class Aria2Worker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -23,6 +23,7 @@ class Aria2Worker(QThread):
         self.temp_dir = temp_dir
         self.user_agent = user_agent
         self.cookies = cookies
+        self.referrer = referrer
         self.is_running = True
         self.gid = None
         
@@ -82,8 +83,11 @@ class Aria2Worker(QThread):
             "Connection: keep-alive"
         ]
         
-        parsed = urlparse(self.url)
-        headers.append(f"Referer: {parsed.scheme}://{parsed.netloc}/")
+        if self.referrer:
+            headers.append(f"Referer: {self.referrer}")
+        else:
+            parsed = urlparse(self.url)
+            headers.append(f"Referer: {parsed.scheme}://{parsed.netloc}/")
         
         if self.cookies:
             headers.append(f"Cookie: {self.cookies}")

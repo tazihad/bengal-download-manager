@@ -12,6 +12,161 @@ function getFileExtension(urlOrFilename) {
   return parts.length > 1 ? parts.pop().toLowerCase() : "";
 }
 
+// --- ENHANCED COOKIE EXTRACTION (cliget method with Firefox storeId & dFPI support) ---
+async function getCookiesForUrl(targetUrl, storeId) {
+  if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) {
+    return "";
+  }
+
+  try {
+    const query = { url: targetUrl };
+    if (storeId) {
+      query.storeId = storeId;
+    }
+
+    let cookies = [];
+    try {
+      cookies = await chrome.cookies.getAll(query);
+    } catch (e) {
+      delete query.storeId;
+      try { cookies = await chrome.cookies.getAll(query); } catch (err) {}
+    }
+
+    const cookieMap = new Map();
+    for (const c of cookies || []) {
+      if (c && c.name) {
+        cookieMap.set(c.name, c.value || "");
+      }
+    }
+
+    // Query domain & parent domain cookies for Firefox dFPI Total Cookie Protection
+    try {
+      const parsed = new URL(targetUrl);
+      const hostParts = parsed.hostname.split('.');
+      
+      const dQuery = { domain: parsed.hostname };
+      if (storeId) dQuery.storeId = storeId;
+      try {
+        const domCookies = await chrome.cookies.getAll(dQuery);
+        for (const c of domCookies || []) {
+          if (c && c.name && !cookieMap.has(c.name)) {
+            cookieMap.set(c.name, c.value || "");
+          }
+        }
+      } catch (e) {}
+
+      if (hostParts.length >= 2) {
+        const parentDomain = hostParts.slice(-2).join('.');
+        const pQuery = { domain: parentDomain };
+        if (storeId) pQuery.storeId = storeId;
+        const parentCookies = await chrome.cookies.getAll(pQuery);
+        for (const c of parentCookies || []) {
+          if (c && c.name && !cookieMap.has(c.name)) {
+            cookieMap.set(c.name, c.value || "");
+          }
+        }
+      }
+    } catch (e) {}
+
+    const result = [];
+    for (const [name, val] of cookieMap.entries()) {
+      result.push(`${name}=${val}`);
+    }
+    return result.join('; ');
+  } catch (err) {
+    return "";
+  }
+}
+
+// --- RESOLVE DOWNLOAD TARGET (handles HTML landing pages with meta refresh / direct mirror links) ---
+async function resolveDownloadTarget(url, userAgent, cookies) {
+  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    return { url, isHtmlLanding: false };
+  }
+
+  try {
+    const headers = {
+      'User-Agent': userAgent || navigator.userAgent,
+      'Range': 'bytes=0-30720'
+    };
+    if (cookies) {
+      headers['Cookie'] = cookies;
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: headers,
+      redirect: 'follow'
+    });
+
+    const finalUrl = response.url || url;
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+    // If Content-Type is a direct binary file or non-HTML resource
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
+      return { url: finalUrl, isHtmlLanding: false };
+    }
+
+    // For HTML responses, inspect the snippet for meta refresh or target file links
+    const text = await response.text();
+
+    // 1. Check for Meta Refresh tag (e.g. VideoLAN mirror redirect)
+    const metaMatch = text.match(/content=["']?\d+;\s*url=['"]?([^'"]+)/i)
+                   || text.match(/url=['"]?([^'"]+)['"]?[^>]*http-equiv/i);
+    if (metaMatch && metaMatch[1]) {
+      const cleanUrl = metaMatch[1].replace(/['"]$/, '').trim();
+      const resolvedTarget = new URL(cleanUrl, finalUrl).href;
+      return { url: resolvedTarget, isHtmlLanding: false };
+    }
+
+    // 2. Check for direct file download link inside the HTML landing page
+    const linkMatch = text.match(/href=["']([^'"]+\.(?:exe|zip|7z|rar|tar\.gz|tgz|gz|msi|dmg|apk|iso|bin|deb|rpm|appimage))["']/i);
+    if (linkMatch && linkMatch[1]) {
+      const resolvedTarget = new URL(linkMatch[1], finalUrl).href;
+      return { url: resolvedTarget, isHtmlLanding: false };
+    }
+
+    // 3. Google Drive / Cloud storage download confirmation forms or links
+    const formMatch = text.match(/<form[^>]*id=["']download-form["'][^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i)
+                   || text.match(/<form[^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i);
+    if (formMatch) {
+      const formAction = formMatch[1].replace(/&amp;/g, '&');
+      const formInner = formMatch[2];
+
+      const inputs = [];
+      const inputRegex = /<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi;
+      let m;
+      while ((m = inputRegex.exec(formInner)) !== null) {
+        if (m[1] && m[1] !== 'submit') {
+          inputs.push(`${encodeURIComponent(m[1])}=${encodeURIComponent(m[2])}`);
+        }
+      }
+
+      if (inputs.length > 0) {
+        const baseUrl = new URL(formAction, finalUrl).href;
+        const confirmUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + inputs.join('&');
+        return { url: confirmUrl, isHtmlLanding: false };
+      }
+    }
+
+    const gdriveConfirmMatch = text.match(/id=["']uc-download-link["'][^>]*href=["']([^"']+)["']/i)
+                            || text.match(/href=["'](\/uc\?export=download&[^"']+)["']/i)
+                            || text.match(/href=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i)
+                            || text.match(/action=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i);
+    if (gdriveConfirmMatch && gdriveConfirmMatch[1]) {
+      const cleanUrl = gdriveConfirmMatch[1].replace(/&amp;/g, '&').trim();
+      const resolvedTarget = new URL(cleanUrl, finalUrl).href;
+      return { url: resolvedTarget, isHtmlLanding: false };
+    }
+
+    // Pure HTML landing page with no extractable download target
+    return { url: finalUrl, isHtmlLanding: true };
+  } catch (err) {
+    console.warn("Could not resolve download target:", err);
+    return { url, isHtmlLanding: false };
+  }
+}
+
 // --- CHECK BENGAL DM APP CONNECTION ---
 async function isBengalDMOnline() {
   try {
@@ -85,67 +240,217 @@ async function sendToBengalDM(downloadData) {
 
 // --- NOTIFICATION HELPER ---
 function notifyUser(title, message) {
-  if (chrome.notifications) {
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: 'assets/icon-48.png',
-      title: title,
-      message: message
-    });
+  // Browser notifications disabled by user request
+  return;
+}
+
+// --- RECENT DOWNLOAD DEDUPLICATION TRACKER ---
+const recentDownloads = new Map(); // key -> timestamp
+
+const GENERIC_ENDPOINTS = ['uc', 'download', 'get', 'fetch', 'file', 'files', 'attachment', 'export', 'dl', 'release', 'index.php', 'index.html', 'view'];
+
+function getCanonicalDownloadKey(url, filename) {
+  if (filename && filename.trim()) {
+    return filename.trim().toLowerCase();
+  }
+  if (!url) return "";
+  const clean = url.split('?')[0].split('#')[0];
+  const parts = clean.split('/').filter(p => p && p !== 'http:' && p !== 'https:');
+  let last = parts.pop() || "";
+  if (GENERIC_ENDPOINTS.includes(last.toLowerCase())) {
+    return "";
+  }
+  if (last.includes('.') && last.split('.').pop().length <= 6) {
+    return last.toLowerCase();
+  }
+  return "";
+}
+
+function isRecentlySent(url, filename) {
+  if (!url && !filename) return false;
+  const now = Date.now();
+  for (const [key, time] of recentDownloads.entries()) {
+    if (now - time > 10000) { // 10 seconds deduplication window
+      recentDownloads.delete(key);
+    }
+  }
+
+  if (url && recentDownloads.has(url)) return true;
+  const key = getCanonicalDownloadKey(url, filename);
+  if (key && key.length > 2 && recentDownloads.has(key)) return true;
+  return false;
+}
+
+function markRecentlySent(url, filename) {
+  const now = Date.now();
+  if (url) {
+    recentDownloads.set(url, now);
+  }
+  const key = getCanonicalDownloadKey(url, filename);
+  if (key && key.length > 2) {
+    recentDownloads.set(key, now);
   }
 }
 
-// --- DOWNLOAD INTERCEPTOR (MV3 downloads API) ---
-chrome.downloads.onCreated.addListener(async (item) => {
-  if (!item || !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:")) {
-    return;
-  }
+const IGNORED_SERVICE_PATTERNS = [
+  'logimpressions', '/log/', 'telemetry', 'analytics', 'metrics',
+  'httpservice', 'checktriggerstatus', 'bgasy', 'gen_204', '/collect',
+  '/async/', 'batchasynctask', '/rpc', 'tracking', 'beacon'
+];
 
-  // Check user preference for automatic interception
-  const prefs = await chrome.storage.local.get({ enableInterception: true });
-  if (!prefs.enableInterception) return;
+function isIgnoredServiceUrl(url) {
+  if (!url || typeof url !== 'string') return true;
+  const lower = url.toLowerCase();
+  return IGNORED_SERVICE_PATTERNS.some(pattern => lower.includes(pattern));
+}
 
-  const urlExt = getFileExtension(item.url);
-  const fileExt = getFileExtension(item.filename);
-  const ext = fileExt || urlExt;
+// --- HTTP REQUEST & RESPONSE MONITORING SYSTEM (IDM Integration Module Style) ---
+if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
+  const setupListener = (extraSpec) => {
+    chrome.webRequest.onHeadersReceived.addListener(
+      (details) => {
+        if (!details || !details.url || details.url.startsWith("http://127.0.0.1") || details.url.startsWith("http://localhost") || isIgnoredServiceUrl(details.url)) {
+          return;
+        }
 
-  if (ext && DEFAULT_IGNORED_EXTS.includes(ext)) {
-    return; // Don't intercept web assets/pages
-  }
+        // Inspect response headers for file downloads
+        let isDownloadHeader = false;
+        let filenameFromHeader = "";
+        let hasContentDispositionAttachment = false;
 
-  // Check if Bengal DM backend is active
-  const isOnline = await isBengalDMOnline();
-  if (!isOnline) return;
+        for (const h of headers) {
+          const name = (h.name || '').toLowerCase();
+          const value = (h.value || '').toLowerCase();
 
-  // Intercept the download
-  try {
-    await chrome.downloads.cancel(item.id);
-    await chrome.downloads.erase({ id: item.id });
-  } catch (e) {
-    console.warn("Could not cancel Chrome download:", e);
-  }
+          if (name === 'content-disposition' && (value.includes('attachment') || value.includes('filename='))) {
+            hasContentDispositionAttachment = true;
+            isDownloadHeader = true;
+            const match = h.value.match(/filename=["']?([^"';]+)["']?/i);
+            if (match) filenameFromHeader = match[1];
+          }
 
-  // Retrieve cookies for authorization
-  let cookieString = "";
-  try {
-    const cookies = await chrome.cookies.getAll({ url: item.url });
-    cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-  } catch (e) {
-    console.warn("Could not retrieve cookies:", e);
-  }
+          if (name === 'content-type') {
+            if (value.includes('application/x-msdownload') || 
+                value.includes('application/x-7z-compressed') || 
+                value.includes('application/x-rar-compressed') || 
+                value.includes('application/zip') || 
+                value.includes('application/x-iso9660-image')) {
+              isDownloadHeader = true;
+            }
+          }
+        }
 
-  const success = await sendToBengalDM({
-    url: item.url,
-    userAgent: navigator.userAgent,
-    cookies: cookieString,
-    filename: item.filename,
-    referrer: item.referrer
+        const ext = getFileExtension(filenameFromHeader || details.url);
+        const isDownloadExt = ext && !DEFAULT_IGNORED_EXTS.includes(ext) && 
+          ['exe', 'msi', 'zip', '7z', 'rar', 'tar', 'gz', 'iso', 'dmg', 'apk', 'deb', 'rpm', 'bin', 'appimage', 'pdf', 'mp4', 'mkv', 'avi', 'mov', 'mp3', 'flac', 'wav'].includes(ext);
+
+        const isGoogleDriveExport = details.url.includes("export=download") || details.url.includes("uc-download-link");
+
+        if (hasContentDispositionAttachment || isDownloadExt || isGoogleDriveExport) {
+          (async () => {
+            const isOnline = await isBengalDMOnline();
+            if (!isOnline) return;
+
+            if (isRecentlySent(details.url, filenameFromHeader)) return;
+
+            const cookieString = await getCookiesForUrl(details.url, details.storeId);
+
+            const resolved = await resolveDownloadTarget(details.url, navigator.userAgent, cookieString);
+            if (resolved.isHtmlLanding) {
+              return;
+            }
+
+            if (isRecentlySent(resolved.url, filenameFromHeader)) return;
+
+            markRecentlySent(details.url, filenameFromHeader);
+            markRecentlySent(resolved.url, filenameFromHeader);
+
+            await sendToBengalDM({
+              url: resolved.url,
+              userAgent: navigator.userAgent,
+              cookies: cookieString,
+              filename: filenameFromHeader,
+              referrer: details.initiator || details.documentUrl || ""
+            });
+          })();
+
+          if (extraSpec.includes("blocking")) {
+            return { cancel: true };
+          }
+        }
+      },
+      { urls: ["<all_urls>"], types: ["main_frame", "sub_frame", "other"] },
+      extraSpec
+    );
+  };
+
+  const manifest = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest() : {};
+  const hasBlocking = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
+  const extraSpec = hasBlocking ? ["responseHeaders", "blocking"] : ["responseHeaders"];
+
+  setupListener(extraSpec);
+}
+
+// --- BROWSER DOWNLOAD CANCELLER & TAKEOVER (Guarantees zero browser downloads when Bengal DM is running) ---
+if (chrome.downloads && chrome.downloads.onCreated) {
+  chrome.downloads.onCreated.addListener(async (downloadItem) => {
+    if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
+
+    // 1. Verify if Bengal DM application is online
+    const isOnline = await isBengalDMOnline();
+    if (!isOnline) {
+      // App is offline: allow native browser download
+      return;
+    }
+
+    // 2. Bengal DM is active: cancel and erase browser native download immediately on 0th byte
+    try {
+      chrome.downloads.cancel(downloadItem.id, () => {
+        try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
+      });
+      setTimeout(() => {
+        try {
+          chrome.downloads.cancel(downloadItem.id, () => {
+            try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
+          });
+        } catch (e) {}
+      }, 50);
+    } catch (e) {
+      try { chrome.downloads.erase({ id: downloadItem.id }); } catch (err) {}
+    }
+
+    // 3. Deduplicate if already processed by content script or webRequest
+    if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
+
+    const cookieString = await getCookiesForUrl(downloadItem.url, downloadItem.storeId);
+
+    const resolved = await resolveDownloadTarget(downloadItem.url, navigator.userAgent, cookieString);
+
+    const isCloudOrBrowserFile = downloadItem.url.includes("google.com") || 
+                                 downloadItem.url.includes("googleusercontent.com") || 
+                                 downloadItem.url.includes("export=download") || 
+                                 (downloadItem.filename && downloadItem.filename.length > 0);
+
+    if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
+      return;
+    }
+
+    const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadItem.url : resolved.url;
+
+    if (isRecentlySent(targetUrl, downloadItem.filename)) return;
+
+    markRecentlySent(downloadItem.url, downloadItem.filename);
+    markRecentlySent(targetUrl, downloadItem.filename);
+
+    await sendToBengalDM({
+      url: targetUrl,
+      userAgent: navigator.userAgent,
+      cookies: cookieString,
+      filename: downloadItem.filename || "",
+      referrer: downloadItem.referrer || ""
+    });
   });
-
-  if (success) {
-    notifyUser("Bengal DM Intercepted", `Sent download to Bengal DM:\n${item.filename || item.url}`);
-  }
-});
+}
 
 // --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
@@ -171,18 +476,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "download-with-bengal") {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
     if (targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
-      let cookieString = "";
-      try {
-        const cookies = await chrome.cookies.getAll({ url: targetUrl });
-        cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      } catch (e) {
-        console.warn("Could not get cookies:", e);
+      const cookieString = await getCookiesForUrl(targetUrl, tab ? tab.cookieStoreId : undefined);
+
+      const resolved = await resolveDownloadTarget(targetUrl, navigator.userAgent, cookieString);
+      if (resolved.isHtmlLanding) {
+        notifyUser("Bengal DM Warning", "The link is a web page, not a direct download file.");
+        return;
       }
 
+      markRecentlySent(targetUrl);
+      markRecentlySent(resolved.url);
+
       const success = await sendToBengalDM({
-        url: targetUrl,
+        url: resolved.url,
         userAgent: navigator.userAgent,
-        cookies: cookieString
+        cookies: cookieString,
+        referrer: targetUrl
       });
 
       if (success) {
@@ -198,18 +507,34 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "send_to_bengal") {
     (async () => {
-      let cookieString = "";
-      try {
-        const cookies = await chrome.cookies.getAll({ url: request.url });
-        cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-      } catch (e) {}
+      const cookieString = await getCookiesForUrl(request.url, sender && sender.tab ? sender.tab.cookieStoreId : undefined);
+
+      if (isRecentlySent(request.url)) {
+        sendResponse({ success: true, duplicate: true });
+        return;
+      }
+
+      const resolved = await resolveDownloadTarget(request.url, navigator.userAgent, cookieString);
+      if (resolved.isHtmlLanding) {
+        sendResponse({ success: false, isHtmlLanding: true, url: request.url });
+        return;
+      }
+
+      if (isRecentlySent(resolved.url)) {
+        sendResponse({ success: true, duplicate: true });
+        return;
+      }
+
+      markRecentlySent(request.url);
+      markRecentlySent(resolved.url);
 
       const success = await sendToBengalDM({
-        url: request.url,
+        url: resolved.url,
         userAgent: navigator.userAgent,
-        cookies: cookieString
+        cookies: cookieString,
+        referrer: request.url
       });
-      sendResponse({ success });
+      sendResponse({ success, resolvedUrl: resolved.url });
     })();
     return true;
   }
@@ -222,4 +547,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
+
+
 

@@ -4,11 +4,12 @@ const IGNORED_EXTENSIONS = [
     'woff', 'woff2', 'eot', 'ttf', 'otf'
 ];
 
+// --- LINK CLICK MONITORING SYSTEM ---
 document.addEventListener('click', (event) => {
-    const link = event.target.closest('a');
+    const link = event.target.closest('a, area');
     if (!link || !link.href || (!link.href.startsWith('http://') && !link.href.startsWith('https://'))) return;
 
-    // Skip if modifier keys are pressed (let browser handle new tabs/windows natively)
+    // Allow native browser action when modifier keys (Ctrl/Shift/Meta/Alt) are held
     if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) return;
 
     try {
@@ -17,30 +18,37 @@ document.addEventListener('click', (event) => {
         const parts = pathname.split('?')[0].split('#')[0].split('.');
         const extension = parts.length > 1 ? parts.pop() : "";
 
-        // Only intercept if link points to a file with an extension that is NOT ignored
-        if (!extension || IGNORED_EXTENSIONS.includes(extension)) return;
-
         const downloadAttr = link.getAttribute('download');
-        if (!downloadAttr && !extension) return;
+        if (!downloadAttr && (!extension || IGNORED_EXTENSIONS.includes(extension))) return;
 
-        // Check if background service worker can handle this download via Bengal DM
+        // Query background service to check Bengal DM backend status
         chrome.runtime.sendMessage({ action: "check_status" }, (statusResponse) => {
             if (chrome.runtime.lastError || !statusResponse || !statusResponse.online) {
-                // Bengal DM is not running, let default browser download happen
                 return;
             }
 
-            // Bengal DM is active - route download to Bengal DM
+            // Bengal DM is active - intercept link click and notify browser DOM engine that download was taken over
             event.preventDefault();
             event.stopPropagation();
+            if (event.stopImmediatePropagation) {
+                event.stopImmediatePropagation();
+            }
 
             chrome.runtime.sendMessage({
                 action: "send_to_bengal",
                 url: link.href
+            }, (response) => {
+                if (response && response.isHtmlLanding) {
+                    // HTML web page target: open normally in browser tab
+                    if (link.target && link.target !== '_self') {
+                        window.open(link.href, link.target);
+                    } else {
+                        window.location.href = link.href;
+                    }
+                }
             });
         });
     } catch (e) {
         // Fallback on error
     }
 }, true);
-
