@@ -8,6 +8,10 @@ inputs:
     description: 'Target architecture (x86_64 or aarch64)'
     required: false
     default: 'x86_64'
+  release_target:
+    description: 'Release target (latest or tag name)'
+    required: false
+    default: 'latest'
 
 runs:
   using: "composite"
@@ -17,6 +21,7 @@ runs:
       run: |
         VERSION="${{ inputs.version }}"
         ARCH="${{ inputs.arch }}"
+        RELEASE_TARGET="${{ inputs.release_target }}"
         REPO_OWNER="tazihad"
         REPO_NAME="bengal-download-manager"
 
@@ -52,7 +57,7 @@ runs:
         export PATH="$PWD:$PATH"
 
         # Set zsync / AppImageUpdate update information metadata
-        ZSYNC_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
+        ZSYNC_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|${RELEASE_TARGET}|bengal-download-manager-*-${ARCH}.AppImage.zsync"
         TARGET_APPIMAGE="bengal-download-manager-${VERSION}-${ARCH}.AppImage"
         TARGET_ZSYNC="bengal-download-manager-${VERSION}-${ARCH}.AppImage.zsync"
 
