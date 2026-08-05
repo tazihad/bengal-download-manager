@@ -33,7 +33,7 @@ export PATH="$PWD:$PATH"
 
 echo "=== 4. Packaging AppImage with linuxdeploy & zsync ==="
 # AppImageUpdate zsync information format for GitHub releases
-ZSYNC_INFO="zsync|gh-releases-direct|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
+ZSYNC_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
 export UPDATE_INFORMATION="${ZSYNC_INFO}"
 export LDAI_UPDATE_INFORMATION="${ZSYNC_INFO}"
 
