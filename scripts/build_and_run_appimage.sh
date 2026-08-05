@@ -57,15 +57,19 @@ LDAI_OUTPUT="${OUTPUT_APPIMAGE}" \
     --icon-file assets/bengal-download-manager.png \
     --output appimage
 
-# If appimagetool output files into current directory, move to dist/
-GENERATED_APPIMAGE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
-GENERATED_ZSYNC=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
-
-if [ -n "$GENERATED_APPIMAGE" ]; then
-    mv "$GENERATED_APPIMAGE" "$OUTPUT_APPIMAGE"
+# Ensure target files exist or move fallback generated files safely without failing set -e
+if [ ! -f "$OUTPUT_APPIMAGE" ]; then
+    FALLBACK_APPIMAGE=$(find . -maxdepth 1 -iname "*bengal*download*manager*.AppImage" ! -name "$OUTPUT_APPIMAGE" -print -quit)
+    if [ -n "$FALLBACK_APPIMAGE" ]; then
+        mv "$FALLBACK_APPIMAGE" "$OUTPUT_APPIMAGE"
+    fi
 fi
-if [ -n "$GENERATED_ZSYNC" ]; then
-    mv "$GENERATED_ZSYNC" "${OUTPUT_APPIMAGE}.zsync"
+
+if [ ! -f "${OUTPUT_APPIMAGE}.zsync" ]; then
+    FALLBACK_ZSYNC=$(find . -maxdepth 1 -iname "*bengal*download*manager*.AppImage.zsync" ! -name "${OUTPUT_APPIMAGE}.zsync" -print -quit)
+    if [ -n "$FALLBACK_ZSYNC" ]; then
+        mv "$FALLBACK_ZSYNC" "${OUTPUT_APPIMAGE}.zsync"
+    fi
 fi
 
 echo "AppImage created: ${OUTPUT_APPIMAGE}"
