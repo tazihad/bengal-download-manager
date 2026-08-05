@@ -35,4 +35,8 @@ build_test/
 flatpak_app_dir/
 AppDir/
 appimagetool.AppImage
+linuxdeploy.AppImage
+linuxdeploy-plugin-appimage.AppImage
+*.AppImage
+*.AppImage.zsync
 test_app.py

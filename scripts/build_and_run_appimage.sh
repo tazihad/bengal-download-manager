@@ -6,37 +6,61 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-VERSION="1.0.0"
 ARCH="$(uname -m)"
+REPO_OWNER="tazihad"
+REPO_NAME="bengal-download-manager"
 
-echo "=== 1. Setting up AppDir Structure ==="
-rm -rf AppDir
-mkdir -p AppDir/usr/bin
-mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-
-cp dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
-chmod +x AppDir/usr/bin/bengal-download-manager
-cp assets/bengal-download-manager.desktop AppDir/
-echo "X-AppImage-Version=${VERSION}" >> AppDir/bengal-download-manager.desktop
-cp assets/logo.png AppDir/bengal-download-manager.png
-cp assets/logo.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
-
-cat > AppDir/AppRun <<EOF
-#!/bin/sh
-HERE="\$(dirname "\$(readlink -f "\${0}")")"
-exec "\${HERE}/usr/bin/bengal-download-manager" "\$@"
-EOF
-chmod +x AppDir/AppRun
-
-echo "=== 2. Building AppImage ==="
-if [ ! -f appimagetool.AppImage ]; then
-    wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCH}.AppImage" -O appimagetool.AppImage || \
-    wget -q "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-${ARCH}.AppImage" -O appimagetool.AppImage
-    chmod +x appimagetool.AppImage
+echo "=== 1. Checking / Building PyInstaller Executable ==="
+if [ ! -f "dist/bengal-download-manager" ]; then
+    PYTHONPATH=src venv/bin/pyinstaller --noconfirm bengal-download-manager.spec
 fi
 
-ARCH=${ARCH} ./appimagetool.AppImage --appimage-extract-and-run AppDir "dist/bengal-download-manager-${VERSION}-${ARCH}.AppImage"
-chmod +x "dist/bengal-download-manager-${VERSION}-${ARCH}.AppImage"
+echo "=== 2. Preparing Desktop Icon ==="
+venv/bin/python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bengal-download-manager.png')"
 
-echo "=== 3. Launching AppImage ==="
-./dist/bengal-download-manager-${VERSION}-${ARCH}.AppImage "$@"
+echo "=== 3. Fetching linuxdeploy and appimage plugin ==="
+if [ ! -f linuxdeploy.AppImage ]; then
+    wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage" -O linuxdeploy.AppImage
+    chmod +x linuxdeploy.AppImage
+fi
+
+if [ ! -f linuxdeploy-plugin-appimage.AppImage ]; then
+    wget -q "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-${ARCH}.AppImage" -O linuxdeploy-plugin-appimage.AppImage
+    chmod +x linuxdeploy-plugin-appimage.AppImage
+fi
+
+export PATH="$PWD:$PATH"
+
+echo "=== 4. Packaging AppImage with linuxdeploy & zsync ==="
+# AppImageUpdate zsync information format for GitHub releases
+ZSYNC_INFO="zsync|gh-releases-direct|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
+export UPDATE_INFORMATION="${ZSYNC_INFO}"
+export LDAI_UPDATE_INFORMATION="${ZSYNC_INFO}"
+
+rm -rf AppDir
+./linuxdeploy.AppImage \
+    --appdir AppDir \
+    --executable dist/bengal-download-manager \
+    --desktop-file assets/bengal-download-manager.desktop \
+    --icon-file assets/bengal-download-manager.png \
+    --output appimage
+
+# Move generated AppImage and .zsync files to dist/
+APPIMAGE_FILE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
+ZSYNC_FILE=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
+
+if [ -n "$APPIMAGE_FILE" ]; then
+    FINAL_APPIMAGE="dist/bengal-download-manager-${ARCH}.AppImage"
+    FINAL_ZSYNC="dist/bengal-download-manager-${ARCH}.AppImage.zsync"
+    mv "$APPIMAGE_FILE" "$FINAL_APPIMAGE"
+    if [ -n "$ZSYNC_FILE" ]; then
+        mv "$ZSYNC_FILE" "$FINAL_ZSYNC"
+    fi
+    echo "AppImage successfully created: $FINAL_APPIMAGE"
+    echo "Zsync file successfully created: $FINAL_ZSYNC"
+fi
+
+if [ "$1" == "--run" ]; then
+    echo "=== 5. Launching AppImage ==="
+    ./dist/bengal-download-manager-${ARCH}.AppImage "${@:2}"
+fi
