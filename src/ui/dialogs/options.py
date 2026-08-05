@@ -83,18 +83,14 @@ class OptionsDialog(QDialog):
         vbox_startup.setContentsMargins(10, 15, 10, 10)
         vbox_startup.setSpacing(10)
         
-        self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
-        # Load from parent (MainWindow) settings
-        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
-        vbox_startup.addWidget(self.chk_start_minimized)
-        
         self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
         self.chk_startup.setChecked(is_autostart_enabled())
         vbox_startup.addWidget(self.chk_startup)
         
-        self.chk_browser = QCheckBox("Integrate into browsers (Coming Soon)")
-        self.chk_browser.setEnabled(False)
-        vbox_startup.addWidget(self.chk_browser)
+        self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
+        # Load from parent (MainWindow) settings
+        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
+        vbox_startup.addWidget(self.chk_start_minimized)
         
         grp_startup.setLayout(vbox_startup)
         layout.addWidget(grp_startup)

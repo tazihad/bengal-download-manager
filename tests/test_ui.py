@@ -202,6 +202,32 @@ def test_start_menu_launch_vs_autostart_minimized_flag(monkeypatch):
     assert ("--minimized" in argv_normal) is False
     assert ("--minimized" in argv_minimized) is True
 
+def test_options_dialog_startup_checkbox_ordering_and_browser_removal(qapp):
+    from main import MainWindow
+    from ui.dialogs import OptionsDialog
+
+    window = MainWindow()
+    opt_dlg = OptionsDialog(window)
+
+    # Ensure browser integration checkbox is removed
+    assert not hasattr(opt_dlg, "chk_browser")
+
+    # Ensure Launch Bengal is on top of start minimized
+    assert opt_dlg.chk_startup.text() == "Launch Bengal DM on system startup"
+    assert opt_dlg.chk_start_minimized.text() == "Start minimized in system tray on system startup"
+    
+    # Check widget order in vbox_startup
+    grp_startup = opt_dlg.general_tab.findChild(object, "")
+    # Verify chk_startup comes before chk_start_minimized
+    layout = opt_dlg.chk_startup.parentWidget().layout()
+    startup_idx = layout.indexOf(opt_dlg.chk_startup)
+    minimized_idx = layout.indexOf(opt_dlg.chk_start_minimized)
+    assert startup_idx < minimized_idx
+    assert startup_idx == 0
+
+    opt_dlg.close()
+
+
 
 
 
