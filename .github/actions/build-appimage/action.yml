@@ -23,6 +23,21 @@ runs:
         # Prepare 256x256 icon compliant with XDG specs
         python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bengal-download-manager.png')"
 
+        # Locate compiled binary
+        RAW_EXE="build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}"
+        if [ ! -f "$RAW_EXE" ]; then
+            RAW_EXE="dist/bengal-download-manager"
+        fi
+
+        # Pre-populate AppDir structure using install
+        rm -rf AppDir
+        install -Dm755 "$RAW_EXE" AppDir/usr/bin/bengal-download-manager
+        install -Dm644 assets/bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
+        install -Dm644 assets/bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
+        if [ -f flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml ]; then
+            install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml AppDir/usr/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
+        fi
+
         # Fetch linuxdeploy and linuxdeploy-plugin-appimage binaries
         if [ ! -f linuxdeploy.AppImage ]; then
             wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage" -O linuxdeploy.AppImage
@@ -38,39 +53,29 @@ runs:
 
         # Set zsync / AppImageUpdate update information metadata
         ZSYNC_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
-        export UPDATE_INFORMATION="${ZSYNC_INFO}"
-        export LDAI_UPDATE_INFORMATION="${ZSYNC_INFO}"
+        TARGET_APPIMAGE="bengal-download-manager-${VERSION}-${ARCH}.AppImage"
+        TARGET_ZSYNC="bengal-download-manager-${VERSION}-${ARCH}.AppImage.zsync"
 
-        # Locate compiled executable and normalize filename to match desktop Exec entry
-        RAW_EXE="build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}"
-        if [ ! -f "$RAW_EXE" ]; then
-            RAW_EXE="dist/bengal-download-manager"
-        fi
-
-        mkdir -p dist_appimage
-        cp "$RAW_EXE" dist_appimage/bengal-download-manager
-        chmod +x dist_appimage/bengal-download-manager
-        EXE_PATH="dist_appimage/bengal-download-manager"
-
-        rm -rf AppDir
+        VERSION="${VERSION}" \
+        LINUXDEPLOY_OUTPUT_VERSION="${VERSION}" \
+        UPDATE_INFORMATION="${ZSYNC_INFO}" \
+        LDAI_UPDATE_INFORMATION="${ZSYNC_INFO}" \
+        OUTPUT="${TARGET_APPIMAGE}" \
+        LDAI_OUTPUT="${TARGET_APPIMAGE}" \
         ./linuxdeploy.AppImage \
             --appdir AppDir \
-            --executable "$EXE_PATH" \
             --desktop-file assets/bengal-download-manager.desktop \
             --icon-file assets/bengal-download-manager.png \
             --output appimage
 
-        APPIMAGE_FILE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
-        ZSYNC_FILE=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
+        GENERATED_APPIMAGE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
+        GENERATED_ZSYNC=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
 
-        TARGET_APPIMAGE="bengal-download-manager-${VERSION}-${ARCH}.AppImage"
-        TARGET_ZSYNC="bengal-download-manager-${VERSION}-${ARCH}.AppImage.zsync"
-
-        if [ -n "$APPIMAGE_FILE" ]; then
-            mv "$APPIMAGE_FILE" "$TARGET_APPIMAGE"
+        if [ -n "$GENERATED_APPIMAGE" ]; then
+            mv "$GENERATED_APPIMAGE" "$TARGET_APPIMAGE"
         fi
-        if [ -n "$ZSYNC_FILE" ]; then
-            mv "$ZSYNC_FILE" "$TARGET_ZSYNC"
+        if [ -n "$GENERATED_ZSYNC" ]; then
+            mv "$GENERATED_ZSYNC" "$TARGET_ZSYNC"
         fi
 
         echo "AppImage created: $TARGET_APPIMAGE"

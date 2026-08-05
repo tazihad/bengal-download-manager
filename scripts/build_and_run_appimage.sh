@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
+VERSION="1.0.0"
 ARCH="$(uname -m)"
 REPO_OWNER="tazihad"
 REPO_NAME="bengal-download-manager"
@@ -15,8 +16,17 @@ if [ ! -f "dist/bengal-download-manager" ]; then
     PYTHONPATH=src venv/bin/pyinstaller --noconfirm bengal-download-manager.spec
 fi
 
-echo "=== 2. Preparing Desktop Icon ==="
+echo "=== 2. Preparing Icon & AppDir Structure ==="
 venv/bin/python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bengal-download-manager.png')"
+
+rm -rf AppDir
+
+install -Dm755 dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
+install -Dm644 assets/bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
+install -Dm644 assets/bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
+if [ -f flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml ]; then
+    install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml AppDir/usr/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
+fi
 
 echo "=== 3. Fetching linuxdeploy and appimage plugin ==="
 if [ ! -f linuxdeploy.AppImage ]; then
@@ -32,35 +42,36 @@ fi
 export PATH="$PWD:$PATH"
 
 echo "=== 4. Packaging AppImage with linuxdeploy & zsync ==="
-# AppImageUpdate zsync information format for GitHub releases
-ZSYNC_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
-export UPDATE_INFORMATION="${ZSYNC_INFO}"
-export LDAI_UPDATE_INFORMATION="${ZSYNC_INFO}"
+UPDATE_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
+OUTPUT_APPIMAGE="dist/bengal-download-manager-${ARCH}.AppImage"
 
-rm -rf AppDir
+VERSION="${VERSION}" \
+LINUXDEPLOY_OUTPUT_VERSION="${VERSION}" \
+UPDATE_INFORMATION="${UPDATE_INFO}" \
+LDAI_UPDATE_INFORMATION="${UPDATE_INFO}" \
+OUTPUT="${OUTPUT_APPIMAGE}" \
+LDAI_OUTPUT="${OUTPUT_APPIMAGE}" \
 ./linuxdeploy.AppImage \
     --appdir AppDir \
-    --executable dist/bengal-download-manager \
     --desktop-file assets/bengal-download-manager.desktop \
     --icon-file assets/bengal-download-manager.png \
     --output appimage
 
-# Move generated AppImage and .zsync files to dist/
-APPIMAGE_FILE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
-ZSYNC_FILE=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
+# If appimagetool output files into current directory, move to dist/
+GENERATED_APPIMAGE=$(ls Bengal_Download_Manager-*.AppImage 2>/dev/null | head -n 1)
+GENERATED_ZSYNC=$(ls Bengal_Download_Manager-*.AppImage.zsync 2>/dev/null | head -n 1)
 
-if [ -n "$APPIMAGE_FILE" ]; then
-    FINAL_APPIMAGE="dist/bengal-download-manager-${ARCH}.AppImage"
-    FINAL_ZSYNC="dist/bengal-download-manager-${ARCH}.AppImage.zsync"
-    mv "$APPIMAGE_FILE" "$FINAL_APPIMAGE"
-    if [ -n "$ZSYNC_FILE" ]; then
-        mv "$ZSYNC_FILE" "$FINAL_ZSYNC"
-    fi
-    echo "AppImage successfully created: $FINAL_APPIMAGE"
-    echo "Zsync file successfully created: $FINAL_ZSYNC"
+if [ -n "$GENERATED_APPIMAGE" ]; then
+    mv "$GENERATED_APPIMAGE" "$OUTPUT_APPIMAGE"
 fi
+if [ -n "$GENERATED_ZSYNC" ]; then
+    mv "$GENERATED_ZSYNC" "${OUTPUT_APPIMAGE}.zsync"
+fi
+
+echo "AppImage created: ${OUTPUT_APPIMAGE}"
+echo "Zsync file created: ${OUTPUT_APPIMAGE}.zsync"
 
 if [ "$1" == "--run" ]; then
     echo "=== 5. Launching AppImage ==="
-    ./dist/bengal-download-manager-${ARCH}.AppImage "${@:2}"
+    "./${OUTPUT_APPIMAGE}" "${@:2}"
 fi
