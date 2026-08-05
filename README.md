@@ -6,7 +6,7 @@
 
 ### Downloads, Supercharged.
 
-*A blazing fast, multi-protocol download manager — the free & open-source IDM alternative.*
+*Bengal Download Manager is a powerful and efficient download management tool designed to simplify and accelerate your downloading experience.*
 
 [![Latest Release](https://img.shields.io/github/v/release/tazihad/bengal-download-manager?style=flat-square&color=06b6d4&label=release)](https://github.com/tazihad/bengal-download-manager/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tazihad/bengal-download-manager/total?style=flat-square&color=22c55e)](https://github.com/tazihad/bengal-download-manager/releases)
