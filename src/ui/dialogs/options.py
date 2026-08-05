@@ -83,9 +83,9 @@ class OptionsDialog(QDialog):
         vbox_startup.setContentsMargins(10, 15, 10, 10)
         vbox_startup.setSpacing(10)
         
-        self.chk_start_minimized = QCheckBox("Start Bengal DM minimized in system tray")
+        self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
         # Load from parent (MainWindow) settings
-        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized", False))
+        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
         vbox_startup.addWidget(self.chk_start_minimized)
         
         self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
@@ -528,9 +528,9 @@ class OptionsDialog(QDialog):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
         
-        # Save start_minimized to parent (MainWindow)
+        # Save start_minimized_on_autostart to parent (MainWindow)
         if self.parent():
-            setattr(self.parent(), "start_minimized", self.chk_start_minimized.isChecked())
+            setattr(self.parent(), "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             save_fn = getattr(self.parent(), "save_settings", None)
             if callable(save_fn):
                 save_fn()
