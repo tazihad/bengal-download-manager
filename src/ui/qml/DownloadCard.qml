@@ -19,11 +19,21 @@ Kirigami.Card {
             }
 
             Controls.Label {
+                id: fileNameLabel
                 text: model.filename || "File"
                 font.bold: true
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
                 Layout.fillWidth: true
+
+                Controls.ToolTip.visible: fileNameMouseArea.containsMouse
+                Controls.ToolTip.text: fileNameLabel.text
+
+                MouseArea {
+                    id: fileNameMouseArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                }
             }
 
             Kirigami.Badge {
