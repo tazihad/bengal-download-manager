@@ -335,8 +335,8 @@ class DownloadProgressDialog(QDialog):
         for i in range(total_display):
             self.seg_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
             if i < num_segments:
-                self.seg_table.setItem(i, 1, QTableWidgetItem(self.worker.format_bytes(0, precision=3, pad=False))) 
-                self.seg_table.setItem(i, 2, QTableWidgetItem(f"{self.worker.format_bytes(0, precision=3, pad=False)}/s"))
+                self.seg_table.setItem(i, 1, QTableWidgetItem(self.worker.format_bytes(0, precision=2, pad=False))) 
+                self.seg_table.setItem(i, 2, QTableWidgetItem(f"{self.worker.format_bytes(0, precision=2, pad=False)}/s"))
                 self.seg_table.setItem(i, 3, QTableWidgetItem("Pending..."))
             else:
                 self.seg_table.setItem(i, 1, QTableWidgetItem("-")) 
@@ -352,10 +352,10 @@ class DownloadProgressDialog(QDialog):
                 self.segment_bars[index].setMaximum(0)
                 self.segment_bars[index].setValue(0)
             
-            dl_str = self.worker.format_bytes(dl, precision=3, pad=False)
+            dl_str = self.worker.format_bytes(dl, precision=2, pad=False)
             self.seg_table.setItem(index, 1, QTableWidgetItem(dl_str))
             
-            speed_str = f"{self.worker.format_bytes(speed, precision=3, pad=False)}/s"
+            speed_str = f"{self.worker.format_bytes(speed, precision=2, pad=False)}/s"
             self.seg_table.setItem(index, 2, QTableWidgetItem(speed_str))
             
             if status == "Receiving data...":
@@ -409,11 +409,11 @@ class DownloadProgressDialog(QDialog):
         
         # Calculate percentage properly based on progress bar values
         if total_bytes > 0:
-            percent = f"{(current_bytes / total_bytes) * 100:.3f}%"
+            percent = f"{(current_bytes / total_bytes) * 100:.2f}%"
         else:
-            percent = "Unknown %" if current_bytes > 0 else "0.000%"
+            percent = "Unknown %" if current_bytes > 0 else "0.00%"
             
-        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=3, pad=False)} ({percent})")
+        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
         
         # Map worker status to display status
         worker_status = data[2]
@@ -475,11 +475,11 @@ class DownloadProgressDialog(QDialog):
                 self.current_bytes = self.total_bytes
                 self.pbar.setMaximum(10000)
                 self.pbar.setValue(10000)
-                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.total_bytes, precision=3, pad=False)} (100.000%)")
+                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.total_bytes, precision=2, pad=False)} (100.00%)")
             else:
                 self.pbar.setMaximum(10000)
                 self.pbar.setValue(10000)
-                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes, precision=3, pad=False)} (100.000%)")
+                self.lbl_downloaded.setText(f"{self.worker.format_bytes(self.current_bytes, precision=2, pad=False)} (100.00%)")
                 
             self.lbl_time.setText("0 sec")
             self.lbl_speed.setText("0.00 B/s")

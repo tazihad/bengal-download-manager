@@ -151,4 +151,24 @@ def test_download_dialogs_window_stacking_parentage(qapp):
     assert info_dlg.windowModality() == Qt.WindowModality.NonModal
     assert info_dlg.isWindow()
 
+def test_download_progress_dialog_downloaded_formatting(qapp):
+    from ui.dialogs import DownloadProgressDialog
+    from core.workers import DownloadWorker
+
+    worker = DownloadWorker("http://example.com/test.iso", 0, "/tmp")
+    progress_dlg = DownloadProgressDialog(worker, None)
+
+    # Test update_stats with 64.81 MB out of 160 MB (40.50625% -> 40.51%)
+    current_bytes = int(64.81 * 1024 * 1024)
+    total_bytes = int(160.0 * 1024 * 1024)
+    progress_dlg.update_stats(0, ("test.iso", "160.00 MB", "Receiving data...", "10 sec", "5.00 MB/s", current_bytes, total_bytes))
+
+    assert "64.81  MB" in progress_dlg.lbl_downloaded.text()
+    assert "(40.51%)" in progress_dlg.lbl_downloaded.text()
+
+    # Test completion formatting (100.00%)
+    progress_dlg.on_finished(0, "Complete")
+    assert "(100.00%)" in progress_dlg.lbl_downloaded.text()
+
+
 
