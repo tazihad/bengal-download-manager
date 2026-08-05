@@ -1146,6 +1146,7 @@ class MainWindow(QMainWindow):
                 
                 filename = d.get("filename", "Unknown")
                 item_name = QTableWidgetItem(filename)
+                item_name.setToolTip(filename)
                 
                 # Store raw timestamps in item data
                 date_added_ts = d.get("date_added", str(time.time()))
@@ -1541,6 +1542,7 @@ class MainWindow(QMainWindow):
                 shutil.move(old_path, new_path)
                 new_filename = os.path.basename(new_path)
                 item_0.setText(new_filename)
+                item_0.setToolTip(new_filename)
                 item_0.setData(Qt.ItemDataRole.UserRole + 1, new_path)
                 self.save_data()
             except Exception as e:
@@ -1571,6 +1573,7 @@ class MainWindow(QMainWindow):
                 try:
                     shutil.move(old_path, new_path)
                     item_0.setText(new_filename)
+                    item_0.setToolTip(new_filename)
                     item_0.setData(Qt.ItemDataRole.UserRole + 1, new_path)
                     self.save_data()
                 except Exception as e:
@@ -1778,6 +1781,7 @@ class MainWindow(QMainWindow):
         
         # Update filename and path in case user changed them in the dialog
         item_ref.setText(results["filename"])
+        item_ref.setToolTip(results["filename"])
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, results["save_path"])
         
         # Ensure it's in the table
@@ -1823,6 +1827,7 @@ class MainWindow(QMainWindow):
         current_ts = str(time.time())
 
         item_name = QTableWidgetItem(filename_guess)
+        item_name.setToolTip(filename_guess)
         item_name.setData(Qt.ItemDataRole.UserRole, url)
         item_name.setIcon(get_file_icon(filename_guess))
         
@@ -1920,6 +1925,7 @@ class MainWindow(QMainWindow):
             worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
         item_ref.setText(worker.filename)
+        item_ref.setToolTip(worker.filename)
         
         worker.main_progress_signal.connect(lambda _, data: self.update_download_row(item_ref, data))
         worker.finished_signal.connect(lambda _, status: self.download_finished(item_ref, status))
@@ -2170,6 +2176,7 @@ class MainWindow(QMainWindow):
             new_name = data[0]
             if item_ref.text() != new_name:
                 item_ref.setText(new_name)
+                item_ref.setToolTip(new_name)
                 item_ref.setIcon(get_file_icon(new_name))
             
             # Col 1: Size

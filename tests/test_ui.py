@@ -227,6 +227,16 @@ def test_options_dialog_startup_checkbox_ordering_and_browser_removal(qapp):
 
     opt_dlg.close()
 
+def test_download_table_item_filename_tooltip(qapp):
+    from main import MainWindow
+
+    window = MainWindow()
+    item = window.start_download("https://example.com/long_test_filename_document.pdf", start_paused=True, show_dialog=False)
+    
+    assert item.toolTip() == "long_test_filename_document.pdf"
+    assert window.download_table.item(0, 0).toolTip() == "long_test_filename_document.pdf"
+
+
 
 
 
