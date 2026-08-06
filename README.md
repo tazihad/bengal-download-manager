@@ -18,15 +18,39 @@
 <br />
 
 <p align="center">
-  <img width="100%" alt="Bengal Download Manager Poster" src="assets/poster.jpg" />
+  <img width="100%" alt="Bengal Download Manager Poster 1 - Multi-Threaded Downloader" src="assets/poster_classic_hero.jpg" />
+</p>
+
+<p align="center">
+  <img width="100%" alt="Bengal Download Manager Poster 2 - Adaptive Light & Dark Themes" src="assets/poster_duo.jpg" />
 </p>
 
 Bengal Download Manager is a high-performance download management tool built with PyQt6, KDE Kirigami QML, and Aria2 to accelerate and simplify your download workflow.
 
-## Screenshots
+## Screenshots & Product Posters
+
+### Main Application (Dark & Light Mode)
 
 <p align="center">
-  <img width="80%" alt="Bengal Download Manager Interface Screenshot" src="assets/Screenshot_20260805_125846.png" />
+  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshot_dark_mode.png" />
+  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshot_light_mode.png" />
+</p>
+
+### One-Click Browser Integration & Settings
+
+<p align="center">
+  <img width="49%" alt="Download Interception File Info Dialog" src="assets/screenshot_download_dialog.png" />
+  <img width="49%" alt="Browser Extension Popup Settings" src="assets/screenshot_extension_popup.png" />
+</p>
+
+### Feature Branding Posters
+
+<p align="center">
+  <img width="100%" alt="Seamless Browser Integration Poster" src="assets/poster_browser_integration.jpg" />
+</p>
+
+<p align="center">
+  <img width="100%" alt="Complete Download Ecosystem Poster" src="assets/poster_master_suite.jpg" />
 </p>
 
 ## Key Features
