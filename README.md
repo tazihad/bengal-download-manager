@@ -29,21 +29,60 @@ Bengal Download Manager is a high-performance download management tool built wit
   <img width="80%" alt="Bengal Download Manager Interface Screenshot" src="assets/Screenshot_20260805_125846.png" />
 </p>
 
-## Features
+## Key Features
 
-- **Multi-threaded Downloads using Aria2:** Download files in multiple parts simultaneously, significantly increasing transfer rates.
-- **Pause and Resume:** Conveniently pause and resume downloads at any time.
-- **Bandwidth Limiting:** Control your download and upload speeds to prevent network congestion.
-- **Categorization:** Organize your downloads into different categories for easy management.
-- **Browser Integration:** Seamlessly integrate with Chrome, Firefox, Edge, and Brave via Manifest V3 integration module.
-- **Error Recovery:** Automatically retry failed downloads due to network interruptions.
-- **User-friendly Interface:** Modern PyQt6 and KDE Kirigami interface supporting light and dark themes.
+- ⚡ **Supercharged Speed:** Downloads files in multiple split parts simultaneously to get the absolute maximum speed from your internet connection.
+- ⏯️ **Pause & Resume Anytime:** Pause downloads whenever you need, and pick up right where you left off without ever losing progress.
+- 🌐 **One-Click Browser Integration:** Automatically catches download links from Firefox, Chrome, Brave, and Edge as soon as you click them.
+- 🗂️ **Smart File Organization:** Keeps your downloads tidy by automatically sorting them into clear categories like *Documents*, *Videos*, *Music*, *Compressed*, and *Programs*.
+- 🛡️ **Automatic Connection Recovery:** Automatically retries and resumes downloads if your Wi-Fi or internet connection temporarily drops.
+- 🎛️ **Bandwidth Speed Controls:** Easily limit download speeds so your video streaming and web browsing stay smooth while downloading in the background.
+- 🎨 **Clean Light & Dark Themes:** Enjoy a modern, distraction-free interface that automatically adapts to your preferred light or dark desktop mode.
+
+## Installation
+
+Download pre-built packages from the [Latest Release](https://github.com/tazihad/bengal-download-manager/releases/latest).
+
+### Supported Architectures
+- **`x86_64`** (64-bit Intel / AMD)
+- **`aarch64` / `arm64`** (64-bit ARM)
+
+### Available Packages
+
+| Format | Supported Architectures | Quick Command / Link |
+| :--- | :--- | :--- |
+| **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
+| **Flatpak** | `x86_64`, `aarch64` | `flatpak install io.github.tazihad.bengal-download-manager.flatpak` |
+| **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
+
+#### AppImage Quick Start
+```bash
+chmod +x bengal-download-manager-*-x86_64.AppImage
+./bengal-download-manager-*-x86_64.AppImage
+```
+
+---
+
+## Browser Extensions
+
+Integrate Bengal Download Manager with your browser for automatic download interception:
+
+- **Firefox Add-ons Store:**  
+  [![Get the Firefox Add-on](https://img.shields.io/badge/Firefox-Get_the_Add--on-ff7139?style=for-the-badge&logo=firefox-browser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module)
+
+- **GitHub Release (Offline Zip):**  
+  [![GitHub Extension Package](https://img.shields.io/badge/GitHub-Extension_Package-24292e?style=for-the-badge&logo=github&logoColor=white)](https://github.com/tazihad/bengal-download-manager/releases/latest)
+
+- **Google Chrome:**  
+  [![Chrome Web Store](https://img.shields.io/badge/Chrome_Store-Upcoming-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](#browser-extensions) *(Chrome Web Store release coming soon)*
+
+---
 
 ## Build Instructions
 
-### Linux
+### 1. Python Development Mode
 
-Build from source (see [DEPENDENCIES.md](DEPENDENCIES.md) for requirements):
+Run directly from source (see [DEPENDENCIES.md](DEPENDENCIES.md) for requirements):
 
 ```bash
 git clone https://github.com/tazihad/bengal-download-manager.git
@@ -52,12 +91,40 @@ pip install -r requirements.txt
 python3 src/main.py
 ```
 
-### Browser Extension Build
+### 2. Standalone Binary Build (CMake)
 
-To package the browser extension for Firefox (AMO) or Chrome Web Store:
+Build a self-contained, single-file binary executable using **CMake** and **PyInstaller**:
+
+```bash
+# Ensure dependencies and PyInstaller are installed
+pip install -r requirements.txt
+
+# Configure CMake build tree
+cmake -B build -S .
+
+# Compile standalone executable
+cmake --build build
+```
+
+The resulting binary will be generated at:
+```bash
+./build/dist/bengal-download-manager
+```
+
+### 3. Flatpak Package Build
+
+Build and test the Flatpak package locally using the Flatpak manifest:
+
+```bash
+bash scripts/build_and_run_flatpak.sh
+```
+
+### 4. Browser Extension Packaging
+
+Package the Manifest V3 browser extension zip for Firefox Add-ons (AMO) or Chrome Web Store:
 
 ```bash
 python3 scripts/pack_extension.py
 ```
 
-See [extension/README.md](extension/README.md) for step-by-step build instructions, environment requirements, and Firefox reviewer documentation.
+See [extension/README.md](extension/README.md) for step-by-step build instructions, environment requirements, and reviewer documentation.
