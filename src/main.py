@@ -299,38 +299,18 @@ def _invert_pixmap(pm):
 
 def get_themed_icon(name, fallback=None):
     """
-    Returns a QIcon for the given theme icon name, adapting it to current theme
-    (light vs dark) and ensuring good contrast against toolbar/window background.
+    Returns a clean, high-contrast monochrome vector stroke QIcon for the given symbol name,
+    adapting dynamically to current light/dark window text colors.
     """
+    from ui.icons import get_monochrome_icon
+    icon = get_monochrome_icon(name)
+    if not icon.isNull():
+        return icon
+    
     ensure_adaptive_icon_theme()
     icon = QIcon.fromTheme(name)
     if (icon.isNull() or icon.name() == "") and fallback:
         icon = fallback if isinstance(fallback, QIcon) else QIcon(fallback)
-    
-    if icon.isNull():
-        return icon
-
-    app = QApplication.instance()
-    if not app:
-        return icon
-
-    window_color = app.palette().color(QPalette.ColorRole.Window)
-    text_color = app.palette().color(QPalette.ColorRole.WindowText)
-    is_dark = window_color.value() < 128 or text_color.value() > 128
-
-    pm = icon.pixmap(24, 24)
-    lum = _get_pixmap_luminance(pm)
-
-    if lum is not None:
-        if is_dark and lum < 120:
-            # Low-luminance icon on a dark theme background: invert pixmap for high contrast
-            new_icon = QIcon()
-            new_icon.addPixmap(_invert_pixmap(pm))
-            pm48 = icon.pixmap(48, 48)
-            if not pm48.isNull():
-                new_icon.addPixmap(_invert_pixmap(pm48))
-            return new_icon
-
     return icon
 
 
@@ -620,53 +600,53 @@ class MainWindow(QMainWindow):
             self.process_incoming_url(url.toString())
 
     def setup_actions(self):
-        self.action_add_url = QAction(get_themed_icon("list-add", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)), "Add URL", self)
+        self.action_add_url = QAction(get_themed_icon("add_url"), "Add URL", self)
         self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
         self.action_add_url.setToolTip("Add a new download URL address (Ctrl+V)")
         self.action_add_url.triggered.connect(self.open_add_url)
 
-        self.action_exit = QAction(get_themed_icon("application-exit", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)), "Exit", self)
+        self.action_exit = QAction(get_themed_icon("exit"), "Exit", self)
         self.action_exit.setToolTip("Exit Bengal Download Manager")
         self.action_exit.triggered.connect(self.quit_app)
 
-        self.action_stop = QAction(get_themed_icon("media-playback-pause", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaStop)), "Stop/Pause", self)
+        self.action_stop = QAction(get_themed_icon("stop"), "Stop/Pause", self)
         self.action_stop.setToolTip("Pause or stop selected download(s)")
         self.action_stop.triggered.connect(self.stop_selected_download)
         self.action_stop.setEnabled(False)
 
-        self.action_stop_all = QAction(get_themed_icon("process-stop", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)), "Stop All", self)
+        self.action_stop_all = QAction(get_themed_icon("stop_all"), "Stop All", self)
         self.action_stop_all.setToolTip("Pause or stop all currently active downloads")
         self.action_stop_all.triggered.connect(self.stop_all_downloads)
         self.action_stop_all.setEnabled(False)
 
-        self.action_resume = QAction(get_themed_icon("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)), "Resume", self)
+        self.action_resume = QAction(get_themed_icon("resume"), "Resume", self)
         self.action_resume.setToolTip("Resume downloading selected file(s)")
         self.action_resume.triggered.connect(self.resume_selected_download)
         self.action_resume.setEnabled(False)
         
-        self.action_download_now = QAction("Download Now", self)
+        self.action_download_now = QAction(get_themed_icon("resume"), "Download Now", self)
         self.action_download_now.setToolTip("Start downloading selected file immediately")
         self.action_download_now.triggered.connect(self.resume_selected_download) 
         
-        self.action_redownload = QAction("Redownload", self)
+        self.action_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
         self.action_redownload.setToolTip("Restart download from the beginning")
         self.action_redownload.triggered.connect(self.redownload_selected)
 
-        self.action_delete = QAction(get_themed_icon("user-trash", self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)), "Delete", self)
+        self.action_delete = QAction(get_themed_icon("delete"), "Delete", self)
         self.action_delete.setToolTip("Delete selected download(s) from the list (Delete key)")
         self.action_delete.triggered.connect(self.delete_selected_download)
         self.action_delete.setEnabled(False)
         self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.action_clear = QAction(get_themed_icon("edit-clear", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton)), "Clear Completed", self)
+        self.action_clear = QAction(get_themed_icon("clear_completed"), "Clear Completed", self)
         self.action_clear.setToolTip("Remove completed downloads from the list")
         self.action_clear.triggered.connect(self.clear_finished_downloads)
         
-        self.action_options = QAction(get_themed_icon("configure", self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)), "Options", self)
+        self.action_options = QAction(get_themed_icon("options"), "Options", self)
         self.action_options.setToolTip("Configure download manager options, connection limits, and engine settings")
         self.action_options.triggered.connect(self.open_options)
 
-        self.action_open_folder = QAction(get_themed_icon("folder-open", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)), "Open Downloads Folder", self)
+        self.action_open_folder = QAction(get_themed_icon("open_folder"), "Open Downloads Folder", self)
         self.action_open_folder.setToolTip("Open default downloads directory")
         self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
 
@@ -802,16 +782,16 @@ class MainWindow(QMainWindow):
         """)
 
         all_downloads = QTreeWidgetItem(self.category_tree, ["All Downloads"])
-        all_downloads.setIcon(0, get_themed_icon("folder-download", self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon)))
+        all_downloads.setIcon(0, get_themed_icon("all_downloads"))
         all_downloads.setToolTip(0, "Show all downloads regardless of category or status")
         all_downloads.setExpanded(True)
 
         cat_icons = {
-            "Compressed": get_themed_icon("package-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_DriveFDIcon)),
-            "Documents": get_themed_icon("x-office-document", self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)),
-            "Music": get_themed_icon("audio-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaVolume)),
-            "Programs": get_themed_icon("system-run", self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMenuButton)),
-            "Video": get_themed_icon("video-x-generic", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+            "Compressed": get_themed_icon("compressed"),
+            "Documents": get_themed_icon("documents"),
+            "Music": get_themed_icon("music"),
+            "Programs": get_themed_icon("programs"),
+            "Video": get_themed_icon("video")
         }
         for cat_name, cat_icon in cat_icons.items():
             child = QTreeWidgetItem(all_downloads, [cat_name])
@@ -819,11 +799,11 @@ class MainWindow(QMainWindow):
             child.setToolTip(0, f"Filter downloads in {cat_name} category")
 
         item_unfinished = QTreeWidgetItem(self.category_tree, ["Unfinished"])
-        item_unfinished.setIcon(0, get_themed_icon("media-playback-start", self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)))
+        item_unfinished.setIcon(0, get_themed_icon("unfinished"))
         item_unfinished.setToolTip(0, "Show active, paused, or pending downloads")
 
         item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
-        item_finished.setIcon(0, get_themed_icon("emblem-success", self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)))
+        item_finished.setIcon(0, get_themed_icon("finished"))
         item_finished.setToolTip(0, "Show completed downloads")
 
         self.category_tree.setCurrentItem(all_downloads)
@@ -914,7 +894,7 @@ class MainWindow(QMainWindow):
             
             # Show/Hide Action
             self.action_tray_toggle = QAction("Hide", self) # Default to Hide as window starts visible
-            self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
+            self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
             self.action_tray_toggle.triggered.connect(self.toggle_window)
             
             tray_menu.addAction(self.action_tray_toggle)
@@ -951,10 +931,10 @@ class MainWindow(QMainWindow):
             return
         if self.isVisible():
             self.action_tray_toggle.setText("Hide")
-            self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMinButton))
+            self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
         else:
             self.action_tray_toggle.setText("Show")
-            self.action_tray_toggle.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton))
+            self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
         
     def update_timestamp_display(self):
         """
@@ -1479,11 +1459,11 @@ class MainWindow(QMainWindow):
 
         menu = QMenu(self)
         
-        act_open = QAction("Open", self)
-        act_open_with = QAction("Open with...", self)
-        act_open_folder = QAction("Open folder", self)
-        act_move = QAction("Move...", self)
-        act_rename = QAction("Rename...", self)
+        act_open = QAction(get_themed_icon("documents"), "Open", self)
+        act_open_with = QAction(get_themed_icon("documents"), "Open with...", self)
+        act_open_folder = QAction(get_themed_icon("open_folder"), "Open folder", self)
+        act_move = QAction(get_themed_icon("open_folder"), "Move...", self)
+        act_rename = QAction(get_themed_icon("documents"), "Rename...", self)
         
         act_move.setEnabled(is_completed)
         act_rename.setEnabled(is_completed)
@@ -1494,28 +1474,28 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         
         # Enhanced State Logic for Context Menu
-        act_stop = QAction("Stop/Pause Download", self)
+        act_stop = QAction(get_themed_icon("stop"), "Stop/Pause Download", self)
         act_stop.triggered.connect(self.stop_selected_download)
         act_stop.setEnabled(is_active and is_pausable)
         
-        act_resume = QAction("Resume download", self)
+        act_resume = QAction(get_themed_icon("resume"), "Resume download", self)
         act_resume.triggered.connect(self.resume_selected_download)
         act_resume.setEnabled(is_resumable and not is_active)
         
-        act_redownload = QAction("Redownload", self)
-        act_refresh = QAction("Refresh download address", self)
+        act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
+        act_refresh = QAction(get_themed_icon("clear_completed"), "Refresh download address", self)
         
         menu.addActions([act_resume, act_stop])
         menu.addSeparator()
         menu.addActions([act_redownload, act_refresh])
         menu.addSeparator()
         
-        act_delete = QAction("Delete", self)
+        act_delete = QAction(get_themed_icon("delete"), "Delete", self)
         act_delete.triggered.connect(self.delete_selected_download)
         menu.addAction(act_delete)
         menu.addSeparator()
         
-        act_props = QAction("Properties", self)
+        act_props = QAction(get_themed_icon("options"), "Properties", self)
         menu.addAction(act_props)
 
         act_open.triggered.connect(lambda: self.ctx_open_file(item))

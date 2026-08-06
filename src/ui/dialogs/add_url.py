@@ -21,8 +21,10 @@ class AddUrlDialog(QDialog):
         input_layout = QHBoxLayout()
         input_layout.setSpacing(8)
 
+        from ui.icons import get_monochrome_icon
         self.btn_paste = QPushButton("Paste")
-        self.btn_paste.setFixedWidth(70)
+        self.btn_paste.setIcon(get_monochrome_icon("documents", size=16))
+        self.btn_paste.setFixedWidth(80)
         self.btn_paste.setFixedHeight(28)
         self.btn_paste.setToolTip("Paste from clipboard")
         self.btn_paste.clicked.connect(self.paste_url)
