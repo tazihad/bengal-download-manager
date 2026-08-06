@@ -379,7 +379,7 @@ class OptionsDialog(QDialog):
         icon_label = QLabel()
         icon_label.setPixmap(self.windowIcon().pixmap(32, 32))
         header_layout.addWidget(icon_label)
-        header_layout.addWidget(QLabel("<b>BDM Integration Module</b>"))
+        header_layout.addWidget(QLabel("<b>Bengal Download Manager Integration Module</b>"))
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
@@ -437,26 +437,36 @@ class OptionsDialog(QDialog):
         
         layout.addWidget(grp_aria)
 
-        # Extension Helper Section
-        grp_helper = QGroupBox("Extension Helper")
-        helper_layout = QVBoxLayout(grp_helper)
-        helper_layout.setContentsMargins(10, 15, 10, 15)
-        helper_layout.setSpacing(12)
+        # Get Browser Extension Section
+        grp_get_ext = QGroupBox("Get Browser Extension")
+        get_ext_layout = QHBoxLayout(grp_get_ext)
+        get_ext_layout.setContentsMargins(10, 15, 10, 15)
+        get_ext_layout.setSpacing(10)
+
+        from ui.icons import get_monochrome_icon
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+
+        self.btn_ext_github = QPushButton(" GitHub")
+        self.btn_ext_github.setIcon(get_monochrome_icon("github", size=18))
+        self.btn_ext_github.setToolTip("Open GitHub Releases page to download extension package")
+        self.btn_ext_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
+
+        self.btn_ext_firefox = QPushButton(" Firefox Store")
+        self.btn_ext_firefox.setIcon(get_monochrome_icon("firefox", size=18))
+        self.btn_ext_firefox.setToolTip("Open Mozilla Firefox Add-ons Store page")
+        self.btn_ext_firefox.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
+
+        self.btn_ext_chrome = QPushButton(" Chrome (Coming Soon)")
+        self.btn_ext_chrome.setIcon(get_monochrome_icon("chrome", size=18))
+        self.btn_ext_chrome.setEnabled(False)
+        self.btn_ext_chrome.setToolTip("Chrome Web Store integration is coming soon")
+
+        get_ext_layout.addWidget(self.btn_ext_github)
+        get_ext_layout.addWidget(self.btn_ext_firefox)
+        get_ext_layout.addWidget(self.btn_ext_chrome)
         
-        helper_desc = QLabel(
-            "If the browser extension is unable to communicate with Bengal DM, "
-            "you may need to reinstall the native messaging host."
-        )
-        helper_desc.setWordWrap(True)
-        helper_desc.setStyleSheet("color: #666; font-size: 11px;")
-        helper_layout.addWidget(helper_desc)
-        
-        self.btn_reinstall_helper = QPushButton("Reinstall Extension Helper")
-        self.btn_reinstall_helper.setToolTip("Re-register browser extension native messaging host manifest")
-        self.btn_reinstall_helper.clicked.connect(self.reinstall_extension_helper)
-        helper_layout.addWidget(self.btn_reinstall_helper)
-        
-        layout.addWidget(grp_helper)
+        layout.addWidget(grp_get_ext)
         
         layout.addStretch()
 
@@ -466,15 +476,6 @@ class OptionsDialog(QDialog):
             self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Normal)
         else:
             self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
-
-    def reinstall_extension_helper(self):
-        """Placeholder for reinstalling native messaging host."""
-        QMessageBox.information(
-            self, 
-            "Extension Helper", 
-            "Native messaging host reinstallation is not yet implemented in this version.\n\n"
-            "Please check back in a future update or consult the manual installation guide."
-        )
 
     def update_proxy_ui(self):
         manual = self.rb_manual.isChecked()

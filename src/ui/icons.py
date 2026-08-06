@@ -197,6 +197,30 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawRoundedRect(r, 3, 3)
         painter.drawLine(QPointF(s * 0.20, s * 0.38), QPointF(s * 0.80, s * 0.38))
 
+    elif name == "github":
+        # GitHub icon
+        painter.drawEllipse(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60))
+        cat = QPainterPath()
+        cat.moveTo(s * 0.35, s * 0.45)
+        cat.lineTo(s * 0.42, s * 0.68)
+        cat.lineTo(s * 0.58, s * 0.68)
+        cat.lineTo(s * 0.65, s * 0.45)
+        painter.drawPath(cat)
+
+    elif name == "firefox":
+        # Firefox icon
+        painter.drawEllipse(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60))
+        painter.drawArc(QRectF(s * 0.15, s * 0.35, s * 0.70, s * 0.30), 0, 360 * 16)
+        painter.drawLine(QPointF(s * 0.50, s * 0.20), QPointF(s * 0.50, s * 0.80))
+
+    elif name == "chrome":
+        # Chrome icon
+        painter.drawEllipse(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60))
+        painter.drawEllipse(QRectF(s * 0.36, s * 0.36, s * 0.28, s * 0.28))
+        painter.drawLine(QPointF(s * 0.50, s * 0.20), QPointF(s * 0.65, s * 0.40))
+        painter.drawLine(QPointF(s * 0.65, s * 0.58), QPointF(s * 0.38, s * 0.72))
+        painter.drawLine(QPointF(s * 0.35, s * 0.40), QPointF(s * 0.20, s * 0.58))
+
     else:
         # Generic stroke circle dot fallback
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))
