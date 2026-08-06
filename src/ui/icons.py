@@ -160,6 +160,50 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawEllipse(QRectF(s * 0.28, s * 0.30, s * 0.04, s * 0.04))
         painter.drawEllipse(QRectF(s * 0.36, s * 0.30, s * 0.04, s * 0.04))
 
+    elif name in ("exe", "msi"):
+        # Windows Executable / MSI Installer Icon
+        w = QRectF(s * 0.20, s * 0.22, s * 0.60, s * 0.56)
+        painter.drawRoundedRect(w, 3, 3)
+        painter.drawLine(QPointF(s * 0.20, s * 0.38), QPointF(s * 0.80, s * 0.38))
+        # Gear / Run emblem inside
+        cx, cy = s * 0.50, s * 0.56
+        painter.drawEllipse(QRectF(cx - s * 0.10, cy - s * 0.10, s * 0.20, s * 0.20))
+        painter.drawLine(QPointF(cx, cy - s * 0.14), QPointF(cx, cy + s * 0.14))
+        painter.drawLine(QPointF(cx - s * 0.14, cy), QPointF(cx + s * 0.14, cy))
+
+    elif name == "appimage":
+        # Linux AppImage Package Icon
+        b = QRectF(s * 0.20, s * 0.22, s * 0.60, s * 0.56)
+        painter.drawRoundedRect(b, 4, 4)
+        # Upward diagonal launcher arrow
+        arr = QPainterPath()
+        arr.moveTo(s * 0.36, s * 0.62)
+        arr.lineTo(s * 0.64, s * 0.34)
+        arr.moveTo(s * 0.44, s * 0.34)
+        arr.lineTo(s * 0.64, s * 0.34)
+        arr.lineTo(s * 0.64, s * 0.54)
+        painter.drawPath(arr)
+
+    elif name == "flatpak":
+        # Flatpak Cube / Box Container Icon
+        cube = QPainterPath()
+        # Top diamond
+        cube.moveTo(s * 0.50, s * 0.20)
+        cube.lineTo(s * 0.80, s * 0.35)
+        cube.lineTo(s * 0.50, s * 0.50)
+        cube.lineTo(s * 0.20, s * 0.35)
+        cube.closeSubpath()
+        # Vertical sides down
+        cube.moveTo(s * 0.20, s * 0.35)
+        cube.lineTo(s * 0.20, s * 0.68)
+        cube.lineTo(s * 0.50, s * 0.82)
+        cube.lineTo(s * 0.80, s * 0.68)
+        cube.lineTo(s * 0.80, s * 0.35)
+        # Center vertical line
+        cube.moveTo(s * 0.50, s * 0.50)
+        cube.lineTo(s * 0.50, s * 0.82)
+        painter.drawPath(cube)
+
     elif name == "video":
         # Video Play Box
         v = QRectF(s * 0.18, s * 0.26, s * 0.64, s * 0.48)

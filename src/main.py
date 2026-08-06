@@ -337,12 +337,15 @@ def get_file_icon(filename):
 
     ext = os.path.splitext(filename)[1].lower()
 
-    # Prioritize specific crisp themed icons for Program/Software package files (.deb, .rpm, .apk, etc.)
-    if ext in [".deb", ".rpm", ".apk", ".appimage", ".flatpak", ".snap", ".exe", ".msi", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"]:
-        for name in ["application-x-executable", "package-x-generic", "system-run", "application-x-deb", "application-x-rpm"]:
-            ic = get_themed_icon(name)
-            if not ic.isNull() and ic.name() != "":
-                return ic
+    # Prioritize specific vector stroke icons for binary executables & installer packages
+    if ext in [".exe", ".msi"]:
+        return get_themed_icon("exe")
+    elif ext == ".appimage":
+        return get_themed_icon("appimage")
+    elif ext == ".flatpak":
+        return get_themed_icon("flatpak")
+    elif ext in [".deb", ".rpm", ".apk", ".snap", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"]:
+        return get_themed_icon("programs")
 
     db = QMimeDatabase()
     mime = db.mimeTypeForFile(filename, QMimeDatabase.MatchMode.MatchExtension)
