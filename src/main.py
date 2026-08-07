@@ -1621,13 +1621,12 @@ class MainWindow(QMainWindow):
         self.settings["icon_theme"] = icon_theme_name
         apply_app_theme(theme_name, accent_name, icon_theme_name)
         self.save_settings()
-
     def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None):
         apply_app_theme(theme_name, accent_name, icon_theme_name)
 
     def apply_theme_setting(self, theme_name):
-        accent_name = getattr(self, "settings", {}).get("accent", "Default / Auto")
-        icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "Automatic")
+        accent_name = getattr(self, "settings", {}).get("accent", "BDM (Default)")
+        icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM (Default)")
         self.apply_appearance_setting(theme_name, accent_name, icon_theme_name)
 
     def refresh_theme_ui(self):
@@ -1704,40 +1703,43 @@ class MainWindow(QMainWindow):
         self.repaint()
 
     def load_settings(self):
-        settings = {}
+        settings = {
+            "theme": "BDM Dark (Default)",
+            "accent": "BDM (Default)",
+            "icon_theme": "BDM (Default)"
+        }
         config_dir = get_config_dir()
         path = os.path.join(config_dir, "settings.json")
-        if not os.path.exists(path):
-            return settings
-        try:
-            with open(path, "r") as f:
-                settings = json.load(f)
-                if "geometry" in settings:
-                    self.restoreGeometry(QByteArray.fromHex(settings["geometry"].encode()))
-                if "windowState" in settings:
-                    self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
-                
-                self.start_minimized_on_autostart = settings.get("start_minimized", False)
-                apply_app_theme(
-                    settings.get("theme", "BDM Dark (Default)"),
-                    settings.get("accent", "BDM (Default)"),
-                    settings.get("icon_theme", "BDM (Default)")
-                )
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    file_settings = json.load(f)
+                    settings.update(file_settings)
+                    if "geometry" in settings:
+                        self.restoreGeometry(QByteArray.fromHex(settings["geometry"].encode()))
+                    if "windowState" in settings:
+                        self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
+                    
+                    self.start_minimized_on_autostart = settings.get("start_minimized", False)
 
-                header = self.download_table.horizontalHeader()
-                if "column_data" in settings:
-                    for i, col in enumerate(settings["column_data"]):
-                        logical_idx = col["logical_index"]
-                        # Move visual index of logical_idx to position i
-                        header.moveSection(header.visualIndex(logical_idx), i)
-                        self.download_table.setColumnHidden(logical_idx, not col["visible"])
-                        self.download_table.setColumnWidth(logical_idx, col["width"])
-                elif "column_widths" in settings:
-                    for i, width in enumerate(settings["column_widths"]):
-                        if i < self.download_table.columnCount():
+                    header = self.download_table.horizontalHeader()
+                    if "column_data" in settings:
+                        for i, col in enumerate(settings["column_data"]):
+                            logical_idx = col["logical_index"]
+                            header.moveSection(header.visualIndex(logical_idx), i)
+                            self.download_table.setColumnHidden(logical_idx, not col["visible"])
+                            self.download_table.setColumnWidth(logical_idx, col["width"])
+                    elif "column_widths" in settings:
+                        for i, width in enumerate(settings["column_widths"]):
                             self.download_table.setColumnWidth(i, width)
-        except Exception:
-            pass
+            except Exception:
+                pass
+
+        apply_app_theme(
+            settings.get("theme", "BDM Dark (Default)"),
+            settings.get("accent", "BDM (Default)"),
+            settings.get("icon_theme", "BDM (Default)")
+        )
         return settings
 
     def show_header_context_menu(self, pos):
