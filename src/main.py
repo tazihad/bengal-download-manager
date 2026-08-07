@@ -37,7 +37,8 @@ from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
     AddUrlDialog, OptionsDialog, DownloadProgressDialog, 
-    PropertiesDialog, DownloadCompleteDialog, ColumnDialog, DeleteDialog, RenameDialog
+    PropertiesDialog, DownloadCompleteDialog, ColumnDialog, DeleteDialog, RenameDialog,
+    MediaDownloaderDialog
 )
 from core.config import load_category_config
 from core.utils import (
@@ -1096,6 +1097,10 @@ class MainWindow(QMainWindow):
         self.action_options.setToolTip("Configure download manager options, connection limits, and engine settings")
         self.action_options.triggered.connect(self.open_options)
 
+        self.action_media_downloader = QAction(get_themed_icon("media_downloader"), "Media Downloader", self)
+        self.action_media_downloader.setToolTip("Parse and download video or audio streams and playlists from media sites")
+        self.action_media_downloader.triggered.connect(self.open_media_downloader)
+
         self.action_open_folder = QAction(get_themed_icon("open_folder"), "Open Downloads Folder", self)
         self.action_open_folder.setToolTip("Open default downloads directory")
         self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
@@ -1129,6 +1134,7 @@ class MainWindow(QMainWindow):
         downloads_menu.addAction(self.action_clear)
         downloads_menu.addSeparator()
         downloads_menu.addAction(self.action_options)
+        downloads_menu.addAction(self.action_media_downloader)
 
         # 4. View
         view_menu = menu_bar.addMenu("&View")
@@ -1178,6 +1184,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_delete) 
         toolbar.addAction(self.action_clear)
         toolbar.addAction(self.action_options)
+        toolbar.addAction(self.action_media_downloader)
 
     def setup_central_widget(self):
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -2955,6 +2962,17 @@ class MainWindow(QMainWindow):
         self._options_dlg.show()
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
+
+    def open_media_downloader(self):
+        from ui.dialogs import MediaDownloaderDialog
+        if hasattr(self, "_media_downloader_dlg") and self._media_downloader_dlg and self._media_downloader_dlg.isVisible():
+            self._media_downloader_dlg.raise_()
+            self._media_downloader_dlg.activateWindow()
+            return
+        self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
+        self._media_downloader_dlg.show()
+        self._media_downloader_dlg.raise_()
+        self._media_downloader_dlg.activateWindow()
 
 
     def _handle_options_accepted(self):

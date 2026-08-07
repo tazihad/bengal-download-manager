@@ -8,3 +8,4 @@ from .column import ColumnDialog
 from .delete import DeleteDialog
 from .refresh import RefreshAddressDialog
 from .rename import RenameDialog
+from .media_downloader import MediaDownloaderDialog

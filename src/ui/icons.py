@@ -93,6 +93,21 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawPath(gear)
         painter.drawEllipse(QRectF(cx - s * 0.12, cy - s * 0.12, s * 0.24, s * 0.24))
 
+    elif name in ("media_downloader", "media", "video"):
+        # Display Screen + Play Triangle
+        rect = QRectF(s * 0.18, s * 0.22, s * 0.64, s * 0.44)
+        painter.drawRoundedRect(rect, 3, 3)
+        # Stand
+        painter.drawLine(QPointF(s * 0.40, s * 0.76), QPointF(s * 0.60, s * 0.76))
+        painter.drawLine(QPointF(s * 0.50, s * 0.66), QPointF(s * 0.50, s * 0.76))
+        # Play Triangle inside screen
+        play = QPainterPath()
+        play.moveTo(s * 0.42, s * 0.34)
+        play.lineTo(s * 0.62, s * 0.44)
+        play.lineTo(s * 0.42, s * 0.54)
+        play.closeSubpath()
+        painter.drawPath(play)
+
     elif name in ("open_folder", "folder", "folder_download"):
         # Folder Outline
         f = QPainterPath()
