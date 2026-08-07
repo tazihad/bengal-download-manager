@@ -311,7 +311,12 @@ def test_options_dialog_theme_selection(qapp):
     combo = opt_dlg.combo_theme
 
     # Check items count and options
-    expected_items = ["Automatic", "Light", "Dark", "Breeze Light", "Breeze Dark"]
+    expected_items = [
+        "Automatic", "Light", "Dark", 
+        "Breeze Light", "Breeze Dark",
+        "Dracula", "Nord", "One Dark", "Catppuccin",
+        "Solarized Light", "Solarized Dark"
+    ]
     items = [combo.itemText(i) for i in range(combo.count())]
     assert items == expected_items
 
@@ -328,11 +333,8 @@ def test_options_dialog_theme_selection(qapp):
     assert opt_dlg.get_theme() == "Dark"
 
     # Verify apply_app_theme functions without exception for all options
-    apply_app_theme("Light", qapp)
-    apply_app_theme("Dark", qapp)
-    apply_app_theme("Breeze Light", qapp)
-    apply_app_theme("Breeze Dark", qapp)
-    apply_app_theme("Automatic", qapp)
+    for theme_item in expected_items:
+        apply_app_theme(theme_item, qapp)
 
     opt_dlg.close()
     window.close()

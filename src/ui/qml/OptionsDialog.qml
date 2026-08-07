@@ -19,7 +19,7 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboTheme
                 Kirigami.FormData.label: "Theme:"
-                model: ["Automatic", "Light", "Dark", "Breeze Light", "Breeze Dark"]
+                model: ["Automatic", "Light", "Dark", "Breeze Light", "Breeze Dark", "Dracula", "Nord", "One Dark", "Catppuccin", "Solarized Light", "Solarized Dark"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }

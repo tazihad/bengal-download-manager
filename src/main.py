@@ -233,14 +233,28 @@ def parse_time_to_sec(text):
     except:
         return 0
 
+def _build_palette(bg, text, base, alt, btn, link, hl, hl_text):
+    pal = QPalette()
+    pal.setColor(QPalette.ColorRole.Window, QColor(bg))
+    pal.setColor(QPalette.ColorRole.WindowText, QColor(text))
+    pal.setColor(QPalette.ColorRole.Base, QColor(base))
+    pal.setColor(QPalette.ColorRole.AlternateBase, QColor(alt))
+    pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(alt))
+    pal.setColor(QPalette.ColorRole.ToolTipText, QColor(text))
+    pal.setColor(QPalette.ColorRole.Text, QColor(text))
+    pal.setColor(QPalette.ColorRole.Button, QColor(btn))
+    pal.setColor(QPalette.ColorRole.ButtonText, QColor(text))
+    pal.setColor(QPalette.ColorRole.BrightText, QColor("#ff5555"))
+    pal.setColor(QPalette.ColorRole.Link, QColor(link))
+    pal.setColor(QPalette.ColorRole.Highlight, QColor(hl))
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor(hl_text))
+    return pal
+
+
 def apply_app_theme(theme_name, app=None):
     """
-    Applies application theme ('Automatic', 'Light', 'Dark', 'Breeze Light', or 'Breeze Dark').
-    'Automatic' follows system theme (light/dark).
-    'Light' forces light color scheme and palette.
-    'Dark' forces dark color scheme and palette.
-    'Breeze Light' / 'Breeze White' forces KDE Breeze Light palette.
-    'Breeze Dark' forces KDE Breeze Dark palette.
+    Applies application theme ('Automatic', 'Light', 'Dark', 'Breeze Light', 'Breeze Dark',
+    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark').
     """
     if app is None:
         app = QApplication.instance()
@@ -250,78 +264,46 @@ def apply_app_theme(theme_name, app=None):
     sh = app.styleHints()
     theme_lower = str(theme_name).strip().lower()
 
-    if theme_lower in ("breeze dark", "breezedark"):
+    if theme_lower == "dracula":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        dark_pal = QPalette()
-        dark_pal.setColor(QPalette.ColorRole.Window, QColor(42, 46, 50))
-        dark_pal.setColor(QPalette.ColorRole.WindowText, QColor(239, 240, 241))
-        dark_pal.setColor(QPalette.ColorRole.Base, QColor(35, 38, 41))
-        dark_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(49, 54, 59))
-        dark_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(27, 30, 32))
-        dark_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(239, 240, 241))
-        dark_pal.setColor(QPalette.ColorRole.Text, QColor(239, 240, 241))
-        dark_pal.setColor(QPalette.ColorRole.Button, QColor(49, 54, 59))
-        dark_pal.setColor(QPalette.ColorRole.ButtonText, QColor(239, 240, 241))
-        dark_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-        dark_pal.setColor(QPalette.ColorRole.Link, QColor(41, 128, 185))
-        dark_pal.setColor(QPalette.ColorRole.Highlight, QColor(61, 174, 233))
-        dark_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        app.setPalette(dark_pal)
+        app.setPalette(_build_palette("#282a36", "#f8f8f2", "#1e1f29", "#44475a", "#44475a", "#8be9fd", "#bd93f9", "#282a36"))
+    elif theme_lower == "nord":
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#2e3440", "#eceff4", "#242933", "#3b4252", "#3b4252", "#88c0d0", "#88c0d0", "#2e3440"))
+    elif theme_lower in ("one dark", "onedark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#21252b", "#abb2bf", "#1b1d23", "#282c34", "#282c34", "#61afef", "#61afef", "#1b1d23"))
+    elif theme_lower in ("catppuccin", "catppuccin mocha"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#1e1e2e", "#cdd6f4", "#181825", "#313244", "#313244", "#89b4fa", "#cba6f7", "#1e1e2e"))
+    elif theme_lower in ("solarized light", "solarizedlight"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#fdf6e3", "#657b83", "#eee8d5", "#fdf6e3", "#eee8d5", "#268bd2", "#268bd2", "#ffffff"))
+    elif theme_lower in ("solarized dark", "solarizeddark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#002b36", "#839496", "#073642", "#002b36", "#073642", "#268bd2", "#268bd2", "#ffffff"))
+    elif theme_lower in ("breeze dark", "breezedark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#2a2e32", "#eff0f1", "#232629", "#31363b", "#31363b", "#2980b9", "#3daee9", "#ffffff"))
     elif theme_lower in ("breeze light", "breezelight", "breeze white", "breezewhite"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        light_pal = QPalette()
-        light_pal.setColor(QPalette.ColorRole.Window, QColor(239, 240, 241))
-        light_pal.setColor(QPalette.ColorRole.WindowText, QColor(35, 38, 41))
-        light_pal.setColor(QPalette.ColorRole.Base, QColor(252, 252, 252))
-        light_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(238, 240, 242))
-        light_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(252, 252, 252))
-        light_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(35, 38, 41))
-        light_pal.setColor(QPalette.ColorRole.Text, QColor(35, 38, 41))
-        light_pal.setColor(QPalette.ColorRole.Button, QColor(238, 240, 242))
-        light_pal.setColor(QPalette.ColorRole.ButtonText, QColor(35, 38, 41))
-        light_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-        light_pal.setColor(QPalette.ColorRole.Link, QColor(41, 128, 185))
-        light_pal.setColor(QPalette.ColorRole.Highlight, QColor(61, 174, 233))
-        light_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        app.setPalette(light_pal)
+        app.setPalette(_build_palette("#eff0f1", "#232629", "#fcfcfc", "#eef0f2", "#eef0f2", "#2980b9", "#3daee9", "#ffffff"))
     elif theme_lower == "light":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        light_pal = QPalette()
-        light_pal.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
-        light_pal.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
-        light_pal.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
-        light_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
-        light_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 255))
-        light_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
-        light_pal.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
-        light_pal.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
-        light_pal.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
-        light_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-        light_pal.setColor(QPalette.ColorRole.Link, QColor(0, 120, 212))
-        light_pal.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 212))
-        light_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        app.setPalette(light_pal)
+        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f5f5f5", "#f0f0f0", "#0078d4", "#0078d4", "#ffffff"))
     elif theme_lower == "dark":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        dark_pal = QPalette()
-        dark_pal.setColor(QPalette.ColorRole.Window, QColor(45, 45, 45))
-        dark_pal.setColor(QPalette.ColorRole.WindowText, QColor(240, 240, 240))
-        dark_pal.setColor(QPalette.ColorRole.Base, QColor(30, 30, 30))
-        dark_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(45, 45, 45))
-        dark_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(240, 240, 240))
-        dark_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(30, 30, 30))
-        dark_pal.setColor(QPalette.ColorRole.Text, QColor(240, 240, 240))
-        dark_pal.setColor(QPalette.ColorRole.Button, QColor(45, 45, 45))
-        dark_pal.setColor(QPalette.ColorRole.ButtonText, QColor(240, 240, 240))
-        dark_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-        dark_pal.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
-        dark_pal.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
-        dark_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-        app.setPalette(dark_pal)
+        app.setPalette(_build_palette("#2d2d2d", "#f0f0f0", "#1e1e1e", "#2d2d2d", "#2d2d2d", "#2a82da", "#2a82da", "#ffffff"))
     else:  # Automatic
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
@@ -366,17 +348,11 @@ def apply_app_theme(theme_name, app=None):
 
     ensure_adaptive_icon_theme(app)
 
-    for widget in app.allWidgets():
-        try:
-            widget.setPalette(app.palette())
-            app.style().unpolish(widget)
-            app.style().polish(widget)
-            widget.update()
-        except Exception:
-            pass
-
     for top in app.topLevelWidgets():
         try:
+            top.setPalette(app.palette())
+            app.style().unpolish(top)
+            app.style().polish(top)
             refresh_fn = getattr(top, "refresh_theme_ui", None)
             if callable(refresh_fn):
                 refresh_fn()
