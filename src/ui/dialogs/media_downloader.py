@@ -406,9 +406,55 @@ class MediaDownloaderDialog(QDialog):
         if formats:
             self.tbl_formats.selectRow(0)
 
+        self._update_preset_availability(data)
         self.stack.setCurrentWidget(self.page_video)
         self.btn_download.setText("Download Media")
         self.btn_download.setEnabled(True)
+
+    def _update_preset_availability(self, data: dict):
+        formats = data.get("formats", [])
+        available_heights = {fmt.get("height", 0) for fmt in formats if fmt.get("is_video") and fmt.get("height")}
+        has_audio = any(fmt.get("is_audio") for fmt in formats)
+
+        preset_items = [
+            ("Best Quality (Video + Audio merged)", True),
+            ("4K Ultra HD (2160p)", any(h >= 2160 for h in available_heights)),
+            ("2K Quad HD (1440p)", any(h >= 1440 for h in available_heights)),
+            ("1080p Full HD", any(h >= 1080 for h in available_heights)),
+            ("720p HD", any(h >= 720 for h in available_heights)),
+            ("480p SD", any(h >= 480 for h in available_heights)),
+            ("360p Low Quality", any(h >= 360 for h in available_heights)),
+            ("Audio Only (MP3)", has_audio)
+        ]
+
+        curr_idx = self.cmb_quality_preset.currentIndex()
+        self.cmb_quality_preset.blockSignals(True)
+        self.cmb_quality_preset.clear()
+        for label, is_avail in preset_items:
+            display_text = label if is_avail else f"{label} (Not Available)"
+            self.cmb_quality_preset.addItem(display_text)
+
+        valid_idx = min(max(0, curr_idx), len(preset_items) - 1)
+        self.cmb_quality_preset.setCurrentIndex(valid_idx)
+        self.cmb_quality_preset.blockSignals(False)
+
+    def _reset_preset_labels(self):
+        preset_items = [
+            "Best Quality (Video + Audio merged)",
+            "4K Ultra HD (2160p)",
+            "2K Quad HD (1440p)",
+            "1080p Full HD",
+            "720p HD",
+            "480p SD",
+            "360p Low Quality",
+            "Audio Only (MP3)"
+        ]
+        curr_idx = self.cmb_quality_preset.currentIndex()
+        self.cmb_quality_preset.blockSignals(True)
+        self.cmb_quality_preset.clear()
+        self.cmb_quality_preset.addItems(preset_items)
+        self.cmb_quality_preset.setCurrentIndex(min(max(0, curr_idx), len(preset_items) - 1))
+        self.cmb_quality_preset.blockSignals(False)
 
     def _on_playlist_ready(self, data: dict):
         self._finish_loading()
@@ -448,6 +494,7 @@ class MediaDownloaderDialog(QDialog):
         self._current_playlist_data = None
         self.btn_download.setEnabled(False)
         self.btn_download.setText("Download")
+        self._reset_preset_labels()
         self.stack.setCurrentIndex(0)
 
     def _on_analysis_failed(self, error_msg: str):
