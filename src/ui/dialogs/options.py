@@ -116,6 +116,46 @@ class OptionsDialog(QDialog):
         
         grp_engine.setLayout(vbox_engine)
         layout.addWidget(grp_engine)
+
+        # 3. UI Settings
+        grp_ui = QGroupBox("UI Settings")
+        vbox_ui = QVBoxLayout()
+        vbox_ui.setContentsMargins(10, 15, 10, 10)
+        vbox_ui.setSpacing(10)
+
+        row_scale = QHBoxLayout()
+        lbl_scale = QLabel("Scale:")
+        lbl_scale.setToolTip("Set user interface scale factor")
+        self.combo_scale = QComboBox()
+        self.combo_scale.setToolTip("Set user interface scale factor")
+        scale_options = [
+            "50%", "75%", "90%", "100%", "110%", "115%", "125%", 
+            "135%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"
+        ]
+        self.combo_scale.addItems(scale_options)
+
+        # Load saved scale setting from parent if available
+        current_scale = "100%"
+        if self.parent() and hasattr(self.parent(), "settings"):
+            current_scale = self.parent().settings.get("ui_scale", "100%")
+        self.initial_scale = current_scale
+
+        idx = self.combo_scale.findText(current_scale)
+        if idx != -1:
+            self.combo_scale.setCurrentIndex(idx)
+        else:
+            def_idx = self.combo_scale.findText("100%")
+            if def_idx != -1:
+                self.combo_scale.setCurrentIndex(def_idx)
+
+        row_scale.addWidget(lbl_scale)
+        row_scale.addWidget(self.combo_scale)
+        row_scale.addStretch()
+        vbox_ui.addLayout(row_scale)
+
+        grp_ui.setLayout(vbox_ui)
+        layout.addWidget(grp_ui)
+
         layout.addStretch()
 
     def refresh_engine_status(self):
@@ -542,9 +582,14 @@ class OptionsDialog(QDialog):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
         
-        # Save start_minimized_on_autostart to parent (MainWindow)
+        new_scale = self.combo_scale.currentText()
+        scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
+
+        # Save start_minimized_on_autostart and ui_scale to parent (MainWindow)
         if self.parent():
             setattr(self.parent(), "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
+            if hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
+                self.parent().settings["ui_scale"] = new_scale
             save_fn = getattr(self.parent(), "save_settings", None)
             if callable(save_fn):
                 save_fn()
@@ -552,6 +597,14 @@ class OptionsDialog(QDialog):
         set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
         self.save_proxy_data()
         self.save_extension_data()
+
+        if scale_changed:
+            QMessageBox.information(
+                self,
+                "Restart Required",
+                "UI Scale setting has been changed. Please restart Bengal Download Manager to apply the changes."
+            )
+
         self.accept()
 
     def get_theme(self):

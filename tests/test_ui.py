@@ -257,6 +257,46 @@ def test_ui_comprehensive_tooltips(qapp):
     assert header_item.toolTip() != ""
     window.close()
 
+def test_options_dialog_ui_scale_dropdown(qapp, tmp_path, monkeypatch):
+    import main
+    import core.utils
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr(main, "get_config_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(core.utils, "get_config_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+
+    from main import MainWindow
+    from ui.dialogs import OptionsDialog
+
+    window = MainWindow()
+    opt_dlg = OptionsDialog(window)
+
+    # Check combo_scale existence
+    assert hasattr(opt_dlg, "combo_scale")
+    combo = opt_dlg.combo_scale
+
+    # Check items count and options
+    expected_items = [
+        "50%", "75%", "90%", "100%", "110%", "115%", "125%", 
+        "135%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"
+    ]
+    items = [combo.itemText(i) for i in range(combo.count())]
+    assert items == expected_items
+
+    # Check default selected item
+    assert combo.currentText() == "100%"
+
+    # Select 125% and accept
+    idx_125 = combo.findText("125%")
+    assert idx_125 != -1
+    combo.setCurrentIndex(idx_125)
+
+    opt_dlg.save_and_accept()
+    assert window.settings.get("ui_scale") == "125%"
+
+    opt_dlg.close()
+    window.close()
+
 
 
 
