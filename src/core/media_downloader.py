@@ -143,11 +143,12 @@ class DependencyManagerWorker(QThread):
         for tool in tool_names:
             ver = get_tool_version(tool)
 
-            if ver and not self.force_download:
+            if ver:
+                # If tool is already installed and valid, display installed version and skip download
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
                 continue
 
-            # Tool missing or force_download requested -> start download
+            # Only download if tool is missing / not installed
             self._download_and_install_tool(tool)
 
         self.all_finished_signal.emit()

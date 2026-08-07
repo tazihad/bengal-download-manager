@@ -85,9 +85,21 @@ class MediaDownloaderDialog(QDialog):
         self.dep_labels = {}
         tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
         for tool in tool_names:
-            box = QWidget()
+            box = QFrame()
+            box.setFrameShape(QFrame.Shape.StyledPanel)
+            box.setStyleSheet("""
+                QFrame {
+                    background-color: palette(base);
+                    border: 1px solid palette(mid);
+                    border-radius: 6px;
+                }
+                QLabel {
+                    border: none;
+                    background: transparent;
+                }
+            """)
             box_layout = QVBoxLayout(box)
-            box_layout.setContentsMargins(4, 2, 4, 2)
+            box_layout.setContentsMargins(8, 4, 8, 4)
             box_layout.setSpacing(1)
             box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
