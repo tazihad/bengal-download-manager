@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 from core.media_downloader import YtDlpManager, MediaExtractorWorker
 
 
@@ -81,8 +81,11 @@ class MediaDownloaderDialog(QDialog):
         self.btn_paste = QPushButton("Paste")
         self.btn_paste.setFixedHeight(34)
         self.btn_paste.setFixedWidth(75)
-        self.btn_paste.setToolTip("Paste URL from clipboard")
-        self.btn_paste.clicked.connect(self._paste_clipboard)
+        self.btn_paste.setToolTip("Paste URL from clipboard (Ctrl+V)")
+        self.btn_paste.clicked.connect(self._on_ctrl_v_paste)
+
+        self.shortcut_paste = QShortcut(QKeySequence("Ctrl+V"), self)
+        self.shortcut_paste.activated.connect(self._on_ctrl_v_paste)
 
         self.btn_analyze = QPushButton("Analyze")
         self.btn_analyze.setFixedHeight(34)
@@ -323,7 +326,9 @@ class MediaDownloaderDialog(QDialog):
 
         layout.addWidget(self.tbl_playlist, stretch=1)
 
-    def _paste_clipboard(self):
+    def _on_ctrl_v_paste(self):
+        if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
+            return
         clipboard = QApplication.clipboard()
         text = clipboard.text().strip()
         if text:
@@ -430,11 +435,20 @@ class MediaDownloaderDialog(QDialog):
         curr_idx = self.cmb_quality_preset.currentIndex()
         self.cmb_quality_preset.blockSignals(True)
         self.cmb_quality_preset.clear()
-        for label, is_avail in preset_items:
+
+        model = self.cmb_quality_preset.model()
+        for idx, (label, is_avail) in enumerate(preset_items):
             display_text = label if is_avail else f"{label} (Not Available)"
             self.cmb_quality_preset.addItem(display_text)
+            item = model.item(idx)
+            if item:
+                item.setEnabled(is_avail)
 
         valid_idx = min(max(0, curr_idx), len(preset_items) - 1)
+        selected_item = model.item(valid_idx)
+        if selected_item and not selected_item.isEnabled():
+            valid_idx = 0
+
         self.cmb_quality_preset.setCurrentIndex(valid_idx)
         self.cmb_quality_preset.blockSignals(False)
 
