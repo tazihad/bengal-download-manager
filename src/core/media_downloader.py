@@ -141,14 +141,16 @@ class DependencyManagerWorker(QThread):
         tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
 
         for tool in tool_names:
+            if self.force_download:
+                self.tool_status_signal.emit(tool, f"{tool} (Checking...)", "yellow")
+                self.msleep(150)
+
             ver = get_tool_version(tool)
 
             if ver:
-                # If tool is already installed and valid, display installed version and skip download
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
                 continue
 
-            # Only download if tool is missing / not installed
             self._download_and_install_tool(tool)
 
         self.all_finished_signal.emit()

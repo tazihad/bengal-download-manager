@@ -426,13 +426,21 @@ class MediaDownloaderDialog(QDialog):
 
         self._dep_worker = DependencyManagerWorker(force_download=force_download)
         self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
-        self._dep_worker.all_finished_signal.connect(lambda: self.btn_update_deps.setEnabled(True))
+        self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
         self._dep_worker.start()
 
     def update_all_dependencies(self):
         """Forces checking and updating of all 5 dependency tools."""
+        self.btn_update_deps.setText("Checking...")
         self.btn_update_deps.setEnabled(False)
+        for tool, item in self.dep_tools.items():
+            item["name_label"].setStyleSheet("color: #e5a50a; font-weight: bold;")
+            item["info_btn"].setToolTip(f"{tool}: Checking for updates...")
         self.check_all_dependencies(force_download=True)
+
+    def _on_all_deps_finished(self):
+        self.btn_update_deps.setText("Update")
+        self.btn_update_deps.setEnabled(True)
 
     def _on_dep_status_updated(self, tool_name: str, display_text: str, status_color: str):
         if tool_name in self.dep_tools:
