@@ -196,7 +196,7 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_formats.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
         font_tbl = self.tbl_formats.font()
-        font_tbl.setFeatureEnum(QFont.Tag.fromLatin1("tnum"), 1)
+        font_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.tbl_formats.setFont(font_tbl)
 
         layout.addWidget(self.tbl_formats, stretch=1)
@@ -261,7 +261,7 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         font_pl_tbl = self.tbl_playlist.font()
-        font_pl_tbl.setFeatureEnum(QFont.Tag.fromLatin1("tnum"), 1)
+        font_pl_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.tbl_playlist.setFont(font_pl_tbl)
 
         layout.addWidget(self.tbl_playlist, stretch=1)
