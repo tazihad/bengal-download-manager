@@ -92,8 +92,9 @@ class MediaDownloaderDialog(QDialog):
 
         dep_layout.addStretch()
 
-        self.btn_update_deps = QPushButton("Update Dependencies")
-        self.btn_update_deps.setFixedHeight(28)
+        self.btn_update_deps = QPushButton("Update")
+        self.btn_update_deps.setFixedHeight(30)
+        self.btn_update_deps.setFixedWidth(80)
         self.btn_update_deps.setToolTip("Check and download latest yt-dlp, ffmpeg, ffprobe, deno, and AtomicParsley engines")
         self.btn_update_deps.clicked.connect(self.update_all_dependencies)
         dep_layout.addWidget(self.btn_update_deps)
