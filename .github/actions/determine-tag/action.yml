@@ -35,31 +35,47 @@ runs:
               X="${BASH_REMATCH[1]}"
               Y="${BASH_REMATCH[2]}"
               Z="${BASH_REMATCH[3]}"
+              HAS_SUFFIX="${BASH_REMATCH[4]}"
               SUFFIX="${BASH_REMATCH[5]:-alpha}"
               N="${BASH_REMATCH[6]:-0}"
               
               if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-                  # PR Merge to Main: Create stable release tag vX.Y.Z
-                  NEXT_Z=$Z
-                  if [[ -z "${BASH_REMATCH[4]}" ]]; then
+                  # Merge to Main: Create stable release tag vX.Y.Z
+                  if [[ -n "$HAS_SUFFIX" ]]; then
+                      # Latest tag was alpha vX.Y.Z-alpha.N -> stable tag is vX.Y.Z
+                      TAG="v${X}.${Y}.${Z}"
+                  else
+                      # Latest tag was stable vX.Y.Z -> stable tag is vX.Y.(Z+1)
                       NEXT_Z=$((Z + 1))
+                      TAG="v${X}.${Y}.${NEXT_Z}"
                   fi
-                  TAG="v${X}.${Y}.${NEXT_Z}"
                   
                   # Guarantee TAG is brand new and does not already exist
                   while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
-                      NEXT_Z=$((NEXT_Z + 1))
-                      TAG="v${X}.${Y}.${NEXT_Z}"
+                      Z=$((Z + 1))
+                      TAG="v${X}.${Y}.${Z}"
                   done
               else
-                  # Push to Dev or other branch: Create pre-release tag vX.Y.Z-alpha.N
-                  NEXT_N=$((N + 1))
-                  TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+                  # Push to Dev: Create pre-release tag ahead of stable (vX.Y.(Z+1)-alpha.1)
+                  if [[ -n "$HAS_SUFFIX" ]]; then
+                      # Latest tag was already alpha vX.Y.Z-alpha.N -> increment N
+                      NEXT_N=$((N + 1))
+                      TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+                  else
+                      # Latest tag was stable vX.Y.Z -> next alpha is vX.Y.(Z+1)-alpha.1
+                      NEXT_Z=$((Z + 1))
+                      TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
+                  fi
                   
                   # Guarantee TAG is brand new and does not already exist
                   while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
-                      NEXT_N=$((NEXT_N + 1))
-                      TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
+                      if [[ -n "$HAS_SUFFIX" ]]; then
+                          N=$((N + 1))
+                          TAG="v${X}.${Y}.${Z}-${SUFFIX}.${N}"
+                      else
+                          NEXT_Z=$((NEXT_Z + 1))
+                          TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
+                      fi
                   done
               fi
           else
