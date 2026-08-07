@@ -327,6 +327,43 @@ def apply_app_theme(theme_name, app=None):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         app.setPalette(app.style().standardPalette())
 
+    app.setStyleSheet("""
+        QMenuBar {
+            background-color: palette(window);
+            color: palette(window-text);
+        }
+        QMenuBar::item {
+            background-color: transparent;
+            color: palette(window-text);
+            padding: 4px 10px;
+        }
+        QMenuBar::item:selected {
+            background-color: palette(highlight);
+            color: palette(highlighted-text);
+        }
+        QMenu {
+            background-color: palette(window);
+            color: palette(window-text);
+            border: 1px solid palette(mid);
+            padding: 4px;
+        }
+        QMenu::item {
+            background-color: transparent;
+            color: palette(window-text);
+            padding: 5px 24px 5px 12px;
+            border-radius: 2px;
+        }
+        QMenu::item:selected {
+            background-color: palette(highlight);
+            color: palette(highlighted-text);
+        }
+        QMenu::separator {
+            height: 1px;
+            background-color: palette(mid);
+            margin: 4px 6px;
+        }
+    """)
+
     ensure_adaptive_icon_theme(app)
 
     for widget in app.allWidgets():
@@ -1545,6 +1582,19 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             self.setPalette(app.palette())
+
+        mb = self.menuBar()
+        if mb and app:
+            mb.setPalette(app.palette())
+            app.style().unpolish(mb)
+            app.style().polish(mb)
+            mb.update()
+            for m in mb.findChildren(QMenu):
+                m.setPalette(app.palette())
+                app.style().unpolish(m)
+                app.style().polish(m)
+                m.update()
+
         self.update()
         self.repaint()
 
@@ -2629,25 +2679,6 @@ if __name__ == "__main__":
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
     app.setFont(app_font)
-    app.setStyleSheet("""
-        QMenu {
-            border: 1px solid #707070;
-            padding: 4px;
-        }
-        QMenu::item {
-            padding: 5px 24px 5px 12px;
-            border-radius: 2px;
-        }
-        QMenu::item:selected {
-            background-color: #0078d4;
-            color: #ffffff;
-        }
-        QMenu::separator {
-            height: 1px;
-            background-color: #707070;
-            margin: 4px 6px;
-        }
-    """)
     
     # Initialize and set global application icon
     app_icon = get_app_icon()
