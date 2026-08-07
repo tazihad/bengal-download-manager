@@ -406,13 +406,17 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None
             }
         """)
 
-    ensure_adaptive_icon_theme(app)
+    for w in app.allWidgets():
+        try:
+            w.setPalette(app.palette())
+            app.style().unpolish(w)
+            app.style().polish(w)
+            w.update()
+        except Exception:
+            pass
 
     for top in app.topLevelWidgets():
         try:
-            top.setPalette(app.palette())
-            app.style().unpolish(top)
-            app.style().polish(top)
             refresh_fn = getattr(top, "refresh_theme_ui", None)
             if callable(refresh_fn):
                 refresh_fn()

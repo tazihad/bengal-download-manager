@@ -159,9 +159,9 @@ class OptionsDialog(QDialog):
         if idx_i != -1: self.combo_icon_theme.setCurrentIndex(idx_i)
 
         # Connect live preview signals
-        self.combo_theme.currentIndexChanged.connect(self.on_appearance_preview)
-        self.combo_accent.currentIndexChanged.connect(self.on_appearance_preview)
-        self.combo_icon_theme.currentIndexChanged.connect(self.on_appearance_preview)
+        self.combo_theme.currentTextChanged.connect(self.on_appearance_preview)
+        self.combo_accent.currentTextChanged.connect(self.on_appearance_preview)
+        self.combo_icon_theme.currentTextChanged.connect(self.on_appearance_preview)
 
         grp_theme.setLayout(vbox_theme)
         layout.addWidget(grp_theme)
@@ -670,7 +670,7 @@ class OptionsDialog(QDialog):
         if path:
             line_edit.setText(path)
 
-    def on_appearance_preview(self):
+    def on_appearance_preview(self, text=None):
         t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
         a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
         i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"
