@@ -599,7 +599,7 @@ def get_themed_tray_icon(tray_option=None):
     elif opt_lower == "automatic":
         app = QApplication.instance()
         text_val = app.palette().color(QPalette.ColorRole.WindowText).value() if app else 255
-        target_path = dark_path if text_val > 128 else light_path
+        target_path = light_path if text_val > 128 else dark_path
         if os.path.exists(target_path):
             ic = QIcon(target_path)
             if not ic.isNull():
