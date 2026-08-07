@@ -96,7 +96,7 @@ class OptionsDialog(QDialog):
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
         theme_options = [
-            "Automatic", "BDM Light", "BDM Dark", 
+            "BDM Dark (Default)", "BDM Light", "Automatic", 
             "Ubuntu Light", "Ubuntu Dark",
             "IDM Classic", "Kirigami Light", "Kirigami Dark",
             "Breeze Light", "Breeze Dark",
@@ -110,7 +110,7 @@ class OptionsDialog(QDialog):
         self.combo_accent = QComboBox()
         self.combo_accent.setToolTip("Select accent/highlight color")
         accent_options = [
-            "BDM", "Breeze Blue", "Ubuntu Orange", 
+            "BDM (Default)", "Breeze Blue", "Ubuntu Orange", 
             "Windows Blue", "Dracula Purple", "Nord Frost", 
             "Emerald Green", "Crimson Red", "Amethyst Violet"
         ]
@@ -124,13 +124,13 @@ class OptionsDialog(QDialog):
         row_theme_accent.addStretch()
         vbox_theme.addLayout(row_theme_accent)
 
-        # Row 2: Toolbar Icons Theme
+        # Row 2: Icons Theme
         row_icons = QHBoxLayout()
-        lbl_icon_theme = QLabel("Toolbar Icons:")
+        lbl_icon_theme = QLabel("Icons:")
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["BDM", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
+        icon_theme_options = ["BDM (Default)", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         row_icons.addWidget(lbl_icon_theme)
@@ -139,13 +139,13 @@ class OptionsDialog(QDialog):
         vbox_theme.addLayout(row_icons)
 
         # Initial values & restore state for Cancel
-        current_theme = "Automatic"
-        current_accent = "BDM"
-        current_icon_theme = "BDM"
+        current_theme = "BDM Dark (Default)"
+        current_accent = "BDM (Default)"
+        current_icon_theme = "BDM (Default)"
         if self.parent() and hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
-            current_theme = self.parent().settings.get("theme", "Automatic")
-            current_accent = self.parent().settings.get("accent", "BDM")
-            current_icon_theme = self.parent().settings.get("icon_theme", "BDM")
+            current_theme = self.parent().settings.get("theme", "BDM Dark (Default)")
+            current_accent = self.parent().settings.get("accent", "BDM (Default)")
+            current_icon_theme = self.parent().settings.get("icon_theme", "BDM (Default)")
 
         self.initial_theme = current_theme
         self.initial_accent = current_accent
@@ -671,9 +671,9 @@ class OptionsDialog(QDialog):
             line_edit.setText(path)
 
     def on_appearance_preview(self, text=None):
-        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
-        a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM"
-        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM"
+        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
+        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
         if self.parent():
             preview_fn = getattr(self.parent(), "preview_appearance", None)
             if callable(preview_fn):
@@ -683,9 +683,9 @@ class OptionsDialog(QDialog):
         if self.parent():
             preview_fn = getattr(self.parent(), "preview_appearance", None)
             if callable(preview_fn):
-                t = getattr(self, 'initial_theme', 'Automatic')
-                a = getattr(self, 'initial_accent', 'BDM')
-                i = getattr(self, 'initial_icon_theme', 'BDM')
+                t = getattr(self, 'initial_theme', 'BDM Dark (Default)')
+                a = getattr(self, 'initial_accent', 'BDM (Default)')
+                i = getattr(self, 'initial_icon_theme', 'BDM (Default)')
                 preview_fn(t, a, i)
         super().reject()
 
@@ -694,9 +694,9 @@ class OptionsDialog(QDialog):
         save_category_config(self.config_data)
         
         new_scale = self.combo_scale.currentText()
-        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
-        new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM"
-        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM"
+        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
+        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
         # Save start_minimized_on_autostart, ui_scale, theme, accent, and icon_theme to parent (MainWindow)
@@ -729,10 +729,10 @@ class OptionsDialog(QDialog):
         self.accept()
 
     def get_theme(self):
-        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
+        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
 
     def get_accent(self):
-        return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM"
+        return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
 
     def get_icon_theme(self):
-        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM"
+        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"

@@ -315,7 +315,7 @@ def test_options_dialog_theme_selection(qapp):
 
     # Check items count and options
     expected_themes = [
-        "Automatic", "BDM Light", "BDM Dark", 
+        "BDM Dark (Default)", "BDM Light", "Automatic", 
         "Ubuntu Light", "Ubuntu Dark",
         "IDM Classic", "Kirigami Light", "Kirigami Dark",
         "Breeze Light", "Breeze Dark",

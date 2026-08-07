@@ -1604,9 +1604,9 @@ class MainWindow(QMainWindow):
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
-                "theme": getattr(self, "settings", {}).get("theme", "Automatic"),
-                "accent": getattr(self, "settings", {}).get("accent", "Default / Auto"),
-                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "Automatic")
+                "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
+                "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
+                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM (Default)")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -1719,9 +1719,9 @@ class MainWindow(QMainWindow):
                 
                 self.start_minimized_on_autostart = settings.get("start_minimized", False)
                 apply_app_theme(
-                    settings.get("theme", "Automatic"),
-                    settings.get("accent", "Default / Auto"),
-                    settings.get("icon_theme", "Automatic")
+                    settings.get("theme", "BDM Dark (Default)"),
+                    settings.get("accent", "BDM (Default)"),
+                    settings.get("icon_theme", "BDM (Default)")
                 )
 
                 header = self.download_table.horizontalHeader()
@@ -2774,16 +2774,16 @@ if __name__ == "__main__":
     app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
 
-    _saved_theme = "Automatic"
-    _saved_accent = "Default / Auto"
-    _saved_icon_theme = "Automatic"
+    _saved_theme = "BDM Dark (Default)"
+    _saved_accent = "BDM (Default)"
+    _saved_icon_theme = "BDM (Default)"
     try:
         if os.path.exists(_cfg_path):
             with open(_cfg_path, "r") as _f:
                 _s_data = json.load(_f)
-                _saved_theme = _s_data.get("theme", "Automatic")
-                _saved_accent = _s_data.get("accent", "Default / Auto")
-                _saved_icon_theme = _s_data.get("icon_theme", "Automatic")
+                _saved_theme = _s_data.get("theme", "BDM Dark (Default)")
+                _saved_accent = _s_data.get("accent", "BDM (Default)")
+                _saved_icon_theme = _s_data.get("icon_theme", "BDM (Default)")
     except Exception:
         pass
 

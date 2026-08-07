@@ -19,7 +19,7 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboTheme
                 Kirigami.FormData.label: "Theme:"
-                model: ["Automatic", "BDM Light", "BDM Dark", "Ubuntu Light", "Ubuntu Dark", "IDM Classic", "Kirigami Light", "Kirigami Dark", "Breeze Light", "Breeze Dark", "Dracula", "Nord", "One Dark", "Catppuccin", "Solarized Light", "Solarized Dark"]
+                model: ["BDM Dark (Default)", "BDM Light", "Automatic", "Ubuntu Light", "Ubuntu Dark", "IDM Classic", "Kirigami Light", "Kirigami Dark", "Breeze Light", "Breeze Dark", "Dracula", "Nord", "One Dark", "Catppuccin", "Solarized Light", "Solarized Dark"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }
@@ -27,15 +27,15 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboAccent
                 Kirigami.FormData.label: "Accent Color:"
-                model: ["BDM", "Breeze Blue", "Ubuntu Orange", "Windows Blue", "Dracula Purple", "Nord Frost", "Emerald Green", "Crimson Red", "Amethyst Violet"]
+                model: ["BDM (Default)", "Breeze Blue", "Ubuntu Orange", "Windows Blue", "Dracula Purple", "Nord Frost", "Emerald Green", "Crimson Red", "Amethyst Violet"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }
 
             Controls.ComboBox {
                 id: comboIconTheme
-                Kirigami.FormData.label: "Toolbar Icons:"
-                model: ["BDM", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
+                Kirigami.FormData.label: "Icons:"
+                model: ["BDM (Default)", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }
