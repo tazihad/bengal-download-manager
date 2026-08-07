@@ -234,7 +234,8 @@ def parse_time_to_sec(text):
         return 0
 
 ACCENT_COLORS = {
-    "BDM": None,
+    "BDM (Default)": "#3daee9",
+    "BDM": "#3daee9",
     "Default / Auto": None,
     "Breeze Blue": "#3daee9",
     "Ubuntu Orange": "#e95420",
@@ -337,11 +338,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None
     elif theme_lower in ("bdm light", "bdmlight", "light"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f5f5f5", "#f0f0f0", "#0078d4", "#0078d4", "#ffffff", accent=accent_name))
-    elif theme_lower in ("bdm dark", "bdmdark", "dark"):
+        app.setPalette(_build_palette("#eff0f1", "#232629", "#ffffff", "#f8f9fa", "#eef0f2", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
+    elif theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#2d2d2d", "#f0f0f0", "#1e1e1e", "#2d2d2d", "#2d2d2d", "#2a82da", "#2a82da", "#ffffff", accent=accent_name))
+        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
     else:  # Automatic
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
