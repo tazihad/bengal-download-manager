@@ -21,15 +21,19 @@ Add user-configurable theme selection ("Automatic", "Light", "Dark") to Bengal D
      - `Automatic` (Default)
      - `Light`
      - `Dark`
+     - `Breeze Light`
+     - `Breeze Dark`
    - Tooltip: `"Select application theme mode (Automatic uses system theme)"`.
 
 2. **Kirigami QML View (`OptionsDialog.qml`)**:
-   - Add a `ComboBox` with `Kirigami.FormData.label: "Theme:"` and options `["Automatic", "Light", "Dark"]`.
+   - Add a `ComboBox` with `Kirigami.FormData.label: "Theme:"` and options `["Automatic", "Light", "Dark", "Breeze Light", "Breeze Dark"]`.
 
 3. **Theme Application Logic**:
    - **`Automatic`**: Applies `Qt.ColorScheme.Unknown` to `QGuiApplication.styleHints()`, allowing Qt to follow system OS light/dark mode.
    - **`Light`**: Applies `Qt.ColorScheme.Light` to `QGuiApplication.styleHints()` and applies standard light palette fallback.
    - **`Dark`**: Applies `Qt.ColorScheme.Dark` to `QGuiApplication.styleHints()` and applies standard dark palette fallback.
+   - **`Breeze Light`**: Applies `Qt.ColorScheme.Light` and KDE Breeze Light palette (`#eff0f1`, `#fcfcfc`, `#3daee9`).
+   - **`Breeze Dark`**: Applies `Qt.ColorScheme.Dark` and KDE Breeze Dark palette (`#2a2e32`, `#232629`, `#3daee9`).
    - **Icon Adaptation**: Calls `ensure_adaptive_icon_theme(app)` immediately whenever the theme choice is changed/applied, keeping dark/light icon sets in sync.
 
 4. **Persistence**:

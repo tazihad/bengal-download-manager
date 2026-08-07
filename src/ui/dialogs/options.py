@@ -90,7 +90,7 @@ class OptionsDialog(QDialog):
         lbl_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
-        theme_options = ["Automatic", "Light", "Dark"]
+        theme_options = ["Automatic", "Light", "Dark", "Breeze Light", "Breeze Dark"]
         self.combo_theme.addItems(theme_options)
 
         current_theme = "Automatic"

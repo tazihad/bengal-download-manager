@@ -303,6 +303,7 @@ def test_options_dialog_theme_selection(qapp):
     from main import MainWindow, apply_app_theme
 
     window = MainWindow()
+    window.settings["theme"] = "Automatic"
     opt_dlg = OptionsDialog(window)
 
     # Check combo_theme existence
@@ -310,7 +311,7 @@ def test_options_dialog_theme_selection(qapp):
     combo = opt_dlg.combo_theme
 
     # Check items count and options
-    expected_items = ["Automatic", "Light", "Dark"]
+    expected_items = ["Automatic", "Light", "Dark", "Breeze Light", "Breeze Dark"]
     items = [combo.itemText(i) for i in range(combo.count())]
     assert items == expected_items
 
@@ -329,6 +330,8 @@ def test_options_dialog_theme_selection(qapp):
     # Verify apply_app_theme functions without exception for all options
     apply_app_theme("Light", qapp)
     apply_app_theme("Dark", qapp)
+    apply_app_theme("Breeze Light", qapp)
+    apply_app_theme("Breeze Dark", qapp)
     apply_app_theme("Automatic", qapp)
 
     opt_dlg.close()

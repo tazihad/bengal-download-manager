@@ -235,10 +235,12 @@ def parse_time_to_sec(text):
 
 def apply_app_theme(theme_name, app=None):
     """
-    Applies application theme ('Automatic', 'Light', or 'Dark').
+    Applies application theme ('Automatic', 'Light', 'Dark', 'Breeze Light', or 'Breeze Dark').
     'Automatic' follows system theme (light/dark).
     'Light' forces light color scheme and palette.
     'Dark' forces dark color scheme and palette.
+    'Breeze Light' / 'Breeze White' forces KDE Breeze Light palette.
+    'Breeze Dark' forces KDE Breeze Dark palette.
     """
     if app is None:
         app = QApplication.instance()
@@ -248,7 +250,43 @@ def apply_app_theme(theme_name, app=None):
     sh = app.styleHints()
     theme_lower = str(theme_name).strip().lower()
 
-    if theme_lower == "light":
+    if theme_lower in ("breeze dark", "breezedark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        dark_pal = QPalette()
+        dark_pal.setColor(QPalette.ColorRole.Window, QColor(42, 46, 50))
+        dark_pal.setColor(QPalette.ColorRole.WindowText, QColor(239, 240, 241))
+        dark_pal.setColor(QPalette.ColorRole.Base, QColor(35, 38, 41))
+        dark_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(49, 54, 59))
+        dark_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(27, 30, 32))
+        dark_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(239, 240, 241))
+        dark_pal.setColor(QPalette.ColorRole.Text, QColor(239, 240, 241))
+        dark_pal.setColor(QPalette.ColorRole.Button, QColor(49, 54, 59))
+        dark_pal.setColor(QPalette.ColorRole.ButtonText, QColor(239, 240, 241))
+        dark_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+        dark_pal.setColor(QPalette.ColorRole.Link, QColor(41, 128, 185))
+        dark_pal.setColor(QPalette.ColorRole.Highlight, QColor(61, 174, 233))
+        dark_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        app.setPalette(dark_pal)
+    elif theme_lower in ("breeze light", "breezelight", "breeze white", "breezewhite"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        light_pal = QPalette()
+        light_pal.setColor(QPalette.ColorRole.Window, QColor(239, 240, 241))
+        light_pal.setColor(QPalette.ColorRole.WindowText, QColor(35, 38, 41))
+        light_pal.setColor(QPalette.ColorRole.Base, QColor(252, 252, 252))
+        light_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(238, 240, 242))
+        light_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(252, 252, 252))
+        light_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(35, 38, 41))
+        light_pal.setColor(QPalette.ColorRole.Text, QColor(35, 38, 41))
+        light_pal.setColor(QPalette.ColorRole.Button, QColor(238, 240, 242))
+        light_pal.setColor(QPalette.ColorRole.ButtonText, QColor(35, 38, 41))
+        light_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+        light_pal.setColor(QPalette.ColorRole.Link, QColor(41, 128, 185))
+        light_pal.setColor(QPalette.ColorRole.Highlight, QColor(61, 174, 233))
+        light_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        app.setPalette(light_pal)
+    elif theme_lower == "light":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         light_pal = QPalette()
