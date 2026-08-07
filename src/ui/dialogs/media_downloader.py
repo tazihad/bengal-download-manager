@@ -337,12 +337,17 @@ class MediaDownloaderDialog(QDialog):
             self.start_analysis()
 
     def stop_analysis(self):
-        if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
-            try:
-                self._worker.terminate()
-                self._worker.wait(500)
-            except Exception:
-                pass
+        if hasattr(self, "_worker") and self._worker:
+            if self._worker.isRunning():
+                try:
+                    self._worker.requestInterruption()
+                    self._worker.quit()
+                    self._worker.wait(1000)
+                    if self._worker.isRunning():
+                        self._worker.terminate()
+                        self._worker.wait(1000)
+                except Exception:
+                    pass
         self._finish_loading()
         self.lbl_status.setText("Analysis cancelled.")
 
@@ -727,8 +732,12 @@ class MediaDownloaderDialog(QDialog):
     def closeEvent(self, event):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
             try:
+                self._worker.requestInterruption()
                 self._worker.quit()
                 self._worker.wait(1000)
+                if self._worker.isRunning():
+                    self._worker.terminate()
+                    self._worker.wait(1000)
             except Exception:
                 pass
         super().closeEvent(event)
