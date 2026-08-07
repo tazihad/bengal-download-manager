@@ -145,13 +145,15 @@ class DependencyManagerWorker(QThread):
                 self.tool_status_signal.emit(tool, f"{tool} (Checking...)", "yellow")
                 self.msleep(150)
 
-            ver = get_tool_version(tool)
+            binary_name = DEPENDENCY_TOOLS[tool]["binary_name"]
+            local_bin = BIN_DIR / binary_name
+            is_local_installed = local_bin.exists() and os.access(local_bin, os.X_OK)
 
-            if ver:
+            if not is_local_installed:
+                self._download_and_install_tool(tool)
+            else:
+                ver = get_tool_version(tool) or "Installed"
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
-                continue
-
-            self._download_and_install_tool(tool)
 
         self.all_finished_signal.emit()
 
