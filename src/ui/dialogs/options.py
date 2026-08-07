@@ -32,8 +32,8 @@ class OptionsDialog(QDialog):
         self.current_category = "General"
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
@@ -80,15 +80,15 @@ class OptionsDialog(QDialog):
 
     def setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(12)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         
         # 1. Theme and Appearance
         grp_theme = QGroupBox("Theme and Appearance")
         # Use QGridLayout for Theme & Appearance to ensure perfect 2D alignment across all 4 dropdowns
         grid_theme = QGridLayout()
-        grid_theme.setContentsMargins(10, 8, 10, 8)
-        grid_theme.setSpacing(10)
+        grid_theme.setContentsMargins(0, 0, 0, 0)
+        grid_theme.setSpacing(0)
 
         lbl_theme = QLabel("Theme:")
         lbl_theme.setToolTip("Select application visual theme")
@@ -195,8 +195,8 @@ class OptionsDialog(QDialog):
         # 2. UI Settings (Right after Theme)
         grp_ui = QGroupBox("UI Settings")
         vbox_ui = QVBoxLayout()
-        vbox_ui.setContentsMargins(10, 8, 10, 8)
-        vbox_ui.setSpacing(8)
+        vbox_ui.setContentsMargins(0, 0, 0, 0)
+        vbox_ui.setSpacing(0)
 
         row_scale = QHBoxLayout()
         lbl_scale = QLabel("Scale:")
@@ -248,6 +248,8 @@ class OptionsDialog(QDialog):
         
         grp_engine.setLayout(vbox_engine)
         layout.addWidget(grp_engine)
+
+        layout.addStretch()
 
     def setup_startup_tab(self):
         layout = QVBoxLayout(self.startup_tab)
