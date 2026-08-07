@@ -246,7 +246,7 @@ class YtDlpDownloadWorker(QThread):
     Emits real-time main_progress_signal for Bengal Download Manager's table interface.
     """
 
-    main_progress_signal = pyqtSignal(int, tuple)  # (row_index, (downloaded, total, speed, time_left, status))
+    main_progress_signal = pyqtSignal(int, tuple)  # (row_index, (filename, size_str, status_str, eta_str, speed_str, downloaded_bytes, total_bytes))
     finished_signal = pyqtSignal(int, str)         # (row_index, final_file_path)
     log_signal = pyqtSignal(str)
 
@@ -262,6 +262,17 @@ class YtDlpDownloadWorker(QThread):
         self.is_paused = False
         self.process = None
         self.final_file_path = None
+
+    def format_bytes_str(self, size: float) -> str:
+        if not isinstance(size, (int, float)) or size <= 0:
+            return "0 B"
+        units = ['B', 'KB', 'MB', 'GB', 'TB']
+        idx = 0
+        s = float(size)
+        while s >= 1024.0 and idx < len(units) - 1:
+            s /= 1024.0
+            idx += 1
+        return f"{s:.2f} {units[idx]}"
 
     def run(self):
         try:
@@ -287,7 +298,7 @@ class YtDlpDownloadWorker(QThread):
             cmd.append(self.url)
 
             self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
-            self.main_progress_signal.emit(self.row_index, (0, 0, 0, "--", "Connecting..."))
+            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
 
             self.process = subprocess.Popen(
                 cmd,
@@ -352,15 +363,17 @@ class YtDlpDownloadWorker(QThread):
                     if not self.final_file_path or dest.endswith(".mp4") or dest.endswith(".mp3"):
                         self.final_file_path = dest
 
+                size_display = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Unknown"
+                speed_display = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
+
                 self.main_progress_signal.emit(
                     self.row_index,
-                    (int(downloaded_bytes), int(total_bytes), speed_bps, eta_str, status_str)
+                    (self.filename, size_display, status_str, eta_str, speed_display, int(downloaded_bytes), int(total_bytes))
                 )
 
             self.process.wait()
 
             if self.process.returncode == 0:
-                # Find final created file if not captured
                 if not self.final_file_path or not os.path.exists(self.final_file_path):
                     target_ext = ".mp3" if self.is_audio_only else ".mp4"
                     expected_path = os.path.join(self.save_dir, f"{clean_base}{target_ext}")
@@ -373,22 +386,24 @@ class YtDlpDownloadWorker(QThread):
                                 break
 
                 final_path = self.final_file_path or os.path.join(self.save_dir, self.filename)
+                size_display = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Complete"
+
                 self.main_progress_signal.emit(
                     self.row_index,
-                    (int(total_bytes or 1), int(total_bytes or 1), 0, "", "Complete")
+                    (self.filename, size_display, "Complete", "", "", int(total_bytes or 1), int(total_bytes or 1))
                 )
                 self.finished_signal.emit(self.row_index, final_path)
             else:
                 self.main_progress_signal.emit(
                     self.row_index,
-                    (int(downloaded_bytes), int(total_bytes), 0, "--", "Error")
+                    (self.filename, "Error", "Error", "--", "--", int(downloaded_bytes), int(total_bytes))
                 )
                 self.finished_signal.emit(self.row_index, "")
 
         except Exception as e:
             self.main_progress_signal.emit(
                 self.row_index,
-                (0, 0, 0, "--", f"Error: {e}")
+                (self.filename, "Error", f"Error: {e}", "--", "--", 0, 0)
             )
             self.finished_signal.emit(self.row_index, "")
 

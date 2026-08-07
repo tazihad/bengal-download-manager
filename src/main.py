@@ -3026,7 +3026,7 @@ class MainWindow(QMainWindow):
         key = id(item_name)
         self.active_downloads[key] = worker
 
-        worker.main_progress_signal.connect(self.update_download_progress)
+        worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
         worker.finished_signal.connect(lambda r, path, k=key: self._on_media_download_finished(k, r, path))
 
         worker.start()
