@@ -452,14 +452,15 @@ class MediaDownloaderDialog(QDialog):
             if display_text.startswith(f"{tool_name} (") and display_text.endswith(")"):
                 ver_text = display_text[len(tool_name) + 2 : -1]
 
-            btn_info.setToolTip(f"{tool_name} Version: {ver_text}")
-
-            if status_color == "green":
-                lbl_name.setStyleSheet("color: #2ec27e; font-weight: bold;")
-            elif status_color == "yellow":
+            if status_color == "yellow":
                 lbl_name.setStyleSheet("color: #e5a50a; font-weight: bold;")
+                btn_info.setToolTip(f"{tool_name}: ({ver_text})")
+            elif status_color == "green":
+                lbl_name.setStyleSheet("color: #2ec27e; font-weight: bold;")
+                btn_info.setToolTip(f"{tool_name} Version: {ver_text}")
             else:
                 lbl_name.setStyleSheet("color: gray; font-weight: bold;")
+                btn_info.setToolTip(f"{tool_name}: Not Installed")
 
     def _on_ctrl_v_paste(self):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
