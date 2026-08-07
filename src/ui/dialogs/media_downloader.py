@@ -66,6 +66,7 @@ class MediaDownloaderDialog(QDialog):
         self.txt_url.setPlaceholderText("Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...")
         self.txt_url.setFixedHeight(34)
         self.txt_url.returnPressed.connect(self.start_analysis)
+        self.txt_url.textChanged.connect(self._on_url_text_changed)
         self.txt_url.setToolTip("Enter direct video URL or playlist link to analyze")
 
         self.btn_paste = QPushButton("Paste")
@@ -410,8 +411,20 @@ class MediaDownloaderDialog(QDialog):
         self.stack.setCurrentWidget(self.page_playlist)
         self.btn_download.setEnabled(True)
 
+    def _on_url_text_changed(self, text: str):
+        self._current_video_data = None
+        self._current_playlist_data = None
+        self.btn_download.setEnabled(False)
+        self.btn_download.setText("Download")
+        self.stack.setCurrentIndex(0)
+
     def _on_analysis_failed(self, error_msg: str):
         self._finish_loading()
+        self._current_video_data = None
+        self._current_playlist_data = None
+        self.btn_download.setEnabled(False)
+        self.btn_download.setText("Download")
+        self.stack.setCurrentIndex(0)
         self.lbl_status.setText("Analysis failed.")
         QMessageBox.critical(self, "Extraction Error", f"Failed to analyze URL:\n{error_msg}")
 
