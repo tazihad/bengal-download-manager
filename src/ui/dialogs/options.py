@@ -23,8 +23,8 @@ class OptionsDialog(QDialog):
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedSize(500, 520)
         
-        # Remove maximize button and prevent resizing via window flags
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowMaximizeButtonHint)
+        # Set window flags so Options dialog appears as an independent top-level window in taskbar panels
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
         
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
@@ -80,14 +80,14 @@ class OptionsDialog(QDialog):
 
     def setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(20)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
         
         # 1. Theme and Appearance
         grp_theme = QGroupBox("Theme and Appearance")
         # Use QGridLayout for Theme & Appearance to ensure perfect 2D alignment across all 4 dropdowns
         grid_theme = QGridLayout()
-        grid_theme.setContentsMargins(10, 15, 10, 10)
+        grid_theme.setContentsMargins(10, 8, 10, 8)
         grid_theme.setSpacing(10)
 
         lbl_theme = QLabel("Theme:")
@@ -195,8 +195,8 @@ class OptionsDialog(QDialog):
         # 2. UI Settings (Right after Theme)
         grp_ui = QGroupBox("UI Settings")
         vbox_ui = QVBoxLayout()
-        vbox_ui.setContentsMargins(10, 15, 10, 10)
-        vbox_ui.setSpacing(10)
+        vbox_ui.setContentsMargins(10, 8, 10, 8)
+        vbox_ui.setSpacing(8)
 
         row_scale = QHBoxLayout()
         lbl_scale = QLabel("Scale:")
@@ -234,8 +234,8 @@ class OptionsDialog(QDialog):
         # 3. Engine Settings
         grp_engine = QGroupBox("Engine Settings")
         vbox_engine = QVBoxLayout()
-        vbox_engine.setContentsMargins(10, 15, 10, 10)
-        vbox_engine.setSpacing(12)
+        vbox_engine.setContentsMargins(10, 8, 10, 8)
+        vbox_engine.setSpacing(8)
         
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
