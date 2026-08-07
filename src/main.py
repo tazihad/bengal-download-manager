@@ -1364,7 +1364,8 @@ class MainWindow(QMainWindow):
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
                 "column_data": column_data,
-                "start_minimized": getattr(self, "start_minimized_on_autostart", False)
+                "start_minimized": getattr(self, "start_minimized_on_autostart", False),
+                "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2415,6 +2416,21 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
 
     from PyQt6.QtCore import Qt
+
+    try:
+        from core.utils import get_config_dir
+        _cfg_path = os.path.join(get_config_dir(), "settings.json")
+        if os.path.exists(_cfg_path):
+            with open(_cfg_path, "r") as _f:
+                _s_data = json.load(_f)
+                _scale_str = _s_data.get("ui_scale", "100%")
+                if _scale_str and _scale_str != "100%":
+                    _num_str = _scale_str.replace("%", "").strip()
+                    _factor = float(_num_str) / 100.0
+                    os.environ["QT_SCALE_FACTOR"] = str(_factor)
+    except Exception:
+        pass
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")

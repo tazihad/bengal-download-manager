@@ -31,6 +31,14 @@ Kirigami.Dialog {
                 value: 4
             }
 
+            Controls.ComboBox {
+                id: comboScale
+                Kirigami.FormData.label: "Scale:"
+                model: ["50%", "75%", "90%", "100%", "110%", "115%", "125%", "135%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"]
+                currentIndex: 3
+                Layout.fillWidth: true
+            }
+
             Controls.TextField {
                 id: txtDefaultDir
                 Kirigami.FormData.label: "Default Downloads Directory:"
