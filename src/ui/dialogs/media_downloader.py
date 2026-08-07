@@ -291,8 +291,8 @@ class MediaDownloaderDialog(QDialog):
         self._current_playlist_data = None
 
         self.lbl_video_title.setText(data.get("title", "Untitled Media"))
-        dur_sec = data.get("duration", 0)
-        dur_str = f"{dur_sec // 60}m {dur_sec % 60}s" if dur_sec else "Unknown"
+        dur_sec = int(data.get("duration") or 0)
+        dur_str = f"{dur_sec // 60}m {dur_sec % 60:02d}s" if dur_sec else "Unknown"
         self.lbl_video_meta.setText(f"Uploader: {data.get('uploader')} | Duration: {dur_str}")
 
         formats = data.get("formats", [])
@@ -343,7 +343,7 @@ class MediaDownloaderDialog(QDialog):
             self.tbl_playlist.setItem(row_idx, 1, QTableWidgetItem(str(entry["index"])))
             self.tbl_playlist.setItem(row_idx, 2, QTableWidgetItem(str(entry["title"])))
 
-            dur_sec = entry.get("duration", 0)
+            dur_sec = int(entry.get("duration") or 0)
             dur_str = f"{dur_sec // 60}:{dur_sec % 60:02d}" if dur_sec else "-"
             self.tbl_playlist.setItem(row_idx, 3, QTableWidgetItem(dur_str))
 
