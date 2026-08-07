@@ -79,19 +79,21 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        # 1. Theme
-        grp_theme = QGroupBox("Theme")
+        # 1. Theme & Appearance
+        grp_theme = QGroupBox("Theme & Appearance")
         vbox_theme = QVBoxLayout()
         vbox_theme.setContentsMargins(10, 15, 10, 10)
         vbox_theme.setSpacing(10)
 
-        row_theme = QHBoxLayout()
+        # Row 1: Theme & Accent
+        row_theme_accent = QHBoxLayout()
         lbl_theme = QLabel("Theme:")
-        lbl_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
+        lbl_theme.setToolTip("Select application visual theme")
         self.combo_theme = QComboBox()
-        self.combo_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
+        self.combo_theme.setToolTip("Select application visual theme")
         theme_options = [
             "Automatic", "Light", "Dark", 
+            "Ubuntu Light", "Ubuntu Dark",
             "IDM Classic", "Kirigami Light", "Kirigami Dark",
             "Breeze Light", "Breeze Dark",
             "Dracula", "Nord", "One Dark", "Catppuccin",
@@ -99,23 +101,63 @@ class OptionsDialog(QDialog):
         ]
         self.combo_theme.addItems(theme_options)
 
+        lbl_accent = QLabel("Accent:")
+        lbl_accent.setToolTip("Select accent/highlight color")
+        self.combo_accent = QComboBox()
+        self.combo_accent.setToolTip("Select accent/highlight color")
+        accent_options = [
+            "Default / Auto", "Breeze Blue", "Ubuntu Orange", 
+            "Windows Blue", "Dracula Purple", "Nord Frost", 
+            "Emerald Green", "Crimson Red", "Amethyst Violet"
+        ]
+        self.combo_accent.addItems(accent_options)
+
+        row_theme_accent.addWidget(lbl_theme)
+        row_theme_accent.addWidget(self.combo_theme)
+        row_theme_accent.addSpacing(15)
+        row_theme_accent.addWidget(lbl_accent)
+        row_theme_accent.addWidget(self.combo_accent)
+        row_theme_accent.addStretch()
+        vbox_theme.addLayout(row_theme_accent)
+
+        # Row 2: Toolbar Icons Theme
+        row_icons = QHBoxLayout()
+        lbl_icon_theme = QLabel("Toolbar Icons:")
+        lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
+        self.combo_icon_theme = QComboBox()
+        self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
+        icon_theme_options = ["Automatic", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
+        self.combo_icon_theme.addItems(icon_theme_options)
+
+        row_icons.addWidget(lbl_icon_theme)
+        row_icons.addWidget(self.combo_icon_theme)
+        row_icons.addStretch()
+        vbox_theme.addLayout(row_icons)
+
+        # Initial values & restore state for Cancel
         current_theme = "Automatic"
-        if self.parent() and hasattr(self.parent(), "settings"):
+        current_accent = "Default / Auto"
+        current_icon_theme = "Automatic"
+        if self.parent() and hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
             current_theme = self.parent().settings.get("theme", "Automatic")
+            current_accent = self.parent().settings.get("accent", "Default / Auto")
+            current_icon_theme = self.parent().settings.get("icon_theme", "Automatic")
+
         self.initial_theme = current_theme
+        self.initial_accent = current_accent
+        self.initial_icon_theme = current_icon_theme
 
-        idx_theme = self.combo_theme.findText(current_theme)
-        if idx_theme != -1:
-            self.combo_theme.setCurrentIndex(idx_theme)
-        else:
-            def_idx = self.combo_theme.findText("Automatic")
-            if def_idx != -1:
-                self.combo_theme.setCurrentIndex(def_idx)
+        idx_t = self.combo_theme.findText(current_theme)
+        if idx_t != -1: self.combo_theme.setCurrentIndex(idx_t)
+        idx_a = self.combo_accent.findText(current_accent)
+        if idx_a != -1: self.combo_accent.setCurrentIndex(idx_a)
+        idx_i = self.combo_icon_theme.findText(current_icon_theme)
+        if idx_i != -1: self.combo_icon_theme.setCurrentIndex(idx_i)
 
-        row_theme.addWidget(lbl_theme)
-        row_theme.addWidget(self.combo_theme)
-        row_theme.addStretch()
-        vbox_theme.addLayout(row_theme)
+        # Connect live preview signals
+        self.combo_theme.currentIndexChanged.connect(self.on_appearance_preview)
+        self.combo_accent.currentIndexChanged.connect(self.on_appearance_preview)
+        self.combo_icon_theme.currentIndexChanged.connect(self.on_appearance_preview)
 
         grp_theme.setLayout(vbox_theme)
         layout.addWidget(grp_theme)
@@ -619,26 +661,50 @@ class OptionsDialog(QDialog):
         if path:
             line_edit.setText(path)
 
+    def on_appearance_preview(self):
+        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
+        a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
+        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"
+        if self.parent():
+            preview_fn = getattr(self.parent(), "preview_appearance", None)
+            if callable(preview_fn):
+                preview_fn(t, a, i)
+
+    def reject(self):
+        if self.parent():
+            preview_fn = getattr(self.parent(), "preview_appearance", None)
+            if callable(preview_fn):
+                t = getattr(self, 'initial_theme', 'Automatic')
+                a = getattr(self, 'initial_accent', 'Default / Auto')
+                i = getattr(self, 'initial_icon_theme', 'Automatic')
+                preview_fn(t, a, i)
+        super().reject()
+
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
         save_category_config(self.config_data)
         
         new_scale = self.combo_scale.currentText()
         new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
+        new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
+        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
-        # Save start_minimized_on_autostart, ui_scale, and theme to parent (MainWindow)
+        # Save start_minimized_on_autostart, ui_scale, theme, accent, and icon_theme to parent (MainWindow)
         if self.parent():
             setattr(self.parent(), "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             if hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
                 self.parent().settings["ui_scale"] = new_scale
                 self.parent().settings["theme"] = new_theme
-            apply_theme_fn = getattr(self.parent(), "apply_theme_setting", None)
-            if callable(apply_theme_fn):
-                apply_theme_fn(new_theme)
-            save_fn = getattr(self.parent(), "save_settings", None)
-            if callable(save_fn):
-                save_fn()
+                self.parent().settings["accent"] = new_accent
+                self.parent().settings["icon_theme"] = new_icon_theme
+            apply_fn = getattr(self.parent(), "apply_appearance_setting", None)
+            if callable(apply_fn):
+                apply_fn(new_theme, new_accent, new_icon_theme)
+            else:
+                save_fn = getattr(self.parent(), "save_settings", None)
+                if callable(save_fn):
+                    save_fn()
 
         set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
         self.save_proxy_data()
@@ -655,3 +721,9 @@ class OptionsDialog(QDialog):
 
     def get_theme(self):
         return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
+
+    def get_accent(self):
+        return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
+
+    def get_icon_theme(self):
+        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"

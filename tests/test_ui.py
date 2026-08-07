@@ -304,38 +304,48 @@ def test_options_dialog_theme_selection(qapp):
 
     window = MainWindow()
     window.settings["theme"] = "Automatic"
+    window.settings["accent"] = "Default / Auto"
+    window.settings["icon_theme"] = "Automatic"
     opt_dlg = OptionsDialog(window)
 
-    # Check combo_theme existence
+    # Check combos existence
     assert hasattr(opt_dlg, "combo_theme")
-    combo = opt_dlg.combo_theme
+    assert hasattr(opt_dlg, "combo_accent")
+    assert hasattr(opt_dlg, "combo_icon_theme")
 
     # Check items count and options
-    expected_items = [
+    expected_themes = [
         "Automatic", "Light", "Dark", 
+        "Ubuntu Light", "Ubuntu Dark",
         "IDM Classic", "Kirigami Light", "Kirigami Dark",
         "Breeze Light", "Breeze Dark",
         "Dracula", "Nord", "One Dark", "Catppuccin",
         "Solarized Light", "Solarized Dark"
     ]
-    items = [combo.itemText(i) for i in range(combo.count())]
-    assert items == expected_items
+    items = [opt_dlg.combo_theme.itemText(i) for i in range(opt_dlg.combo_theme.count())]
+    assert items == expected_themes
 
     # Check default selected item is Automatic
-    assert combo.currentText() == "Automatic"
+    assert opt_dlg.combo_theme.currentText() == "Automatic"
 
-    # Select Dark and save
-    idx_dark = combo.findText("Dark")
-    assert idx_dark != -1
-    combo.setCurrentIndex(idx_dark)
+    # Select Ubuntu Dark, Ubuntu Orange, and Breeze Dark
+    idx_ub_dark = opt_dlg.combo_theme.findText("Ubuntu Dark")
+    assert idx_ub_dark != -1
+    opt_dlg.combo_theme.setCurrentIndex(idx_ub_dark)
+
+    idx_orange = opt_dlg.combo_accent.findText("Ubuntu Orange")
+    assert idx_orange != -1
+    opt_dlg.combo_accent.setCurrentIndex(idx_orange)
 
     opt_dlg.save_and_accept()
-    assert window.settings.get("theme") == "Dark"
-    assert opt_dlg.get_theme() == "Dark"
+    assert window.settings.get("theme") == "Ubuntu Dark"
+    assert window.settings.get("accent") == "Ubuntu Orange"
+    assert opt_dlg.get_theme() == "Ubuntu Dark"
+    assert opt_dlg.get_accent() == "Ubuntu Orange"
 
     # Verify apply_app_theme functions without exception for all options
-    for theme_item in expected_items:
-        apply_app_theme(theme_item, qapp)
+    for theme_item in expected_themes:
+        apply_app_theme(theme_item, "Ubuntu Orange", "Breeze", qapp)
 
     opt_dlg.close()
     window.close()

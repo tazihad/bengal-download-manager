@@ -233,7 +233,22 @@ def parse_time_to_sec(text):
     except:
         return 0
 
-def _build_palette(bg, text, base, alt, btn, link, hl, hl_text):
+ACCENT_COLORS = {
+    "Default / Auto": None,
+    "Breeze Blue": "#3daee9",
+    "Ubuntu Orange": "#e95420",
+    "Windows Blue": "#0078d4",
+    "Dracula Purple": "#bd93f9",
+    "Nord Frost": "#88c0d0",
+    "Emerald Green": "#2ecc71",
+    "Crimson Red": "#e74c3c",
+    "Amethyst Violet": "#9b59b6"
+}
+
+def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
+    if accent and accent in ACCENT_COLORS and ACCENT_COLORS[accent]:
+        hl = ACCENT_COLORS[accent]
+        link = ACCENT_COLORS[accent]
     pal = QPalette()
     pal.setColor(QPalette.ColorRole.Window, QColor(bg))
     pal.setColor(QPalette.ColorRole.WindowText, QColor(text))
@@ -251,10 +266,12 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text):
     return pal
 
 
-def apply_app_theme(theme_name, app=None):
+def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None):
     """
-    Applies application theme ('Automatic', 'Light', 'Dark', 'Breeze Light', 'Breeze Dark',
-    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark').
+    Applies application theme ('Automatic', 'Light', 'Dark', 'Ubuntu Light', 'Ubuntu Dark',
+    'IDM Classic', 'Kirigami Light', 'Kirigami Dark', 'Breeze Light', 'Breeze Dark',
+    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark'),
+    custom accent color, and custom toolbar icon set.
     """
     if app is None:
         app = QApplication.instance()
@@ -264,62 +281,92 @@ def apply_app_theme(theme_name, app=None):
     sh = app.styleHints()
     theme_lower = str(theme_name).strip().lower()
 
-    if theme_lower in ("idm classic", "idm", "windows classic"):
+    if theme_lower in ("ubuntu light", "ubuntulight"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f7f7f7", "#e1e1e1", "#0066cc", "#0078d4", "#ffffff"))
+        app.setPalette(_build_palette("#f7f7f7", "#333333", "#ffffff", "#e8e8e8", "#e8e8e8", "#e95420", "#e95420", "#ffffff", accent=accent_name))
+    elif theme_lower in ("ubuntu dark", "ubuntudark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#300a24", "#ffffff", "#1e0617", "#3c102d", "#3c102d", "#e95420", "#e95420", "#ffffff", accent=accent_name))
+    elif theme_lower in ("idm classic", "idm", "windows classic"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f7f7f7", "#e1e1e1", "#0066cc", "#0078d4", "#ffffff", accent=accent_name))
     elif theme_lower in ("kirigami light", "kirigamilight"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        app.setPalette(_build_palette("#fcfcfc", "#232629", "#ffffff", "#f5f5f5", "#f5f5f5", "#2980b9", "#3daee9", "#ffffff"))
+        app.setPalette(_build_palette("#fcfcfc", "#232629", "#ffffff", "#f5f5f5", "#f5f5f5", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
     elif theme_lower in ("kirigami dark", "kirigamidark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#232629", "#fcfcfc", "#1b1e20", "#2a2e32", "#31363b", "#2980b9", "#3daee9", "#ffffff"))
+        app.setPalette(_build_palette("#232629", "#fcfcfc", "#1b1e20", "#2a2e32", "#31363b", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
     elif theme_lower == "dracula":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#282a36", "#f8f8f2", "#1e1f29", "#44475a", "#44475a", "#8be9fd", "#bd93f9", "#282a36"))
+        app.setPalette(_build_palette("#282a36", "#f8f8f2", "#1e1f29", "#44475a", "#44475a", "#8be9fd", "#bd93f9", "#282a36", accent=accent_name))
     elif theme_lower == "nord":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#2e3440", "#eceff4", "#242933", "#3b4252", "#3b4252", "#88c0d0", "#88c0d0", "#2e3440"))
+        app.setPalette(_build_palette("#2e3440", "#eceff4", "#242933", "#3b4252", "#3b4252", "#88c0d0", "#88c0d0", "#2e3440", accent=accent_name))
     elif theme_lower in ("one dark", "onedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#21252b", "#abb2bf", "#1b1d23", "#282c34", "#282c34", "#61afef", "#61afef", "#1b1d23"))
+        app.setPalette(_build_palette("#21252b", "#abb2bf", "#1b1d23", "#282c34", "#282c34", "#61afef", "#61afef", "#1b1d23", accent=accent_name))
     elif theme_lower in ("catppuccin", "catppuccin mocha"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#1e1e2e", "#cdd6f4", "#181825", "#313244", "#313244", "#89b4fa", "#cba6f7", "#1e1e2e"))
+        app.setPalette(_build_palette("#1e1e2e", "#cdd6f4", "#181825", "#313244", "#313244", "#89b4fa", "#cba6f7", "#1e1e2e", accent=accent_name))
     elif theme_lower in ("solarized light", "solarizedlight"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        app.setPalette(_build_palette("#fdf6e3", "#657b83", "#eee8d5", "#fdf6e3", "#eee8d5", "#268bd2", "#268bd2", "#ffffff"))
+        app.setPalette(_build_palette("#fdf6e3", "#657b83", "#eee8d5", "#fdf6e3", "#eee8d5", "#268bd2", "#268bd2", "#ffffff", accent=accent_name))
     elif theme_lower in ("solarized dark", "solarizeddark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#002b36", "#839496", "#073642", "#002b36", "#073642", "#268bd2", "#268bd2", "#ffffff"))
+        app.setPalette(_build_palette("#002b36", "#839496", "#073642", "#002b36", "#073642", "#268bd2", "#268bd2", "#ffffff", accent=accent_name))
     elif theme_lower in ("breeze dark", "breezedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#2a2e32", "#eff0f1", "#232629", "#31363b", "#31363b", "#2980b9", "#3daee9", "#ffffff"))
+        app.setPalette(_build_palette("#2a2e32", "#eff0f1", "#232629", "#31363b", "#31363b", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
     elif theme_lower in ("breeze light", "breezelight", "breeze white", "breezewhite"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        app.setPalette(_build_palette("#eff0f1", "#232629", "#fcfcfc", "#eef0f2", "#eef0f2", "#2980b9", "#3daee9", "#ffffff"))
+        app.setPalette(_build_palette("#eff0f1", "#232629", "#fcfcfc", "#eef0f2", "#eef0f2", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
     elif theme_lower == "light":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
-        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f5f5f5", "#f0f0f0", "#0078d4", "#0078d4", "#ffffff"))
+        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f5f5f5", "#f0f0f0", "#0078d4", "#0078d4", "#ffffff", accent=accent_name))
     elif theme_lower == "dark":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#2d2d2d", "#f0f0f0", "#1e1e1e", "#2d2d2d", "#2d2d2d", "#2a82da", "#2a82da", "#ffffff"))
+        app.setPalette(_build_palette("#2d2d2d", "#f0f0f0", "#1e1e1e", "#2d2d2d", "#2d2d2d", "#2a82da", "#2a82da", "#ffffff", accent=accent_name))
     else:  # Automatic
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         app.setPalette(app.style().standardPalette())
+        if accent_name and accent_name in ACCENT_COLORS and ACCENT_COLORS[accent_name]:
+            p = QPalette(app.palette())
+            p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
+            p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))
+            app.setPalette(p)
+
+    # Icon theme handling
+    if icon_theme_name and str(icon_theme_name).lower() != "automatic":
+        icon_lower = str(icon_theme_name).strip().lower()
+        icon_map = {
+            "breeze": "breeze",
+            "breeze dark": "breeze-dark",
+            "ubuntu": "ubuntu-mono-dark",
+            "adwaita": "Adwaita",
+            "highcolor": "hicolor"
+        }
+        if icon_lower in icon_map:
+            QIcon.setThemeName(icon_map[icon_lower])
+        else:
+            QIcon.setThemeName(str(icon_theme_name))
+    else:
+        ensure_adaptive_icon_theme(app)
 
     if not app.styleSheet():
         app.setStyleSheet("""
@@ -1508,19 +1555,31 @@ class MainWindow(QMainWindow):
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
-                "theme": getattr(self, "settings", {}).get("theme", "Automatic")
+                "theme": getattr(self, "settings", {}).get("theme", "Automatic"),
+                "accent": getattr(self, "settings", {}).get("accent", "Default / Auto"),
+                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "Automatic")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
         except Exception:
             pass
 
-    def apply_theme_setting(self, theme_name):
+    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None):
         if not hasattr(self, "settings") or not isinstance(self.settings, dict):
             self.settings = {}
         self.settings["theme"] = theme_name
-        apply_app_theme(theme_name)
+        self.settings["accent"] = accent_name
+        self.settings["icon_theme"] = icon_theme_name
+        apply_app_theme(theme_name, accent_name, icon_theme_name)
         self.save_settings()
+
+    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None):
+        apply_app_theme(theme_name, accent_name, icon_theme_name)
+
+    def apply_theme_setting(self, theme_name):
+        accent_name = getattr(self, "settings", {}).get("accent", "Default / Auto")
+        icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "Automatic")
+        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name)
 
     def refresh_theme_ui(self):
         # Refresh category tree icons
@@ -1602,7 +1661,11 @@ class MainWindow(QMainWindow):
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                 
                 self.start_minimized_on_autostart = settings.get("start_minimized", False)
-                apply_app_theme(settings.get("theme", "Automatic"))
+                apply_app_theme(
+                    settings.get("theme", "Automatic"),
+                    settings.get("accent", "Default / Auto"),
+                    settings.get("icon_theme", "Automatic")
+                )
 
                 header = self.download_table.horizontalHeader()
                 if "column_data" in settings:
@@ -2655,15 +2718,19 @@ if __name__ == "__main__":
     app.setQuitOnLastWindowClosed(False)
 
     _saved_theme = "Automatic"
+    _saved_accent = "Default / Auto"
+    _saved_icon_theme = "Automatic"
     try:
         if os.path.exists(_cfg_path):
             with open(_cfg_path, "r") as _f:
                 _s_data = json.load(_f)
                 _saved_theme = _s_data.get("theme", "Automatic")
+                _saved_accent = _s_data.get("accent", "Default / Auto")
+                _saved_icon_theme = _s_data.get("icon_theme", "Automatic")
     except Exception:
         pass
 
-    apply_app_theme(_saved_theme, app)
+    apply_app_theme(_saved_theme, _saved_accent, _saved_icon_theme, app)
 
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
