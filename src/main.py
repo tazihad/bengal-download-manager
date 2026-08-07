@@ -525,12 +525,12 @@ FREEDESKTOP_MAP = {
 def get_themed_icon(name, fallback=None):
     """
     Returns an icon for the given symbol name.
-    If a custom icon theme is active, resolves from the selected system icon theme first.
-    Otherwise, returns the clean vector monochrome icon.
+    If a custom system icon theme is active (e.g. Breeze, Ubuntu, Adwaita), resolves from system icons.
+    Otherwise, returns the clean minimal vector stroke monochrome icon from ui/icons.py.
     """
     global CURRENT_ICON_THEME
 
-    if CURRENT_ICON_THEME and str(CURRENT_ICON_THEME).lower() != "automatic":
+    if CURRENT_ICON_THEME and str(CURRENT_ICON_THEME).lower() not in ("automatic", "bdm", "bdm (default)"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
         for alias in aliases:
             ic = QIcon.fromTheme(alias)
@@ -985,7 +985,7 @@ class MainWindow(QMainWindow):
                 padding: 4px 2px;
                 border: none;
                 outline: 0;
-                background-color: palette(window);
+                background-color: palette(base);
                 color: palette(window-text);
             }
             QTreeWidget::item {
