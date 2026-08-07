@@ -1770,7 +1770,8 @@ class MainWindow(QMainWindow):
             self.update_tray_action()
 
         if hasattr(self, "tray_icon") and self.tray_icon:
-            tray_opt = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
+            global CURRENT_TRAY_ICON
+            tray_opt = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
             tray_ic = get_themed_tray_icon(tray_opt)
             if not tray_ic.isNull():
                 self.tray_icon.setIcon(tray_ic)
