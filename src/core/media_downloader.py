@@ -160,9 +160,14 @@ class MediaExtractorWorker(QThread):
 
         for fmt in raw_formats:
             fmt_id = fmt.get("format_id", "")
-            ext = fmt.get("ext", "")
-            vcodec = fmt.get("vcodec", "none")
-            acodec = fmt.get("acodec", "none")
+            ext = (fmt.get("ext") or "").lower()
+            vcodec = fmt.get("vcodec", "none") or "none"
+            acodec = fmt.get("acodec", "none") or "none"
+
+            # Filter out non-media formats like mhtml, web page archives, or storyboards
+            if ext in ("mhtml", "html", "htm") or (vcodec == "none" and acodec == "none"):
+                continue
+
             height = fmt.get("height")
             width = fmt.get("width")
             filesize = fmt.get("filesize") or fmt.get("filesize_approx")

@@ -141,6 +141,7 @@ def test_download_dialogs_window_stacking_parentage(qapp):
     assert progress_dlg.windowModality() == Qt.WindowModality.NonModal
     assert progress_dlg.isWindow()
     progress_dlg.close()
+    worker.deleteLater()
 
     complete_dlg = DownloadCompleteDialog({"url": "http://example.com/test.iso", "path": "/tmp/test.iso", "size": "10 MB"}, None)
     assert complete_dlg.parent() is None
@@ -172,6 +173,8 @@ def test_download_progress_dialog_downloaded_formatting(qapp):
     # Test completion formatting (100.00%)
     progress_dlg.on_finished(0, "Complete")
     assert "(100.00%)" in progress_dlg.lbl_downloaded.text()
+    progress_dlg.close()
+    worker.deleteLater()
 
 def test_programs_category_and_icon_resolution(qapp):
     from main import get_category_for_filename, get_file_icon, CATEGORY_EXTENSIONS

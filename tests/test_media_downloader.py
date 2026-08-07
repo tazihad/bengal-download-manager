@@ -57,6 +57,14 @@ def test_parse_single_video_data():
                 "width": None,
                 "filesize": 5000000,
                 "url": "https://example.com/audio.m4a"
+            },
+            {
+                "format_id": "mhtml",
+                "ext": "mhtml",
+                "vcodec": "none",
+                "acodec": "none",
+                "filesize": 1000,
+                "url": "https://example.com/page.mhtml"
             }
         ]
     }
