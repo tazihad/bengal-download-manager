@@ -217,7 +217,7 @@ def test_options_dialog_startup_checkbox_ordering_and_browser_removal(qapp):
     assert opt_dlg.chk_start_minimized.text() == "Start minimized in system tray on system startup"
     
     # Check widget order in vbox_startup
-    grp_startup = opt_dlg.general_tab.findChild(object, "")
+    grp_startup = opt_dlg.startup_tab.findChild(object, "")
     # Verify chk_startup comes before chk_start_minimized
     layout = opt_dlg.chk_startup.parentWidget().layout()
     startup_idx = layout.indexOf(opt_dlg.chk_startup)

@@ -42,6 +42,10 @@ class OptionsDialog(QDialog):
         self.setup_general_tab()
         self.tabs.addTab(self.general_tab, "General")
 
+        self.startup_tab = QWidget()
+        self.setup_startup_tab()
+        self.tabs.addTab(self.startup_tab, "Startup")
+
         self.saveto_tab = QWidget()
         self.setup_saveto_tab()
         self.tabs.addTab(self.saveto_tab, "Save To")
@@ -79,8 +83,8 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        # 1. Theme & Appearance
-        grp_theme = QGroupBox("Theme & Appearance")
+        # 1. Theme and Appearance
+        grp_theme = QGroupBox("Theme and Appearance")
         vbox_theme = QVBoxLayout()
         vbox_theme.setContentsMargins(10, 15, 10, 10)
         vbox_theme.setSpacing(10)
@@ -162,45 +166,7 @@ class OptionsDialog(QDialog):
         grp_theme.setLayout(vbox_theme)
         layout.addWidget(grp_theme)
 
-        # 2. Startup & Integration
-        grp_startup = QGroupBox("Startup & Integration")
-        vbox_startup = QVBoxLayout()
-        vbox_startup.setContentsMargins(10, 15, 10, 10)
-        vbox_startup.setSpacing(10)
-        
-        self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
-        self.chk_startup.setChecked(is_autostart_enabled())
-        self.chk_startup.setToolTip("Automatically launch Bengal Download Manager on system boot")
-        vbox_startup.addWidget(self.chk_startup)
-        
-        self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
-        # Load from parent (MainWindow) settings
-        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
-        self.chk_start_minimized.setToolTip("Launch hidden in system tray when autostarting")
-        vbox_startup.addWidget(self.chk_start_minimized)
-        
-        grp_startup.setLayout(vbox_startup)
-        layout.addWidget(grp_startup)
-        
-        # 2. Engine Settings
-        grp_engine = QGroupBox("Engine Settings")
-        vbox_engine = QVBoxLayout()
-        vbox_engine.setContentsMargins(10, 15, 10, 10)
-        vbox_engine.setSpacing(12)
-        
-        # Engine status label
-        self.lbl_engine = QLabel("Active Engine: Checking...")
-        self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_engine.setToolTip("Connection status of backend Aria2 download engine")
-        vbox_engine.addWidget(self.lbl_engine)
-        
-        # Initial check
-        self.refresh_engine_status()
-        
-        grp_engine.setLayout(vbox_engine)
-        layout.addWidget(grp_engine)
-
-        # 3. UI Settings
+        # 2. UI Settings (Right after Theme)
         grp_ui = QGroupBox("UI Settings")
         vbox_ui = QVBoxLayout()
         vbox_ui.setContentsMargins(10, 15, 10, 10)
@@ -238,6 +204,49 @@ class OptionsDialog(QDialog):
 
         grp_ui.setLayout(vbox_ui)
         layout.addWidget(grp_ui)
+
+        # 3. Engine Settings
+        grp_engine = QGroupBox("Engine Settings")
+        vbox_engine = QVBoxLayout()
+        vbox_engine.setContentsMargins(10, 15, 10, 10)
+        vbox_engine.setSpacing(12)
+        
+        # Engine status label
+        self.lbl_engine = QLabel("Active Engine: Checking...")
+        self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_engine.setToolTip("Connection status of backend Aria2 download engine")
+        vbox_engine.addWidget(self.lbl_engine)
+        
+        # Initial check
+        self.refresh_engine_status()
+        
+        grp_engine.setLayout(vbox_engine)
+        layout.addWidget(grp_engine)
+
+    def setup_startup_tab(self):
+        layout = QVBoxLayout(self.startup_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(20)
+
+        # Startup and Integration
+        grp_startup = QGroupBox("Startup and Integration")
+        vbox_startup = QVBoxLayout()
+        vbox_startup.setContentsMargins(10, 15, 10, 10)
+        vbox_startup.setSpacing(10)
+        
+        self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
+        self.chk_startup.setChecked(is_autostart_enabled())
+        self.chk_startup.setToolTip("Automatically launch Bengal Download Manager on system boot")
+        vbox_startup.addWidget(self.chk_startup)
+        
+        self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
+        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
+        self.chk_start_minimized.setToolTip("Launch hidden in system tray when autostarting")
+        vbox_startup.addWidget(self.chk_start_minimized)
+        
+        grp_startup.setLayout(vbox_startup)
+        layout.addWidget(grp_startup)
+        layout.addStretch()
 
         layout.addStretch()
 
