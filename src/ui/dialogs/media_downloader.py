@@ -453,12 +453,16 @@ class MediaDownloaderDialog(QDialog):
                 ver_text = display_text[len(tool_name) + 2 : -1]
 
             if status_color == "yellow":
+                dl_label = ver_text if ("Downloading" in ver_text or "Checking" in ver_text) else f"{ver_text} Downloading..."
+                lbl_name.setText(f"{tool_name} ({dl_label})")
                 lbl_name.setStyleSheet("color: #e5a50a; font-weight: bold;")
-                btn_info.setToolTip(f"{tool_name}: ({ver_text})")
+                btn_info.setToolTip(f"{tool_name}: ({dl_label})")
             elif status_color == "green":
+                lbl_name.setText(tool_name)
                 lbl_name.setStyleSheet("color: #2ec27e; font-weight: bold;")
                 btn_info.setToolTip(f"{tool_name} Version: {ver_text}")
             else:
+                lbl_name.setText(tool_name)
                 lbl_name.setStyleSheet("color: gray; font-weight: bold;")
                 btn_info.setToolTip(f"{tool_name}: Not Installed")
 
