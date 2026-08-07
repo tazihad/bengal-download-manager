@@ -1,6 +1,7 @@
 """
 Media Downloader Dialog for Bengal Download Manager.
-Provides link input, media link parsing, quality chooser, codec filters, format table sorting, and playlist batch selection.
+Provides link input, media link parsing, dependency status bar (yt-dlp, ffmpeg, ffprobe, deno, AtomicParsley),
+quality chooser, codec filters, format table sorting, and playlist batch selection.
 """
 
 import sys
@@ -13,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
-from core.media_downloader import YtDlpManager, MediaExtractorWorker
+from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker
 
 
 class MediaDownloaderDialog(QDialog):
@@ -28,13 +29,14 @@ class MediaDownloaderDialog(QDialog):
         self._main_window = main_window or parent
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
-        self.resize(780, 600)
-        self.setMinimumSize(640, 480)
+        self.resize(820, 640)
+        self.setMinimumSize(660, 500)
 
         # Standalone top-level window flag
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
 
         self._worker = None
+        self._dep_worker = None
         self._current_video_data = None
         self._current_playlist_data = None
 
@@ -49,6 +51,7 @@ class MediaDownloaderDialog(QDialog):
 
         self._setup_ui()
         self._load_preferences()
+        self.check_all_dependencies(force_download=False)
 
     @property
     def main_win(self):
@@ -57,12 +60,50 @@ class MediaDownloaderDialog(QDialog):
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(14)
+        main_layout.setSpacing(12)
+
+        # 0. Dependency Engines & Status Section (Above Enter URL)
+        dep_frame = QFrame()
+        dep_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        dep_frame.setStyleSheet("""
+            QFrame {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 6px;
+            }
+        """)
+        dep_layout = QHBoxLayout(dep_frame)
+        dep_layout.setContentsMargins(10, 6, 10, 6)
+        dep_layout.setSpacing(10)
+
+        lbl_dep_title = QLabel("Engines:")
+        font_dep_title = QFont()
+        font_dep_title.setBold(True)
+        lbl_dep_title.setFont(font_dep_title)
+        dep_layout.addWidget(lbl_dep_title)
+
+        self.dep_labels = {}
+        tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
+        for tool in tool_names:
+            lbl = QLabel(f"{tool} (...)")
+            lbl.setStyleSheet("color: gray; font-weight: bold;")
+            self.dep_labels[tool] = lbl
+            dep_layout.addWidget(lbl)
+
+        dep_layout.addStretch()
+
+        self.btn_update_deps = QPushButton("Update Dependencies")
+        self.btn_update_deps.setFixedHeight(28)
+        self.btn_update_deps.setToolTip("Check and download latest yt-dlp, ffmpeg, ffprobe, deno, and AtomicParsley engines")
+        self.btn_update_deps.clicked.connect(self.update_all_dependencies)
+        dep_layout.addWidget(self.btn_update_deps)
+
+        main_layout.addWidget(dep_frame)
 
         # 1. Header Area: "Enter URL"
         lbl_header = QLabel("Enter URL")
         header_font = QFont()
-        header_font.setPointSize(13)
+        header_font.setPointSize(12)
         header_font.setBold(True)
         lbl_header.setFont(header_font)
         main_layout.addWidget(lbl_header)
@@ -121,7 +162,7 @@ class MediaDownloaderDialog(QDialog):
         page_empty = QWidget()
         empty_layout = QVBoxLayout(page_empty)
         empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_empty = QLabel("Enter a video or playlist link above and click 'Analyze Link' to view download options.")
+        lbl_empty = QLabel("Enter a video or playlist link above and click 'Analyze' to view download options.")
         lbl_empty.setStyleSheet("color: gray;")
         empty_layout.addWidget(lbl_empty)
         self.stack.addWidget(page_empty)
@@ -144,7 +185,7 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setFixedHeight(34)
         self.btn_download.setFixedWidth(150)
         self.btn_download.setEnabled(False)
-        self.btn_download.setToolTip("Start download for selected format (merges video + audio) or playlist items")
+        self.btn_download.setToolTip("Start download for selected format (merges video + audio + thumbnail + subtitles)")
         self.btn_download.clicked.connect(self._on_download_clicked)
 
         self.btn_close = QPushButton("Close")
@@ -326,6 +367,32 @@ class MediaDownloaderDialog(QDialog):
 
         layout.addWidget(self.tbl_playlist, stretch=1)
 
+    def check_all_dependencies(self, force_download: bool = False):
+        """Spawns DependencyManagerWorker to verify and install missing engines."""
+        if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
+            return
+
+        self._dep_worker = DependencyManagerWorker(force_download=force_download)
+        self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
+        self._dep_worker.all_finished_signal.connect(lambda: self.btn_update_deps.setEnabled(True))
+        self._dep_worker.start()
+
+    def update_all_dependencies(self):
+        """Forces checking and updating of all 5 dependency tools."""
+        self.btn_update_deps.setEnabled(False)
+        self.check_all_dependencies(force_download=True)
+
+    def _on_dep_status_updated(self, tool_name: str, display_text: str, status_color: str):
+        if tool_name in self.dep_labels:
+            lbl = self.dep_labels[tool_name]
+            lbl.setText(display_text)
+            if status_color == "green":
+                lbl.setStyleSheet("color: #2ec27e; font-weight: bold;")
+            elif status_color == "yellow":
+                lbl.setStyleSheet("color: #e5a50a; font-weight: bold;")
+            else:
+                lbl.setStyleSheet("color: gray; font-weight: bold;")
+
     def _on_ctrl_v_paste(self):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
             return
@@ -466,7 +533,14 @@ class MediaDownloaderDialog(QDialog):
         curr_idx = self.cmb_quality_preset.currentIndex()
         self.cmb_quality_preset.blockSignals(True)
         self.cmb_quality_preset.clear()
-        self.cmb_quality_preset.addItems(preset_items)
+
+        model = self.cmb_quality_preset.model()
+        for idx, label in enumerate(preset_items):
+            self.cmb_quality_preset.addItem(label)
+            item = model.item(idx)
+            if item:
+                item.setEnabled(True)
+
         self.cmb_quality_preset.setCurrentIndex(min(max(0, curr_idx), len(preset_items) - 1))
         self.cmb_quality_preset.blockSignals(False)
 
@@ -799,6 +873,13 @@ class MediaDownloaderDialog(QDialog):
                 if self._worker.isRunning():
                     self._worker.terminate()
                     self._worker.wait(1000)
+            except Exception:
+                pass
+        if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
+            try:
+                self._dep_worker.requestInterruption()
+                self._dep_worker.quit()
+                self._dep_worker.wait(1000)
             except Exception:
                 pass
         super().closeEvent(event)
