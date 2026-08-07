@@ -51,7 +51,7 @@ DEPENDENCY_TOOLS = {
     "AtomicParsley": {
         "binary_name": "AtomicParsley",
         "version_cmd": ["-v"],
-        "url": "https://github.com/atomicparsley/atomicparsley/releases/latest/download/AtomicParsley-Linux.zip",
+        "url": "https://github.com/wez/atomicparsley/releases/download/20240608.083822.1ed9031/AtomicParsleyLinux.zip",
         "type": "zip",
         "extract_files": ["AtomicParsley"]
     }
