@@ -530,6 +530,12 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 background-color: palette(mid);
                 margin: 4px 6px;
             }
+            QPushButton:disabled {
+                color: palette(disabled, button-text);
+                background-color: palette(disabled, window);
+                border: 1px solid palette(disabled, mid);
+                opacity: 0.5;
+            }
         """)
 
     for w in app.allWidgets():
