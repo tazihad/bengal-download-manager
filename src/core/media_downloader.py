@@ -62,6 +62,14 @@ def get_tool_path(tool_name: str) -> str:
     """Returns executable path for tool, checking BIN_DIR first, then system PATH."""
     if tool_name not in DEPENDENCY_TOOLS:
         return ""
+    if tool_name == "yt-dlp":
+        if YT_DLP_BIN.exists() and os.access(YT_DLP_BIN, os.X_OK):
+            return str(YT_DLP_BIN)
+        system_path = shutil.which("yt-dlp")
+        if system_path:
+            return system_path
+        return str(YT_DLP_BIN)
+
     binary_name = DEPENDENCY_TOOLS[tool_name]["binary_name"]
     local_bin = BIN_DIR / binary_name
     if local_bin.exists() and os.access(local_bin, os.X_OK):
