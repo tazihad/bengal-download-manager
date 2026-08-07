@@ -366,6 +366,52 @@ def test_options_dialog_theme_selection(qapp):
     opt_dlg.close()
     window.close()
 
+def test_main_window_restore_window(qapp):
+    from main import MainWindow
+
+    window = MainWindow(start_ipc=False)
+    window.hide()
+    assert window.isHidden()
+
+    window.restore_window()
+    assert window.isVisible()
+    assert not window.isMinimized()
+
+    window.showMinimized()
+    assert window.isMinimized()
+
+    window.restore_window()
+    assert not window.isMinimized()
+    assert window.isVisible()
+    window.close()
+
+def test_single_instance_server_ipc(qapp, monkeypatch):
+    import time
+    from main import SingleInstanceServer, check_single_instance
+    from PyQt6.QtCore import QCoreApplication
+
+    test_key = "bengal-dm-test-single-instance-key"
+    received_payloads = []
+
+    server = SingleInstanceServer(key=test_key)
+    server.messageReceived.connect(lambda p: received_payloads.append(p))
+    server.start()
+
+    # Simulate secondary instance connecting
+    connected = check_single_instance(key=test_key, timeout_ms=1000)
+    assert connected is True
+
+    # Process Qt event loop to let server handle incoming socket connection
+    for _ in range(10):
+        QCoreApplication.processEvents()
+        time.sleep(0.01)
+
+    assert len(received_payloads) == 1
+    assert received_payloads[0].get("command") == "show"
+
+    server.stop()
+
+
 
 
 

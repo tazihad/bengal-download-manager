@@ -17,15 +17,17 @@ from core.utils import (
 from core.config import load_category_config, save_category_config
 
 class OptionsDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, main_window=None, parent=None):
+        # Pass parent=None to QDialog superclass so it is initialized as an independent top-level window in taskbar panels while sharing WM_CLASS
+        super().__init__(None)
+        self._main_window = main_window or parent
         self.setWindowTitle("Options")
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedSize(500, 520)
         
         # Set window flags so Options dialog appears as an independent top-level window in taskbar panels
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
-        
+
         self.config_data = load_category_config()
         self.proxy_data = load_proxy_config()
         self.extension_data = load_extension_config()
@@ -34,7 +36,7 @@ class OptionsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
-        
+
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
         
@@ -77,6 +79,10 @@ class OptionsDialog(QDialog):
         btn_layout.addWidget(self.btn_ok)
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
+
+    @property
+    def main_win(self):
+        return getattr(self, "_main_window", None) or self.parent()
 
     def setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
@@ -148,11 +154,12 @@ class OptionsDialog(QDialog):
         current_accent = "BDM (Default)"
         current_icon_theme = "BDM (Default)"
         current_tray_icon = "App Icon (Default)"
-        if self.parent() and hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
-            current_theme = self.parent().settings.get("theme", "BDM Dark (Default)")
-            current_accent = self.parent().settings.get("accent", "BDM (Default)")
-            current_icon_theme = self.parent().settings.get("icon_theme", "BDM (Default)")
-            current_tray_icon = self.parent().settings.get("tray_icon", "App Icon (Default)")
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            current_theme = self.main_win.settings.get("theme", "BDM Dark (Default)")
+            current_accent = self.main_win.settings.get("accent", "BDM (Default)")
+            current_icon_theme = self.main_win.settings.get("icon_theme", "BDM (Default)")
+            current_tray_icon = self.main_win.settings.get("tray_icon", "App Icon (Default)")
+
 
         try:
             from main import normalize_theme_name, normalize_accent_name, normalize_icon_theme_name, normalize_tray_icon_name
@@ -211,8 +218,9 @@ class OptionsDialog(QDialog):
 
         # Load saved scale setting from parent if available
         current_scale = "100%"
-        if self.parent() and hasattr(self.parent(), "settings"):
-            current_scale = self.parent().settings.get("ui_scale", "100%")
+        if self.main_win and hasattr(self.main_win, "settings"):
+            current_scale = self.main_win.settings.get("ui_scale", "100%")
+
         self.initial_scale = current_scale
 
         idx = self.combo_scale.findText(current_scale)
@@ -268,7 +276,8 @@ class OptionsDialog(QDialog):
         vbox_startup.addWidget(self.chk_startup)
         
         self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
-        self.chk_start_minimized.setChecked(getattr(self.parent(), "start_minimized_on_autostart", False))
+        self.chk_start_minimized.setChecked(getattr(self.main_win, "start_minimized_on_autostart", False))
+
         self.chk_start_minimized.setToolTip("Launch hidden in system tray when autostarting")
         vbox_startup.addWidget(self.chk_start_minimized)
         
@@ -702,14 +711,14 @@ class OptionsDialog(QDialog):
         a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
         tr = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
-        if self.parent():
-            preview_fn = getattr(self.parent(), "preview_appearance", None)
+        if self.main_win:
+            preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
                 preview_fn(t, a, i, tr)
 
     def reject(self):
-        if self.parent():
-            preview_fn = getattr(self.parent(), "preview_appearance", None)
+        if self.main_win:
+            preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
                 t = getattr(self, 'initial_theme', 'BDM Dark (Default)')
                 a = getattr(self, 'initial_accent', 'BDM (Default)')
@@ -730,21 +739,22 @@ class OptionsDialog(QDialog):
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
         # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, and tray_icon to parent (MainWindow)
-        if self.parent():
-            setattr(self.parent(), "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
-            if hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
-                self.parent().settings["ui_scale"] = new_scale
-                self.parent().settings["theme"] = new_theme
-                self.parent().settings["accent"] = new_accent
-                self.parent().settings["icon_theme"] = new_icon_theme
-                self.parent().settings["tray_icon"] = new_tray_icon
-            apply_fn = getattr(self.parent(), "apply_appearance_setting", None)
+        if self.main_win:
+            setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
+            if hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+                self.main_win.settings["ui_scale"] = new_scale
+                self.main_win.settings["theme"] = new_theme
+                self.main_win.settings["accent"] = new_accent
+                self.main_win.settings["icon_theme"] = new_icon_theme
+                self.main_win.settings["tray_icon"] = new_tray_icon
+            apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
                 apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon)
             else:
-                save_fn = getattr(self.parent(), "save_settings", None)
+                save_fn = getattr(self.main_win, "save_settings", None)
                 if callable(save_fn):
                     save_fn()
+
 
         set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
         self.save_proxy_data()

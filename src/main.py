@@ -31,6 +31,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+
 
 from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
@@ -130,6 +132,69 @@ class TcpListenerThread(QThread):
                 self.server.shutdown()
                 self.server.server_close()
             threading.Thread(target=cleanup, daemon=True).start()
+
+# --- SINGLE INSTANCE IPC HELPERS ---
+def get_single_instance_key():
+    import getpass
+    user_identifier = str(os.getuid()) if hasattr(os, 'getuid') else getpass.getuser()
+    return f"bengal-download-manager-single-instance-{user_identifier}"
+
+class SingleInstanceServer(QObject):
+    messageReceived = pyqtSignal(dict)
+
+    def __init__(self, key=None, parent=None):
+        super().__init__(parent)
+        self.key = key or get_single_instance_key()
+        self.server = QLocalServer(self)
+        self.server.newConnection.connect(self._on_new_connection)
+
+    def start(self):
+        QLocalServer.removeServer(self.key)
+        if not self.server.listen(self.key):
+            print(f"Warning: SingleInstanceServer could not listen on key '{self.key}': {self.server.errorString()}")
+
+    def stop(self):
+        if self.server and self.server.isListening():
+            self.server.close()
+            QLocalServer.removeServer(self.key)
+
+    def _on_new_connection(self):
+        client = self.server.nextPendingConnection()
+        if client:
+            client.readyRead.connect(lambda c=client: self._read_client(c))
+
+    def _read_client(self, client):
+        try:
+            data = client.readAll().data()
+            if data:
+                payload = json.loads(data.decode('utf-8'))
+                self.messageReceived.emit(payload)
+        except Exception as e:
+            print(f"SingleInstanceServer read error: {e}")
+        finally:
+            client.deleteLater()
+
+def check_single_instance(key=None, timeout_ms=500):
+    """
+    Attempts to connect to an existing running instance of Bengal Download Manager.
+    If connected, sends invocation arguments to the primary instance and returns True.
+    Otherwise returns False.
+    """
+    target_key = key or get_single_instance_key()
+    socket = QLocalSocket()
+    socket.connectToServer(target_key)
+    if socket.waitForConnected(timeout_ms):
+        msg_payload = {
+            "command": "show",
+            "args": sys.argv[1:]
+        }
+        data = json.dumps(msg_payload).encode('utf-8')
+        socket.write(data)
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        return True
+    return False
+
 
 class EmptyAreaClickFilter(QObject):
     def __init__(self, table, parent=None):
@@ -943,6 +1008,10 @@ class MainWindow(QMainWindow):
         self.listener_thread.stop()
         self.listener_thread.wait()
         
+        if hasattr(self, 'single_instance_server') and self.single_instance_server:
+            self.single_instance_server.stop()
+
+        
         self.stop_all_downloads()
         # Stop the timer before closing
         self.timestamp_timer.stop() 
@@ -1302,15 +1371,24 @@ class MainWindow(QMainWindow):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
             self.toggle_window()
 
+    def restore_window(self):
+        """Restores the window from minimized or hidden state and brings it to the foreground."""
+        if self.isMinimized():
+            self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+        self.show()
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        self.update_tray_action()
+
     def toggle_window(self):
         """Toggles the visibility of the main window."""
-        if self.isVisible():
+        if self.isVisible() and not self.isMinimized():
             self.hide()
+            self.update_tray_action()
         else:
-            self.showNormal()
-            self.activateWindow()
-            self.raise_()
-        self.update_tray_action()
+            self.restore_window()
+
 
     def update_tray_action(self):
         """Updates the tray action text and icon based on window visibility."""
@@ -2867,10 +2945,17 @@ class MainWindow(QMainWindow):
     
     def open_options(self):
         from ui.dialogs import OptionsDialog
-        # Keep a reference to prevent garbage collection
-        self._options_dlg = OptionsDialog(self)
+        if hasattr(self, "_options_dlg") and self._options_dlg and self._options_dlg.isVisible():
+            self._options_dlg.raise_()
+            self._options_dlg.activateWindow()
+            return
+        # Top-level window (parent=None) sharing app WM_CLASS so it appears as a separate icon in taskbar panel
+        self._options_dlg = OptionsDialog(main_window=self)
         self._options_dlg.accepted.connect(self._handle_options_accepted)
         self._options_dlg.show()
+        self._options_dlg.raise_()
+        self._options_dlg.activateWindow()
+
 
     def _handle_options_accepted(self):
         # Restart aria2 daemon to apply new port/token
@@ -2937,6 +3022,12 @@ if __name__ == "__main__":
     app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
 
+    # --- SINGLE INSTANCE ENFORCEMENT ---
+    if "--no-single-instance" not in sys.argv:
+        if check_single_instance():
+            print("Bengal Download Manager is already running. Primary instance brought to focus.")
+            sys.exit(0)
+
     _saved_theme = "BDM Dark (Default)"
     _saved_accent = "BDM (Default)"
     _saved_icon_theme = "BDM (Default)"
@@ -2966,6 +3057,35 @@ if __name__ == "__main__":
     app.setWindowIcon(app_icon)
     
     window = MainWindow()
+
+    use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
+
+    # Start single instance server on primary instance if enabled
+    if "--no-single-instance" not in sys.argv:
+        single_instance_server = SingleInstanceServer()
+        def handle_single_instance_msg(payload):
+            cmd = payload.get("command", "show")
+            args = payload.get("args", [])
+            if "--minimized" not in args:
+                window.restore_window()
+                if use_qml and 'qml_engine' in locals() and qml_engine.rootObjects():
+                    for root in qml_engine.rootObjects():
+                        if hasattr(root, "show"):
+                            root.show()
+                        if hasattr(root, "showNormal"):
+                            root.showNormal()
+                        if hasattr(root, "raise_"):
+                            root.raise_()
+                        if hasattr(root, "requestActivate"):
+                            root.requestActivate()
+            for arg in args:
+                if isinstance(arg, str) and (arg.startswith("http://") or arg.startswith("https://")):
+                    window.process_incoming_url(arg)
+
+        single_instance_server.messageReceived.connect(handle_single_instance_msg)
+        single_instance_server.start()
+        window.single_instance_server = single_instance_server
+
     if "--minimized" in sys.argv:
         window.start_minimized = True
         QTimer.singleShot(0, window.hide)
@@ -2973,7 +3093,6 @@ if __name__ == "__main__":
     else:
         window.start_minimized = False
 
-    use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
     if use_qml:
         try:
             from PyQt6.QtQml import QQmlApplicationEngine
