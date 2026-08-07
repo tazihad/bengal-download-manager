@@ -537,6 +537,9 @@ def get_themed_icon(name, fallback=None):
             if not ic.isNull() and ic.name() != "":
                 return ic
 
+    if name in ("tray", "app_icon"):
+        return get_monochrome_app_icon()
+
     from ui.icons import get_monochrome_icon
     icon = get_monochrome_icon(name)
     if not icon.isNull():
@@ -681,6 +684,39 @@ def get_app_icon():
                 
     # Fallback to system icon if nothing found
     return QIcon.fromTheme("system-run", QIcon(":/icons/fallback.png")) # Just a safe fallback
+
+
+def get_monochrome_app_icon(color=None, size=24):
+    """
+    Converts the Bengal Download Manager application logo into a clean, sharp
+    monochrome icon adapting to light/dark window text colors for system tray.
+    """
+    app = QApplication.instance()
+    if color is None:
+        if app:
+            color = app.palette().color(QPalette.ColorRole.WindowText)
+        else:
+            color = QColor("#ffffff")
+
+    app_ic = get_app_icon()
+    if app_ic.isNull():
+        return app_ic
+    
+    pm = app_ic.pixmap(size * 2, size * 2)
+    img = pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    
+    r, g, b, _ = color.getRgb()
+    for x in range(img.width()):
+        for y in range(img.height()):
+            pixel_color = img.pixelColor(x, y)
+            alpha = pixel_color.alpha()
+            if alpha > 0:
+                img.setPixelColor(x, y, QColor(r, g, b, alpha))
+                
+    mono_pm = QPixmap.fromImage(img)
+    ic = QIcon()
+    ic.addPixmap(mono_pm)
+    return ic
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
@@ -1126,8 +1162,10 @@ class MainWindow(QMainWindow):
         try:
             self.tray_icon = QSystemTrayIcon(self)
 
-            # Set icon from window icon
-            icon = self.windowIcon()
+            # Set monochrome app icon for tray
+            icon = get_monochrome_app_icon()
+            if icon.isNull():
+                icon = self.windowIcon()
             if icon.isNull():
                 icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
             self.tray_icon.setIcon(icon)        
@@ -1680,7 +1718,9 @@ class MainWindow(QMainWindow):
             self.update_tray_action()
 
         if hasattr(self, "tray_icon") and self.tray_icon:
-            tray_ic = get_themed_icon("all_downloads")
+            tray_ic = get_themed_icon("tray")
+            if tray_ic.isNull():
+                tray_ic = get_monochrome_app_icon()
             if not tray_ic.isNull():
                 self.tray_icon.setIcon(tray_ic)
 
