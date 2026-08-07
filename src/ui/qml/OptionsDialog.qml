@@ -40,6 +40,14 @@ Kirigami.Dialog {
                 Layout.fillWidth: true
             }
 
+            Controls.ComboBox {
+                id: comboTrayIcon
+                Kirigami.FormData.label: "Tray Icon:"
+                model: ["App Icon (Default)", "Automatic", "Monochrome Dark", "Monochrome Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
+                currentIndex: 0
+                Layout.fillWidth: true
+            }
+
             Controls.CheckBox {
                 id: chkAutoStart
                 Kirigami.FormData.label: "Startup:"

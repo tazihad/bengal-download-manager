@@ -268,12 +268,15 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     return pal
 
 
-def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None):
+CURRENT_TRAY_ICON = "App Icon (Default)"
+
+
+def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None):
     """
     Applies application theme ('Automatic', 'BDM Light', 'BDM Dark', 'Ubuntu Light', 'Ubuntu Dark',
     'IDM Classic', 'Kirigami Light', 'Kirigami Dark', 'Breeze Light', 'Breeze Dark',
     'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark'),
-    custom accent color, and custom toolbar icon set.
+    custom accent color, custom toolbar icon set, and custom system tray icon set.
     """
     if app is None:
         app = QApplication.instance()
@@ -354,13 +357,18 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None
             app.setPalette(p)
 
     # Icon theme handling
-    global CURRENT_ICON_THEME
+    global CURRENT_ICON_THEME, CURRENT_TRAY_ICON
     if icon_theme_name:
         CURRENT_ICON_THEME = str(icon_theme_name).strip()
     else:
-        CURRENT_ICON_THEME = "BDM"
+        CURRENT_ICON_THEME = "BDM (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm"):
+    if tray_icon_name:
+        CURRENT_TRAY_ICON = str(tray_icon_name).strip()
+    else:
+        CURRENT_TRAY_ICON = "App Icon (Default)"
+
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm (default)"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -550,6 +558,44 @@ def get_themed_icon(name, fallback=None):
     if (icon.isNull() or icon.name() == "") and fallback:
         icon = fallback if isinstance(fallback, QIcon) else QIcon(fallback)
     return icon
+
+
+def get_themed_tray_icon(tray_option=None):
+    """
+    Resolves system tray icon based on tray icon theme selection.
+    Options: 'App Icon (Default)', 'Automatic', 'Monochrome Light', 'Monochrome Dark',
+    or system icon themes ('Breeze', 'Ubuntu', 'Adwaita', etc.).
+    """
+    global CURRENT_TRAY_ICON
+    if tray_option is None:
+        tray_option = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else "App Icon (Default)"
+
+    opt_lower = str(tray_option).strip().lower()
+
+    if opt_lower in ("app icon (default)", "app icon", "app_icon", "bdm app icon"):
+        icon = get_app_icon()
+        if not icon.isNull():
+            return icon
+    elif opt_lower in ("monochrome light", "monochromelight", "white"):
+        return get_monochrome_app_icon(color=QColor("#ffffff"))
+    elif opt_lower in ("monochrome dark", "monochromedark", "black"):
+        return get_monochrome_app_icon(color=QColor("#232629"))
+    elif opt_lower == "automatic":
+        return get_monochrome_app_icon()
+    else:
+        aliases = FREEDESKTOP_MAP.get("all_downloads", ["folder-download", "download", "folder"])
+        for alias in aliases:
+            ic = QIcon.fromTheme(alias)
+            if not ic.isNull() and ic.name() != "":
+                return ic
+
+    icon = get_app_icon()
+    if not icon.isNull():
+        return icon
+    app = QApplication.instance()
+    if app:
+        return app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+    return QIcon()
 
 
 CATEGORY_EXTENSIONS = {
@@ -1645,28 +1691,34 @@ class MainWindow(QMainWindow):
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
                 "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
-                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM (Default)")
+                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM (Default)"),
+                "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
         except Exception:
             pass
 
-    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None):
+    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
         if not hasattr(self, "settings") or not isinstance(self.settings, dict):
             self.settings = {}
         self.settings["theme"] = theme_name
         self.settings["accent"] = accent_name
         self.settings["icon_theme"] = icon_theme_name
-        apply_app_theme(theme_name, accent_name, icon_theme_name)
+        self.settings["tray_icon"] = tray_icon_name
+        apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
         self.save_settings()
-    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None):
-        apply_app_theme(theme_name, accent_name, icon_theme_name)
+        self.refresh_theme_ui()
+
+    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
+        apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
+        self.refresh_theme_ui()
 
     def apply_theme_setting(self, theme_name):
         accent_name = getattr(self, "settings", {}).get("accent", "BDM (Default)")
         icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM (Default)")
-        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name)
+        tray_icon_name = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
+        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name)
 
     def refresh_theme_ui(self):
         # Refresh category tree style & icons
@@ -1718,9 +1770,8 @@ class MainWindow(QMainWindow):
             self.update_tray_action()
 
         if hasattr(self, "tray_icon") and self.tray_icon:
-            tray_ic = get_themed_icon("tray")
-            if tray_ic.isNull():
-                tray_ic = get_monochrome_app_icon()
+            tray_opt = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
+            tray_ic = get_themed_tray_icon(tray_opt)
             if not tray_ic.isNull():
                 self.tray_icon.setIcon(tray_ic)
 
@@ -1747,7 +1798,8 @@ class MainWindow(QMainWindow):
         settings = {
             "theme": "BDM Dark (Default)",
             "accent": "BDM (Default)",
-            "icon_theme": "BDM (Default)"
+            "icon_theme": "BDM (Default)",
+            "tray_icon": "App Icon (Default)"
         }
         config_dir = get_config_dir()
         path = os.path.join(config_dir, "settings.json")
@@ -1779,7 +1831,8 @@ class MainWindow(QMainWindow):
         apply_app_theme(
             settings.get("theme", "BDM Dark (Default)"),
             settings.get("accent", "BDM (Default)"),
-            settings.get("icon_theme", "BDM (Default)")
+            settings.get("icon_theme", "BDM (Default)"),
+            settings.get("tray_icon", "App Icon (Default)")
         )
         return settings
 
@@ -2820,6 +2873,7 @@ if __name__ == "__main__":
     _saved_theme = "BDM Dark (Default)"
     _saved_accent = "BDM (Default)"
     _saved_icon_theme = "BDM (Default)"
+    _saved_tray_icon = "App Icon (Default)"
     try:
         if os.path.exists(_cfg_path):
             with open(_cfg_path, "r") as _f:
@@ -2827,10 +2881,11 @@ if __name__ == "__main__":
                 _saved_theme = _s_data.get("theme", "BDM Dark (Default)")
                 _saved_accent = _s_data.get("accent", "BDM (Default)")
                 _saved_icon_theme = _s_data.get("icon_theme", "BDM (Default)")
+                _saved_tray_icon = _s_data.get("tray_icon", "App Icon (Default)")
     except Exception:
         pass
 
-    apply_app_theme(_saved_theme, _saved_accent, _saved_icon_theme, app)
+    apply_app_theme(_saved_theme, _saved_accent, _saved_icon_theme, _saved_tray_icon, app)
 
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)

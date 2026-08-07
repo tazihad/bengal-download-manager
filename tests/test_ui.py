@@ -300,18 +300,20 @@ def test_options_dialog_ui_scale_dropdown(qapp, tmp_path, monkeypatch):
 
 def test_options_dialog_theme_selection(qapp):
     from ui.dialogs import OptionsDialog
-    from main import MainWindow, apply_app_theme
+    from main import MainWindow, apply_app_theme, get_themed_tray_icon, get_app_icon, get_monochrome_app_icon
 
     window = MainWindow()
     window.settings["theme"] = "BDM Dark (Default)"
     window.settings["accent"] = "BDM (Default)"
     window.settings["icon_theme"] = "BDM (Default)"
+    window.settings["tray_icon"] = "App Icon (Default)"
     opt_dlg = OptionsDialog(window)
 
     # Check combos existence
     assert hasattr(opt_dlg, "combo_theme")
     assert hasattr(opt_dlg, "combo_accent")
     assert hasattr(opt_dlg, "combo_icon_theme")
+    assert hasattr(opt_dlg, "combo_tray_icon")
 
     # Check items count and options
     expected_themes = [
@@ -325,10 +327,11 @@ def test_options_dialog_theme_selection(qapp):
     items = [opt_dlg.combo_theme.itemText(i) for i in range(opt_dlg.combo_theme.count())]
     assert items == expected_themes
 
-    # Check default selected item is BDM Dark (Default)
+    # Check default selected items
     assert opt_dlg.combo_theme.currentText() == "BDM Dark (Default)"
+    assert opt_dlg.combo_tray_icon.currentText() == "App Icon (Default)"
 
-    # Select Ubuntu Dark, Ubuntu Orange, and Breeze Dark
+    # Select Ubuntu Dark, Ubuntu Orange, Breeze Dark, and Monochrome Light
     idx_ub_dark = opt_dlg.combo_theme.findText("Ubuntu Dark")
     assert idx_ub_dark != -1
     opt_dlg.combo_theme.setCurrentIndex(idx_ub_dark)
@@ -337,15 +340,28 @@ def test_options_dialog_theme_selection(qapp):
     assert idx_orange != -1
     opt_dlg.combo_accent.setCurrentIndex(idx_orange)
 
+    idx_mono_light = opt_dlg.combo_tray_icon.findText("Monochrome Light")
+    assert idx_mono_light != -1
+    opt_dlg.combo_tray_icon.setCurrentIndex(idx_mono_light)
+
     opt_dlg.save_and_accept()
     assert window.settings.get("theme") == "Ubuntu Dark"
     assert window.settings.get("accent") == "Ubuntu Orange"
+    assert window.settings.get("tray_icon") == "Monochrome Light"
     assert opt_dlg.get_theme() == "Ubuntu Dark"
     assert opt_dlg.get_accent() == "Ubuntu Orange"
+    assert opt_dlg.get_tray_icon() == "Monochrome Light"
+
+    # Verify get_themed_tray_icon and app icon functions without error
+    assert not get_app_icon().isNull()
+    assert not get_monochrome_app_icon().isNull()
+    for tray_opt in ["App Icon (Default)", "Automatic", "Monochrome Light", "Monochrome Dark"]:
+        ic = get_themed_tray_icon(tray_opt)
+        assert not ic.isNull()
 
     # Verify apply_app_theme functions without exception for all options
     for theme_item in expected_themes:
-        apply_app_theme(theme_item, "Ubuntu Orange", "Breeze", qapp)
+        apply_app_theme(theme_item, "Ubuntu Orange", "Breeze", "App Icon (Default)", qapp)
 
     opt_dlg.close()
     window.close()

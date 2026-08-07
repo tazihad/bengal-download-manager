@@ -124,7 +124,7 @@ class OptionsDialog(QDialog):
         row_theme_accent.addStretch()
         vbox_theme.addLayout(row_theme_accent)
 
-        # Row 2: Icons Theme
+        # Row 2: Icons Theme & Tray Icon Theme
         row_icons = QHBoxLayout()
         lbl_icon_theme = QLabel("Icons:")
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
@@ -133,8 +133,22 @@ class OptionsDialog(QDialog):
         icon_theme_options = ["Adwaita", "BDM (Default)", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
+        lbl_tray_icon = QLabel("Tray Icon:")
+        lbl_tray_icon.setToolTip("Select system tray icon style")
+        self.combo_tray_icon = QComboBox()
+        self.combo_tray_icon.setToolTip("Select system tray icon style")
+        tray_icon_options = [
+            "App Icon (Default)", "Automatic", "Monochrome Dark", 
+            "Monochrome Light", "Adwaita", "Breeze", 
+            "Breeze Dark", "HighColor", "Ubuntu"
+        ]
+        self.combo_tray_icon.addItems(tray_icon_options)
+
         row_icons.addWidget(lbl_icon_theme)
         row_icons.addWidget(self.combo_icon_theme)
+        row_icons.addSpacing(15)
+        row_icons.addWidget(lbl_tray_icon)
+        row_icons.addWidget(self.combo_tray_icon)
         row_icons.addStretch()
         vbox_theme.addLayout(row_icons)
 
@@ -142,14 +156,17 @@ class OptionsDialog(QDialog):
         current_theme = "BDM Dark (Default)"
         current_accent = "BDM (Default)"
         current_icon_theme = "BDM (Default)"
+        current_tray_icon = "App Icon (Default)"
         if self.parent() and hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
             current_theme = self.parent().settings.get("theme", "BDM Dark (Default)")
             current_accent = self.parent().settings.get("accent", "BDM (Default)")
             current_icon_theme = self.parent().settings.get("icon_theme", "BDM (Default)")
+            current_tray_icon = self.parent().settings.get("tray_icon", "App Icon (Default)")
 
         self.initial_theme = current_theme
         self.initial_accent = current_accent
         self.initial_icon_theme = current_icon_theme
+        self.initial_tray_icon = current_tray_icon
 
         idx_t = self.combo_theme.findText(current_theme)
         if idx_t != -1: self.combo_theme.setCurrentIndex(idx_t)
@@ -157,11 +174,14 @@ class OptionsDialog(QDialog):
         if idx_a != -1: self.combo_accent.setCurrentIndex(idx_a)
         idx_i = self.combo_icon_theme.findText(current_icon_theme)
         if idx_i != -1: self.combo_icon_theme.setCurrentIndex(idx_i)
+        idx_tr = self.combo_tray_icon.findText(current_tray_icon)
+        if idx_tr != -1: self.combo_tray_icon.setCurrentIndex(idx_tr)
 
         # Connect live preview signals
         self.combo_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_accent.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_icon_theme.currentTextChanged.connect(self.on_appearance_preview)
+        self.combo_tray_icon.currentTextChanged.connect(self.on_appearance_preview)
 
         grp_theme.setLayout(vbox_theme)
         layout.addWidget(grp_theme)
@@ -674,10 +694,11 @@ class OptionsDialog(QDialog):
         t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
         a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
+        tr = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         if self.parent():
             preview_fn = getattr(self.parent(), "preview_appearance", None)
             if callable(preview_fn):
-                preview_fn(t, a, i)
+                preview_fn(t, a, i, tr)
 
     def reject(self):
         if self.parent():
@@ -686,7 +707,8 @@ class OptionsDialog(QDialog):
                 t = getattr(self, 'initial_theme', 'BDM Dark (Default)')
                 a = getattr(self, 'initial_accent', 'BDM (Default)')
                 i = getattr(self, 'initial_icon_theme', 'BDM (Default)')
-                preview_fn(t, a, i)
+                tr = getattr(self, 'initial_tray_icon', 'App Icon (Default)')
+                preview_fn(t, a, i, tr)
         super().reject()
 
     def save_and_accept(self):
@@ -697,9 +719,10 @@ class OptionsDialog(QDialog):
         new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
         new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
+        new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
-        # Save start_minimized_on_autostart, ui_scale, theme, accent, and icon_theme to parent (MainWindow)
+        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, and tray_icon to parent (MainWindow)
         if self.parent():
             setattr(self.parent(), "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             if hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
@@ -707,9 +730,10 @@ class OptionsDialog(QDialog):
                 self.parent().settings["theme"] = new_theme
                 self.parent().settings["accent"] = new_accent
                 self.parent().settings["icon_theme"] = new_icon_theme
+                self.parent().settings["tray_icon"] = new_tray_icon
             apply_fn = getattr(self.parent(), "apply_appearance_setting", None)
             if callable(apply_fn):
-                apply_fn(new_theme, new_accent, new_icon_theme)
+                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon)
             else:
                 save_fn = getattr(self.parent(), "save_settings", None)
                 if callable(save_fn):
@@ -736,3 +760,6 @@ class OptionsDialog(QDialog):
 
     def get_icon_theme(self):
         return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
+
+    def get_tray_icon(self):
+        return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
