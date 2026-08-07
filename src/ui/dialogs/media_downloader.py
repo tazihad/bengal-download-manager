@@ -1,6 +1,6 @@
 """
 Media Downloader Dialog for Bengal Download Manager.
-Provides link input, media link parsing, quality chooser, and playlist batch selection.
+Provides link input, media link parsing, quality chooser, codec filters, format table sorting, and playlist batch selection.
 """
 
 import sys
@@ -28,8 +28,8 @@ class MediaDownloaderDialog(QDialog):
         self._main_window = main_window or parent
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
-        self.resize(740, 560)
-        self.setMinimumSize(600, 450)
+        self.resize(780, 600)
+        self.setMinimumSize(640, 480)
 
         # Standalone top-level window flag
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
@@ -39,6 +39,7 @@ class MediaDownloaderDialog(QDialog):
         self._current_playlist_data = None
 
         self._setup_ui()
+        self._load_preferences()
 
     @property
     def main_win(self):
@@ -160,25 +161,78 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_video_meta.setStyleSheet("color: gray;")
         layout.addWidget(self.lbl_video_meta)
 
+        # Row 1: Media Quality Preset + Video Format Dropdown + Audio Format Dropdown
         preset_layout = QHBoxLayout()
-        preset_layout.addWidget(QLabel("Media Quality Preset:"))
-        
+        preset_layout.setSpacing(8)
+
+        lbl_preset = QLabel("Quality Preset:")
         self.cmb_quality_preset = QComboBox()
         self.cmb_quality_preset.setFixedHeight(30)
         self.cmb_quality_preset.setToolTip("Select quality preset (auto-merges Video + Audio)")
         self.cmb_quality_preset.addItems([
             "Best Quality (Video + Audio merged)",
-            "1080p Full HD (Video + Audio)",
-            "720p HD (Video + Audio)",
-            "480p SD (Video + Audio)",
+            "4K Ultra HD (2160p)",
+            "2K Quad HD (1440p)",
+            "1080p Full HD",
+            "720p HD",
+            "480p SD",
             "360p Low Quality",
             "Audio Only (MP3)"
         ])
         self.cmb_quality_preset.currentIndexChanged.connect(self._on_preset_changed)
-        preset_layout.addWidget(self.cmb_quality_preset, stretch=1)
+
+        lbl_vfmt = QLabel("Video:")
+        self.cmb_video_format = QComboBox()
+        self.cmb_video_format.setFixedHeight(30)
+        self.cmb_video_format.setToolTip("Filter video container / codec")
+        self.cmb_video_format.addItems([
+            "All Formats",
+            "MP4 (H.264 / AVC)",
+            "WEBM (VP9 / AV1)",
+            "AV1 Codec",
+            "VP9 Codec",
+            "H.264 Codec"
+        ])
+        self.cmb_video_format.currentIndexChanged.connect(self._on_preset_changed)
+
+        lbl_afmt = QLabel("Audio:")
+        self.cmb_audio_format = QComboBox()
+        self.cmb_audio_format.setFixedHeight(30)
+        self.cmb_audio_format.setToolTip("Filter audio container / codec")
+        self.cmb_audio_format.addItems([
+            "All Formats",
+            "MP3 Audio",
+            "M4A / AAC Audio",
+            "OPUS Audio"
+        ])
+        self.cmb_audio_format.currentIndexChanged.connect(self._on_preset_changed)
+
+        preset_layout.addWidget(lbl_preset)
+        preset_layout.addWidget(self.cmb_quality_preset, stretch=2)
+        preset_layout.addWidget(lbl_vfmt)
+        preset_layout.addWidget(self.cmb_video_format, stretch=2)
+        preset_layout.addWidget(lbl_afmt)
+        preset_layout.addWidget(self.cmb_audio_format, stretch=2)
         layout.addLayout(preset_layout)
 
-        lbl_streams = QLabel("Available Formats & Streams:")
+        # Row 2: Checkboxes for Manual Selection Mode & Preferences Persistence
+        chk_layout = QHBoxLayout()
+        chk_layout.setSpacing(15)
+
+        self.chk_manual_selection = QCheckBox("Use Manual Format Selection from Table below")
+        self.chk_manual_selection.setToolTip("Check to manually pick a stream row from the table below; uncheck to use preset controls")
+        self.chk_manual_selection.toggled.connect(self._on_manual_selection_toggled)
+
+        self.chk_save_defaults = QCheckBox("Save Default Preferences")
+        self.chk_save_defaults.setToolTip("Persist currently selected quality, formats, and selection mode for future downloads")
+        self.chk_save_defaults.toggled.connect(self._save_preferences_if_enabled)
+
+        chk_layout.addWidget(self.chk_manual_selection)
+        chk_layout.addWidget(self.chk_save_defaults)
+        chk_layout.addStretch()
+        layout.addLayout(chk_layout)
+
+        lbl_streams = QLabel("Available Formats & Streams (Sorted High to Low Resolution, Audio-Only at Bottom):")
         layout.addWidget(lbl_streams)
 
         self.tbl_formats = QTableWidget()
@@ -188,6 +242,7 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_formats.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_formats.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tbl_formats.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_formats.itemSelectionChanged.connect(self._on_format_table_selection_changed)
         
         font_tbl = self.tbl_formats.font()
         font_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)
@@ -232,6 +287,8 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_playlist_quality.setFixedHeight(30)
         self.cmb_playlist_quality.addItems([
             "Best Available (Video + Audio)",
+            "4K Ultra HD (2160p)",
+            "2K Quad HD (1440p)",
             "1080p Full HD",
             "720p HD",
             "480p SD",
@@ -364,28 +421,40 @@ class MediaDownloaderDialog(QDialog):
         self.progress_bar.setVisible(False)
         self.lbl_status.setText("Analysis finished.")
 
-    def _on_preset_changed(self, idx: int):
-        if not self._current_video_data:
+    def _on_preset_changed(self, idx: int = 0):
+        self._save_preferences_if_enabled()
+        if not self._current_video_data or self.chk_manual_selection.isChecked():
             return
         formats = self._current_video_data.get("formats", [])
         if not formats:
             return
 
+        preset_idx = self.cmb_quality_preset.currentIndex()
+        target_height = 0
+        if preset_idx == 1: target_height = 2160
+        elif preset_idx == 2: target_height = 1440
+        elif preset_idx == 3: target_height = 1080
+        elif preset_idx == 4: target_height = 720
+        elif preset_idx == 5: target_height = 480
+        elif preset_idx == 6: target_height = 360
+
         target_row = 0
-        if idx == 0:
-            target_row = 0
-        elif idx == 1:
-            target_row = self._find_format_row_by_height(1080)
-        elif idx == 2:
-            target_row = self._find_format_row_by_height(720)
-        elif idx == 3:
-            target_row = self._find_format_row_by_height(480)
-        elif idx == 4:
-            target_row = self._find_format_row_by_height(360)
-        elif idx == 5:
+        if preset_idx == 7:
             target_row = self._find_audio_only_row()
+        elif target_height > 0:
+            target_row = self._find_format_row_by_height(target_height)
 
         self.tbl_formats.selectRow(target_row)
+
+    def _on_manual_selection_toggled(self, checked: bool):
+        self.cmb_quality_preset.setEnabled(not checked)
+        self.cmb_video_format.setEnabled(not checked)
+        self.cmb_audio_format.setEnabled(not checked)
+        self._save_preferences_if_enabled()
+
+    def _on_format_table_selection_changed(self):
+        if self.chk_manual_selection.isChecked():
+            self._save_preferences_if_enabled()
 
     def _find_format_row_by_height(self, target_height: int) -> int:
         formats = self._current_video_data.get("formats", [])
@@ -423,37 +492,118 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setText(f"Download Selected ({checked_count})")
         self.btn_download.setEnabled(checked_count > 0)
 
+    def _load_preferences(self):
+        from core.config import load_category_config
+        config = load_category_config()
+        prefs = config.get("media_downloader_defaults", {})
+
+        self.cmb_quality_preset.blockSignals(True)
+        self.cmb_video_format.blockSignals(True)
+        self.cmb_audio_format.blockSignals(True)
+        self.chk_manual_selection.blockSignals(True)
+        self.chk_save_defaults.blockSignals(True)
+
+        preset_idx = min(max(0, prefs.get("preset_idx", 0)), self.cmb_quality_preset.count() - 1)
+        vfmt_idx = min(max(0, prefs.get("video_format_idx", 0)), self.cmb_video_format.count() - 1)
+        afmt_idx = min(max(0, prefs.get("audio_format_idx", 0)), self.cmb_audio_format.count() - 1)
+
+        self.cmb_quality_preset.setCurrentIndex(preset_idx)
+        self.cmb_video_format.setCurrentIndex(vfmt_idx)
+        self.cmb_audio_format.setCurrentIndex(afmt_idx)
+
+        use_manual = bool(prefs.get("use_manual_selection", False))
+        save_defaults = bool(prefs.get("save_defaults", False))
+
+        self.chk_manual_selection.setChecked(use_manual)
+        self.chk_save_defaults.setChecked(save_defaults)
+
+        self.cmb_quality_preset.setEnabled(not use_manual)
+        self.cmb_video_format.setEnabled(not use_manual)
+        self.cmb_audio_format.setEnabled(not use_manual)
+
+        self.cmb_quality_preset.blockSignals(False)
+        self.cmb_video_format.blockSignals(False)
+        self.cmb_audio_format.blockSignals(False)
+        self.chk_manual_selection.blockSignals(False)
+        self.chk_save_defaults.blockSignals(False)
+
+    def _save_preferences_if_enabled(self):
+        if hasattr(self, "chk_save_defaults") and self.chk_save_defaults.isChecked():
+            from core.config import load_category_config, save_category_config
+            config = load_category_config()
+            config["media_downloader_defaults"] = {
+                "preset_idx": self.cmb_quality_preset.currentIndex(),
+                "video_format_idx": self.cmb_video_format.currentIndex(),
+                "audio_format_idx": self.cmb_audio_format.currentIndex(),
+                "use_manual_selection": self.chk_manual_selection.isChecked(),
+                "save_defaults": True
+            }
+            save_category_config(config)
+
     def _get_single_video_format_spec(self) -> tuple[str, bool]:
-        """Returns tuple (format_spec, is_audio_only) based on preset or format selection."""
-        idx = self.cmb_quality_preset.currentIndex()
-        if idx == 0:
-            return ("bestvideo+bestaudio/best", False)
-        elif idx == 1:
-            return ("bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", False)
-        elif idx == 2:
-            return ("bestvideo[height<=720]+bestaudio/best[height<=720]/best", False)
-        elif idx == 3:
-            return ("bestvideo[height<=480]+bestaudio/best[height<=480]/best", False)
-        elif idx == 4:
-            return ("bestvideo[height<=360]+bestaudio/best[height<=360]/best", False)
-        elif idx == 5:
+        """
+        Returns tuple (format_spec, is_audio_only).
+        If Manual Selection is checked, uses selected format ID from table.
+        Otherwise builds format_spec using quality preset, video format filter, and audio format filter.
+        """
+        if self.chk_manual_selection.isChecked():
+            sel_rows = self.tbl_formats.selectionModel().selectedRows()
+            if sel_rows and self._current_video_data:
+                row_idx = sel_rows[0].row()
+                formats = self._current_video_data.get("formats", [])
+                if row_idx < len(formats):
+                    fmt = formats[row_idx]
+                    if fmt.get("is_video") and not fmt.get("is_audio"):
+                        return (f"{fmt['format_id']}+bestaudio/best", False)
+                    elif fmt.get("is_audio") and not fmt.get("is_video"):
+                        return (fmt["format_id"], True)
+                    else:
+                        return (fmt["format_id"], False)
+
+        preset_idx = self.cmb_quality_preset.currentIndex()
+        vfmt_idx = self.cmb_video_format.currentIndex()
+        afmt_idx = self.cmb_audio_format.currentIndex()
+
+        # Audio-only preset
+        if preset_idx == 7:
+            if afmt_idx == 1:
+                return ("bestaudio[ext=mp3]/bestaudio/best", True)
+            elif afmt_idx == 2:
+                return ("bestaudio[ext=m4a]/bestaudio/best", True)
+            elif afmt_idx == 3:
+                return ("bestaudio[acodec^=opus]/bestaudio/best", True)
             return ("bestaudio/best", True)
 
-        # Fallback to selected row format
-        sel_rows = self.tbl_formats.selectionModel().selectedRows()
-        if sel_rows and self._current_video_data:
-            row_idx = sel_rows[0].row()
-            formats = self._current_video_data.get("formats", [])
-            if row_idx < len(formats):
-                fmt = formats[row_idx]
-                if fmt.get("is_video") and not fmt.get("is_audio"):
-                    return (f"{fmt['format_id']}+bestaudio/best", False)
-                elif fmt.get("is_audio") and not fmt.get("is_video"):
-                    return (f"{fmt['format_id']}", True)
-                else:
-                    return (fmt["format_id"], False)
+        height_limit = None
+        if preset_idx == 1: height_limit = 2160     # 4K
+        elif preset_idx == 2: height_limit = 1440   # 2K
+        elif preset_idx == 3: height_limit = 1080   # 1080p
+        elif preset_idx == 4: height_limit = 720    # 720p
+        elif preset_idx == 5: height_limit = 480    # 480p
+        elif preset_idx == 6: height_limit = 360    # 360p
 
-        return ("bestvideo+bestaudio/best", False)
+        vfilter = ""
+        if vfmt_idx == 1: vfilter = "[ext=mp4]"
+        elif vfmt_idx == 2: vfilter = "[ext=webm]"
+        elif vfmt_idx == 3: vfilter = "[vcodec^=av01]"
+        elif vfmt_idx == 4: vfilter = "[vcodec^=vp9]"
+        elif vfmt_idx == 5: vfilter = "[vcodec^=avc]"
+
+        afilter = ""
+        if afmt_idx == 1: afilter = "[ext=mp3]"
+        elif afmt_idx == 2: afilter = "[ext=m4a]"
+        elif afmt_idx == 3: afilter = "[acodec^=opus]"
+
+        if height_limit:
+            v_spec = f"bestvideo[height<={height_limit}]{vfilter}"
+            a_spec = f"bestaudio{afilter}"
+            format_spec = f"{v_spec}+{a_spec}/{v_spec}/best[height<={height_limit}]/best"
+        else:
+            v_spec = f"bestvideo{vfilter}"
+            a_spec = f"bestaudio{afilter}"
+            format_spec = f"{v_spec}+{a_spec}/{v_spec}/best"
+
+        return (format_spec, False)
 
     def _get_playlist_format_spec(self) -> tuple[str, bool]:
         """Returns format spec for playlist items based on global playlist quality dropdown."""
@@ -461,17 +611,22 @@ class MediaDownloaderDialog(QDialog):
         if idx == 0:
             return ("bestvideo+bestaudio/best", False)
         elif idx == 1:
-            return ("bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", False)
+            return ("bestvideo[height<=2160]+bestaudio/best[height<=2160]/best", False)
         elif idx == 2:
-            return ("bestvideo[height<=720]+bestaudio/best[height<=720]/best", False)
+            return ("bestvideo[height<=1440]+bestaudio/best[height<=1440]/best", False)
         elif idx == 3:
-            return ("bestvideo[height<=480]+bestaudio/best[height<=480]/best", False)
+            return ("bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", False)
         elif idx == 4:
+            return ("bestvideo[height<=720]+bestaudio/best[height<=720]/best", False)
+        elif idx == 5:
+            return ("bestvideo[height<=480]+bestaudio/best[height<=480]/best", False)
+        elif idx == 6:
             return ("bestaudio/best", True)
 
         return ("bestvideo+bestaudio/best", False)
 
     def _on_download_clicked(self):
+        self._save_preferences_if_enabled()
         mw = self.main_win
         if not mw:
             QMessageBox.warning(self, "Main Window Missing", "Cannot locate main application window.")

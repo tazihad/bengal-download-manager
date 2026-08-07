@@ -27,8 +27,8 @@ def test_yt_dlp_manager_binary_detection(tmp_path):
         assert YtDlpManager.get_binary_path() == str(fake_bin)
 
 
-def test_parse_single_video_data():
-    """Test MediaExtractorWorker parsing of single video yt-dlp JSON."""
+def test_parse_single_video_data_sorting_and_filtering():
+    """Test MediaExtractorWorker parsing of single video yt-dlp JSON with sorting and mhtml filtering."""
     raw_video = {
         "id": "abc12345",
         "title": "Test Video",
@@ -37,6 +37,27 @@ def test_parse_single_video_data():
         "thumbnail": "https://example.com/thumb.jpg",
         "webpage_url": "https://example.com/watch?v=abc12345",
         "formats": [
+            {
+                "format_id": "140",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "mp4a.40.2",
+                "height": None,
+                "width": None,
+                "filesize": 5000000,
+                "url": "https://example.com/audio.m4a"
+            },
+            {
+                "format_id": "136",
+                "ext": "mp4",
+                "vcodec": "avc1.4d401f",
+                "acodec": "none",
+                "height": 720,
+                "width": 1280,
+                "fps": 30,
+                "filesize": 25000000,
+                "url": "https://example.com/stream_720p.mp4"
+            },
             {
                 "format_id": "137",
                 "ext": "mp4",
@@ -47,16 +68,6 @@ def test_parse_single_video_data():
                 "fps": 30,
                 "filesize": 50000000,
                 "url": "https://example.com/stream_1080p.mp4"
-            },
-            {
-                "format_id": "140",
-                "ext": "m4a",
-                "vcodec": "none",
-                "acodec": "mp4a.40.2",
-                "height": None,
-                "width": None,
-                "filesize": 5000000,
-                "url": "https://example.com/audio.m4a"
             },
             {
                 "format_id": "mhtml",
@@ -74,11 +85,14 @@ def test_parse_single_video_data():
 
     assert parsed["title"] == "Test Video"
     assert parsed["duration"] == 120
-    assert len(parsed["formats"]) == 2
-    assert parsed["formats"][0]["res_label"] == "1080p"
-    assert parsed["formats"][0]["is_video"] is True
-    assert parsed["formats"][1]["res_label"] == "Audio Only"
-    assert parsed["formats"][1]["is_audio"] is True
+    # Mhtml format should be filtered out -> 3 remaining valid media formats
+    assert len(parsed["formats"]) == 3
+    # High to low resolution sorting verification:
+    # Index 0 -> 1080p, Index 1 -> 720p, Index 2 -> Audio Only (at the bottom)
+    assert parsed["formats"][0]["height"] == 1080
+    assert parsed["formats"][1]["height"] == 720
+    assert parsed["formats"][2]["res_label"] == "Audio Only"
+    assert parsed["formats"][2]["is_audio"] is True
 
 
 def test_parse_playlist_data():

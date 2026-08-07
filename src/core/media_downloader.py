@@ -206,6 +206,18 @@ class MediaExtractorWorker(QThread):
                 "manifest_url": fmt.get("manifest_url", "")
             })
 
+        # Sort formats: Video formats first by resolution (height) high-to-low, Audio-only at the bottom
+        def format_sort_key(fmt):
+            is_video = fmt.get("is_video", False)
+            height = fmt.get("height", 0) or 0
+            tbr = fmt.get("tbr", 0) or 0
+            if is_video:
+                return (0, -height, -tbr)
+            else:
+                return (1, 0, -tbr)
+
+        formats.sort(key=format_sort_key)
+
         return {
             "title": raw_data.get("title") or "Untitled Media",
             "id": raw_data.get("id", ""),
