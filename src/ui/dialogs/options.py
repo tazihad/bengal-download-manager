@@ -85,12 +85,11 @@ class OptionsDialog(QDialog):
         
         # 1. Theme and Appearance
         grp_theme = QGroupBox("Theme and Appearance")
-        vbox_theme = QVBoxLayout()
-        vbox_theme.setContentsMargins(10, 15, 10, 10)
-        vbox_theme.setSpacing(10)
+        # Use QGridLayout for Theme & Appearance to ensure perfect 2D alignment across all 4 dropdowns
+        grid_theme = QGridLayout()
+        grid_theme.setContentsMargins(10, 15, 10, 10)
+        grid_theme.setSpacing(10)
 
-        # Row 1: Theme & Accent
-        row_theme_accent = QHBoxLayout()
         lbl_theme = QLabel("Theme:")
         lbl_theme.setToolTip("Select application visual theme")
         self.combo_theme = QComboBox()
@@ -116,16 +115,6 @@ class OptionsDialog(QDialog):
         ]
         self.combo_accent.addItems(accent_options)
 
-        row_theme_accent.addWidget(lbl_theme)
-        row_theme_accent.addWidget(self.combo_theme)
-        row_theme_accent.addSpacing(15)
-        row_theme_accent.addWidget(lbl_accent)
-        row_theme_accent.addWidget(self.combo_accent)
-        row_theme_accent.addStretch()
-        vbox_theme.addLayout(row_theme_accent)
-
-        # Row 2: Icons Theme & Tray Icon Theme
-        row_icons = QHBoxLayout()
         lbl_icon_theme = QLabel("Icons:")
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
@@ -142,13 +131,17 @@ class OptionsDialog(QDialog):
         ]
         self.combo_tray_icon.addItems(tray_icon_options)
 
-        row_icons.addWidget(lbl_icon_theme)
-        row_icons.addWidget(self.combo_icon_theme)
-        row_icons.addSpacing(15)
-        row_icons.addWidget(lbl_tray_icon)
-        row_icons.addWidget(self.combo_tray_icon)
-        row_icons.addStretch()
-        vbox_theme.addLayout(row_icons)
+        grid_theme.addWidget(lbl_theme, 0, 0)
+        grid_theme.addWidget(self.combo_theme, 0, 1)
+        grid_theme.addWidget(lbl_accent, 0, 2)
+        grid_theme.addWidget(self.combo_accent, 0, 3)
+
+        grid_theme.addWidget(lbl_icon_theme, 1, 0)
+        grid_theme.addWidget(self.combo_icon_theme, 1, 1)
+        grid_theme.addWidget(lbl_tray_icon, 1, 2)
+        grid_theme.addWidget(self.combo_tray_icon, 1, 3)
+
+        grp_theme.setLayout(grid_theme)
 
         # Initial values & restore state for Cancel
         current_theme = "BDM Dark (Default)"
@@ -197,7 +190,6 @@ class OptionsDialog(QDialog):
         self.combo_icon_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_tray_icon.currentTextChanged.connect(self.on_appearance_preview)
 
-        grp_theme.setLayout(vbox_theme)
         layout.addWidget(grp_theme)
 
         # 2. UI Settings (Right after Theme)
