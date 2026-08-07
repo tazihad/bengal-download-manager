@@ -249,6 +249,8 @@ class OptionsDialog(QDialog):
         grp_engine.setLayout(vbox_engine)
         layout.addWidget(grp_engine)
 
+        layout.addStretch()
+
     def setup_startup_tab(self):
         layout = QVBoxLayout(self.startup_tab)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -274,7 +276,6 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_startup)
         layout.addStretch()
 
-        layout.addStretch()
 
     def refresh_engine_status(self):
         """Re-tests the Aria2 RPC connection and updates the label in background."""
