@@ -303,9 +303,9 @@ def test_options_dialog_theme_selection(qapp):
     from main import MainWindow, apply_app_theme
 
     window = MainWindow()
-    window.settings["theme"] = "Automatic"
-    window.settings["accent"] = "Default / Auto"
-    window.settings["icon_theme"] = "Automatic"
+    window.settings["theme"] = "BDM Dark (Default)"
+    window.settings["accent"] = "BDM (Default)"
+    window.settings["icon_theme"] = "BDM (Default)"
     opt_dlg = OptionsDialog(window)
 
     # Check combos existence
@@ -315,18 +315,18 @@ def test_options_dialog_theme_selection(qapp):
 
     # Check items count and options
     expected_themes = [
-        "BDM Dark (Default)", "BDM Light", "Automatic", 
-        "Ubuntu Light", "Ubuntu Dark",
-        "IDM Classic", "Kirigami Light", "Kirigami Dark",
-        "Breeze Light", "Breeze Dark",
-        "Dracula", "Nord", "One Dark", "Catppuccin",
-        "Solarized Light", "Solarized Dark"
+        "Automatic", "BDM Dark (Default)", "BDM Light", 
+        "Breeze Dark", "Breeze Light", "Catppuccin",
+        "Dracula", "IDM Classic", "Kirigami Dark", 
+        "Kirigami Light", "Nord", "One Dark", 
+        "Solarized Dark", "Solarized Light", 
+        "Ubuntu Dark", "Ubuntu Light"
     ]
     items = [opt_dlg.combo_theme.itemText(i) for i in range(opt_dlg.combo_theme.count())]
     assert items == expected_themes
 
-    # Check default selected item is Automatic
-    assert opt_dlg.combo_theme.currentText() == "Automatic"
+    # Check default selected item is BDM Dark (Default)
+    assert opt_dlg.combo_theme.currentText() == "BDM Dark (Default)"
 
     # Select Ubuntu Dark, Ubuntu Orange, and Breeze Dark
     idx_ub_dark = opt_dlg.combo_theme.findText("Ubuntu Dark")

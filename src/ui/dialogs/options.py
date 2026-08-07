@@ -96,12 +96,12 @@ class OptionsDialog(QDialog):
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
         theme_options = [
-            "BDM Dark (Default)", "BDM Light", "Automatic", 
-            "Ubuntu Light", "Ubuntu Dark",
-            "IDM Classic", "Kirigami Light", "Kirigami Dark",
-            "Breeze Light", "Breeze Dark",
-            "Dracula", "Nord", "One Dark", "Catppuccin",
-            "Solarized Light", "Solarized Dark"
+            "Automatic", "BDM Dark (Default)", "BDM Light", 
+            "Breeze Dark", "Breeze Light", "Catppuccin",
+            "Dracula", "IDM Classic", "Kirigami Dark", 
+            "Kirigami Light", "Nord", "One Dark", 
+            "Solarized Dark", "Solarized Light", 
+            "Ubuntu Dark", "Ubuntu Light"
         ]
         self.combo_theme.addItems(theme_options)
 
@@ -110,9 +110,9 @@ class OptionsDialog(QDialog):
         self.combo_accent = QComboBox()
         self.combo_accent.setToolTip("Select accent/highlight color")
         accent_options = [
-            "BDM (Default)", "Breeze Blue", "Ubuntu Orange", 
-            "Windows Blue", "Dracula Purple", "Nord Frost", 
-            "Emerald Green", "Crimson Red", "Amethyst Violet"
+            "Amethyst Violet", "BDM (Default)", "Breeze Blue", 
+            "Crimson Red", "Dracula Purple", "Emerald Green", 
+            "Nord Frost", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
@@ -130,7 +130,7 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["BDM (Default)", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
+        icon_theme_options = ["Adwaita", "BDM (Default)", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         row_icons.addWidget(lbl_icon_theme)
