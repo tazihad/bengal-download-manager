@@ -329,6 +329,25 @@ def apply_app_theme(theme_name, app=None):
 
     ensure_adaptive_icon_theme(app)
 
+    for widget in app.allWidgets():
+        try:
+            widget.setPalette(app.palette())
+            app.style().unpolish(widget)
+            app.style().polish(widget)
+            widget.update()
+        except Exception:
+            pass
+
+    for top in app.topLevelWidgets():
+        try:
+            refresh_fn = getattr(top, "refresh_theme_ui", None)
+            if callable(refresh_fn):
+                refresh_fn()
+            top.update()
+            top.repaint()
+        except Exception:
+            pass
+
 
 def ensure_adaptive_icon_theme(app=None):
     """
@@ -1476,6 +1495,58 @@ class MainWindow(QMainWindow):
         self.settings["theme"] = theme_name
         apply_app_theme(theme_name)
         self.save_settings()
+
+    def refresh_theme_ui(self):
+        # Refresh category tree icons
+        if hasattr(self, "category_tree"):
+            root = self.category_tree.topLevelItem(0)
+            if root:
+                root.setIcon(0, get_themed_icon("all_downloads"))
+                cat_icons = {
+                    "Compressed": get_themed_icon("compressed"),
+                    "Documents": get_themed_icon("documents"),
+                    "Music": get_themed_icon("music"),
+                    "Programs": get_themed_icon("programs"),
+                    "Video": get_themed_icon("video")
+                }
+                for i in range(root.childCount()):
+                    child = root.child(i)
+                    if child and child.text(0) in cat_icons:
+                        child.setIcon(0, cat_icons[child.text(0)])
+
+            item_unfin = self.category_tree.topLevelItem(1)
+            if item_unfin:
+                item_unfin.setIcon(0, get_themed_icon("unfinished"))
+            item_fin = self.category_tree.topLevelItem(2)
+            if item_fin:
+                item_fin.setIcon(0, get_themed_icon("finished"))
+
+        # Refresh action icons
+        action_icon_map = {
+            "action_add_url": "add_url",
+            "action_exit": "exit",
+            "action_stop": "stop",
+            "action_stop_all": "stop_all",
+            "action_resume": "resume",
+            "action_download_now": "resume",
+            "action_redownload": "unfinished",
+            "action_delete": "delete",
+            "action_clear": "clear_completed",
+            "action_options": "options",
+            "action_open_folder": "open_folder"
+        }
+        for attr, icon_name in action_icon_map.items():
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(get_themed_icon(icon_name))
+
+        if hasattr(self, "update_tray_action"):
+            self.update_tray_action()
+
+        app = QApplication.instance()
+        if app:
+            self.setPalette(app.palette())
+        self.update()
+        self.repaint()
 
     def load_settings(self):
         settings = {}
