@@ -496,7 +496,7 @@ class MediaDownloaderDialog(QDialog):
             else:
                 mw.process_incoming_url(webpage_url)
             
-            self.lbl_status.setText("Media enqueued into Download Manager.")
+            self.accept()
 
         elif self.stack.currentWidget() == self.page_playlist and self._current_playlist_data:
             entries = self._current_playlist_data.get("entries", [])
@@ -524,5 +524,4 @@ class MediaDownloaderDialog(QDialog):
                         mw.process_incoming_url(item_url)
                     enqueued += 1
 
-            QMessageBox.information(self, "Downloads Added", f"Successfully enqueued {enqueued} media downloads into Bengal DM.")
-            self.lbl_status.setText(f"Enqueued {enqueued} playlist items.")
+            self.accept()
