@@ -84,12 +84,12 @@ class MediaDownloaderDialog(QDialog):
         self.btn_paste.setToolTip("Paste URL from clipboard")
         self.btn_paste.clicked.connect(self._paste_clipboard)
 
-        self.btn_analyze = QPushButton("Analyze Link")
+        self.btn_analyze = QPushButton("Analyze")
         self.btn_analyze.setFixedHeight(34)
-        self.btn_analyze.setFixedWidth(110)
+        self.btn_analyze.setFixedWidth(85)
         self.btn_analyze.setDefault(True)
         self.btn_analyze.setToolTip("Parse media formats or playlist items using yt-dlp")
-        self.btn_analyze.clicked.connect(self.start_analysis)
+        self.btn_analyze.clicked.connect(self._on_analyze_or_stop_clicked)
 
         input_layout.addWidget(self.txt_url)
         input_layout.addWidget(self.btn_paste)
@@ -330,17 +330,35 @@ class MediaDownloaderDialog(QDialog):
             self.txt_url.setText(text)
             self.start_analysis()
 
+    def _on_analyze_or_stop_clicked(self):
+        if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
+            self.stop_analysis()
+        else:
+            self.start_analysis()
+
+    def stop_analysis(self):
+        if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
+            try:
+                self._worker.terminate()
+                self._worker.wait(500)
+            except Exception:
+                pass
+        self._finish_loading()
+        self.lbl_status.setText("Analysis cancelled.")
+
     def start_analysis(self):
         url = self.txt_url.text().strip()
         if not url:
             QMessageBox.warning(self, "No URL", "Please enter or paste a media link.")
             return
 
-        self.btn_analyze.setEnabled(False)
         self.txt_url.setEnabled(False)
+        self.btn_paste.setEnabled(False)
+        self.btn_download.setEnabled(False)
+        self.btn_analyze.setText("Stop")
+        self.btn_analyze.setToolTip("Stop ongoing link analysis")
         self.progress_bar.setVisible(True)
         self.lbl_status.setText("Analyzing link...")
-        self.btn_download.setEnabled(False)
 
         self._worker = MediaExtractorWorker(url)
         self._worker.status_signal.connect(self._on_status_msg)
@@ -438,7 +456,10 @@ class MediaDownloaderDialog(QDialog):
         QMessageBox.critical(self, "Extraction Error", f"Failed to analyze URL:\n{error_msg}")
 
     def _finish_loading(self):
+        self.btn_analyze.setText("Analyze")
+        self.btn_analyze.setToolTip("Parse media formats or playlist items using yt-dlp")
         self.btn_analyze.setEnabled(True)
+        self.btn_paste.setEnabled(True)
         self.txt_url.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.lbl_status.setText("Analysis finished.")
