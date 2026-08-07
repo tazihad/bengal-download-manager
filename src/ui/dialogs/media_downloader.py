@@ -525,3 +525,12 @@ class MediaDownloaderDialog(QDialog):
                     enqueued += 1
 
             self.accept()
+
+    def closeEvent(self, event):
+        if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
+            try:
+                self._worker.quit()
+                self._worker.wait(1000)
+            except Exception:
+                pass
+        super().closeEvent(event)
