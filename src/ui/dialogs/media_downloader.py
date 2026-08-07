@@ -4,6 +4,7 @@ Provides link input, media link parsing, quality chooser, and playlist batch sel
 """
 
 import sys
+import re
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
@@ -27,7 +28,7 @@ class MediaDownloaderDialog(QDialog):
         self._main_window = main_window or parent
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
-        self.resize(720, 560)
+        self.resize(740, 560)
         self.setMinimumSize(600, 450)
 
         # Standalone top-level window flag
@@ -90,12 +91,11 @@ class MediaDownloaderDialog(QDialog):
         main_layout.addWidget(self.lbl_status)
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)  # Indeterminate loading spinner style
+        self.progress_bar.setRange(0, 0)
         self.progress_bar.setFixedHeight(6)
         self.progress_bar.setVisible(False)
         main_layout.addWidget(self.progress_bar)
 
-        # Line Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setFrameShadow(QFrame.Shadow.Sunken)
@@ -104,7 +104,6 @@ class MediaDownloaderDialog(QDialog):
         # 4. Stacked View Container
         self.stack = QStackedWidget()
         
-        # Page 0: Initial / Empty Page
         page_empty = QWidget()
         empty_layout = QVBoxLayout(page_empty)
         empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -113,12 +112,10 @@ class MediaDownloaderDialog(QDialog):
         empty_layout.addWidget(lbl_empty)
         self.stack.addWidget(page_empty)
 
-        # Page 1: Single Video View
         self.page_video = QWidget()
         self._setup_single_video_page()
         self.stack.addWidget(self.page_video)
 
-        # Page 2: Playlist / Batch View
         self.page_playlist = QWidget()
         self._setup_playlist_page()
         self.stack.addWidget(self.page_playlist)
@@ -131,9 +128,9 @@ class MediaDownloaderDialog(QDialog):
 
         self.btn_download = QPushButton("Download")
         self.btn_download.setFixedHeight(34)
-        self.btn_download.setFixedWidth(140)
+        self.btn_download.setFixedWidth(150)
         self.btn_download.setEnabled(False)
-        self.btn_download.setToolTip("Start download for selected format or items")
+        self.btn_download.setToolTip("Start download for selected format (merges video + audio) or playlist items")
         self.btn_download.clicked.connect(self._on_download_clicked)
 
         self.btn_close = QPushButton("Close")
@@ -151,7 +148,6 @@ class MediaDownloaderDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # Video Title & Details Header
         self.lbl_video_title = QLabel("Video Title")
         font_title = QFont()
         font_title.setPointSize(11)
@@ -164,26 +160,24 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_video_meta.setStyleSheet("color: gray;")
         layout.addWidget(self.lbl_video_meta)
 
-        # Quality Preset Chooser
         preset_layout = QHBoxLayout()
-        preset_layout.addWidget(QLabel("Media Quality:"))
+        preset_layout.addWidget(QLabel("Media Quality Preset:"))
         
         self.cmb_quality_preset = QComboBox()
         self.cmb_quality_preset.setFixedHeight(30)
-        self.cmb_quality_preset.setToolTip("Select quick video quality preset or audio only")
+        self.cmb_quality_preset.setToolTip("Select quality preset (auto-merges Video + Audio)")
         self.cmb_quality_preset.addItems([
-            "Best Quality (Recommended)",
-            "1080p Full HD",
-            "720p HD",
-            "480p SD",
+            "Best Quality (Video + Audio merged)",
+            "1080p Full HD (Video + Audio)",
+            "720p HD (Video + Audio)",
+            "480p SD (Video + Audio)",
             "360p Low Quality",
-            "Audio Only (Best Audio)"
+            "Audio Only (MP3)"
         ])
         self.cmb_quality_preset.currentIndexChanged.connect(self._on_preset_changed)
         preset_layout.addWidget(self.cmb_quality_preset, stretch=1)
         layout.addLayout(preset_layout)
 
-        # Detailed Stream Formats Table
         lbl_streams = QLabel("Available Formats & Streams:")
         layout.addWidget(lbl_streams)
 
@@ -206,7 +200,6 @@ class MediaDownloaderDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # Playlist Info Banner
         self.lbl_playlist_title = QLabel("Playlist Title")
         font_pl = QFont()
         font_pl.setPointSize(11)
@@ -214,7 +207,6 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_playlist_title.setFont(font_pl)
         layout.addWidget(self.lbl_playlist_title)
 
-        # Control Row: Select All, Deselect All, Count
         ctrl_layout = QHBoxLayout()
         self.btn_select_all = QPushButton("Select All")
         self.btn_select_all.setFixedWidth(90)
@@ -234,22 +226,20 @@ class MediaDownloaderDialog(QDialog):
 
         layout.addLayout(ctrl_layout)
 
-        # Global Playlist Quality Selector
         pl_preset_layout = QHBoxLayout()
         pl_preset_layout.addWidget(QLabel("Global Quality Target:"))
         self.cmb_playlist_quality = QComboBox()
         self.cmb_playlist_quality.setFixedHeight(30)
         self.cmb_playlist_quality.addItems([
-            "Best Available Quality",
+            "Best Available (Video + Audio)",
             "1080p Full HD",
             "720p HD",
             "480p SD",
-            "Audio Only (Best Audio)"
+            "Audio Only (MP3)"
         ])
         pl_preset_layout.addWidget(self.cmb_playlist_quality, stretch=1)
         layout.addLayout(pl_preset_layout)
 
-        # Playlist Batch Items Table
         self.tbl_playlist = QTableWidget()
         self.tbl_playlist.setColumnCount(4)
         self.tbl_playlist.setHorizontalHeaderLabels(["Select", "#", "Title", "Duration"])
@@ -382,17 +372,17 @@ class MediaDownloaderDialog(QDialog):
             return
 
         target_row = 0
-        if idx == 0:  # Best
+        if idx == 0:
             target_row = 0
-        elif idx == 1:  # 1080p
+        elif idx == 1:
             target_row = self._find_format_row_by_height(1080)
-        elif idx == 2:  # 720p
+        elif idx == 2:
             target_row = self._find_format_row_by_height(720)
-        elif idx == 3:  # 480p
+        elif idx == 3:
             target_row = self._find_format_row_by_height(480)
-        elif idx == 4:  # 360p
+        elif idx == 4:
             target_row = self._find_format_row_by_height(360)
-        elif idx == 5:  # Audio Only
+        elif idx == 5:
             target_row = self._find_audio_only_row()
 
         self.tbl_formats.selectRow(target_row)
@@ -433,6 +423,54 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setText(f"Download Selected ({checked_count})")
         self.btn_download.setEnabled(checked_count > 0)
 
+    def _get_single_video_format_spec(self) -> tuple[str, bool]:
+        """Returns tuple (format_spec, is_audio_only) based on preset or format selection."""
+        idx = self.cmb_quality_preset.currentIndex()
+        if idx == 0:
+            return ("bestvideo+bestaudio/best", False)
+        elif idx == 1:
+            return ("bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", False)
+        elif idx == 2:
+            return ("bestvideo[height<=720]+bestaudio/best[height<=720]/best", False)
+        elif idx == 3:
+            return ("bestvideo[height<=480]+bestaudio/best[height<=480]/best", False)
+        elif idx == 4:
+            return ("bestvideo[height<=360]+bestaudio/best[height<=360]/best", False)
+        elif idx == 5:
+            return ("bestaudio/best", True)
+
+        # Fallback to selected row format
+        sel_rows = self.tbl_formats.selectionModel().selectedRows()
+        if sel_rows and self._current_video_data:
+            row_idx = sel_rows[0].row()
+            formats = self._current_video_data.get("formats", [])
+            if row_idx < len(formats):
+                fmt = formats[row_idx]
+                if fmt.get("is_video") and not fmt.get("is_audio"):
+                    return (f"{fmt['format_id']}+bestaudio/best", False)
+                elif fmt.get("is_audio") and not fmt.get("is_video"):
+                    return (f"{fmt['format_id']}", True)
+                else:
+                    return (fmt["format_id"], False)
+
+        return ("bestvideo+bestaudio/best", False)
+
+    def _get_playlist_format_spec(self) -> tuple[str, bool]:
+        """Returns format spec for playlist items based on global playlist quality dropdown."""
+        idx = self.cmb_playlist_quality.currentIndex()
+        if idx == 0:
+            return ("bestvideo+bestaudio/best", False)
+        elif idx == 1:
+            return ("bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", False)
+        elif idx == 2:
+            return ("bestvideo[height<=720]+bestaudio/best[height<=720]/best", False)
+        elif idx == 3:
+            return ("bestvideo[height<=480]+bestaudio/best[height<=480]/best", False)
+        elif idx == 4:
+            return ("bestaudio/best", True)
+
+        return ("bestvideo+bestaudio/best", False)
+
     def _on_download_clicked(self):
         mw = self.main_win
         if not mw:
@@ -440,24 +478,51 @@ class MediaDownloaderDialog(QDialog):
             return
 
         if self.stack.currentWidget() == self.page_video and self._current_video_data:
-            sel_rows = self.tbl_formats.selectionModel().selectedRows()
-            row_idx = sel_rows[0].row() if sel_rows else 0
-            formats = self._current_video_data.get("formats", [])
-            selected_fmt = formats[row_idx] if row_idx < len(formats) else None
+            title = self._current_video_data.get("title", "video")
+            webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
+            format_spec, is_audio_only = self._get_single_video_format_spec()
             
-            target_url = selected_fmt["url"] if selected_fmt and selected_fmt.get("url") else self._current_video_data.get("webpage_url")
-            mw.process_incoming_url(target_url)
-            self.lbl_status.setText("Media enqueued in Download Manager.")
+            clean_title = re.sub(r'[\\/*?:"<>|]', "_", title)
+            ext = ".mp3" if is_audio_only else ".mp4"
+            filename = f"{clean_title}{ext}"
+
+            if hasattr(mw, "start_media_download"):
+                mw.start_media_download(
+                    url=webpage_url,
+                    filename=filename,
+                    format_spec=format_spec,
+                    is_audio_only=is_audio_only
+                )
+            else:
+                mw.process_incoming_url(webpage_url)
+            
+            self.lbl_status.setText("Media enqueued into Download Manager.")
 
         elif self.stack.currentWidget() == self.page_playlist and self._current_playlist_data:
             entries = self._current_playlist_data.get("entries", [])
+            format_spec, is_audio_only = self._get_playlist_format_spec()
             enqueued = 0
+
             for r in range(self.tbl_playlist.rowCount()):
                 item = self.tbl_playlist.item(r, 0)
                 if item and item.checkState() == Qt.CheckState.Checked and r < len(entries):
-                    item_url = entries[r]["url"]
-                    mw.process_incoming_url(item_url)
+                    entry = entries[r]
+                    item_url = entry["url"]
+                    item_title = entry.get("title", f"video_{r+1}")
+                    clean_title = re.sub(r'[\\/*?:"<>|]', "_", item_title)
+                    ext = ".mp3" if is_audio_only else ".mp4"
+                    filename = f"{clean_title}{ext}"
+
+                    if hasattr(mw, "start_media_download"):
+                        mw.start_media_download(
+                            url=item_url,
+                            filename=filename,
+                            format_spec=format_spec,
+                            is_audio_only=is_audio_only
+                        )
+                    else:
+                        mw.process_incoming_url(item_url)
                     enqueued += 1
 
-            QMessageBox.information(self, "Downloads Added", f"Successfully enqueued {enqueued} items into Bengal DM.")
+            QMessageBox.information(self, "Downloads Added", f"Successfully enqueued {enqueued} media downloads into Bengal DM.")
             self.lbl_status.setText(f"Enqueued {enqueued} playlist items.")

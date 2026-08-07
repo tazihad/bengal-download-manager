@@ -1,12 +1,19 @@
 """
-Tests for Media Downloader core module (YtDlpManager & MediaExtractorWorker).
+Tests for Media Downloader core module (YtDlpManager, MediaExtractorWorker, and YtDlpDownloadWorker).
 """
 
 import os
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from core.media_downloader import YtDlpManager, MediaExtractorWorker
+from core.media_downloader import YtDlpManager, MediaExtractorWorker, YtDlpDownloadWorker, parse_size_str_to_bytes
+
+
+def test_parse_size_str_to_bytes():
+    """Test helper parsing size strings to bytes."""
+    assert parse_size_str_to_bytes("10.00MiB") == 10.0 * 1024 * 1024
+    assert parse_size_str_to_bytes("500KiB") == 500.0 * 1024
+    assert parse_size_str_to_bytes("1.5GB") == 1.5 * 1000 * 1000 * 1000
 
 
 def test_yt_dlp_manager_binary_detection(tmp_path):
@@ -86,3 +93,18 @@ def test_parse_playlist_data():
     assert parsed["total_items"] == 2
     assert parsed["entries"][0]["title"] == "Video 1"
     assert parsed["entries"][1]["title"] == "Video 2"
+
+
+def test_yt_dlp_download_worker_init(tmp_path):
+    """Test YtDlpDownloadWorker configuration and parameters."""
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=test",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test_video.mp4",
+        format_spec="bestvideo[height<=1080]+bestaudio/best",
+        is_audio_only=False
+    )
+    assert worker.url == "https://example.com/watch?v=test"
+    assert worker.format_spec == "bestvideo[height<=1080]+bestaudio/best"
+    assert worker.is_audio_only is False

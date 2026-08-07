@@ -3,24 +3,14 @@ Tests for Media Downloader UI Window (MediaDownloaderDialog).
 """
 
 import pytest
-from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from ui.dialogs.media_downloader import MediaDownloaderDialog
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    yield app
 
 
 def test_media_downloader_dialog_init(qapp):
     """Verify MediaDownloaderDialog initialization, window flags, and title."""
     dlg = MediaDownloaderDialog()
     assert dlg.windowTitle() == "Media Downloader"
-    # Check that parent=None and top-level Window flags are set for standalone panel windowing
     assert bool(dlg.windowFlags() & Qt.WindowType.Window) is True
     assert dlg.txt_url is not None
     assert dlg.btn_analyze is not None

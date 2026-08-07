@@ -1,10 +1,11 @@
 """
 Media Downloader Core Engine for Bengal Download Manager.
-Manages yt-dlp binary acquisition, update, and URL/playlist metadata extraction.
+Manages yt-dlp binary acquisition, metadata extraction, and multi-format audio+video merging download worker.
 """
 
 import os
 import sys
+import re
 import json
 import shutil
 import urllib.request
@@ -16,6 +17,28 @@ APP_DATA_DIR = Path.home() / ".local" / "share" / "bengal-download-manager"
 BIN_DIR = APP_DATA_DIR / "bin"
 YT_DLP_BIN = BIN_DIR / "yt-dlp"
 YT_DLP_DOWNLOAD_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+
+
+def parse_size_str_to_bytes(size_str: str) -> float:
+    """Helper to convert sizes like '12.50MiB' or '500KiB' to bytes."""
+    size_str = size_str.strip().upper()
+    units = {
+        "KIB": 1024, "KB": 1000,
+        "MIB": 1024**2, "MB": 1000**2,
+        "GIB": 1024**3, "GB": 1000**3,
+        "B": 1
+    }
+    for u, factor in units.items():
+        if size_str.endswith(u):
+            try:
+                num = float(size_str[:-len(u)].strip())
+                return num * factor
+            except ValueError:
+                pass
+    try:
+        return float(re.sub(r"[^\d.]", "", size_str))
+    except ValueError:
+        return 0.0
 
 
 class YtDlpManager:
@@ -120,7 +143,6 @@ class MediaExtractorWorker(QThread):
                 self.analysis_failed.emit(f"Failed to parse yt-dlp metadata JSON: {json_err}")
                 return
 
-            # Check if JSON payload represents a playlist or single video
             if data.get("_type") == "playlist" or (isinstance(data.get("entries"), list) and len(data.get("entries")) > 0 and not data.get("formats")):
                 parsed_playlist = self._parse_playlist_data(data)
                 self.playlist_analyzed.emit(parsed_playlist)
@@ -149,7 +171,6 @@ class MediaExtractorWorker(QThread):
             format_note = fmt.get("format_note", "")
             url = fmt.get("url", "")
 
-            # Resolution label
             if height:
                 res_label = f"{height}p"
             elif width:
@@ -217,3 +238,164 @@ class MediaExtractorWorker(QThread):
             "entries": entries,
             "raw": raw_data
         }
+
+
+class YtDlpDownloadWorker(QThread):
+    """
+    Worker thread that executes yt-dlp to download and merge both video and audio streams into a single output file.
+    Emits real-time main_progress_signal for Bengal Download Manager's table interface.
+    """
+
+    main_progress_signal = pyqtSignal(int, tuple)  # (row_index, (downloaded, total, speed, time_left, status))
+    finished_signal = pyqtSignal(int, str)         # (row_index, final_file_path)
+    log_signal = pyqtSignal(str)
+
+    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False):
+        super().__init__()
+        self.url = url
+        self.row_index = row_index
+        self.save_dir = save_dir
+        self.filename = filename or "media_download"
+        self.format_spec = format_spec
+        self.is_audio_only = is_audio_only
+        self.is_running = True
+        self.is_paused = False
+        self.process = None
+        self.final_file_path = None
+
+    def run(self):
+        try:
+            bin_path = YtDlpManager.ensure_binary()
+
+            os.makedirs(self.save_dir, exist_ok=True)
+            clean_base = re.sub(r'[\\/*?:"<>|]', "_", os.path.splitext(self.filename)[0])
+            output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+
+            cmd = [
+                bin_path,
+                "--newline",
+                "--no-warnings",
+                "--format", self.format_spec,
+                "-o", output_tmpl
+            ]
+
+            if self.is_audio_only:
+                cmd.extend(["-x", "--audio-format", "mp3"])
+            else:
+                cmd.extend(["--merge-output-format", "mp4"])
+
+            cmd.append(self.url)
+
+            self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
+            self.main_progress_signal.emit(self.row_index, (0, 0, 0, "--", "Connecting..."))
+
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                bufsize=1
+            )
+
+            pct = 0.0
+            total_bytes = 0.0
+            downloaded_bytes = 0.0
+            speed_bps = 0.0
+            eta_str = "--"
+            status_str = "Downloading..."
+
+            for line in self.process.stdout:
+                if not self.is_running:
+                    self.process.terminate()
+                    break
+
+                line_str = line.strip()
+                if not line_str:
+                    continue
+
+                self.log_signal.emit(line_str)
+
+                # Parse yt-dlp stdout lines like:
+                # [download]  45.2% of  120.50MiB at  4.52MiB/s ETA 00:15
+                # [download] 100% of  120.50MiB in 00:30
+                # [Merger] Merging formats into "/path/to/file.mp4"
+                if "[download]" in line_str:
+                    match_pct = re.search(r'(\d+(?:\.\d+)?)%', line_str)
+                    if match_pct:
+                        pct = float(match_pct.group(1))
+
+                    match_size = re.search(r'of\s+~?(\d+(?:\.\d+)?[KMGBi]+)', line_str, re.IGNORECASE)
+                    if match_size:
+                        total_bytes = parse_size_str_to_bytes(match_size.group(1))
+                        downloaded_bytes = (pct / 100.0) * total_bytes
+
+                    match_speed = re.search(r'at\s+(\d+(?:\.\d+)?[KMGBi]+/s)', line_str, re.IGNORECASE)
+                    if match_speed:
+                        speed_str = match_speed.group(1).replace("/s", "")
+                        speed_bps = parse_size_str_to_bytes(speed_str)
+
+                    match_eta = re.search(r'ETA\s+([\d:]+)', line_str, re.IGNORECASE)
+                    if match_eta:
+                        eta_str = match_eta.group(1)
+
+                    status_str = "Downloading..."
+
+                elif "[Merger]" in line_str or "Merging" in line_str:
+                    status_str = "Merging Video + Audio..."
+                    match_dest = re.search(r'into "([^"]+)"', line_str)
+                    if match_dest:
+                        self.final_file_path = match_dest.group(1)
+
+                elif "Destination:" in line_str:
+                    dest = line_str.split("Destination:", 1)[1].strip()
+                    if not self.final_file_path or dest.endswith(".mp4") or dest.endswith(".mp3"):
+                        self.final_file_path = dest
+
+                self.main_progress_signal.emit(
+                    self.row_index,
+                    (int(downloaded_bytes), int(total_bytes), speed_bps, eta_str, status_str)
+                )
+
+            self.process.wait()
+
+            if self.process.returncode == 0:
+                # Find final created file if not captured
+                if not self.final_file_path or not os.path.exists(self.final_file_path):
+                    target_ext = ".mp3" if self.is_audio_only else ".mp4"
+                    expected_path = os.path.join(self.save_dir, f"{clean_base}{target_ext}")
+                    if os.path.exists(expected_path):
+                        self.final_file_path = expected_path
+                    else:
+                        for f in os.listdir(self.save_dir):
+                            if f.startswith(clean_base):
+                                self.final_file_path = os.path.join(self.save_dir, f)
+                                break
+
+                final_path = self.final_file_path or os.path.join(self.save_dir, self.filename)
+                self.main_progress_signal.emit(
+                    self.row_index,
+                    (int(total_bytes or 1), int(total_bytes or 1), 0, "", "Complete")
+                )
+                self.finished_signal.emit(self.row_index, final_path)
+            else:
+                self.main_progress_signal.emit(
+                    self.row_index,
+                    (int(downloaded_bytes), int(total_bytes), 0, "--", "Error")
+                )
+                self.finished_signal.emit(self.row_index, "")
+
+        except Exception as e:
+            self.main_progress_signal.emit(
+                self.row_index,
+                (0, 0, 0, "--", f"Error: {e}")
+            )
+            self.finished_signal.emit(self.row_index, "")
+
+    def stop(self):
+        self.is_running = False
+        if self.process:
+            try:
+                self.process.terminate()
+            except Exception:
+                pass

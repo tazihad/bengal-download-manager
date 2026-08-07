@@ -2974,6 +2974,75 @@ class MainWindow(QMainWindow):
         self._media_downloader_dlg.raise_()
         self._media_downloader_dlg.activateWindow()
 
+    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None):
+        from core.media_downloader import YtDlpDownloadWorker
+
+        config = load_category_config()
+        categories = config.get("categories", {})
+        
+        final_category = "Video" if not is_audio_only else "Music"
+        if final_category not in categories:
+            final_category = "General"
+            
+        save_dir = custom_save_dir if custom_save_dir else categories[final_category]["path"]
+        if not os.path.exists(save_dir):
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+            except Exception:
+                save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+
+        target_path = os.path.join(save_dir, filename)
+
+        self.download_table.setSortingEnabled(False)
+        row = 0
+        self.download_table.insertRow(row)
+
+        current_ts = str(time.time())
+
+        item_name = QTableWidgetItem(filename)
+        item_name.setToolTip(filename)
+        item_name.setData(Qt.ItemDataRole.UserRole, url)
+        item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
+        item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)
+        item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)
+
+        self.download_table.setItem(row, 0, item_name)
+        self.download_table.setItem(row, 1, QTableWidgetItem("Calculating..."))
+        self.download_table.setItem(row, 2, QTableWidgetItem("Downloading..."))
+        self.download_table.setItem(row, 3, QTableWidgetItem("--"))
+        self.download_table.setItem(row, 4, QTableWidgetItem("--"))
+        self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(current_ts)))
+        self.download_table.setItem(row, 6, QTableWidgetItem(format_timestamp_relative(current_ts)))
+
+        worker = YtDlpDownloadWorker(
+            url=url,
+            row_index=row,
+            save_dir=save_dir,
+            filename=filename,
+            format_spec=format_spec,
+            is_audio_only=is_audio_only
+        )
+
+        key = id(item_name)
+        self.active_downloads[key] = worker
+
+        worker.main_progress_signal.connect(self.update_download_progress)
+        worker.finished_signal.connect(lambda r, path, k=key: self._on_media_download_finished(k, r, path))
+
+        worker.start()
+        self.save_data()
+        return item_name
+
+    def _on_media_download_finished(self, key, row, path):
+        if key in self.active_downloads:
+            self.active_downloads.pop(key, None)
+        if path:
+            item_name = self.download_table.item(row, 0)
+            if item_name:
+                item_name.setData(Qt.ItemDataRole.UserRole + 1, path)
+        self.update_ui_states()
+        self.save_data()
+
 
     def _handle_options_accepted(self):
         # Restart aria2 daemon to apply new port/token

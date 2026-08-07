@@ -140,16 +140,19 @@ def test_download_dialogs_window_stacking_parentage(qapp):
     assert progress_dlg.parent() is None
     assert progress_dlg.windowModality() == Qt.WindowModality.NonModal
     assert progress_dlg.isWindow()
+    progress_dlg.close()
 
     complete_dlg = DownloadCompleteDialog({"url": "http://example.com/test.iso", "path": "/tmp/test.iso", "size": "10 MB"}, None)
     assert complete_dlg.parent() is None
     assert complete_dlg.windowModality() == Qt.WindowModality.NonModal
     assert complete_dlg.isWindow()
+    complete_dlg.close()
 
     info_dlg = DownloadFileInfoDialog({"url": "http://example.com/test.iso", "suggested_filename": "test.iso", "size_str": "10 MB", "size_bytes": 10485760}, None)
     assert info_dlg.parent() is None
     assert info_dlg.windowModality() == Qt.WindowModality.NonModal
     assert info_dlg.isWindow()
+    info_dlg.close()
 
 def test_download_progress_dialog_downloaded_formatting(qapp):
     from ui.dialogs import DownloadProgressDialog
