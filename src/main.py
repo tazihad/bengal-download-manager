@@ -352,6 +352,12 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None
             app.setPalette(p)
 
     # Icon theme handling
+    global CURRENT_ICON_THEME
+    if icon_theme_name:
+        CURRENT_ICON_THEME = str(icon_theme_name).strip()
+    else:
+        CURRENT_ICON_THEME = "Automatic"
+
     if icon_theme_name and str(icon_theme_name).lower() != "automatic":
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
@@ -490,11 +496,45 @@ def _invert_pixmap(pm):
     return QPixmap.fromImage(img)
 
 
+CURRENT_ICON_THEME = "Automatic"
+
+FREEDESKTOP_MAP = {
+    "add_url": ["list-add", "document-new", "add"],
+    "resume": ["media-playback-start", "go-down", "start"],
+    "stop": ["process-stop", "media-playback-stop", "stop"],
+    "stop_all": ["process-stop", "media-playback-stop", "stop"],
+    "delete": ["user-trash", "edit-delete", "delete"],
+    "clear_completed": ["edit-clear-all", "edit-clear", "clear"],
+    "options": ["preferences-system", "configure", "settings"],
+    "open_folder": ["folder-open", "folder-download", "folder"],
+    "all_downloads": ["folder-download", "emblem-downloads", "download", "folder"],
+    "compressed": ["package-x-generic", "application-x-archive", "archive"],
+    "documents": ["x-office-document", "document", "text-x-generic"],
+    "music": ["audio-x-generic", "audio", "sound"],
+    "programs": ["system-run", "application-x-executable", "system"],
+    "video": ["video-x-generic", "video", "media-video"],
+    "unfinished": ["emblem-synchronizing", "process-working", "sync"],
+    "finished": ["emblem-default", "dialog-ok", "check"],
+    "exit": ["application-exit", "system-log-out", "exit"],
+    "show_hide": ["window-new", "view-restore", "go-home"]
+}
+
+
 def get_themed_icon(name, fallback=None):
     """
-    Returns a clean, high-contrast monochrome vector stroke QIcon for the given symbol name,
-    adapting dynamically to current light/dark window text colors.
+    Returns an icon for the given symbol name.
+    If a custom icon theme is active, resolves from the selected system icon theme first.
+    Otherwise, returns the clean vector monochrome icon.
     """
+    global CURRENT_ICON_THEME
+
+    if CURRENT_ICON_THEME and str(CURRENT_ICON_THEME).lower() != "automatic":
+        aliases = FREEDESKTOP_MAP.get(name, [name])
+        for alias in aliases:
+            ic = QIcon.fromTheme(alias)
+            if not ic.isNull() and ic.name() != "":
+                return ic
+
     from ui.icons import get_monochrome_icon
     icon = get_monochrome_icon(name)
     if not icon.isNull():
@@ -1637,6 +1677,11 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "update_tray_action"):
             self.update_tray_action()
+
+        if hasattr(self, "tray_icon") and self.tray_icon:
+            tray_ic = get_themed_icon("all_downloads")
+            if not tray_ic.isNull():
+                self.tray_icon.setIcon(tray_ic)
 
         app = QApplication.instance()
         if app:
