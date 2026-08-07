@@ -3006,6 +3006,7 @@ class MainWindow(QMainWindow):
         current_ts = str(time.time())
 
         item_name = QTableWidgetItem(filename)
+        item_name.setIcon(get_file_icon(filename))
         item_name.setToolTip(filename)
         item_name.setData(Qt.ItemDataRole.UserRole, url)
         item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
