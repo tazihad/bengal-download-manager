@@ -1058,8 +1058,8 @@ class MainWindow(QMainWindow):
 
     def setup_actions(self):
         self.action_add_url = QAction(get_themed_icon("add_url"), "Add URL", self)
-        self.action_add_url.setShortcut(QKeySequence("Ctrl+V"))
-        self.action_add_url.setToolTip("Add a new download URL address (Ctrl+V)")
+        self.action_add_url.setShortcut(QKeySequence("Ctrl+N"))
+        self.action_add_url.setToolTip("Add a new download URL address (Ctrl+N)")
         self.action_add_url.triggered.connect(self.open_add_url)
 
         self.action_exit = QAction(get_themed_icon("exit"), "Exit", self)
