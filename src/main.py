@@ -943,23 +943,27 @@ class MainWindow(QMainWindow):
                 padding: 4px 2px;
                 border: none;
                 outline: 0;
+                background-color: palette(window);
+                color: palette(window-text);
             }
             QTreeWidget::item {
                 height: 26px;
                 padding: 2px 8px;
                 margin: 1px 2px;
                 border-radius: 4px;
+                color: palette(window-text);
             }
             QTreeWidget::item:focus {
                 outline: none;
                 border: none;
             }
             QTreeWidget::item:hover {
-                background-color: rgba(61, 174, 233, 0.15);
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
             }
             QTreeWidget::item:selected {
-                background-color: #3daee9;
-                color: #ffffff;
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
                 font-weight: 600;
             }
             QTreeWidget::branch {
@@ -1586,8 +1590,11 @@ class MainWindow(QMainWindow):
         self.apply_appearance_setting(theme_name, accent_name, icon_theme_name)
 
     def refresh_theme_ui(self):
-        # Refresh category tree icons
+        # Refresh category tree style & icons
         if hasattr(self, "category_tree"):
+            self.style().unpolish(self.category_tree)
+            self.style().polish(self.category_tree)
+            self.category_tree.update()
             root = self.category_tree.topLevelItem(0)
             if root:
                 root.setIcon(0, get_themed_icon("all_downloads"))
