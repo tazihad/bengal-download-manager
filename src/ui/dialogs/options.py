@@ -92,6 +92,7 @@ class OptionsDialog(QDialog):
         self.combo_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
         theme_options = [
             "Automatic", "Light", "Dark", 
+            "IDM Classic", "Kirigami Light", "Kirigami Dark",
             "Breeze Light", "Breeze Dark",
             "Dracula", "Nord", "One Dark", "Catppuccin",
             "Solarized Light", "Solarized Dark"

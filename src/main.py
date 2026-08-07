@@ -264,7 +264,19 @@ def apply_app_theme(theme_name, app=None):
     sh = app.styleHints()
     theme_lower = str(theme_name).strip().lower()
 
-    if theme_lower == "dracula":
+    if theme_lower in ("idm classic", "idm", "windows classic"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f7f7f7", "#e1e1e1", "#0066cc", "#0078d4", "#ffffff"))
+    elif theme_lower in ("kirigami light", "kirigamilight"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#fcfcfc", "#232629", "#ffffff", "#f5f5f5", "#f5f5f5", "#2980b9", "#3daee9", "#ffffff"))
+    elif theme_lower in ("kirigami dark", "kirigamidark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#232629", "#fcfcfc", "#1b1e20", "#2a2e32", "#31363b", "#2980b9", "#3daee9", "#ffffff"))
+    elif theme_lower == "dracula":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#282a36", "#f8f8f2", "#1e1f29", "#44475a", "#44475a", "#8be9fd", "#bd93f9", "#282a36"))
@@ -309,42 +321,43 @@ def apply_app_theme(theme_name, app=None):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         app.setPalette(app.style().standardPalette())
 
-    app.setStyleSheet("""
-        QMenuBar {
-            background-color: palette(window);
-            color: palette(window-text);
-        }
-        QMenuBar::item {
-            background-color: transparent;
-            color: palette(window-text);
-            padding: 4px 10px;
-        }
-        QMenuBar::item:selected {
-            background-color: palette(highlight);
-            color: palette(highlighted-text);
-        }
-        QMenu {
-            background-color: palette(window);
-            color: palette(window-text);
-            border: 1px solid palette(mid);
-            padding: 4px;
-        }
-        QMenu::item {
-            background-color: transparent;
-            color: palette(window-text);
-            padding: 5px 24px 5px 12px;
-            border-radius: 2px;
-        }
-        QMenu::item:selected {
-            background-color: palette(highlight);
-            color: palette(highlighted-text);
-        }
-        QMenu::separator {
-            height: 1px;
-            background-color: palette(mid);
-            margin: 4px 6px;
-        }
-    """)
+    if not app.styleSheet():
+        app.setStyleSheet("""
+            QMenuBar {
+                background-color: palette(window);
+                color: palette(window-text);
+            }
+            QMenuBar::item {
+                background-color: transparent;
+                color: palette(window-text);
+                padding: 4px 10px;
+            }
+            QMenuBar::item:selected {
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }
+            QMenu {
+                background-color: palette(window);
+                color: palette(window-text);
+                border: 1px solid palette(mid);
+                padding: 4px;
+            }
+            QMenu::item {
+                background-color: transparent;
+                color: palette(window-text);
+                padding: 5px 24px 5px 12px;
+                border-radius: 2px;
+            }
+            QMenu::item:selected {
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: palette(mid);
+                margin: 4px 6px;
+            }
+        """)
 
     ensure_adaptive_icon_theme(app)
 

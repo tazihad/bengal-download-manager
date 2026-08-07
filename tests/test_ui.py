@@ -313,6 +313,7 @@ def test_options_dialog_theme_selection(qapp):
     # Check items count and options
     expected_items = [
         "Automatic", "Light", "Dark", 
+        "IDM Classic", "Kirigami Light", "Kirigami Dark",
         "Breeze Light", "Breeze Dark",
         "Dracula", "Nord", "One Dark", "Catppuccin",
         "Solarized Light", "Solarized Dark"
