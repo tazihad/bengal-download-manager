@@ -85,10 +85,28 @@ class MediaDownloaderDialog(QDialog):
         self.dep_labels = {}
         tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
         for tool in tool_names:
-            lbl = QLabel(f"{tool} (...)")
-            lbl.setStyleSheet("color: gray; font-weight: bold;")
-            self.dep_labels[tool] = lbl
-            dep_layout.addWidget(lbl)
+            box = QWidget()
+            box_layout = QVBoxLayout(box)
+            box_layout.setContentsMargins(4, 2, 4, 2)
+            box_layout.setSpacing(1)
+            box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            lbl_name = QLabel(tool)
+            lbl_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            font_name = QFont()
+            font_name.setPointSize(9)
+            font_name.setBold(True)
+            lbl_name.setFont(font_name)
+
+            lbl_ver = QLabel("...")
+            lbl_ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_ver.setStyleSheet("color: gray; font-size: 9px; font-weight: bold;")
+
+            box_layout.addWidget(lbl_name)
+            box_layout.addWidget(lbl_ver)
+
+            self.dep_labels[tool] = lbl_ver
+            dep_layout.addWidget(box)
 
         dep_layout.addStretch()
 
@@ -386,13 +404,18 @@ class MediaDownloaderDialog(QDialog):
     def _on_dep_status_updated(self, tool_name: str, display_text: str, status_color: str):
         if tool_name in self.dep_labels:
             lbl = self.dep_labels[tool_name]
-            lbl.setText(display_text)
+            ver_text = display_text
+            if display_text.startswith(f"{tool_name} (") and display_text.endswith(")"):
+                ver_text = display_text[len(tool_name) + 2 : -1]
+
+            lbl.setText(ver_text)
+
             if status_color == "green":
-                lbl.setStyleSheet("color: #2ec27e; font-weight: bold;")
+                lbl.setStyleSheet("color: #2ec27e; font-size: 9px; font-weight: bold;")
             elif status_color == "yellow":
-                lbl.setStyleSheet("color: #e5a50a; font-weight: bold;")
+                lbl.setStyleSheet("color: #e5a50a; font-size: 9px; font-weight: bold;")
             else:
-                lbl.setStyleSheet("color: gray; font-weight: bold;")
+                lbl.setStyleSheet("color: gray; font-size: 9px; font-weight: bold;")
 
     def _on_ctrl_v_paste(self):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
