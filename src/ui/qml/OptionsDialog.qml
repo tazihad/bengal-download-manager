@@ -20,7 +20,7 @@ Kirigami.Dialog {
                 id: comboTheme
                 Kirigami.FormData.label: "Theme:"
                 model: ["Automatic", "BDM Dark (Default)", "BDM Light", "Breeze Dark", "Breeze Light", "Catppuccin", "Dracula", "IDM Classic", "Kirigami Dark", "Kirigami Light", "Nord", "One Dark", "Solarized Dark", "Solarized Light", "Ubuntu Dark", "Ubuntu Light"]
-                currentIndex: 0
+                currentIndex: 1
                 Layout.fillWidth: true
             }
 
@@ -28,7 +28,7 @@ Kirigami.Dialog {
                 id: comboAccent
                 Kirigami.FormData.label: "Accent Color:"
                 model: ["Amethyst Violet", "BDM (Default)", "Breeze Blue", "Crimson Red", "Dracula Purple", "Emerald Green", "Nord Frost", "Ubuntu Orange", "Windows Blue"]
-                currentIndex: 0
+                currentIndex: 1
                 Layout.fillWidth: true
             }
 
@@ -36,7 +36,7 @@ Kirigami.Dialog {
                 id: comboIconTheme
                 Kirigami.FormData.label: "Icons:"
                 model: ["Adwaita", "BDM (Default)", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
-                currentIndex: 0
+                currentIndex: 1
                 Layout.fillWidth: true
             }
 

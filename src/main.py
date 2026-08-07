@@ -268,6 +268,50 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     return pal
 
 
+def normalize_theme_name(name, default="BDM Dark (Default)"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("bdm dark", "bdmdark", "dark", "bdm dark (default)"):
+        return "BDM Dark (Default)"
+    if s_lower in ("bdm light", "bdmlight", "light"):
+        return "BDM Light"
+    if s_lower in ("automatic", "auto"):
+        return "Automatic"
+    return s
+
+
+def normalize_accent_name(name, default="BDM (Default)"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("bdm", "bdm (default)", "default"):
+        return "BDM (Default)"
+    return s
+
+
+def normalize_icon_theme_name(name, default="BDM (Default)"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("bdm", "bdm (default)", "default"):
+        return "BDM (Default)"
+    return s
+
+
+def normalize_tray_icon_name(name, default="App Icon (Default)"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("app icon", "app_icon", "app icon (default)", "default", "bdm app icon"):
+        return "App Icon (Default)"
+    return s
+
+
 CURRENT_TRAY_ICON = "App Icon (Default)"
 
 
@@ -1846,11 +1890,16 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+        settings["theme"] = normalize_theme_name(settings.get("theme"))
+        settings["accent"] = normalize_accent_name(settings.get("accent"))
+        settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
+        settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
+
         apply_app_theme(
-            settings.get("theme", "BDM Dark (Default)"),
-            settings.get("accent", "BDM (Default)"),
-            settings.get("icon_theme", "BDM (Default)"),
-            settings.get("tray_icon", "App Icon (Default)")
+            settings["theme"],
+            settings["accent"],
+            settings["icon_theme"],
+            settings["tray_icon"]
         )
         return settings
 
@@ -2896,10 +2945,10 @@ if __name__ == "__main__":
         if os.path.exists(_cfg_path):
             with open(_cfg_path, "r") as _f:
                 _s_data = json.load(_f)
-                _saved_theme = _s_data.get("theme", "BDM Dark (Default)")
-                _saved_accent = _s_data.get("accent", "BDM (Default)")
-                _saved_icon_theme = _s_data.get("icon_theme", "BDM (Default)")
-                _saved_tray_icon = _s_data.get("tray_icon", "App Icon (Default)")
+                _saved_theme = normalize_theme_name(_s_data.get("theme"))
+                _saved_accent = normalize_accent_name(_s_data.get("accent"))
+                _saved_icon_theme = normalize_icon_theme_name(_s_data.get("icon_theme"))
+                _saved_tray_icon = normalize_tray_icon_name(_s_data.get("tray_icon"))
     except Exception:
         pass
 

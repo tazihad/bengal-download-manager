@@ -161,18 +161,34 @@ class OptionsDialog(QDialog):
             current_icon_theme = self.parent().settings.get("icon_theme", "BDM (Default)")
             current_tray_icon = self.parent().settings.get("tray_icon", "App Icon (Default)")
 
+        try:
+            from main import normalize_theme_name, normalize_accent_name, normalize_icon_theme_name, normalize_tray_icon_name
+            current_theme = normalize_theme_name(current_theme)
+            current_accent = normalize_accent_name(current_accent)
+            current_icon_theme = normalize_icon_theme_name(current_icon_theme)
+            current_tray_icon = normalize_tray_icon_name(current_tray_icon)
+        except Exception:
+            pass
+
         self.initial_theme = current_theme
         self.initial_accent = current_accent
         self.initial_icon_theme = current_icon_theme
         self.initial_tray_icon = current_tray_icon
 
         idx_t = self.combo_theme.findText(current_theme)
+        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Dark (Default)")
         if idx_t != -1: self.combo_theme.setCurrentIndex(idx_t)
+
         idx_a = self.combo_accent.findText(current_accent)
+        if idx_a == -1: idx_a = self.combo_accent.findText("BDM (Default)")
         if idx_a != -1: self.combo_accent.setCurrentIndex(idx_a)
+
         idx_i = self.combo_icon_theme.findText(current_icon_theme)
+        if idx_i == -1: idx_i = self.combo_icon_theme.findText("BDM (Default)")
         if idx_i != -1: self.combo_icon_theme.setCurrentIndex(idx_i)
+
         idx_tr = self.combo_tray_icon.findText(current_tray_icon)
+        if idx_tr == -1: idx_tr = self.combo_tray_icon.findText("App Icon (Default)")
         if idx_tr != -1: self.combo_tray_icon.setCurrentIndex(idx_tr)
 
         # Connect live preview signals
