@@ -563,31 +563,48 @@ def get_themed_icon(name, fallback=None):
 def get_themed_tray_icon(tray_option=None):
     """
     Resolves system tray icon based on tray icon theme selection.
-    Options: 'App Icon (Default)', 'Automatic', 'Monochrome Light', 'Monochrome Dark',
-    or system icon themes ('Breeze', 'Ubuntu', 'Adwaita', etc.).
+    Options: 'App Icon (Default)', 'Automatic', 'Monochrome Light', 'Monochrome Dark'.
     """
     global CURRENT_TRAY_ICON
     if tray_option is None:
         tray_option = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else "App Icon (Default)"
 
     opt_lower = str(tray_option).strip().lower()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+
+    light_path = os.path.join(root_dir, "assets", "tray_monochrome_light.png")
+    dark_path = os.path.join(root_dir, "assets", "tray_monochrome_dark.png")
+    if not os.path.exists(light_path):
+        light_path = os.path.join(current_dir, "assets", "tray_monochrome_light.png")
+    if not os.path.exists(dark_path):
+        dark_path = os.path.join(current_dir, "assets", "tray_monochrome_dark.png")
 
     if opt_lower in ("app icon (default)", "app icon", "app_icon", "bdm app icon"):
         icon = get_app_icon()
         if not icon.isNull():
             return icon
-    elif opt_lower in ("monochrome light", "monochromelight", "white"):
+    elif opt_lower in ("monochrome light", "monochromelight"):
+        if os.path.exists(light_path):
+            ic = QIcon(light_path)
+            if not ic.isNull():
+                return ic
         return get_monochrome_app_icon(color=QColor("#ffffff"))
-    elif opt_lower in ("monochrome dark", "monochromedark", "black"):
+    elif opt_lower in ("monochrome dark", "monochromedark"):
+        if os.path.exists(dark_path):
+            ic = QIcon(dark_path)
+            if not ic.isNull():
+                return ic
         return get_monochrome_app_icon(color=QColor("#232629"))
     elif opt_lower == "automatic":
-        return get_monochrome_app_icon()
-    else:
-        aliases = FREEDESKTOP_MAP.get("all_downloads", ["folder-download", "download", "folder"])
-        for alias in aliases:
-            ic = QIcon.fromTheme(alias)
-            if not ic.isNull() and ic.name() != "":
+        app = QApplication.instance()
+        text_val = app.palette().color(QPalette.ColorRole.WindowText).value() if app else 255
+        target_path = dark_path if text_val > 128 else light_path
+        if os.path.exists(target_path):
+            ic = QIcon(target_path)
+            if not ic.isNull():
                 return ic
+        return get_monochrome_app_icon()
 
     icon = get_app_icon()
     if not icon.isNull():

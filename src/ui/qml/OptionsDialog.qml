@@ -43,7 +43,7 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboTrayIcon
                 Kirigami.FormData.label: "Tray Icon:"
-                model: ["App Icon (Default)", "Automatic", "Monochrome Dark", "Monochrome Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
+                model: ["App Icon (Default)", "Automatic", "Monochrome Dark", "Monochrome Light"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }

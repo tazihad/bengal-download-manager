@@ -138,9 +138,7 @@ class OptionsDialog(QDialog):
         self.combo_tray_icon = QComboBox()
         self.combo_tray_icon.setToolTip("Select system tray icon style")
         tray_icon_options = [
-            "App Icon (Default)", "Automatic", "Monochrome Dark", 
-            "Monochrome Light", "Adwaita", "Breeze", 
-            "Breeze Dark", "HighColor", "Ubuntu"
+            "App Icon (Default)", "Automatic", "Monochrome Dark", "Monochrome Light"
         ]
         self.combo_tray_icon.addItems(tray_icon_options)
 
