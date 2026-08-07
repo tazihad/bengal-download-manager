@@ -16,6 +16,14 @@ Kirigami.Dialog {
         Kirigami.FormLayout {
             Layout.fillWidth: true
 
+            Controls.ComboBox {
+                id: comboTheme
+                Kirigami.FormData.label: "Theme:"
+                model: ["Automatic", "Light", "Dark"]
+                currentIndex: 0
+                Layout.fillWidth: true
+            }
+
             Controls.CheckBox {
                 id: chkAutoStart
                 Kirigami.FormData.label: "Startup:"

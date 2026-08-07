@@ -79,7 +79,42 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(20)
         
-        # 1. Startup & Integration
+        # 1. Theme
+        grp_theme = QGroupBox("Theme")
+        vbox_theme = QVBoxLayout()
+        vbox_theme.setContentsMargins(10, 15, 10, 10)
+        vbox_theme.setSpacing(10)
+
+        row_theme = QHBoxLayout()
+        lbl_theme = QLabel("Theme:")
+        lbl_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
+        self.combo_theme = QComboBox()
+        self.combo_theme.setToolTip("Select application theme mode (Automatic uses system theme)")
+        theme_options = ["Automatic", "Light", "Dark"]
+        self.combo_theme.addItems(theme_options)
+
+        current_theme = "Automatic"
+        if self.parent() and hasattr(self.parent(), "settings"):
+            current_theme = self.parent().settings.get("theme", "Automatic")
+        self.initial_theme = current_theme
+
+        idx_theme = self.combo_theme.findText(current_theme)
+        if idx_theme != -1:
+            self.combo_theme.setCurrentIndex(idx_theme)
+        else:
+            def_idx = self.combo_theme.findText("Automatic")
+            if def_idx != -1:
+                self.combo_theme.setCurrentIndex(def_idx)
+
+        row_theme.addWidget(lbl_theme)
+        row_theme.addWidget(self.combo_theme)
+        row_theme.addStretch()
+        vbox_theme.addLayout(row_theme)
+
+        grp_theme.setLayout(vbox_theme)
+        layout.addWidget(grp_theme)
+
+        # 2. Startup & Integration
         grp_startup = QGroupBox("Startup & Integration")
         vbox_startup = QVBoxLayout()
         vbox_startup.setContentsMargins(10, 15, 10, 10)
@@ -583,13 +618,18 @@ class OptionsDialog(QDialog):
         save_category_config(self.config_data)
         
         new_scale = self.combo_scale.currentText()
+        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
-        # Save start_minimized_on_autostart and ui_scale to parent (MainWindow)
+        # Save start_minimized_on_autostart, ui_scale, and theme to parent (MainWindow)
         if self.parent():
             setattr(self.parent(), "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             if hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
                 self.parent().settings["ui_scale"] = new_scale
+                self.parent().settings["theme"] = new_theme
+            apply_theme_fn = getattr(self.parent(), "apply_theme_setting", None)
+            if callable(apply_theme_fn):
+                apply_theme_fn(new_theme)
             save_fn = getattr(self.parent(), "save_settings", None)
             if callable(save_fn):
                 save_fn()
@@ -608,4 +648,4 @@ class OptionsDialog(QDialog):
         self.accept()
 
     def get_theme(self):
-        return None
+        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"

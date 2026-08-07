@@ -233,6 +233,65 @@ def parse_time_to_sec(text):
     except:
         return 0
 
+def apply_app_theme(theme_name, app=None):
+    """
+    Applies application theme ('Automatic', 'Light', or 'Dark').
+    'Automatic' follows system theme (light/dark).
+    'Light' forces light color scheme and palette.
+    'Dark' forces dark color scheme and palette.
+    """
+    if app is None:
+        app = QApplication.instance()
+    if not app:
+        return
+
+    sh = app.styleHints()
+    theme_lower = str(theme_name).strip().lower()
+
+    if theme_lower == "light":
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        light_pal = QPalette()
+        light_pal.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
+        light_pal.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
+        light_pal.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+        light_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
+        light_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 255))
+        light_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
+        light_pal.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+        light_pal.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
+        light_pal.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
+        light_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+        light_pal.setColor(QPalette.ColorRole.Link, QColor(0, 120, 212))
+        light_pal.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 212))
+        light_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        app.setPalette(light_pal)
+    elif theme_lower == "dark":
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        dark_pal = QPalette()
+        dark_pal.setColor(QPalette.ColorRole.Window, QColor(45, 45, 45))
+        dark_pal.setColor(QPalette.ColorRole.WindowText, QColor(240, 240, 240))
+        dark_pal.setColor(QPalette.ColorRole.Base, QColor(30, 30, 30))
+        dark_pal.setColor(QPalette.ColorRole.AlternateBase, QColor(45, 45, 45))
+        dark_pal.setColor(QPalette.ColorRole.ToolTipBase, QColor(240, 240, 240))
+        dark_pal.setColor(QPalette.ColorRole.ToolTipText, QColor(30, 30, 30))
+        dark_pal.setColor(QPalette.ColorRole.Text, QColor(240, 240, 240))
+        dark_pal.setColor(QPalette.ColorRole.Button, QColor(45, 45, 45))
+        dark_pal.setColor(QPalette.ColorRole.ButtonText, QColor(240, 240, 240))
+        dark_pal.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+        dark_pal.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+        dark_pal.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+        dark_pal.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        app.setPalette(dark_pal)
+    else:  # Automatic
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Unknown)
+        app.setPalette(app.style().standardPalette())
+
+    ensure_adaptive_icon_theme(app)
+
+
 def ensure_adaptive_icon_theme(app=None):
     """
     Ensures icon search paths and active icon theme adapt cleanly to system/app
@@ -1365,12 +1424,20 @@ class MainWindow(QMainWindow):
                 "windowState": self.saveState().toHex().data().decode(),
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
-                "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%")
+                "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
+                "theme": getattr(self, "settings", {}).get("theme", "Automatic")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
         except Exception:
             pass
+
+    def apply_theme_setting(self, theme_name):
+        if not hasattr(self, "settings") or not isinstance(self.settings, dict):
+            self.settings = {}
+        self.settings["theme"] = theme_name
+        apply_app_theme(theme_name)
+        self.save_settings()
 
     def load_settings(self):
         settings = {}
@@ -1387,6 +1454,7 @@ class MainWindow(QMainWindow):
                     self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                 
                 self.start_minimized_on_autostart = settings.get("start_minimized", False)
+                apply_app_theme(settings.get("theme", "Automatic"))
 
                 header = self.download_table.horizontalHeader()
                 if "column_data" in settings:
@@ -2438,8 +2506,16 @@ if __name__ == "__main__":
     app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
 
-    # Configure icon search paths and adaptive theme for Flatpak and XDG locations
-    ensure_adaptive_icon_theme(app)
+    _saved_theme = "Automatic"
+    try:
+        if os.path.exists(_cfg_path):
+            with open(_cfg_path, "r") as _f:
+                _s_data = json.load(_f)
+                _saved_theme = _s_data.get("theme", "Automatic")
+    except Exception:
+        pass
+
+    apply_app_theme(_saved_theme, app)
 
     app_font = QFont("Segoe UI", 9)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)

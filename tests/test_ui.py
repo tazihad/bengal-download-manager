@@ -298,6 +298,43 @@ def test_options_dialog_ui_scale_dropdown(qapp, tmp_path, monkeypatch):
     window.close()
 
 
+def test_options_dialog_theme_selection(qapp):
+    from ui.dialogs import OptionsDialog
+    from main import MainWindow, apply_app_theme
+
+    window = MainWindow()
+    opt_dlg = OptionsDialog(window)
+
+    # Check combo_theme existence
+    assert hasattr(opt_dlg, "combo_theme")
+    combo = opt_dlg.combo_theme
+
+    # Check items count and options
+    expected_items = ["Automatic", "Light", "Dark"]
+    items = [combo.itemText(i) for i in range(combo.count())]
+    assert items == expected_items
+
+    # Check default selected item is Automatic
+    assert combo.currentText() == "Automatic"
+
+    # Select Dark and save
+    idx_dark = combo.findText("Dark")
+    assert idx_dark != -1
+    combo.setCurrentIndex(idx_dark)
+
+    opt_dlg.save_and_accept()
+    assert window.settings.get("theme") == "Dark"
+    assert opt_dlg.get_theme() == "Dark"
+
+    # Verify apply_app_theme functions without exception for all options
+    apply_app_theme("Light", qapp)
+    apply_app_theme("Dark", qapp)
+    apply_app_theme("Automatic", qapp)
+
+    opt_dlg.close()
+    window.close()
+
+
 
 
 
