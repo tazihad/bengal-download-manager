@@ -234,6 +234,7 @@ def parse_time_to_sec(text):
         return 0
 
 ACCENT_COLORS = {
+    "BDM": None,
     "Default / Auto": None,
     "Breeze Blue": "#3daee9",
     "Ubuntu Orange": "#e95420",
@@ -268,7 +269,7 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
 
 def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None):
     """
-    Applies application theme ('Automatic', 'Light', 'Dark', 'Ubuntu Light', 'Ubuntu Dark',
+    Applies application theme ('Automatic', 'BDM Light', 'BDM Dark', 'Ubuntu Light', 'Ubuntu Dark',
     'IDM Classic', 'Kirigami Light', 'Kirigami Dark', 'Breeze Light', 'Breeze Dark',
     'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark'),
     custom accent color, and custom toolbar icon set.
@@ -333,11 +334,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         app.setPalette(_build_palette("#eff0f1", "#232629", "#fcfcfc", "#eef0f2", "#eef0f2", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
-    elif theme_lower == "light":
+    elif theme_lower in ("bdm light", "bdmlight", "light"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         app.setPalette(_build_palette("#f0f0f0", "#000000", "#ffffff", "#f5f5f5", "#f0f0f0", "#0078d4", "#0078d4", "#ffffff", accent=accent_name))
-    elif theme_lower == "dark":
+    elif theme_lower in ("bdm dark", "bdmdark", "dark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#2d2d2d", "#f0f0f0", "#1e1e1e", "#2d2d2d", "#2d2d2d", "#2a82da", "#2a82da", "#ffffff", accent=accent_name))
@@ -356,9 +357,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, app=None
     if icon_theme_name:
         CURRENT_ICON_THEME = str(icon_theme_name).strip()
     else:
-        CURRENT_ICON_THEME = "Automatic"
+        CURRENT_ICON_THEME = "BDM"
 
-    if icon_theme_name and str(icon_theme_name).lower() != "automatic":
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",

@@ -96,7 +96,7 @@ class OptionsDialog(QDialog):
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
         theme_options = [
-            "Automatic", "Light", "Dark", 
+            "Automatic", "BDM Light", "BDM Dark", 
             "Ubuntu Light", "Ubuntu Dark",
             "IDM Classic", "Kirigami Light", "Kirigami Dark",
             "Breeze Light", "Breeze Dark",
@@ -110,7 +110,7 @@ class OptionsDialog(QDialog):
         self.combo_accent = QComboBox()
         self.combo_accent.setToolTip("Select accent/highlight color")
         accent_options = [
-            "Default / Auto", "Breeze Blue", "Ubuntu Orange", 
+            "BDM", "Breeze Blue", "Ubuntu Orange", 
             "Windows Blue", "Dracula Purple", "Nord Frost", 
             "Emerald Green", "Crimson Red", "Amethyst Violet"
         ]
@@ -130,7 +130,7 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["Automatic", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
+        icon_theme_options = ["BDM", "Breeze", "Breeze Dark", "Ubuntu", "Adwaita", "HighColor"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         row_icons.addWidget(lbl_icon_theme)
@@ -140,12 +140,12 @@ class OptionsDialog(QDialog):
 
         # Initial values & restore state for Cancel
         current_theme = "Automatic"
-        current_accent = "Default / Auto"
-        current_icon_theme = "Automatic"
+        current_accent = "BDM"
+        current_icon_theme = "BDM"
         if self.parent() and hasattr(self.parent(), "settings") and isinstance(self.parent().settings, dict):
             current_theme = self.parent().settings.get("theme", "Automatic")
-            current_accent = self.parent().settings.get("accent", "Default / Auto")
-            current_icon_theme = self.parent().settings.get("icon_theme", "Automatic")
+            current_accent = self.parent().settings.get("accent", "BDM")
+            current_icon_theme = self.parent().settings.get("icon_theme", "BDM")
 
         self.initial_theme = current_theme
         self.initial_accent = current_accent
@@ -672,8 +672,8 @@ class OptionsDialog(QDialog):
 
     def on_appearance_preview(self, text=None):
         t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
-        a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
-        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"
+        a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM"
+        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM"
         if self.parent():
             preview_fn = getattr(self.parent(), "preview_appearance", None)
             if callable(preview_fn):
@@ -684,8 +684,8 @@ class OptionsDialog(QDialog):
             preview_fn = getattr(self.parent(), "preview_appearance", None)
             if callable(preview_fn):
                 t = getattr(self, 'initial_theme', 'Automatic')
-                a = getattr(self, 'initial_accent', 'Default / Auto')
-                i = getattr(self, 'initial_icon_theme', 'Automatic')
+                a = getattr(self, 'initial_accent', 'BDM')
+                i = getattr(self, 'initial_icon_theme', 'BDM')
                 preview_fn(t, a, i)
         super().reject()
 
@@ -695,8 +695,8 @@ class OptionsDialog(QDialog):
         
         new_scale = self.combo_scale.currentText()
         new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
-        new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
-        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"
+        new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM"
+        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
         # Save start_minimized_on_autostart, ui_scale, theme, accent, and icon_theme to parent (MainWindow)
@@ -732,7 +732,7 @@ class OptionsDialog(QDialog):
         return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "Automatic"
 
     def get_accent(self):
-        return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "Default / Auto"
+        return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM"
 
     def get_icon_theme(self):
-        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "Automatic"
+        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM"
