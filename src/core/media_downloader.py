@@ -14,9 +14,11 @@ import zipfile
 import urllib.request
 import subprocess
 from pathlib import Path
+from .utils import get_cache_dir
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
+from .utils import get_data_dir
 
-APP_DATA_DIR = Path.home() / ".local" / "share" / "bengal-download-manager"
+APP_DATA_DIR = Path(get_data_dir())
 BIN_DIR = APP_DATA_DIR / "bin"
 YT_DLP_BIN = BIN_DIR / "yt-dlp"
 
@@ -165,7 +167,8 @@ class DependencyManagerWorker(QThread):
 
         self.tool_status_signal.emit(tool_name, f"{tool_name} (Downloading...)", "yellow")
 
-        tmp_download_path = BIN_DIR / f"{tool_name}_download.tmp"
+        # Use XDG cache dir for temporary download to avoid polluting BIN_DIR
+        tmp_download_path = Path(os.path.join(get_cache_dir(), f"{tool_name}_download.tmp"))
 
         def _reporthook(blocknum, blocksize, totalsize):
             dl_bytes = blocknum * blocksize

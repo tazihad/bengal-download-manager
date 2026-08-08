@@ -56,6 +56,12 @@ Kirigami.ApplicationWindow {
             }
         },
         Kirigami.Action {
+            text: "Queues"
+            tooltip: "Manage download queues"
+            icon.name: "alarm-clock"
+            onTriggered: queuesDialog.open()
+        },
+        Kirigami.Action {
             text: "Options"
             tooltip: "Configure application preferences and settings"
             icon.name: "configure"
@@ -153,5 +159,9 @@ Kirigami.ApplicationWindow {
 
     OptionsDialog {
         id: optionsDialog
+    }
+
+    QueuesDialog {
+        id: queuesDialog
     }
 }

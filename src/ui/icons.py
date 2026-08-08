@@ -280,6 +280,25 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(s * 0.65, s * 0.58), QPointF(s * 0.38, s * 0.72))
         painter.drawLine(QPointF(s * 0.35, s * 0.40), QPointF(s * 0.20, s * 0.58))
 
+    elif name in ("scheduler", "queues", "alarm"):
+        # Alarm Clock / Scheduler
+        cx, cy = s * 0.50, s * 0.52
+        r = s * 0.28
+        # Clock face
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        # Bell ears (two small arcs on top)
+        painter.drawLine(QPointF(cx - r * 0.70, cy - r * 0.90), QPointF(cx - r * 0.30, cy - r * 1.10))
+        painter.drawLine(QPointF(cx + r * 0.70, cy - r * 0.90), QPointF(cx + r * 0.30, cy - r * 1.10))
+        # Small knob on top
+        painter.drawLine(QPointF(cx - s * 0.03, cy - r - s * 0.04), QPointF(cx + s * 0.03, cy - r - s * 0.04))
+        # Hour hand (~10 o'clock position)
+        painter.drawLine(QPointF(cx, cy), QPointF(cx - r * 0.40, cy - r * 0.50))
+        # Minute hand (~12 o'clock position)
+        painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - r * 0.65))
+        # Stand legs at bottom
+        painter.drawLine(QPointF(cx - r * 0.55, cy + r + s * 0.02), QPointF(cx - r * 0.80, cy + r + s * 0.10))
+        painter.drawLine(QPointF(cx + r * 0.55, cy + r + s * 0.02), QPointF(cx + r * 0.80, cy + r + s * 0.10))
+
     else:
         # Generic stroke circle dot fallback
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))

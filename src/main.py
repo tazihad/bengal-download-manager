@@ -38,7 +38,7 @@ from core.workers import DownloadWorker, Aria2Worker
 from ui.dialogs import (
     AddUrlDialog, OptionsDialog, DownloadProgressDialog, 
     PropertiesDialog, DownloadCompleteDialog, ColumnDialog, DeleteDialog, RenameDialog,
-    MediaDownloaderDialog
+    MediaDownloaderDialog, SchedulerDialog
 )
 from core.config import load_category_config
 from core.utils import (
@@ -642,7 +642,8 @@ FREEDESKTOP_MAP = {
     "unfinished": ["emblem-synchronizing", "process-working", "sync"],
     "finished": ["emblem-default", "dialog-ok", "check"],
     "exit": ["application-exit", "system-log-out", "exit"],
-    "show_hide": ["window-new", "view-restore", "go-home"]
+    "show_hide": ["window-new", "view-restore", "go-home"],
+    "scheduler": ["chronometer", "appointment-soon", "alarm-clock"]
 }
 
 
@@ -1103,6 +1104,10 @@ class MainWindow(QMainWindow):
         self.action_options.setToolTip("Configure download manager options, connection limits, and engine settings")
         self.action_options.triggered.connect(self.open_options)
 
+        self.action_scheduler = QAction(get_themed_icon("scheduler"), "Scheduler", self)
+        self.action_scheduler.setToolTip("Manage download queues and scheduling")
+        self.action_scheduler.triggered.connect(self.open_scheduler)
+
         self.action_media_downloader = QAction(get_themed_icon("media_downloader"), "Media Downloader", self)
         self.action_media_downloader.setToolTip("Parse and download video or audio streams and playlists from media sites")
         self.action_media_downloader.triggered.connect(self.open_media_downloader)
@@ -1189,6 +1194,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_stop_all)
         toolbar.addAction(self.action_delete) 
         toolbar.addAction(self.action_clear)
+        toolbar.addAction(self.action_scheduler)
         toolbar.addAction(self.action_options)
         toolbar.addAction(self.action_media_downloader)
 
@@ -1273,7 +1279,26 @@ class MainWindow(QMainWindow):
         item_finished.setIcon(0, get_themed_icon("finished"))
         item_finished.setToolTip(0, "Show completed downloads")
 
+        # Queues section
+        self.queues_header = QTreeWidgetItem(self.category_tree, ["Queues"])
+        self.queues_header.setIcon(0, get_themed_icon("scheduler"))
+        self.queues_header.setToolTip(0, "Download queues and scheduler")
+        self.queues_header.setExpanded(True)
+
+        from ui.dialogs.scheduler import DEFAULT_QUEUES
+        self._sidebar_queue_names = []
+        for q in DEFAULT_QUEUES:
+            child = QTreeWidgetItem(self.queues_header, [q["name"]])
+            child.setIcon(0, get_themed_icon("scheduler"))
+            child.setToolTip(0, f"Queue: {q['name']}")
+            child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+            self._sidebar_queue_names.append(q["name"])
+
         self.category_tree.setCurrentItem(all_downloads)
+
+        # Enable right-click context menu on the category tree for queue items
+        self.category_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.category_tree.customContextMenuRequested.connect(self._show_sidebar_context_menu)
         
         self.download_table = QTableWidget()
         self.download_table.setIconSize(QSize(16, 16))
@@ -1527,6 +1552,16 @@ class MainWindow(QMainWindow):
         category = item.text(0)
         ext_map = CATEGORY_EXTENSIONS
 
+        # If user clicks the "Queues" header, toggle expand/collapse
+        if item is getattr(self, "queues_header", None):
+            item.setExpanded(not item.isExpanded())
+            return
+
+        # If user clicks a queue child item, open scheduler focused on that queue
+        if item.data(0, Qt.ItemDataRole.UserRole) == "queue":
+            self._open_scheduler_for_queue(item.text(0))
+            return
+
         for row in range(self.download_table.rowCount()):
             self.download_table.setRowHidden(row, False) 
             filename = self.download_table.item(row, 0).text().lower()
@@ -1546,6 +1581,137 @@ class MainWindow(QMainWindow):
             
             if should_hide:
                 self.download_table.setRowHidden(row, True)
+
+    def _show_sidebar_context_menu(self, pos):
+        """Shows a context menu for queue items in the sidebar tree."""
+        item = self.category_tree.itemAt(pos)
+        if not item:
+            return
+
+        # Only show context menu for queue child items or the Queues header
+        is_queue_child = item.data(0, Qt.ItemDataRole.UserRole) == "queue"
+        is_queue_header = item is getattr(self, "queues_header", None)
+
+        if not is_queue_child and not is_queue_header:
+            return
+
+        menu = QMenu(self)
+
+        if is_queue_child:
+            queue_name = item.text(0)
+
+            act_start = menu.addAction("Start now")
+            act_start.triggered.connect(lambda: self._queue_action_start(queue_name))
+
+            act_stop = menu.addAction("Stop")
+            act_stop.triggered.connect(lambda: self._queue_action_stop(queue_name))
+
+            menu.addSeparator()
+
+            act_edit = menu.addAction("Edit queue")
+            act_edit.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name))
+
+            act_schedule = menu.addAction("Schedule")
+            act_schedule.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name))
+
+            menu.addSeparator()
+
+            # Determine if this is a default queue (cannot delete)
+            is_default = queue_name in ("Main download queue", "Synchronization queue")
+            act_delete = menu.addAction("Delete")
+            act_delete.setEnabled(not is_default)
+            act_delete.triggered.connect(lambda: self._delete_sidebar_queue(item))
+
+        act_new = menu.addAction("Create new queue")
+        act_new.triggered.connect(self._create_sidebar_queue)
+
+        menu.exec(self.category_tree.viewport().mapToGlobal(pos))
+
+    def _open_scheduler_for_queue(self, queue_name):
+        """Opens the scheduler dialog and selects the given queue."""
+        self.open_scheduler()
+        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
+            # Find and select the queue by name
+            for i, q in enumerate(self._scheduler_dlg.queues):
+                if q["name"] == queue_name:
+                    self._scheduler_dlg.queue_list.setCurrentRow(i)
+                    break
+
+    def _queue_action_start(self, queue_name):
+        """Placeholder: start downloads in the named queue."""
+        pass
+
+    def _queue_action_stop(self, queue_name):
+        """Placeholder: stop downloads in the named queue."""
+        pass
+
+    def _delete_sidebar_queue(self, item):
+        """Deletes a queue from the sidebar and from the scheduler if open."""
+        queue_name = item.text(0)
+        if queue_name in ("Main download queue", "Synchronization queue"):
+            return
+
+        parent = item.parent()
+        if parent:
+            parent.removeChild(item)
+
+        if queue_name in self._sidebar_queue_names:
+            self._sidebar_queue_names.remove(queue_name)
+
+        # Also remove from scheduler if it's open
+        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
+            for i, q in enumerate(self._scheduler_dlg.queues):
+                if q["name"] == queue_name:
+                    self._scheduler_dlg._selected_index = -1
+                    del self._scheduler_dlg.queues[i]
+                    self._scheduler_dlg.queue_list.takeItem(i)
+                    break
+
+    def _create_sidebar_queue(self):
+        """Creates a new queue and adds it to both sidebar and scheduler."""
+        base = "Queue"
+        existing = set(self._sidebar_queue_names)
+        i = 1
+        while f"{base} # {i}" in existing:
+            i += 1
+        name = f"{base} # {i}"
+
+        # Add to sidebar
+        child = QTreeWidgetItem(self.queues_header, [name])
+        child.setIcon(0, get_themed_icon("scheduler"))
+        child.setToolTip(0, f"Queue: {name}")
+        child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+        self._sidebar_queue_names.append(name)
+
+        # Add to scheduler if it's open
+        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
+            from ui.dialogs.scheduler import _make_default_queue
+            new_q = _make_default_queue(name)
+            self._scheduler_dlg.queues.append(new_q)
+            from PyQt6.QtWidgets import QListWidgetItem as QLWI
+            self._scheduler_dlg.queue_list.addItem(QLWI(name))
+            self._scheduler_dlg.queue_list.setCurrentRow(len(self._scheduler_dlg.queues) - 1)
+            self._scheduler_dlg.show()
+            self._scheduler_dlg.raise_()
+            self._scheduler_dlg.activateWindow()
+
+    def _sync_sidebar_queues(self):
+        """Synchronizes the sidebar queue list with the scheduler dialog's queue list."""
+        if not hasattr(self, "_scheduler_dlg") or not self._scheduler_dlg:
+            return
+
+        # Remove all queue children from sidebar
+        while self.queues_header.childCount() > 0:
+            self.queues_header.removeChild(self.queues_header.child(0))
+        self._sidebar_queue_names.clear()
+
+        # Re-add from scheduler
+        for q in self._scheduler_dlg.queues:
+            child = QTreeWidgetItem(self.queues_header, [q["name"]])
+            child.setIcon(0, get_themed_icon("scheduler"))
+            child.setToolTip(0, f"Queue: {q['name']}")
+            child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+            self._sidebar_queue_names.append(q["name"])
 
     def save_data(self):
         try:
@@ -1900,6 +2066,14 @@ class MainWindow(QMainWindow):
             if item_fin:
                 item_fin.setIcon(0, get_themed_icon("finished"))
 
+            # Refresh Queues section icons
+            if hasattr(self, "queues_header") and self.queues_header:
+                self.queues_header.setIcon(0, get_themed_icon("scheduler"))
+                for i in range(self.queues_header.childCount()):
+                    child = self.queues_header.child(i)
+                    if child:
+                        child.setIcon(0, get_themed_icon("scheduler"))
+
         # Refresh action icons
         action_icon_map = {
             "action_add_url": "add_url",
@@ -1912,7 +2086,9 @@ class MainWindow(QMainWindow):
             "action_delete": "delete",
             "action_clear": "clear_completed",
             "action_options": "options",
-            "action_open_folder": "open_folder"
+            "action_open_folder": "open_folder",
+            "action_scheduler": "scheduler",
+            "action_media_downloader": "media_downloader"
         }
         for attr, icon_name in action_icon_map.items():
             if hasattr(self, attr):
@@ -2979,6 +3155,18 @@ class MainWindow(QMainWindow):
         self._media_downloader_dlg.show()
         self._media_downloader_dlg.raise_()
         self._media_downloader_dlg.activateWindow()
+
+    def open_scheduler(self):
+        from ui.dialogs import SchedulerDialog
+        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg and self._scheduler_dlg.isVisible():
+            self._scheduler_dlg.raise_()
+            self._scheduler_dlg.activateWindow()
+            return
+        self._scheduler_dlg = SchedulerDialog(main_window=self)
+        self._scheduler_dlg.finished.connect(self._sync_sidebar_queues)
+        self._scheduler_dlg.show()
+        self._scheduler_dlg.raise_()
+        self._scheduler_dlg.activateWindow()
 
     def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None):
         from core.media_downloader import YtDlpDownloadWorker
