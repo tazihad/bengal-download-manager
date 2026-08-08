@@ -104,7 +104,7 @@ def _make_default_queue(name):
 class SchedulerDialog(QDialog):
     """Queue scheduler dialog providing IDM-style download queue management."""
 
-    def __init__(self, main_window=None, parent=None):
+    def __init__(self, main_window=None, parent=None, initial_queues=None):
         super().__init__(None)
         self._main_window = main_window or parent
         self.setWindowTitle("Scheduler")
@@ -113,8 +113,9 @@ class SchedulerDialog(QDialog):
         self.resize(750, 530)
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
 
-        # Queue data storage
-        self.queues = [dict(q) for q in DEFAULT_QUEUES]
+        # Queue data storage — use caller-supplied list or fall back to defaults
+        source = initial_queues if initial_queues is not None else DEFAULT_QUEUES
+        self.queues = [dict(q) for q in source]
         for q in self.queues:
             q["daily_days"] = list(q["daily_days"])
         self._selected_index = -1

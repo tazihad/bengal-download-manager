@@ -1207,6 +1207,8 @@ class MainWindow(QMainWindow):
         self.category_tree.setIndentation(10)
         self.category_tree.setAnimated(True)
         self.category_tree.itemClicked.connect(self.filter_downloads)
+        self.category_tree.setExpandsOnDoubleClick(False)
+        self.category_tree.itemDoubleClicked.connect(self._sidebar_item_double_clicked)
 
         self.category_tree.setStyleSheet("""
             QTreeWidget {
@@ -1254,10 +1256,12 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        all_downloads = QTreeWidgetItem(self.category_tree, ["All Downloads"])
+        self.all_downloads_header = QTreeWidgetItem(self.category_tree, ["All Downloads"])
+        all_downloads = self.all_downloads_header
         all_downloads.setIcon(0, get_themed_icon("all_downloads"))
         all_downloads.setToolTip(0, "Show all downloads regardless of category or status")
         all_downloads.setExpanded(True)
+
 
         cat_icons = {
             "Compressed": get_themed_icon("compressed"),
@@ -1285,9 +1289,13 @@ class MainWindow(QMainWindow):
         self.queues_header.setToolTip(0, "Download queues and scheduler")
         self.queues_header.setExpanded(True)
 
-        from ui.dialogs.scheduler import DEFAULT_QUEUES
+        from ui.dialogs.scheduler import DEFAULT_QUEUES, _make_default_queue
+        # _queues_data is the persistent source-of-truth across dialog open/close cycles
+        self._queues_data = [dict(q) for q in DEFAULT_QUEUES]
+        for q in self._queues_data:
+            q["daily_days"] = list(q["daily_days"])
         self._sidebar_queue_names = []
-        for q in DEFAULT_QUEUES:
+        for q in self._queues_data:
             child = QTreeWidgetItem(self.queues_header, [q["name"]])
             child.setIcon(0, get_themed_icon("scheduler"))
             child.setToolTip(0, f"Queue: {q['name']}")
@@ -1552,14 +1560,12 @@ class MainWindow(QMainWindow):
         category = item.text(0)
         ext_map = CATEGORY_EXTENSIONS
 
-        # If user clicks the "Queues" header, toggle expand/collapse
+        # Queues header — double-click toggles collapse (handled in _sidebar_item_double_clicked)
         if item is getattr(self, "queues_header", None):
-            item.setExpanded(not item.isExpanded())
             return
 
-        # If user clicks a queue child item, open scheduler focused on that queue
+        # Queue child — single-click just selects, no action
         if item.data(0, Qt.ItemDataRole.UserRole) == "queue":
-            self._open_scheduler_for_queue(item.text(0))
             return
 
         for row in range(self.download_table.rowCount()):
@@ -1582,7 +1588,21 @@ class MainWindow(QMainWindow):
             if should_hide:
                 self.download_table.setRowHidden(row, True)
 
+    def _sidebar_item_double_clicked(self, item, column):
+        """Handles double-click on sidebar tree items.
+
+        - All Downloads header: toggle expand/collapse.
+        - Queues header: toggle expand/collapse.
+        """
+        if item is getattr(self, "all_downloads_header", None):
+            item.setExpanded(not item.isExpanded())
+            return
+        if item is getattr(self, "queues_header", None):
+            item.setExpanded(not item.isExpanded())
+            return
+
     def _show_sidebar_context_menu(self, pos):
+
         """Shows a context menu for queue items in the sidebar tree."""
         item = self.category_tree.itemAt(pos)
         if not item:
@@ -1658,6 +1678,9 @@ class MainWindow(QMainWindow):
         if queue_name in self._sidebar_queue_names:
             self._sidebar_queue_names.remove(queue_name)
 
+        # Remove from persistent queue data
+        self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
+
         # Also remove from scheduler if it's open
         if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
             for i, q in enumerate(self._scheduler_dlg.queues):
@@ -1669,12 +1692,17 @@ class MainWindow(QMainWindow):
 
     def _create_sidebar_queue(self):
         """Creates a new queue and adds it to both sidebar and scheduler."""
+        from ui.dialogs.scheduler import _make_default_queue
         base = "Queue"
         existing = set(self._sidebar_queue_names)
         i = 1
         while f"{base} # {i}" in existing:
             i += 1
         name = f"{base} # {i}"
+
+        # Persist into the source-of-truth list
+        new_q = _make_default_queue(name)
+        self._queues_data.append(new_q)
 
         # Add to sidebar
         child = QTreeWidgetItem(self.queues_header, [name])
@@ -1683,11 +1711,10 @@ class MainWindow(QMainWindow):
         child.setData(0, Qt.ItemDataRole.UserRole, "queue")
         self._sidebar_queue_names.append(name)
 
-        # Add to scheduler if it's open
+        # Reflect in scheduler dialog if it's open
         if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
-            from ui.dialogs.scheduler import _make_default_queue
-            new_q = _make_default_queue(name)
-            self._scheduler_dlg.queues.append(new_q)
+            self._scheduler_dlg.queues.append(dict(new_q))
+            self._scheduler_dlg.queues[-1]["daily_days"] = list(new_q["daily_days"])
             from PyQt6.QtWidgets import QListWidgetItem as QLWI
             self._scheduler_dlg.queue_list.addItem(QLWI(name))
             self._scheduler_dlg.queue_list.setCurrentRow(len(self._scheduler_dlg.queues) - 1)
@@ -1700,13 +1727,17 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "_scheduler_dlg") or not self._scheduler_dlg:
             return
 
-        # Remove all queue children from sidebar
+        # Save the dialog's current queue state back into the persistent store
+        self._queues_data = [dict(q) for q in self._scheduler_dlg.queues]
+        for q in self._queues_data:
+            q["daily_days"] = list(q["daily_days"])
+
+        # Rebuild sidebar from the updated persistent store
         while self.queues_header.childCount() > 0:
             self.queues_header.removeChild(self.queues_header.child(0))
         self._sidebar_queue_names.clear()
 
-        # Re-add from scheduler
-        for q in self._scheduler_dlg.queues:
+        for q in self._queues_data:
             child = QTreeWidgetItem(self.queues_header, [q["name"]])
             child.setIcon(0, get_themed_icon("scheduler"))
             child.setToolTip(0, f"Queue: {q['name']}")
@@ -3162,7 +3193,8 @@ class MainWindow(QMainWindow):
             self._scheduler_dlg.raise_()
             self._scheduler_dlg.activateWindow()
             return
-        self._scheduler_dlg = SchedulerDialog(main_window=self)
+        # Pass the persistent queue list so reopening the dialog preserves all queues
+        self._scheduler_dlg = SchedulerDialog(main_window=self, initial_queues=self._queues_data)
         self._scheduler_dlg.finished.connect(self._sync_sidebar_queues)
         self._scheduler_dlg.show()
         self._scheduler_dlg.raise_()
