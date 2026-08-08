@@ -234,6 +234,7 @@ class MediaDownloaderDialog(QDialog):
         btn_bar.addStretch()
 
         self.btn_download = QPushButton("Download")
+        self.btn_download.setObjectName("btn_download")
         self.btn_download.setFixedHeight(34)
         self.btn_download.setFixedWidth(150)
         self.btn_download.setEnabled(False)
@@ -892,7 +893,7 @@ class MediaDownloaderDialog(QDialog):
             title = self._current_video_data.get("title", "video")
             webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
             format_spec, is_audio_only = self._get_single_video_format_spec()
-            
+
             clean_title = re.sub(r'[\\/*?:"<>|]', "_", title)
             ext = ".mp3" if is_audio_only else ".mp4"
             filename = f"{clean_title}{ext}"
@@ -906,8 +907,12 @@ class MediaDownloaderDialog(QDialog):
                 )
             else:
                 mw.process_incoming_url(webpage_url)
-            
-            self.accept()
+
+            # Bring main window to front so the user can see the new queue row
+            mw.show()
+            mw.raise_()
+            mw.activateWindow()
+            self.close()
 
         elif self.stack.currentWidget() == self.page_playlist and self._current_playlist_data:
             entries = self._current_playlist_data.get("entries", [])
@@ -915,8 +920,8 @@ class MediaDownloaderDialog(QDialog):
             enqueued = 0
 
             for r in range(self.tbl_playlist.rowCount()):
-                item = self.tbl_playlist.item(r, 0)
-                if item and item.checkState() == Qt.CheckState.Checked and r < len(entries):
+                chk_item = self.tbl_playlist.item(r, 0)
+                if chk_item and chk_item.checkState() == Qt.CheckState.Checked and r < len(entries):
                     entry = entries[r]
                     item_url = entry["url"]
                     item_title = entry.get("title", f"video_{r+1}")
@@ -935,7 +940,11 @@ class MediaDownloaderDialog(QDialog):
                         mw.process_incoming_url(item_url)
                     enqueued += 1
 
-            self.accept()
+            # Bring main window to front
+            mw.show()
+            mw.raise_()
+            mw.activateWindow()
+            self.close()
 
     def closeEvent(self, event):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():

@@ -22,11 +22,11 @@ DEFAULT_QUEUES = [
     {
         "name": "Main download queue",
         "default": True,
-        "mode": "onetime",  # "onetime" or "sync"
+        "mode": "onetime",          # locked to "onetime" for this queue
         "start_on_startup": False,
         "start_at_enabled": False,
         "start_at_time": "23:00:00",
-        "schedule_type": "daily",  # "once" or "daily"
+        "schedule_type": "daily",   # "once" or "daily"
         "once_date": None,
         "daily_days": [True, True, True, True, True, True, True],  # Sun-Sat
         "stop_at_enabled": False,
@@ -42,12 +42,13 @@ DEFAULT_QUEUES = [
         "sync_interval_enabled": False,
         "sync_hours": 2,
         "sync_minutes": 0,
+        "max_concurrent": 4,
         "files": [],
     },
     {
         "name": "Synchronization queue",
         "default": True,
-        "mode": "sync",
+        "mode": "sync",             # locked to "sync" for this queue
         "start_on_startup": False,
         "start_at_enabled": False,
         "start_at_time": "23:00:00",
@@ -67,13 +68,14 @@ DEFAULT_QUEUES = [
         "sync_interval_enabled": False,
         "sync_hours": 2,
         "sync_minutes": 0,
+        "max_concurrent": 4,
         "files": [],
     },
 ]
 
 
 def _make_default_queue(name):
-    """Creates a new queue dict with default values."""
+    """Creates a new queue dict with default values (same as Main download queue)."""
     return {
         "name": name,
         "default": False,
@@ -97,6 +99,7 @@ def _make_default_queue(name):
         "sync_interval_enabled": False,
         "sync_hours": 2,
         "sync_minutes": 0,
+        "max_concurrent": 4,
         "files": [],
     }
 
@@ -112,6 +115,23 @@ class SchedulerDialog(QDialog):
         self.setMinimumSize(750, 530)
         self.resize(750, 530)
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+
+        self.setStyleSheet("""
+            QCheckBox:disabled,
+            QRadioButton:disabled,
+            QLabel:disabled {
+                color: #888888;
+            }
+            QSpinBox:disabled,
+            QTimeEdit:disabled,
+            QDateEdit:disabled,
+            QLineEdit:disabled,
+            QComboBox:disabled {
+                color: #888888;
+                background-color: palette(disabled, base);
+                border: 1px solid palette(disabled, mid);
+            }
+        """)
 
         # Queue data storage — use caller-supplied list or fall back to defaults
         source = initial_queues if initial_queues is not None else DEFAULT_QUEUES
@@ -256,9 +276,8 @@ class SchedulerDialog(QDialog):
         start_row.addStretch()
         layout.addLayout(start_row)
 
-        self.chk_start_at.toggled.connect(self.time_start_at.setEnabled)
-
         # Schedule type container (switches between once/daily and sync interval)
+        # All schedule sub-controls are enabled only when chk_start_at is checked.
         self.schedule_container = QWidget()
         self.schedule_layout = QVBoxLayout(self.schedule_container)
         self.schedule_layout.setContentsMargins(20, 0, 0, 0)
@@ -300,9 +319,6 @@ class SchedulerDialog(QDialog):
             self.day_checks.append(chk)
             row_idx = i // 3
             col_idx = i % 3
-            if i == 0:
-                # Put Daily radio + first day on same conceptual row
-                pass
             days_grid.addWidget(chk, row_idx, col_idx)
         onetime_layout.addLayout(days_grid)
 
@@ -320,12 +336,14 @@ class SchedulerDialog(QDialog):
         self.spin_sync_hours = QSpinBox()
         self.spin_sync_hours.setRange(0, 99)
         self.spin_sync_hours.setValue(2)
+        self.spin_sync_hours.setEnabled(False)
         self._apply_tabular_font(self.spin_sync_hours)
         sync_interval_row.addWidget(self.spin_sync_hours)
         sync_interval_row.addWidget(QLabel("hours"))
         self.spin_sync_mins = QSpinBox()
         self.spin_sync_mins.setRange(0, 59)
         self.spin_sync_mins.setValue(0)
+        self.spin_sync_mins.setEnabled(False)
         self._apply_tabular_font(self.spin_sync_mins)
         sync_interval_row.addWidget(self.spin_sync_mins)
         sync_interval_row.addWidget(QLabel("min"))
@@ -351,9 +369,14 @@ class SchedulerDialog(QDialog):
 
         layout.addWidget(self.schedule_container)
 
+        # Connect chk_start_at → enable/disable time field + all schedule sub-controls
+        self.chk_start_at.toggled.connect(self._on_start_at_toggled)
+        # Connect schedule type radio → date_once enabled only when radio_once + start_at checked
+        self.radio_once.toggled.connect(self._refresh_schedule_controls)
         # Connect mode toggle
-        self.radio_once.toggled.connect(lambda checked: self.date_once.setEnabled(checked))
         self.mode_group.idToggled.connect(self._on_mode_changed)
+        # Connect sync interval checkbox
+        self.chk_sync_interval.toggled.connect(self._on_sync_interval_toggled)
 
         # Stop download at
         stop_row = QHBoxLayout()
@@ -418,6 +441,7 @@ class SchedulerDialog(QDialog):
         turnoff_row.addStretch()
         layout.addLayout(turnoff_row)
 
+        # Force terminate — child of turn_off, disabled when turn_off is unchecked
         self.chk_force = QCheckBox("Force processes to terminate")
         self.chk_force.setEnabled(False)
         self.chk_force.setContentsMargins(20, 0, 0, 0)
@@ -425,22 +449,44 @@ class SchedulerDialog(QDialog):
 
         self.chk_turn_off.toggled.connect(self.combo_turn_off.setEnabled)
         self.chk_turn_off.toggled.connect(self.chk_force.setEnabled)
+        # When turn_off is unchecked, also uncheck force
+        self.chk_turn_off.toggled.connect(lambda checked: self.chk_force.setChecked(False) if not checked else None)
 
         layout.addStretch()
 
     def _build_files_tab(self):
         layout = QVBoxLayout(self.files_tab)
         layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
 
+        # "Download N files at the same time" row
+        concurrent_row = QHBoxLayout()
+        concurrent_row.addWidget(QLabel("Download"))
+        self.spin_concurrent = QSpinBox()
+        self.spin_concurrent.setRange(1, 20)
+        self.spin_concurrent.setValue(4)
+        self._apply_tabular_font(self.spin_concurrent)
+        concurrent_row.addWidget(self.spin_concurrent)
+        concurrent_row.addWidget(QLabel("files at the same time"))
+        concurrent_row.addStretch()
+        layout.addLayout(concurrent_row)
+
+        # Files table: File Name | Size | Status | Time Left
         self.files_table = QTableWidget()
-        self.files_table.setColumnCount(3)
-        self.files_table.setHorizontalHeaderLabels(["File Name", "Size", "Status"])
-        self.files_table.horizontalHeader().setStretchLastSection(True)
+        self.files_table.setColumnCount(4)
+        self.files_table.setHorizontalHeaderLabels(["File Name", "Size", "Status", "Time left"])
         self.files_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.files_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.files_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.files_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.files_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.files_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.files_table.setAlternatingRowColors(True)
-        layout.addWidget(self.files_table)
+        self.files_table.verticalHeader().setVisible(False)
+        layout.addWidget(self.files_table, 1)
+
+        # Connect tab change to refresh files when switching to Files tab
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
     # ---------------------------------------------------------------
     # Helpers
@@ -470,11 +516,19 @@ class SchedulerDialog(QDialog):
         q = self.queues[index]
         self.queue_title_label.setText(q["name"])
 
-        # Mode
+        # --- Mode radio locking ---
+        # Main download queue: only onetime; Synchronization queue: only sync
+        is_main = q.get("name") == "Main download queue"
+        is_sync_q = q.get("name") == "Synchronization queue"
+
         if q["mode"] == "sync":
             self.radio_sync.setChecked(True)
         else:
             self.radio_onetime.setChecked(True)
+
+        # Lock mode radios for the two built-in queues
+        self.radio_onetime.setEnabled(not is_sync_q)
+        self.radio_sync.setEnabled(not is_main)
 
         self.chk_startup.setChecked(q.get("start_on_startup", False))
 
@@ -525,17 +579,16 @@ class SchedulerDialog(QDialog):
         self.combo_turn_off.setCurrentIndex(max(0, idx))
         self.chk_force.setChecked(q.get("force_terminate", False))
 
-        # Files table
-        self.files_table.setRowCount(0)
-        for f in q.get("files", []):
-            row = self.files_table.rowCount()
-            self.files_table.insertRow(row)
-            self.files_table.setItem(row, 0, QTableWidgetItem(f.get("name", "")))
-            self.files_table.setItem(row, 1, QTableWidgetItem(f.get("size", "")))
-            self.files_table.setItem(row, 2, QTableWidgetItem(f.get("status", "")))
+        # Concurrent downloads spinbox
+        self.spin_concurrent.setValue(q.get("max_concurrent", 4))
 
-        # Update mode visibility
+        # Refresh all dependent-field enabled states
+        self._on_start_at_toggled(self.chk_start_at.isChecked())
         self._on_mode_changed(self.mode_group.checkedId(), True)
+
+        # Files table — populate if on that tab
+        if self.tabs.currentIndex() == 1:
+            self._refresh_files_table(index)
 
     def _save_ui_to_queue(self, index):
         """Saves current right panel state back into the queue dict at index."""
@@ -576,6 +629,71 @@ class SchedulerDialog(QDialog):
         q["turn_off_action"] = self.combo_turn_off.currentText()
         q["force_terminate"] = self.chk_force.isChecked()
 
+        q["max_concurrent"] = self.spin_concurrent.value()
+
+    def _refresh_files_table(self, queue_index=None):
+        """Populates the Files in the queue table from the main window's download table."""
+        self.files_table.setRowCount(0)
+
+        mw = self._main_window
+        if mw is None:
+            return
+
+        dt = getattr(mw, "download_table", None)
+        if dt is None:
+            return
+
+        for r in range(dt.rowCount()):
+            name_item = dt.item(r, 0)
+            size_item = dt.item(r, 1)
+            status_item = dt.item(r, 2)
+            time_item = dt.item(r, 3)
+
+            if not name_item:
+                continue
+
+            row = self.files_table.rowCount()
+            self.files_table.insertRow(row)
+            self.files_table.setItem(row, 0, QTableWidgetItem(name_item.text()))
+            self.files_table.setItem(row, 1, QTableWidgetItem(size_item.text() if size_item else ""))
+            self.files_table.setItem(row, 2, QTableWidgetItem(status_item.text() if status_item else ""))
+            self.files_table.setItem(row, 3, QTableWidgetItem(time_item.text() if time_item else ""))
+
+    def _refresh_schedule_controls(self):
+        """Re-applies enabled state for all schedule sub-controls based on chk_start_at."""
+        self._on_start_at_toggled(self.chk_start_at.isChecked())
+
+    def _on_start_at_toggled(self, checked: bool):
+        """Enable/disable the time field and all schedule sub-controls."""
+        self.time_start_at.setEnabled(checked)
+
+        # Onetime sub-controls
+        self.radio_once.setEnabled(checked)
+        self.radio_daily.setEnabled(checked)
+        # date_once only when both start_at checked AND radio_once selected
+        self.date_once.setEnabled(checked and self.radio_once.isChecked())
+        for chk in self.day_checks:
+            chk.setEnabled(checked)
+
+        # Sync sub-controls — only if also in sync mode
+        in_sync = self.radio_sync.isChecked()
+        self.chk_sync_interval.setEnabled(checked and in_sync)
+        sync_interval_on = self.chk_sync_interval.isChecked()
+        self.spin_sync_hours.setEnabled(checked and in_sync and sync_interval_on)
+        self.spin_sync_mins.setEnabled(checked and in_sync and sync_interval_on)
+        for chk in self.sync_day_checks:
+            chk.setEnabled(checked and in_sync)
+
+    def _on_sync_interval_toggled(self, checked: bool):
+        """Enable/disable sync hour/min spinboxes based on chk_sync_interval."""
+        start_at_on = self.chk_start_at.isChecked()
+        self.spin_sync_hours.setEnabled(start_at_on and checked)
+        self.spin_sync_mins.setEnabled(start_at_on and checked)
+
+    def _on_tab_changed(self, tab_index: int):
+        if tab_index == 1:
+            self._refresh_files_table(self._selected_index)
+
     # ---------------------------------------------------------------
     # Slots
     # ---------------------------------------------------------------
@@ -584,7 +702,7 @@ class SchedulerDialog(QDialog):
             self._save_ui_to_queue(self._selected_index)
 
         self._selected_index = row
-        if row >= 0 and row < len(self.queues):
+        if 0 <= row < len(self.queues):
             self._load_queue_to_ui(row)
             self.btn_delete_queue.setEnabled(not self.queues[row].get("default", False))
         else:
@@ -596,6 +714,8 @@ class SchedulerDialog(QDialog):
         is_sync = (mode_id == 1)
         self.onetime_widget.setVisible(not is_sync)
         self.sync_widget.setVisible(is_sync)
+        # Refresh start-at dependent enables after mode switch
+        self._on_start_at_toggled(self.chk_start_at.isChecked())
 
     def _add_new_queue(self):
         # Generate unique name
@@ -633,6 +753,12 @@ class SchedulerDialog(QDialog):
     def _apply_changes(self):
         if self._selected_index >= 0:
             self._save_ui_to_queue(self._selected_index)
+            # Propagate max_concurrent back to main window if possible
+            mw = self._main_window
+            if mw is not None:
+                q = self.queues[self._selected_index]
+                if q.get("name") == "Main download queue":
+                    mw.MAX_CONCURRENT_DOWNLOADS = q.get("max_concurrent", 4)
             # Update the list item name if changed
             q = self.queues[self._selected_index]
             item = self.queue_list.item(self._selected_index)
@@ -676,7 +802,13 @@ class SchedulerDialog(QDialog):
         menu.addSeparator()
 
         act_delete = menu.addAction("Delete")
-        act_delete.setEnabled(not q.get("default", False))
+        _is_default = q.get("default", False)
+        try:
+            from main import make_faded_icon, get_themed_icon as _gti
+            act_delete.setIcon(make_faded_icon(_gti("delete")) if _is_default else _gti("delete"))
+        except Exception:
+            pass
+        act_delete.setEnabled(not _is_default)
         act_delete.triggered.connect(lambda: self._delete_queue_at(row))
 
         act_new = menu.addAction("Create new queue")

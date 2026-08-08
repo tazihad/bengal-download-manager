@@ -677,6 +677,29 @@ def get_themed_icon(name, fallback=None):
     return icon
 
 
+def make_faded_icon(icon: "QIcon", opacity: float = 0.30) -> "QIcon":
+    """Returns a copy of *icon* with an explicit Disabled-mode pixmap at reduced opacity.
+
+    Qt's automatic disabled-icon generation is inconsistent across style
+    engines and looks invisible on dark themes. Baking an explicit
+    low-opacity pixmap guarantees a clearly faded look on any theme.
+    """
+    from PyQt6.QtGui import QPixmap, QPainter
+    from PyQt6.QtCore import Qt
+    src = icon.pixmap(24, 24, QIcon.Mode.Normal)
+    if src.isNull():
+        return icon
+    faded = QPixmap(src.size())
+    faded.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(faded)
+    painter.setOpacity(opacity)
+    painter.drawPixmap(0, 0, src)
+    painter.end()
+    new_icon = QIcon(icon)
+    new_icon.addPixmap(faded, QIcon.Mode.Disabled)
+    return new_icon
+
+
 def get_themed_tray_icon(tray_option=None):
     """
     Resolves system tray icon based on tray icon theme selection.
@@ -925,7 +948,8 @@ class MainWindow(QMainWindow):
             # Update tray icon action to "Show"
             QTimer.singleShot(0, self.update_tray_action)
         
-        self.active_downloads = {} 
+        self.active_downloads = {}
+        self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
         self.load_data()
@@ -1057,6 +1081,7 @@ class MainWindow(QMainWindow):
         for url in event.mimeData().urls():
             self.process_incoming_url(url.toString())
 
+
     def setup_actions(self):
         self.action_add_url = QAction(get_themed_icon("add_url"), "Add URL", self)
         self.action_add_url.setShortcut(QKeySequence("Ctrl+N"))
@@ -1067,30 +1092,32 @@ class MainWindow(QMainWindow):
         self.action_exit.setToolTip("Exit Bengal Download Manager")
         self.action_exit.triggered.connect(self.quit_app)
 
-        self.action_stop = QAction(get_themed_icon("stop"), "Stop/Pause", self)
+        _fi = make_faded_icon  # shorthand
+
+        self.action_stop = QAction(_fi(get_themed_icon("stop")), "Stop/Pause", self)
         self.action_stop.setToolTip("Pause or stop selected download(s)")
         self.action_stop.triggered.connect(self.stop_selected_download)
         self.action_stop.setEnabled(False)
 
-        self.action_stop_all = QAction(get_themed_icon("stop_all"), "Stop All", self)
+        self.action_stop_all = QAction(_fi(get_themed_icon("stop_all")), "Stop All", self)
         self.action_stop_all.setToolTip("Pause or stop all currently active downloads")
         self.action_stop_all.triggered.connect(self.stop_all_downloads)
         self.action_stop_all.setEnabled(False)
 
-        self.action_resume = QAction(get_themed_icon("resume"), "Resume", self)
+        self.action_resume = QAction(_fi(get_themed_icon("resume")), "Resume", self)
         self.action_resume.setToolTip("Resume downloading selected file(s)")
         self.action_resume.triggered.connect(self.resume_selected_download)
         self.action_resume.setEnabled(False)
-        
-        self.action_download_now = QAction(get_themed_icon("resume"), "Download Now", self)
+
+        self.action_download_now = QAction(_fi(get_themed_icon("resume")), "Download Now", self)
         self.action_download_now.setToolTip("Start downloading selected file immediately")
-        self.action_download_now.triggered.connect(self.resume_selected_download) 
-        
-        self.action_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
+        self.action_download_now.triggered.connect(self.resume_selected_download)
+
+        self.action_redownload = QAction(_fi(get_themed_icon("unfinished")), "Redownload", self)
         self.action_redownload.setToolTip("Restart download from the beginning")
         self.action_redownload.triggered.connect(self.redownload_selected)
 
-        self.action_delete = QAction(get_themed_icon("delete"), "Delete", self)
+        self.action_delete = QAction(_fi(get_themed_icon("delete")), "Delete", self)
         self.action_delete.setToolTip("Delete selected download(s) from the list (Delete key)")
         self.action_delete.triggered.connect(self.delete_selected_download)
         self.action_delete.setEnabled(False)
@@ -1564,8 +1591,16 @@ class MainWindow(QMainWindow):
         if item is getattr(self, "queues_header", None):
             return
 
-        # Queue child — single-click just selects, no action
+        # Queue child — filter by queue name stored in UserRole+8
         if item.data(0, Qt.ItemDataRole.UserRole) == "queue":
+            queue_name = item.text(0)
+            for row in range(self.download_table.rowCount()):
+                row_item = self.download_table.item(row, 0)
+                row_queue = row_item.data(Qt.ItemDataRole.UserRole + 8) if row_item else None
+                # Rows with no queue tag belong to the Main download queue
+                if row_queue is None:
+                    row_queue = "Main download queue"
+                self.download_table.setRowHidden(row, row_queue != queue_name)
             return
 
         for row in range(self.download_table.rowCount()):
@@ -1639,6 +1674,7 @@ class MainWindow(QMainWindow):
             # Determine if this is a default queue (cannot delete)
             is_default = queue_name in ("Main download queue", "Synchronization queue")
             act_delete = menu.addAction("Delete")
+            act_delete.setIcon(make_faded_icon(get_themed_icon("delete")) if is_default else get_themed_icon("delete"))
             act_delete.setEnabled(not is_default)
             act_delete.triggered.connect(lambda: self._delete_sidebar_queue(item))
 
@@ -1797,8 +1833,9 @@ class MainWindow(QMainWindow):
                     "status": status,
                     "time_left": safe_get(3),
                     "rate": safe_get(4),
-                    "last_try": str(last_try_ts), # Save raw timestamp
-                    "date_added": str(date_added_ts) # Save raw timestamp
+                    "last_try": str(last_try_ts),   # Save raw timestamp
+                    "date_added": str(date_added_ts), # Save raw timestamp
+                    "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue",
                 }
                 downloads.append(dl_data)
             
@@ -1833,9 +1870,10 @@ class MainWindow(QMainWindow):
                 last_try_ts = d.get("last_try", date_added_ts)
                 
                 item_name.setData(Qt.ItemDataRole.UserRole, d.get("url", ""))
-                item_name.setData(Qt.ItemDataRole.UserRole + 1, d.get("path", "")) 
-                item_name.setData(Qt.ItemDataRole.UserRole + 2, last_try_ts) # Raw Last Try TS
+                item_name.setData(Qt.ItemDataRole.UserRole + 1, d.get("path", ""))
+                item_name.setData(Qt.ItemDataRole.UserRole + 2, last_try_ts)   # Raw Last Try TS
                 item_name.setData(Qt.ItemDataRole.UserRole + 3, date_added_ts) # Raw Date Added TS
+                item_name.setData(Qt.ItemDataRole.UserRole + 8, d.get("queue", "Main download queue"))  # Queue
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -1992,7 +2030,7 @@ class MainWindow(QMainWindow):
             if item:
                 key = id(item)
                 if key in self.active_downloads:
-                    self.active_downloads[key].worker.stop()
+                    self._stop_worker_entry(self.active_downloads[key])
 
     def qml_resume_download(self, index):
         if 0 <= index < self.download_table.rowCount():
@@ -2260,26 +2298,28 @@ class MainWindow(QMainWindow):
 
         menu = QMenu(self)
         
-        act_open = QAction(get_themed_icon("documents"), "Open", self)
-        act_open_with = QAction(get_themed_icon("documents"), "Open with...", self)
-        act_open_folder = QAction(get_themed_icon("open_folder"), "Open folder", self)
-        act_move = QAction(get_themed_icon("open_folder"), "Move...", self)
-        act_rename = QAction(get_themed_icon("documents"), "Rename...", self)
-        
+        _fi = make_faded_icon
+
+        act_open     = QAction(_fi(get_themed_icon("documents")),   "Open",             self)
+        act_open_with= QAction(_fi(get_themed_icon("documents")),   "Open with...",     self)
+        act_open_folder = QAction(get_themed_icon("open_folder"),   "Open folder",      self)
+        act_move     = QAction(_fi(get_themed_icon("open_folder")), "Move...",           self)
+        act_rename   = QAction(_fi(get_themed_icon("documents")),   "Rename...",         self)
+
         act_move.setEnabled(is_completed)
         act_rename.setEnabled(is_completed)
         act_open.setEnabled(is_completed)
         act_open_with.setEnabled(is_completed)
-        
+
         menu.addActions([act_open, act_open_with, act_open_folder, act_move, act_rename])
         menu.addSeparator()
-        
+
         # Enhanced State Logic for Context Menu
-        act_stop = QAction(get_themed_icon("stop"), "Stop/Pause Download", self)
+        act_stop = QAction(_fi(get_themed_icon("stop")),   "Stop/Pause Download", self)
         act_stop.triggered.connect(self.stop_selected_download)
         act_stop.setEnabled(is_active and is_pausable)
-        
-        act_resume = QAction(get_themed_icon("resume"), "Resume download", self)
+
+        act_resume = QAction(_fi(get_themed_icon("resume")), "Resume download", self)
         act_resume.triggered.connect(self.resume_selected_download)
         act_resume.setEnabled(is_resumable and not is_active)
         
@@ -2405,8 +2445,7 @@ class MainWindow(QMainWindow):
         key = id(item_0)
         if key in self.active_downloads:
             dialog = self.active_downloads[key]
-            dialog.worker.stop()
-            dialog.reject() # Closes the dialog and triggers the close handler
+            self._stop_worker_entry(dialog)
             
         if path and os.path.exists(path):
             try: os.remove(path)
@@ -2651,7 +2690,8 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts) # Date Added
         item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts) # Last Try
         item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent) # User-Agent
-        item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies) # Cookies
+        item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)    # Cookies
+        item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
         
         # Determine explicit metadata bindings
         size_str = size_data[0] if size_data else "?"
@@ -2688,7 +2728,11 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
         
         if not start_paused:
-            self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies)
+            if len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS:
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies)
+            else:
+                # Slot full — mark as queued; _try_start_queued will pick it up
+                self._set_status_text(row, "Queued")
             
         self.save_data()
         return item_name
@@ -2745,21 +2789,22 @@ class MainWindow(QMainWindow):
         
         worker.main_progress_signal.connect(lambda _, data: self.update_download_row(item_ref, data))
         worker.finished_signal.connect(lambda _, status: self.download_finished(item_ref, status))
-        
+
         # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
         progress_dialog = DownloadProgressDialog(worker, None)
         if show_dialog:
             progress_dialog.show()
         else:
             progress_dialog.hide()
-        
+
         # Connect to the dialog's finished signal to update the main UI/toolbar
         progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
-        
+
         # Use item_ref ID as key to manage active dialogs
         self.active_downloads[id(item_ref)] = progress_dialog
         progress_dialog.finished.connect(lambda: self.active_downloads.pop(id(item_ref), None))
-        
+        progress_dialog.finished.connect(self._try_start_queued)
+
         # Trigger UI Update for Stop Buttons
         self.update_ui_states()
 
@@ -2804,8 +2849,8 @@ class MainWindow(QMainWindow):
                 key = id(item)
                 if key in self.active_downloads:
                     dialog = self.active_downloads[key]
-                    dialog.worker.stop() # Drop lock
-                    
+                    self._stop_worker_entry(dialog)
+
                     # Update status preserving percentage string
                     status_item = self.download_table.item(item.row(), 2)
                     if not status_item:
@@ -2815,26 +2860,51 @@ class MainWindow(QMainWindow):
                     pct_data = status_item.data(Qt.ItemDataRole.UserRole)
                     final_display = f"{pct_data} complete" if pct_data else "Paused"
                     status_item.setText(final_display)
-                    
+
                     # Preserve Time Left but Drop Rate
                     self._set_sortable_item(item.row(), 4, "", parse_size_to_bytes)
-                    
+
                     # Update last try timestamp on pause
                     item_ref = self.download_table.item(item.row(), 0)
                     new_timestamp = str(time.time())
                     item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                     self._set_timestamp_item(item.row(), 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
-                    
-                    # Close the dialog which will trigger the finished signal connected to refresh_toolbar_state_on_dialog_close
-                    dialog.reject() 
+
+                    # Close the dialog if it's a ProgressDialog
+                    if hasattr(dialog, 'reject'):
+                        dialog.reject()
+
+    def _stop_worker_entry(self, entry):
+        """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
+        from core.media_downloader import YtDlpDownloadWorker
+        if isinstance(entry, YtDlpDownloadWorker):
+            try:
+                entry.requestInterruption()
+                entry.quit()
+                entry.wait(500)
+                if entry.isRunning():
+                    entry.terminate()
+                    entry.wait(500)
+            except Exception:
+                pass
+        else:
+            # Legacy ProgressDialog path
+            try:
+                entry.worker.stop()
+            except Exception:
+                pass
+            try:
+                entry.reject()
+            except Exception:
+                pass
 
     def stop_all_downloads(self):
-        for dialog in list(self.active_downloads.values()):
-            dialog.worker.stop()
+        for key, entry in list(self.active_downloads.items()):
+            self._stop_worker_entry(entry)
             # Find the corresponding table item and update status/timestamp
             for r in range(self.download_table.rowCount()):
                 item_ref = self.download_table.item(r, 0)
-                if id(item_ref) == next((k for k, v in self.active_downloads.items() if v == dialog), None):
+                if item_ref and id(item_ref) == key:
                     status_item = self.download_table.item(r, 2)
                     if not status_item:
                         status_item = QTableWidgetItem()
@@ -2843,14 +2913,13 @@ class MainWindow(QMainWindow):
                     pct_data = status_item.data(Qt.ItemDataRole.UserRole)
                     final_display = f"{pct_data} complete" if pct_data else "Paused"
                     status_item.setText(final_display)
-                    
+
                     self._set_sortable_item(r, 4, "", parse_size_to_bytes)
-                    
+
                     new_timestamp = str(time.time())
                     item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                     self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     break
-            dialog.reject()
 
     def remove_from_list(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
@@ -2861,8 +2930,7 @@ class MainWindow(QMainWindow):
             key = id(item_name)
             if key in self.active_downloads:
                 dialog = self.active_downloads[key]
-                dialog.worker.stop()
-                dialog.reject()
+                self._stop_worker_entry(dialog)
             self.download_table.removeRow(row)
         self.save_data()
         self.update_ui_states()
@@ -2882,8 +2950,7 @@ class MainWindow(QMainWindow):
                 key = id(item_name)
                 if key in self.active_downloads:
                     dlg = self.active_downloads[key]
-                    dlg.worker.stop()
-                    dlg.reject()
+                    self._stop_worker_entry(dlg)
                 
                 if delete_disk:
                     path = item_name.data(Qt.ItemDataRole.UserRole + 1)
@@ -2952,8 +3019,7 @@ class MainWindow(QMainWindow):
                 key = id(item_name)
                 if key in self.active_downloads:
                     dlg = self.active_downloads[key]
-                    dlg.worker.stop()
-                    dlg.reject()
+                    self._stop_worker_entry(dlg)
                 
                 # Clear cache files for finished items too
                 self._clear_cache_files(item_name, config)
@@ -3232,6 +3298,9 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
         item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)
         item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)
+        item_name.setData(Qt.ItemDataRole.UserRole + 6, format_spec)      # for _try_start_queued
+        item_name.setData(Qt.ItemDataRole.UserRole + 7, is_audio_only)    # for _try_start_queued
+        item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
 
         self.download_table.setItem(row, 0, item_name)
         self.download_table.setItem(row, 1, QTableWidgetItem("Calculating..."))
@@ -3240,6 +3309,14 @@ class MainWindow(QMainWindow):
         self.download_table.setItem(row, 4, QTableWidgetItem("--"))
         self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(current_ts)))
         self.download_table.setItem(row, 6, QTableWidgetItem(format_timestamp_relative(current_ts)))
+
+        # Respect concurrent download cap
+        if len(self.active_downloads) >= self.MAX_CONCURRENT_DOWNLOADS:
+            # Mark as queued; _try_start_queued will start it when a slot opens
+            self.download_table.setItem(row, 2, QTableWidgetItem("Queued"))
+            self.download_table.setSortingEnabled(True)
+            self.save_data()
+            return item_name
 
         worker = YtDlpDownloadWorker(
             url=url,
@@ -3257,6 +3334,7 @@ class MainWindow(QMainWindow):
         worker.finished_signal.connect(lambda r, path, k=key: self._on_media_download_finished(k, r, path))
 
         worker.start()
+        self.download_table.setSortingEnabled(True)
         self.save_data()
         return item_name
 
@@ -3269,6 +3347,47 @@ class MainWindow(QMainWindow):
                 item_name.setData(Qt.ItemDataRole.UserRole + 1, path)
         self.update_ui_states()
         self.save_data()
+        self._try_start_queued()
+
+    def _try_start_queued(self, *_):
+        """Start the next Queued row if a concurrent slot is available."""
+        while len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS:
+            started = False
+            for r in range(self.download_table.rowCount()):
+                status_item = self.download_table.item(r, 2)
+                if status_item and status_item.text() == "Queued":
+                    item_ref = self.download_table.item(r, 0)
+                    if item_ref and id(item_ref) not in self.active_downloads:
+                        url = item_ref.data(Qt.ItemDataRole.UserRole)
+                        # Determine if this is a media (yt-dlp) row by checking stored format_spec data
+                        format_spec = item_ref.data(Qt.ItemDataRole.UserRole + 6)
+                        if format_spec is not None:
+                            # Media download row — re-launch via start_media_download path
+                            from core.media_downloader import YtDlpDownloadWorker
+                            save_dir = os.path.dirname(item_ref.data(Qt.ItemDataRole.UserRole + 1) or "")
+                            filename = item_ref.text()
+                            is_audio_only = bool(item_ref.data(Qt.ItemDataRole.UserRole + 7))
+                            worker = YtDlpDownloadWorker(
+                                url=url,
+                                row_index=r,
+                                save_dir=save_dir,
+                                filename=filename,
+                                format_spec=format_spec,
+                                is_audio_only=is_audio_only
+                            )
+                            key = id(item_ref)
+                            self.active_downloads[key] = worker
+                            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+                            worker.finished_signal.connect(lambda rr, path, k=key: self._on_media_download_finished(k, rr, path))
+                            self._set_status_text(r, "Downloading...")
+                            worker.start()
+                        else:
+                            # Regular HTTP download row
+                            self._start_download_worker(url, item_ref)
+                        started = True
+                        break
+            if not started:
+                break
 
 
     def _handle_options_accepted(self):
