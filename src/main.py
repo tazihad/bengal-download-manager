@@ -311,7 +311,8 @@ ACCENT_COLORS = {
     "Nord Frost": "#88c0d0",
     "Emerald Green": "#2ecc71",
     "Crimson Red": "#e74c3c",
-    "Amethyst Violet": "#9b59b6"
+    "Amethyst Violet": "#9b59b6",
+    "Obsidian Purple": "#dab9ff"
 }
 
 def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
@@ -425,6 +426,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#2e3440", "#eceff4", "#242933", "#3b4252", "#3b4252", "#88c0d0", "#88c0d0", "#2e3440", accent=accent_name))
+    elif theme_lower in ("obsidian flow", "obsidian", "obsidianflow"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#161218", "#e9e0e8", "#110d13", "#1e1a20", "#221e24", "#dab9ff", "#dab9ff", "#460283", accent=accent_name))
     elif theme_lower in ("one dark", "onedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
