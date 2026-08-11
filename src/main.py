@@ -521,7 +521,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 color: palette(window-text);
                 padding: 4px 10px;
             }
-            QMenuBar::item:selected {
+            QMenuBar::item:selected, QMenuBar::item:hover {
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
             }
@@ -537,7 +537,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 padding: 5px 24px 5px 12px;
                 border-radius: 2px;
             }
-            QMenu::item:selected {
+            QMenu::item:selected, QMenu::item:hover {
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
             }
