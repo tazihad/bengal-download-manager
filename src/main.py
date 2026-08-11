@@ -920,6 +920,7 @@ class SidebarItemDelegate(QStyledItemDelegate):
         super().initStyleOption(option, index)
         if (option.state & QStyle.StateFlag.State_MouseOver) or (option.state & QStyle.StateFlag.State_Selected):
             option.iconMode = QIcon.Mode.Selected
+            option.state |= QStyle.StateFlag.State_Selected
 
 
 def get_monochrome_app_icon(color=None, size=24):
@@ -1275,6 +1276,8 @@ class MainWindow(QMainWindow):
     def setup_central_widget(self):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.category_tree = QTreeWidget()
+        self.category_tree.setMouseTracking(True)
+        self.category_tree.viewport().setMouseTracking(True)
         self.category_tree.setItemDelegate(SidebarItemDelegate(self.category_tree))
         self.category_tree.setHeaderHidden(True)
         self.category_tree.setRootIsDecorated(False)
