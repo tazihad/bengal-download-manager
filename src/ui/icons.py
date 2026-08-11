@@ -304,30 +304,37 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))
 
 
-def get_monochrome_icon(name: str, color: QColor = None, size: int = 24) -> QIcon:
+def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24) -> QIcon:
     """
     Renders a clean, high-DPI vector stroke icon for the given symbol name.
-    If color is None, dynamically extracts QApplication.palette().color(QPalette.ColorRole.WindowText).
+    Dynamically renders Normal state using WindowText color and Selected state using HighlightedText color.
     """
+    app = QApplication.instance()
     if color is None:
-        app = QApplication.instance()
-        if app:
-            color = app.palette().color(QPalette.ColorRole.WindowText)
-        else:
-            color = QColor("#333333")
+        color = app.palette().color(QPalette.ColorRole.WindowText) if app else QColor("#333333")
 
-    pixmap = QPixmap(size * 2, size * 2) # Render 2x for high-DPI sharpness
-    pixmap.fill(Qt.GlobalColor.transparent)
-    
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    
-    pen = QPen(color, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
-    painter.setPen(pen)
-    
-    draw_icon_path(painter, name, size * 2)
-    painter.end()
+    if selected_color is None:
+        selected_color = app.palette().color(QPalette.ColorRole.HighlightedText) if app else QColor("#ffffff")
+
+    def _render_pixmap(c: QColor) -> QPixmap:
+        pixmap = QPixmap(size * 2, size * 2)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pen = QPen(c, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        draw_icon_path(painter, name, size * 2)
+        painter.end()
+        return pixmap
+
+    normal_pixmap = _render_pixmap(color)
+    selected_pixmap = _render_pixmap(selected_color)
 
     icon = QIcon()
-    icon.addPixmap(pixmap)
+    icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.On)
+    icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.Off)
+    icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.On)
+    icon.addPixmap(selected_pixmap, QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(selected_pixmap, QIcon.Mode.Active, QIcon.State.On)
     return icon

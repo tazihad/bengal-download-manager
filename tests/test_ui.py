@@ -326,7 +326,8 @@ def test_options_dialog_theme_selection(qapp):
         "Automatic", "BDM Dark (Default)", "BDM Light", 
         "Breeze Dark", "Breeze Light", "Catppuccin",
         "Dracula", "IDM Classic", "Kirigami Dark", 
-        "Kirigami Light", "Nord", "One Dark", 
+        "Kirigami Light", "Material You Dark", "Material You Light",
+        "Nord", "Obsidian Flow", "One Dark", 
         "Solarized Dark", "Solarized Light", 
         "Ubuntu Dark", "Ubuntu Light"
     ]

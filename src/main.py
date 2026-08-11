@@ -22,7 +22,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QToolBar, QStatusBar, QStyle,
+    QApplication, QMainWindow, QToolBar, QStatusBar, QStyle, QStyledItemDelegate,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QDialog, 
@@ -311,7 +311,10 @@ ACCENT_COLORS = {
     "Nord Frost": "#88c0d0",
     "Emerald Green": "#2ecc71",
     "Crimson Red": "#e74c3c",
-    "Amethyst Violet": "#9b59b6"
+    "Amethyst Violet": "#9b59b6",
+    "Obsidian Purple": "#dab9ff",
+    "Material Cobalt": "#a8c7fa",
+    "Material Violet": "#d0bcff"
 }
 
 def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
@@ -425,6 +428,18 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#2e3440", "#eceff4", "#242933", "#3b4252", "#3b4252", "#88c0d0", "#88c0d0", "#2e3440", accent=accent_name))
+    elif theme_lower in ("obsidian flow", "obsidian", "obsidianflow"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#161218", "#e9e0e8", "#110d13", "#1e1a20", "#221e24", "#dab9ff", "#dab9ff", "#460283", accent=accent_name))
+    elif theme_lower in ("material you dark", "material you", "material dark", "android 17 dark", "materialyou"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#141318", "#e6e1e9", "#0f0e13", "#1d1b20", "#2b2930", "#a8c7fa", "#a8c7fa", "#003062", accent=accent_name))
+    elif theme_lower in ("material you light", "material light", "android 17 light"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#fdf8fd", "#1c1b20", "#ffffff", "#f5eff7", "#e6e0e9", "#005ac1", "#005ac1", "#ffffff", accent=accent_name))
     elif theme_lower in ("one dark", "onedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
@@ -506,7 +521,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 color: palette(window-text);
                 padding: 4px 10px;
             }
-            QMenuBar::item:selected {
+            QMenuBar::item:selected, QMenuBar::item:hover {
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
             }
@@ -522,7 +537,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 padding: 5px 24px 5px 12px;
                 border-radius: 2px;
             }
-            QMenu::item:selected {
+            QMenu::item:selected, QMenu::item:hover {
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
             }
@@ -536,6 +551,13 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 background-color: palette(disabled, window);
                 border: 1px solid palette(disabled, mid);
                 opacity: 0.5;
+            }
+            QToolBar QToolButton, QToolBar QToolButton:hover {
+                color: #FFFFFF;
+                opacity: 1.0;
+            }
+            QToolBar QToolButton:disabled {
+                opacity: 0.30;
             }
         """)
 
@@ -890,6 +912,18 @@ def get_app_icon():
     return QIcon.fromTheme("system-run", QIcon(":/icons/fallback.png")) # Just a safe fallback
 
 
+class SidebarItemDelegate(QStyledItemDelegate):
+    """
+    Delegate for the left panel category tree that enforces option.iconMode = QIcon.Mode.Selected
+    when items are hovered or selected, matching icon color with hovered/selected text color.
+    """
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if (option.state & QStyle.StateFlag.State_MouseOver) or (option.state & QStyle.StateFlag.State_Selected):
+            option.iconMode = QIcon.Mode.Selected
+            option.state |= QStyle.StateFlag.State_Selected
+
+
 def get_monochrome_app_icon(color=None, size=24):
     """
     Converts the Bengal Download Manager application logo into a clean, sharp
@@ -1221,6 +1255,15 @@ class MainWindow(QMainWindow):
         toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QSize(24, 24))
+        toolbar.setStyleSheet("""
+            QToolButton, QToolButton:hover {
+                color: #FFFFFF;
+                opacity: 1.0;
+            }
+            QToolButton:disabled {
+                opacity: 0.30;
+            }
+        """)
 
         toolbar.addAction(self.action_add_url)
         toolbar.addAction(self.action_resume)
@@ -1235,6 +1278,9 @@ class MainWindow(QMainWindow):
     def setup_central_widget(self):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.category_tree = QTreeWidget()
+        self.category_tree.setMouseTracking(True)
+        self.category_tree.viewport().setMouseTracking(True)
+        self.category_tree.setItemDelegate(SidebarItemDelegate(self.category_tree))
         self.category_tree.setHeaderHidden(True)
         self.category_tree.setRootIsDecorated(False)
         self.category_tree.setIconSize(QSize(18, 18))
