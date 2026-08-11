@@ -41,11 +41,15 @@ class MediaDownloaderDialog(QDialog):
         self._current_playlist_data = None
 
         self.setStyleSheet("""
-            QPushButton:disabled {
-                color: palette(disabled, button-text);
+            QPushButton, QToolButton {
+                color: #FFFFFF;
+                opacity: 1.0;
+            }
+            QPushButton:disabled, QToolButton:disabled {
+                color: #8A8E93;
                 background-color: palette(disabled, window);
                 border: 1px solid palette(disabled, mid);
-                opacity: 0.45;
+                opacity: 0.30;
             }
         """)
 

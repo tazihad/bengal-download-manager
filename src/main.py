@@ -537,6 +537,14 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 border: 1px solid palette(disabled, mid);
                 opacity: 0.5;
             }
+            QToolBar QToolButton {
+                color: #FFFFFF;
+                opacity: 1.0;
+            }
+            QToolBar QToolButton:disabled {
+                color: #8A8E93;
+                opacity: 0.30;
+            }
         """)
 
     for w in app.allWidgets():
@@ -1221,6 +1229,16 @@ class MainWindow(QMainWindow):
         toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QSize(24, 24))
+        toolbar.setStyleSheet("""
+            QToolButton {
+                color: #FFFFFF;
+                opacity: 1.0;
+            }
+            QToolButton:disabled {
+                color: #8A8E93;
+                opacity: 0.30;
+            }
+        """)
 
         toolbar.addAction(self.action_add_url)
         toolbar.addAction(self.action_resume)
