@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
     QSystemTrayIcon, QRubberBand
 )
-from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage
+from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
@@ -44,7 +44,8 @@ from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
-    show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path
+    show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
+    is_media_downloader_url, setup_logging, format_bytes
 )
 
 # Default TCP port for extension communication
@@ -954,10 +955,10 @@ class MainWindow(QMainWindow):
         self.active_complete_dialogs = {}
         self.load_data()
         
-        # FEATURE: Timer for periodic timestamp updates (Run every 60 seconds)
+        # FEATURE: Timer for periodic timestamp updates (Run every 10 seconds)
         self.timestamp_timer = QTimer(self)
         self.timestamp_timer.timeout.connect(self.update_timestamp_display)
-        self.timestamp_timer.start(60000) # Update every 60 seconds (1 minute)
+        self.timestamp_timer.start(10000) # Update every 10 seconds
         
         # Enable Drag-and-Drop
         self.setAcceptDrops(True)
@@ -1086,7 +1087,12 @@ class MainWindow(QMainWindow):
         self.action_add_url = QAction(get_themed_icon("add_url"), "Add URL", self)
         self.action_add_url.setShortcut(QKeySequence("Ctrl+N"))
         self.action_add_url.setToolTip("Add a new download URL address (Ctrl+N)")
-        self.action_add_url.triggered.connect(self.open_add_url)
+        self.action_add_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=False))
+
+        self.action_paste_url = QAction(get_themed_icon("add_url"), "Paste URL", self)
+        self.action_paste_url.setShortcut(QKeySequence("Ctrl+V"))
+        self.action_paste_url.setToolTip("Paste URL address from clipboard (Ctrl+V)")
+        self.action_paste_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=True))
 
         self.action_exit = QAction(get_themed_icon("exit"), "Exit", self)
         self.action_exit.setToolTip("Exit Bengal Download Manager")
@@ -1150,6 +1156,7 @@ class MainWindow(QMainWindow):
         # 1. Tasks
         tasks_menu = menu_bar.addMenu("&Tasks")
         tasks_menu.addAction(self.action_add_url)
+        tasks_menu.addAction(self.action_paste_url)
         tasks_menu.addSeparator()
         tasks_menu.addAction(self.action_exit)
 
@@ -1347,6 +1354,7 @@ class MainWindow(QMainWindow):
 
         # Install event filter to clear selection on empty area click
         self.empty_area_filter = EmptyAreaClickFilter(self.download_table, self)
+        self.download_table.installEventFilter(self.empty_area_filter)
         self.download_table.viewport().installEventFilter(self.empty_area_filter)
 
         # FIX: Remove blue cell highlight (focus rectangle) on selection
@@ -1524,6 +1532,15 @@ class MainWindow(QMainWindow):
             if sorting_was_enabled:
                 self.download_table.setSortingEnabled(True)
             self.download_table.viewport().update()
+            self._notify_views_changed()
+
+    def _notify_views_changed(self):
+        """Notifies QML bridge and scheduler dialog of download list/progress changes."""
+        if hasattr(self, '_scheduler_dlg') and self._scheduler_dlg and self._scheduler_dlg.isVisible():
+            if hasattr(self._scheduler_dlg, 'tabs') and self._scheduler_dlg.tabs.currentIndex() == 1:
+                self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
+        if hasattr(self, 'bridge') and self.bridge:
+            self.bridge.refresh()
 
     def update_ui_states(self):
         selected_rows = self.download_table.selectedItems()
@@ -2497,16 +2514,19 @@ class MainWindow(QMainWindow):
         self._prop_dlg = PropertiesDialog(data, self)
         self._prop_dlg.show()
 
-    def open_add_url(self):
+    def open_add_url(self, paste_clipboard=False):
         from ui.dialogs import AddUrlDialog
-        self._add_url_dialog = AddUrlDialog(self)
+        self._add_url_dialog = AddUrlDialog(self, paste_clipboard=paste_clipboard)
         if self._add_url_dialog.exec():
             self._handle_add_url_accepted(self._add_url_dialog)
 
     def _handle_add_url_accepted(self, dialog):
         url = dialog.get_url()
         if url:
-            self.process_incoming_url(url)
+            if getattr(dialog, "is_media_mode", False):
+                self.open_media_downloader(url=url, auto_analyze=True)
+            else:
+                self.process_incoming_url(url)
 
     def process_incoming_url(self, data):
         """Fetches file info and shows the popup without stealing focus for main window"""
@@ -2858,10 +2878,11 @@ class MainWindow(QMainWindow):
                         self.download_table.setItem(item.row(), 2, status_item)
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
                     pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = f"{pct_data} complete" if pct_data else "Paused"
-                    status_item.setText(final_display)
+                    final_display = pct_data if pct_data else "Paused"
+                    self._set_status_text(item.row(), final_display)
 
-                    # Preserve Time Left but Drop Rate
+                    # Reset Time Left and Rate on pause
+                    self._set_sortable_item(item.row(), 3, "", parse_time_to_sec)
                     self._set_sortable_item(item.row(), 4, "", parse_size_to_bytes)
 
                     # Update last try timestamp on pause
@@ -2879,12 +2900,13 @@ class MainWindow(QMainWindow):
         from core.media_downloader import YtDlpDownloadWorker
         if isinstance(entry, YtDlpDownloadWorker):
             try:
+                entry.stop()
                 entry.requestInterruption()
                 entry.quit()
-                entry.wait(500)
+                entry.wait(2000)
                 if entry.isRunning():
                     entry.terminate()
-                    entry.wait(500)
+                    entry.wait(2000)
             except Exception:
                 pass
         else:
@@ -2911,9 +2933,10 @@ class MainWindow(QMainWindow):
                         self.download_table.setItem(r, 2, status_item)
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
                     pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = f"{pct_data} complete" if pct_data else "Paused"
-                    status_item.setText(final_display)
+                    final_display = pct_data if pct_data else "Paused"
+                    self._set_status_text(r, final_display)
 
+                    self._set_sortable_item(r, 3, "", parse_time_to_sec)
                     self._set_sortable_item(r, 4, "", parse_size_to_bytes)
 
                     new_timestamp = str(time.time())
@@ -3035,13 +3058,14 @@ class MainWindow(QMainWindow):
             return # object has been deleted by remove
         if row == -1: return 
 
+        status_item = self.download_table.item(row, 2)
+        old_status = status_item.text() if status_item else ""
+        old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+
         # --- PROTECTION GUARD ---
         # If the row is already marked as Complete, ignore any late progress signals
-        status_item = self.download_table.item(row, 2)
-        if status_item:
-            internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-            if internal_status == "Complete":
-                return
+        if old_logic_status == "Complete":
+            return
         
         # --- FIX: Block signals and disable sorting during update to prevent flickering ---
         sorting_was_enabled = self.download_table.isSortingEnabled()
@@ -3051,7 +3075,6 @@ class MainWindow(QMainWindow):
         
         try:
             # --- Update Last Try Timestamp ---
-            # Update the stored raw timestamp whenever progress is made
             new_timestamp = str(time.time())
             item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
 
@@ -3061,21 +3084,22 @@ class MainWindow(QMainWindow):
                 item_ref.setToolTip(new_name)
                 item_ref.setIcon(get_file_icon(new_name))
             
-            # Col 1: Size
-            self._set_sortable_item(row, 1, data[1], parse_size_to_bytes)
+            # Col 1: Size (Display total file size if known)
+            tot_bytes = data[6] if len(data) > 6 else 0
+            comp_bytes = data[5] if len(data) > 5 else 0
+
+            if tot_bytes > 0:
+                size_display = format_bytes(tot_bytes)
+            elif comp_bytes > 0:
+                size_display = format_bytes(comp_bytes)
+            else:
+                size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
+
+            self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
             
             # Col 2: Status
-            status_item = self.download_table.item(row, 2)
-            old_status = ""
-            if not status_item:
-                 self._set_status_text(row, "")
-                 status_item = self.download_table.item(row, 2)
-            else:
-                 old_status = status_item.text()
-                 
-            # Map worker status to improved table status
-            worker_status = data[2]
-            if worker_status.startswith("Receiving data"):
+            worker_status = data[2] if len(data) > 2 else ""
+            if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
                 display_status = "Downloading"
             elif worker_status == "Connecting...":
                 display_status = "Connecting..."
@@ -3083,66 +3107,52 @@ class MainWindow(QMainWindow):
                 display_status = "Complete"
             elif worker_status == "Resume GET...":
                 display_status = "Resuming..."
+            elif worker_status == "Queued":
+                display_status = "Queued"
             else:
                 display_status = worker_status
-                
-            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            
-            final_display = display_status
+
             pct_str = ""
-            if len(data) > 6:
-                comp, tot = data[5], data[6]
-                if tot > 0:
-                    pct_val = (comp/tot)*100
-                    if pct_val >= 99.999:
-                        pct_str = "Complete"
-                    else:
-                        pct_str = f"{pct_val:.2f}%"
-                        
-                    status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
-                    
-                    # EXACT 100% CHECK: Switch to Complete in the moment
-                    if comp >= tot: 
-                        display_status = "Complete"
-                        # FORCE UI TEXT IMMEDIATELY
-                        self._set_status_text(row, "Complete")
-                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
-            
-            if display_status == "Downloading":
+            if len(data) > 6 and tot_bytes > 0:
+                pct_val = (comp_bytes / tot_bytes) * 100
+                if pct_val >= 99.999 or worker_status == "Complete":
+                    pct_str = "Complete"
+                else:
+                    pct_str = f"{pct_val:.2f}%"
+
+            if display_status == "Complete" or worker_status == "Complete":
+                display_status = "Complete"
+                final_display = "Complete"
+            elif display_status == "Downloading":
                 final_display = pct_str if pct_str else "Downloading"
             elif display_status in ["Paused", "Cancelled"]:
-                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
                 final_display = pct_data if pct_data else display_status
-            
-            # CRITICAL: Always force "Complete" if that's the determined status
-            if display_status == "Complete":
-                final_display = "Complete"
-                self._set_status_text(row, "Complete")
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
-                
-            # Check if internal logical status changed to trigger UI update
-            old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+            else:
+                final_display = display_status
+
+            if pct_str and pct_str != "Complete" and status_item:
+                status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
             
             if final_display != old_status or display_status != old_logic_status:
                 self._set_status_text(row, final_display)
-                
-                # Update logical status and trigger UI states only if logical status changed
-                if display_status != old_logic_status:
+                status_item = self.download_table.item(row, 2)
+                if status_item:
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+                if display_status != old_logic_status:
                     self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
-            if display_status in ["Complete", "Error"]:
+            if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-            elif display_status in ["Paused", "Cancelled"]:
-                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
             else:
-                self._set_sortable_item(row, 3, data[3], parse_time_to_sec)
-                self._set_sortable_item(row, 4, data[4], parse_size_to_bytes)
+                time_val = data[3] if len(data) > 3 else ""
+                rate_val = data[4] if len(data) > 4 else ""
+                self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+                self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
             
-            # Col 5: Last Try (Formatted for display)
-            # This is already being updated here for active downloads
+            # Col 5: Last Try
             formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
             last_try_item = self.download_table.item(row, 5)
             if not last_try_item:
@@ -3154,6 +3164,7 @@ class MainWindow(QMainWindow):
             self.download_table.blockSignals(False)
             if sorting_was_enabled:
                 self.download_table.setSortingEnabled(True)
+            self._notify_views_changed()
 
     def download_finished(self, item_ref, status_text):
         # Normalize status
@@ -3242,16 +3253,24 @@ class MainWindow(QMainWindow):
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
 
-    def open_media_downloader(self):
+    def open_media_downloader(self, url=None, auto_analyze=False):
         from ui.dialogs import MediaDownloaderDialog
         if hasattr(self, "_media_downloader_dlg") and self._media_downloader_dlg and self._media_downloader_dlg.isVisible():
             self._media_downloader_dlg.raise_()
             self._media_downloader_dlg.activateWindow()
+            if url:
+                self._media_downloader_dlg.txt_url.setText(url)
+                if auto_analyze:
+                    self._media_downloader_dlg._on_analyze_or_stop_clicked()
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.show()
         self._media_downloader_dlg.raise_()
         self._media_downloader_dlg.activateWindow()
+        if url:
+            self._media_downloader_dlg.txt_url.setText(url)
+            if auto_analyze:
+                self._media_downloader_dlg._on_analyze_or_stop_clicked()
 
     def open_scheduler(self):
         from ui.dialogs import SchedulerDialog
@@ -3266,7 +3285,7 @@ class MainWindow(QMainWindow):
         self._scheduler_dlg.raise_()
         self._scheduler_dlg.activateWindow()
 
-    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None):
+    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0):
         from core.media_downloader import YtDlpDownloadWorker
 
         config = load_category_config()
@@ -3301,19 +3320,24 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 6, format_spec)      # for _try_start_queued
         item_name.setData(Qt.ItemDataRole.UserRole + 7, is_audio_only)    # for _try_start_queued
         item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
+        item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
+        item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
 
+        init_size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Calculating..."
         self.download_table.setItem(row, 0, item_name)
-        self.download_table.setItem(row, 1, QTableWidgetItem("Calculating..."))
-        self.download_table.setItem(row, 2, QTableWidgetItem("Downloading..."))
-        self.download_table.setItem(row, 3, QTableWidgetItem("--"))
-        self.download_table.setItem(row, 4, QTableWidgetItem("--"))
-        self.download_table.setItem(row, 5, QTableWidgetItem(format_timestamp_relative(current_ts)))
-        self.download_table.setItem(row, 6, QTableWidgetItem(format_timestamp_relative(current_ts)))
+        self._set_sortable_item(row, 1, init_size_str, parse_size_to_bytes)
+        self._set_status_text(row, "Downloading...")
+        self._set_sortable_item(row, 3, "--", parse_time_to_sec)
+        self._set_sortable_item(row, 4, "--", parse_size_to_bytes)
+        self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
+        self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
 
         # Respect concurrent download cap
         if len(self.active_downloads) >= self.MAX_CONCURRENT_DOWNLOADS:
             # Mark as queued; _try_start_queued will start it when a slot opens
-            self.download_table.setItem(row, 2, QTableWidgetItem("Queued"))
+            self._set_status_text(row, "Queued")
+            self._set_sortable_item(row, 3, "", parse_time_to_sec)
+            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
             self.download_table.setSortingEnabled(True)
             self.save_data()
             return item_name
@@ -3324,7 +3348,9 @@ class MainWindow(QMainWindow):
             save_dir=save_dir,
             filename=filename,
             format_spec=format_spec,
-            is_audio_only=is_audio_only
+            is_audio_only=is_audio_only,
+            cookies_browser=cookies_browser,
+            cookies_file=cookies_file
         )
 
         key = id(item_name)
@@ -3341,10 +3367,18 @@ class MainWindow(QMainWindow):
     def _on_media_download_finished(self, key, row, path):
         if key in self.active_downloads:
             self.active_downloads.pop(key, None)
-        if path:
+        if path and os.path.exists(path):
             item_name = self.download_table.item(row, 0)
             if item_name:
                 item_name.setData(Qt.ItemDataRole.UserRole + 1, path)
+                actual_size = os.path.getsize(path)
+                self._set_sortable_item(row, 1, format_bytes(actual_size), parse_size_to_bytes)
+                self._set_status_text(row, "Complete")
+                status_item = self.download_table.item(row, 2)
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
+                self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
         self.update_ui_states()
         self.save_data()
         self._try_start_queued()
@@ -3367,13 +3401,17 @@ class MainWindow(QMainWindow):
                             save_dir = os.path.dirname(item_ref.data(Qt.ItemDataRole.UserRole + 1) or "")
                             filename = item_ref.text()
                             is_audio_only = bool(item_ref.data(Qt.ItemDataRole.UserRole + 7))
+                            cookies_browser = item_ref.data(Qt.ItemDataRole.UserRole + 9)
+                            cookies_file = item_ref.data(Qt.ItemDataRole.UserRole + 10)
                             worker = YtDlpDownloadWorker(
                                 url=url,
                                 row_index=r,
                                 save_dir=save_dir,
                                 filename=filename,
                                 format_spec=format_spec,
-                                is_audio_only=is_audio_only
+                                is_audio_only=is_audio_only,
+                                cookies_browser=cookies_browser,
+                                cookies_file=cookies_file
                             )
                             key = id(item_ref)
                             self.active_downloads[key] = worker
@@ -3447,6 +3485,43 @@ if __name__ == "__main__":
                     os.environ["QT_SCALE_FACTOR"] = str(_factor)
     except Exception:
         pass
+
+    is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1"
+    logger = setup_logging(debug=is_debug)
+    if is_debug:
+        logger.debug("Command-line arguments: %s", sys.argv)
+
+    import traceback
+    from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
+
+    def exception_hook(exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+            return
+        tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        logger.critical("=== UNHANDLED EXCEPTION CRASH ===\n%s", tb_str)
+
+    def thread_exception_hook(args):
+        tb_str = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+        logger.critical("=== UNHANDLED THREAD EXCEPTION CRASH [%s] ===\n%s", args.thread.name if args.thread else "unknown", tb_str)
+
+    def qt_message_handler(mode, context, message):
+        mode_names = {
+            QtMsgType.QtDebugMsg: "DEBUG",
+            QtMsgType.QtInfoMsg: "INFO",
+            QtMsgType.QtWarningMsg: "WARNING",
+            QtMsgType.QtCriticalMsg: "CRITICAL",
+            QtMsgType.QtFatalMsg: "FATAL",
+        }
+        level = mode_names.get(mode, "QT")
+        if is_debug or mode in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
+            ctx_str = f" [{context.file}:{context.line}]" if context and context.file else ""
+            logger.warning("[QT %s]%s %s", level, ctx_str, message)
+
+    sys.excepthook = exception_hook
+    if hasattr(threading, "excepthook"):
+        threading.excepthook = thread_exception_hook
+    qInstallMessageHandler(qt_message_handler)
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
@@ -3535,6 +3610,7 @@ if __name__ == "__main__":
             qml_engine = QQmlApplicationEngine()
             qml_engine.addImportPath("/usr/lib/x86_64-linux-gnu/qt6/qml")
             bridge = DownloadBridge(main_window=window)
+            window.bridge = bridge
             qml_engine.rootContext().setContextProperty("downloadBridge", bridge)
 
             qml_file = os.path.join(os.path.dirname(__file__), "ui", "qml", "Main.qml")

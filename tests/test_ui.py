@@ -418,6 +418,48 @@ def test_single_instance_server_ipc(qapp, monkeypatch):
     server.stop()
 
 
+def test_main_window_paste_url_shortcut(qapp, monkeypatch):
+    from main import MainWindow
+    from PyQt6.QtWidgets import QApplication
+    from ui.dialogs import AddUrlDialog
+
+    window = MainWindow()
+    test_url = "https://example.com/pasted_archive.zip"
+    QApplication.clipboard().setText(test_url)
+
+    opened_dialogs = []
+    def mock_exec(self):
+        opened_dialogs.append(self)
+        assert self.get_url() == test_url
+        return False
+
+    monkeypatch.setattr(AddUrlDialog, "exec", mock_exec)
+
+    window.action_paste_url.trigger()
+    assert len(opened_dialogs) == 1
+    window.close()
+
+
+def test_add_url_dialog_media_detection(qapp):
+    from ui.dialogs import AddUrlDialog
+
+    dialog = AddUrlDialog()
+    # 1. Non-media URL -> Label and button hidden
+    dialog.url_input.setText("https://example.com/file.zip")
+    assert dialog.lbl_media_status.isHidden()
+    assert dialog.btn_send_media.isHidden()
+
+    # 2. Media URL -> Green text label and Download Media button shown
+    dialog.url_input.setText("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    assert not dialog.lbl_media_status.isHidden()
+    assert not dialog.btn_send_media.isHidden()
+
+    # 3. Click Download Media button -> is_media_mode set to True
+    dialog.btn_send_media.click()
+    assert dialog.is_media_mode is True
+    dialog.close()
+
+
 
 
 

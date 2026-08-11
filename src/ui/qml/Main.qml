@@ -157,6 +157,11 @@ Kirigami.ApplicationWindow {
         id: addUrlDialog
     }
 
+    Shortcut {
+        sequence: "StandardKey.Paste"
+        onActivated: addUrlDialog.open()
+    }
+
     OptionsDialog {
         id: optionsDialog
     }

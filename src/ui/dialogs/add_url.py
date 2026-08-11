@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
 )
 
 class AddUrlDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, paste_clipboard=False):
         super().__init__(parent)
         self.setWindowTitle("Enter new address to download")
         self.setWindowIcon(QApplication.windowIcon())
@@ -37,9 +37,26 @@ class AddUrlDialog(QDialog):
         input_layout.addWidget(self.url_input)
         layout.addLayout(input_layout)
         
+        self.is_media_mode = False
+
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(0, 6, 0, 0)
         btn_layout.setSpacing(8)
+        
+        self.lbl_media_status = QLabel("Media URL detected (go to Media Downloader)")
+        self.lbl_media_status.setStyleSheet("color: #2ecc71; font-weight: bold; font-size: 11px;")
+        self.lbl_media_status.hide()
+
+        self.btn_send_media = QPushButton("Download Media")
+        self.btn_send_media.setFixedHeight(30)
+        self.btn_send_media.setToolTip("Open link in Media Downloader to extract video/audio formats")
+        from ui.icons import get_monochrome_icon
+        self.btn_send_media.setIcon(get_monochrome_icon("media_downloader", size=16))
+        self.btn_send_media.clicked.connect(self._on_send_media_clicked)
+        self.btn_send_media.hide()
+
+        btn_layout.addWidget(self.btn_send_media)
+        btn_layout.addWidget(self.lbl_media_status)
         btn_layout.addStretch()
         
         self.btn_download = QPushButton("OK")
@@ -59,11 +76,32 @@ class AddUrlDialog(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
 
-        # Auto-paste from clipboard if it contains a URL
+        self.url_input.textChanged.connect(self._check_url_type)
+
+        # Auto-paste from clipboard
         clipboard_text = QApplication.clipboard().text().strip()
-        if clipboard_text.startswith(("http://", "https://", "ftp://", "magnet:")):
+        if paste_clipboard and clipboard_text:
             self.url_input.setText(clipboard_text)
             self.url_input.setCursorPosition(0)
+        elif clipboard_text.startswith(("http://", "https://", "ftp://", "magnet:")):
+            self.url_input.setText(clipboard_text)
+            self.url_input.setCursorPosition(0)
+
+        self._check_url_type()
+
+    def _check_url_type(self):
+        from core.utils import is_media_downloader_url
+        url = self.get_url()
+        if is_media_downloader_url(url):
+            self.lbl_media_status.show()
+            self.btn_send_media.show()
+        else:
+            self.lbl_media_status.hide()
+            self.btn_send_media.hide()
+
+    def _on_send_media_clicked(self):
+        self.is_media_mode = True
+        self.accept()
 
     def paste_url(self):
         clipboard = QApplication.clipboard()

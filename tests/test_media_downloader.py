@@ -130,3 +130,62 @@ def test_yt_dlp_download_worker_init(tmp_path):
     assert worker.url == "https://example.com/watch?v=test"
     assert worker.format_spec == "bestvideo[height<=1080]+bestaudio/best"
     assert worker.is_audio_only is False
+
+
+def test_yt_dlp_download_worker_status_format(tmp_path):
+    """Test YtDlpDownloadWorker emits standard 'Downloading' status string."""
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=test",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test_video.mp4"
+    )
+    emitted = []
+    worker.main_progress_signal.connect(lambda idx, data: emitted.append(data))
+
+    # Mock subprocess stdout parsing block
+    with patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = ["[download]  29.4% of 100.00MiB at 2.50MiB/s ETA 00:30\n"]
+        mock_proc.poll.side_effect = [None, 0]
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        with patch("os.path.exists", return_value=True), patch("os.path.getsize", return_value=104857600):
+            worker.run()
+
+    assert len(emitted) > 1
+    # Status field (index 2) of progress update must be 'Downloading', not 'Downloading (29.4%)'
+    assert emitted[1][2] == "Downloading"
+
+
+def test_yt_dlp_long_filename_truncation(tmp_path):
+    """Test YtDlpDownloadWorker truncates long filenames to prevent OS Errno 36."""
+    long_filename = ("83K views · 1.9K reactions ｜ চায়নিজ প্রোডাক্" * 5) + " [1294473729421596].mp4"
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=long",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename=long_filename
+    )
+
+    with patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = []
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        worker.run()
+
+        # Check command args sent to subprocess.Popen
+        cmd = mock_popen.call_args[0][0]
+        assert "--trim-filenames" in cmd
+        assert "100" in cmd
+        # Output template file path should be truncated under 100 bytes
+        out_tmpl = cmd[cmd.index("-o") + 1]
+        base_tmpl = os.path.basename(out_tmpl)
+        assert len(base_tmpl.encode("utf-8")) < 150
+

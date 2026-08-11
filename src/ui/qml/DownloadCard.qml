@@ -38,6 +38,7 @@ Kirigami.Card {
 
             Kirigami.Badge {
                 text: model.status || "Downloading"
+                font.features: { "tnum": 1 }
                 color: model.status === "Complete" ? Kirigami.Theme.positiveTextColor :
                        model.status === "Error" ? Kirigami.Theme.negativeTextColor :
                        Kirigami.Theme.highlightColor

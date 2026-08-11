@@ -4,9 +4,33 @@ import pytest
 from core.utils import (
     resolve_filename,
     get_unique_filepath,
-    get_config_dir
+    get_config_dir,
+    is_media_downloader_url
 )
 from main import parse_size_to_bytes, parse_time_to_sec, format_timestamp_relative
+
+
+def test_is_media_downloader_url():
+    # Popular media URLs & short links
+    assert is_media_downloader_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is True
+    assert is_media_downloader_url("https://youtu.be/dQw4w9WgXcQ") is True
+    assert is_media_downloader_url("https://youtube.com/shorts/abc12345") is True
+    assert is_media_downloader_url("https://x.com/user/status/12345678") is True
+    assert is_media_downloader_url("https://twitter.com/user/status/12345678") is True
+    assert is_media_downloader_url("https://www.facebook.com/watch/?v=123") is True
+    assert is_media_downloader_url("https://fb.watch/abc123/") is True
+    assert is_media_downloader_url("https://www.tiktok.com/@user/video/123") is True
+    assert is_media_downloader_url("https://vt.tiktok.com/ZS12345/") is True
+    assert is_media_downloader_url("https://www.instagram.com/reel/C123/") is True
+    assert is_media_downloader_url("https://vimeo.com/123456") is True
+    assert is_media_downloader_url("https://dai.ly/x1234") is True
+    assert is_media_downloader_url("https://clips.twitch.tv/AbcXyz") is True
+    assert is_media_downloader_url("https://v.redd.it/abc123xyz") is True
+
+    # Standard non-media file links
+    assert is_media_downloader_url("https://releases.ubuntu.com/22.04/ubuntu.iso") is False
+    assert is_media_downloader_url("https://example.com/document.pdf") is False
+    assert is_media_downloader_url("") is False
 
 def test_resolve_filename():
     url = "http://example.com/testfile.mp4"
@@ -90,4 +114,15 @@ def test_autostart_environment_command_and_file_management(monkeypatch, tmp_path
 
     set_autostart_enabled(False)
     assert is_autostart_enabled() is False
+
+
+def test_setup_logging_debug_flag():
+    import logging
+    from core.utils import setup_logging
+
+    logger = setup_logging(debug=True)
+    assert logger.level == logging.DEBUG
+
+    logger_info = setup_logging(debug=False)
+    assert logger_info.level == logging.INFO
 

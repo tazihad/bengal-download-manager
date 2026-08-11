@@ -274,6 +274,13 @@ class YtDlpManager:
             raise RuntimeError(f"Failed to download yt-dlp binary: {e}") from e
 
 
+_ACTIVE_WORKER_THREADS = set()
+
+def _keep_thread_alive(thread: QThread):
+    _ACTIVE_WORKER_THREADS.add(thread)
+    thread.finished.connect(lambda: _ACTIVE_WORKER_THREADS.discard(thread))
+
+
 class MediaExtractorWorker(QThread):
     """Background worker thread to fetch and parse video/playlist metadata using yt-dlp."""
 
@@ -282,9 +289,21 @@ class MediaExtractorWorker(QThread):
     playlist_analyzed = pyqtSignal(dict)
     analysis_failed = pyqtSignal(str)
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None):
         super().__init__()
         self.url = url
+        self.cookies_browser = cookies_browser
+        self.cookies_file = cookies_file
+        self.process = None
+        _keep_thread_alive(self)
+
+    def stop(self):
+        if hasattr(self, 'process') and self.process:
+            try:
+                self.process.terminate()
+                self.process.kill()
+            except Exception:
+                pass
 
     def run(self):
         try:
@@ -302,11 +321,18 @@ class MediaExtractorWorker(QThread):
                 "-J",
                 "--flat-playlist",
                 "--no-warnings",
+                "--remote-components", "ejs:github",
                 "--ffmpeg-location", bin_dir,
-                self.url
             ]
 
-            process = subprocess.Popen(
+            if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+                cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
+            elif self.cookies_file and os.path.exists(self.cookies_file):
+                cmd.extend(["--cookies", self.cookies_file])
+
+            cmd.append(self.url)
+
+            self.process = subprocess.Popen(
                 cmd,
                 env=env,
                 stdout=subprocess.PIPE,
@@ -315,9 +341,9 @@ class MediaExtractorWorker(QThread):
                 encoding="utf-8"
             )
 
-            stdout, stderr = process.communicate(timeout=60)
+            stdout, stderr = self.process.communicate(timeout=60)
 
-            if process.returncode != 0:
+            if self.process.returncode != 0:
                 err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {process.returncode}"
                 self.analysis_failed.emit(err_msg)
                 return
@@ -446,7 +472,7 @@ class YtDlpDownloadWorker(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(int, str)
 
-    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False):
+    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -454,10 +480,22 @@ class YtDlpDownloadWorker(QThread):
         self.filename = filename or "media_download"
         self.format_spec = format_spec
         self.is_audio_only = is_audio_only
+        self.cookies_browser = cookies_browser
+        self.cookies_file = cookies_file
         self.is_running = True
         self.is_paused = False
         self.process = None
         self.final_file_path = None
+        _keep_thread_alive(self)
+
+    def stop(self):
+        self.is_running = False
+        if hasattr(self, 'process') and self.process:
+            try:
+                self.process.terminate()
+                self.process.kill()
+            except Exception:
+                pass
 
     def format_bytes_str(self, size: float) -> str:
         if not isinstance(size, (int, float)) or size <= 0:
@@ -476,22 +514,39 @@ class YtDlpDownloadWorker(QThread):
             bin_dir = str(BIN_DIR)
 
             os.makedirs(self.save_dir, exist_ok=True)
-            clean_base = re.sub(r'[\\/*?:"<>|]', "_", os.path.splitext(self.filename)[0])
+            raw_base = os.path.splitext(self.filename)[0]
+            clean_base = re.sub(r'[\\/*?:"<>|]', "_", raw_base).strip()
+            # Truncate clean_base to 100 bytes max to prevent Errno 36 (File name too long)
+            if len(clean_base.encode("utf-8")) > 100:
+                clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").strip()
             output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
 
             cmd = [
                 bin_path,
                 "--newline",
                 "--no-warnings",
+                "--progress-delta", "0.1",
+                "--remote-components", "ejs:github",
+                "--trim-filenames", "100",
                 "--ffmpeg-location", bin_dir,
                 "--embed-thumbnail",
-                "--write-thumbnail",
-                "--embed-subs",
-                "--write-subs",
-                "--sub-langs", "all",
+                "--convert-thumbnails", "png",
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
+
+            from core.utils import ensure_aria2
+            aria2_bin = ensure_aria2()
+            if aria2_bin and os.path.exists(aria2_bin):
+                cmd.extend([
+                    "--downloader", aria2_bin,
+                    "--downloader-args", "aria2c:-x 16 -k 1M --summary-interval=1"
+                ])
+
+            if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+                cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
+            elif self.cookies_file and os.path.exists(self.cookies_file):
+                cmd.extend(["--cookies", self.cookies_file])
 
             if self.is_audio_only:
                 cmd.extend(["-x", "--audio-format", "mp3"])
@@ -521,7 +576,7 @@ class YtDlpDownloadWorker(QThread):
             downloaded_bytes = 0.0
             speed_bps = 0.0
             eta_str = "--"
-            status_str = "Downloading..."
+            is_media_stream = True
 
             for line in self.process.stdout:
                 if not self.is_running:
@@ -534,58 +589,106 @@ class YtDlpDownloadWorker(QThread):
 
                 self.log_signal.emit(line_str)
 
-                # Parse yt-dlp stdout
-                if "[download]" in line_str and "of" in line_str:
-                    pct_match = re.search(r"(\d+\.?\d*)%", line_str)
-                    if pct_match:
-                        pct = float(pct_match.group(1))
+                # Track destination file type to filter out subtitles/thumbnails
+                dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
+                if dest_match:
+                    dest_path = dest_match.group(1).strip()
+                    dest_ext = os.path.splitext(dest_path)[1].lower()
+                    if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
+                        is_media_stream = False
+                    elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                        is_media_stream = True
+                        self.final_file_path = dest_path
 
-                    size_match = re.search(r"of\s+~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                # Capture output file path from stdout line (only valid video/audio extensions)
+                m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
+                if m_dest:
+                    cand_path = m_dest.group(1).strip()
+                    cand_ext = os.path.splitext(cand_path)[1].lower()
+                    if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_path.endswith(".part"):
+                        self.final_file_path = cand_path
+                        is_media_stream = True
+
+                # Parse yt-dlp / aria2c stdout for media streams only
+                if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
+                    if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
+                        is_media_stream = False
+
+                    # Check size: if size > 500 KB or line has aria2c markers (SPD: / CN: / DL:), it is a media stream
+                    size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
                     if size_match:
-                        total_bytes = parse_size_str_to_bytes(size_match.group(1))
-                        downloaded_bytes = (pct / 100.0) * total_bytes
+                        parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                        if parsed_total > 500 * 1024:
+                            is_media_stream = True
+                            if parsed_total > total_bytes:
+                                total_bytes = parsed_total
+                    elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
+                        is_media_stream = True
 
-                    speed_match = re.search(r"at\s+(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
-                    if speed_match:
-                        speed_str = speed_match.group(1)
-                        speed_bps = parse_size_str_to_bytes(speed_str.replace("/s", ""))
+                    if is_media_stream:
+                        pct_match = re.search(r"(\d+\.?\d*)%", line_str)
+                        if pct_match:
+                            pct = float(pct_match.group(1))
 
-                    eta_match = re.search(r"ETA\s+(\d+:\d+(?::\d+)?)", line_str)
-                    if eta_match:
-                        eta_str = eta_match.group(1)
+                        if total_bytes > 500 * 1024:
+                            downloaded_bytes = (pct / 100.0) * total_bytes
 
-                    speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
-                    size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Unknown"
+                        speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
+                        if not speed_match:
+                            speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
+                        if speed_match:
+                            speed_str = speed_match.group(1).replace("/s", "").strip()
+                            speed_bps = parse_size_str_to_bytes(speed_str)
 
-                    data_tuple = (
-                        self.filename,
-                        size_fmt,
-                        f"Downloading ({pct:.1f}%)",
-                        eta_str,
-                        speed_fmt,
-                        int(downloaded_bytes),
-                        int(total_bytes)
-                    )
-                    self.main_progress_signal.emit(self.row_index, data_tuple)
+                        eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
+                        if eta_match:
+                            eta_str = eta_match.group(1)
 
-                elif "[Merger]" in line_str or "Merging formats" in line_str:
-                    status_str = "Merging Video + Audio..."
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes_str(total_bytes), status_str, "--", "--", int(total_bytes), int(total_bytes)))
-                    m_file = re.search(r'"([^"]+)"', line_str)
-                    if m_file:
-                        self.final_file_path = m_file.group(1)
+                        speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
+                        size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
 
-                elif "[EmbedSubtitle]" in line_str or "[EmbedThumbnail]" in line_str:
-                    status_str = "Embedding Media Assets..."
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes_str(total_bytes), status_str, "--", "--", int(total_bytes), int(total_bytes)))
+                        # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
+                        if total_bytes > 0:
+                            clamped_downloaded = min(int(downloaded_bytes), int(total_bytes) - 1)
+                        else:
+                            clamped_downloaded = int(downloaded_bytes)
+
+                        data_tuple = (
+                            self.filename,
+                            size_fmt,
+                            "Downloading",
+                            eta_str,
+                            speed_fmt,
+                            max(0, clamped_downloaded),
+                            int(total_bytes)
+                        )
+                        self.main_progress_signal.emit(self.row_index, data_tuple)
 
             self.process.wait()
             rc = self.process.returncode
 
             if rc == 0:
-                final_ext = ".mp3" if self.is_audio_only else ".mp4"
-                final_path = self.final_file_path or os.path.join(self.save_dir, f"{clean_base}{final_ext}")
-                final_size = os.path.getsize(final_path) if os.path.exists(final_path) else total_bytes
+                final_path = None
+                if self.final_file_path and os.path.exists(self.final_file_path) and os.path.isfile(self.final_file_path):
+                    f_ext = os.path.splitext(self.final_file_path)[1].lower()
+                    if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                        final_path = self.final_file_path
+
+                if not final_path or not os.path.exists(final_path):
+                    candidates = []
+                    if os.path.exists(self.save_dir):
+                        for fname in os.listdir(self.save_dir):
+                            fext = os.path.splitext(fname)[1].lower()
+                            if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                                continue
+                            fpath = os.path.join(self.save_dir, fname)
+                            if os.path.isfile(fpath):
+                                if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
+                                    candidates.append(fpath)
+                    if candidates:
+                        final_path = max(candidates, key=lambda p: os.path.getsize(p))
+
+                final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
 
                 data_tuple = (
                     self.filename,
@@ -597,7 +700,7 @@ class YtDlpDownloadWorker(QThread):
                     int(final_size)
                 )
                 self.main_progress_signal.emit(self.row_index, data_tuple)
-                self.finished_signal.emit(self.row_index, final_path)
+                self.finished_signal.emit(self.row_index, final_path or "")
             else:
                 data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
                 self.main_progress_signal.emit(self.row_index, data_tuple)

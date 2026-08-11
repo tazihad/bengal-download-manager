@@ -656,7 +656,15 @@ class SchedulerDialog(QDialog):
             self.files_table.insertRow(row)
             self.files_table.setItem(row, 0, QTableWidgetItem(name_item.text()))
             self.files_table.setItem(row, 1, QTableWidgetItem(size_item.text() if size_item else ""))
-            self.files_table.setItem(row, 2, QTableWidgetItem(status_item.text() if status_item else ""))
+
+            # Prefer the raw percentage stored in UserRole over the display text
+            # (display text can be "Downloading..." while UserRole holds "45.23%")
+            if status_item:
+                pct = status_item.data(Qt.ItemDataRole.UserRole)
+                status_display = pct if pct else status_item.text()
+            else:
+                status_display = ""
+            self.files_table.setItem(row, 2, QTableWidgetItem(status_display))
             self.files_table.setItem(row, 3, QTableWidgetItem(time_item.text() if time_item else ""))
 
     def _refresh_schedule_controls(self):

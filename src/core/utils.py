@@ -8,8 +8,51 @@ import shutil
 import tarfile
 import subprocess
 import re
-import mimetypes
+import logging
 from urllib.parse import urlparse, unquote
+
+def setup_logging(debug=False):
+    """
+    Configures application-wide logging levels and formatting.
+    When debug=True (--debug flag), enables verbose DEBUG logs with file/line context.
+    """
+    log_level = logging.DEBUG if debug else logging.INFO
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if debug else "[%(asctime)s] [%(levelname)s] %(message)s"
+    
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+        datefmt="%H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True
+    )
+    logger = logging.getLogger("bengal")
+    logger.setLevel(log_level)
+    if debug:
+        logger.debug("=== BENGAL DOWNLOAD MANAGER DEBUG LOGGING ENABLED ===")
+        logger.debug("Python Version: %s", sys.version)
+        logger.debug("Platform: %s", platform.platform())
+        logger.debug("Process PID: %d", os.getpid())
+    return logger
+
+
+def format_bytes(size: float, precision: int = 2) -> str:
+    """Format bytes into human readable string (B, KB, MB, GB, TB)."""
+    try:
+        s = float(size)
+    except (ValueError, TypeError):
+        return "0 B"
+    if s <= 0:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    idx = 0
+    while s >= 1024.0 and idx < len(units) - 1:
+        s /= 1024.0
+        idx += 1
+    if idx == 0:
+        return f"{int(s)} B"
+    return f"{s:.{precision}f} {units[idx]}"
+
 
 def resolve_filename(url, headers):
     """
@@ -108,6 +151,11 @@ def resolve_filename(url, headers):
             elif current_ext == '.bin' and real_extension != '.bin':
                 # .bin is often a generic fallback, prefer specific extensions
                 filename = base + real_extension
+
+    if filename and len(filename.encode('utf-8')) > 180:
+        base, ext = os.path.splitext(filename)
+        base_bytes = base.encode('utf-8')[:150].decode('utf-8', errors='ignore').strip()
+        filename = f"{base_bytes}{ext}"
 
     return filename
 
@@ -870,6 +918,74 @@ def choose_portal_folder_path(title="Select Directory", folder=""):
         return None
 
 
+def choose_portal_open_file_path(title="Select File", folder=""):
+    """
+    Triggers XDG Desktop Portal FileChooser.OpenFile via DBus to open native XDG Portal File Picker.
+    Returns the chosen file path string, "" if user cancelled, or None if portal unavailable.
+    """
+    try:
+        from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+        from PyQt6.QtCore import QByteArray, QEventLoop, QObject, pyqtSlot
+
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.FileChooser",
+                "OpenFile"
+            )
+
+            options = {"directory": False}
+            if folder and os.path.exists(folder):
+                abs_folder = os.path.abspath(folder)
+                options["current_folder"] = QByteArray(abs_folder.encode('utf-8'))
+
+            msg.setArguments(["", title, options])
+            reply = bus.call(msg)
+
+            if reply.type() != QDBusMessage.MessageType.ErrorMessage and reply.arguments():
+                request_handle = reply.arguments()[0]
+                chosen_path = ""
+                loop = QEventLoop()
+
+                class PortalReceiver(QObject):
+                    @pyqtSlot(QDBusMessage)
+                    def on_response(self, response_msg):
+                        nonlocal chosen_path
+                        args = response_msg.arguments()
+                        if len(args) >= 2 and args[0] == 0:
+                            results = args[1]
+                            if isinstance(results, dict) and "uris" in results:
+                                uris = results["uris"]
+                                if uris:
+                                    target_uri = uris[0]
+                                    chosen_path = unquote(urlparse(target_uri).path)
+                        loop.quit()
+
+                receiver = PortalReceiver()
+                connected = bus.connect(
+                    "org.freedesktop.portal.Desktop",
+                    request_handle,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    receiver.on_response
+                )
+                if connected:
+                    loop.exec()
+                    bus.disconnect(
+                        "org.freedesktop.portal.Desktop",
+                        request_handle,
+                        "org.freedesktop.portal.Request",
+                        "Response",
+                        receiver.on_response
+                    )
+                    return chosen_path
+    except Exception:
+        pass
+    return None
+
+
 def get_autostart_filepath():
     autostart_dir = os.path.expanduser("~/.config/autostart")
     return os.path.join(autostart_dir, "bengal-download-manager.desktop")
@@ -934,4 +1050,63 @@ X-GNOME-Autostart-enabled=true
                 print(f"Failed to remove autostart file: {e}")
                 return False
         return True
+
+
+POPULAR_MEDIA_DOMAINS = {
+    # YouTube & Shorts
+    "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "youtube-nocookie.com",
+    # Twitter / X
+    "twitter.com", "www.twitter.com", "x.com", "www.x.com", "vxtwitter.com", "fxtwitter.com", "fixupx.com", "t.co",
+    # Facebook & Reels
+    "facebook.com", "www.facebook.com", "m.facebook.com", "fb.watch", "fb.com", "www.fb.com",
+    # TikTok
+    "tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com",
+    # Instagram & Reels
+    "instagram.com", "www.instagram.com", "instagr.am",
+    # Vimeo
+    "vimeo.com", "www.vimeo.com", "player.vimeo.com",
+    # Dailymotion
+    "dailymotion.com", "www.dailymotion.com", "dai.ly",
+    # Twitch
+    "twitch.tv", "www.twitch.tv", "m.twitch.tv", "clips.twitch.tv",
+    # Reddit
+    "reddit.com", "www.reddit.com", "old.reddit.com", "v.redd.it",
+    # Other popular media sites
+    "bilibili.com", "www.bilibili.com",
+    "soundcloud.com", "www.soundcloud.com", "m.soundcloud.com",
+    "pinterest.com", "www.pinterest.com", "pin.it",
+    "streamable.com", "www.streamable.com",
+    "vk.com", "www.vk.com",
+    "rumble.com", "www.rumble.com",
+    "kick.com", "www.kick.com",
+    "bitchute.com", "www.bitchute.com",
+    "odysee.com", "www.odysee.com",
+    "ok.ru", "www.ok.ru",
+    "bandcamp.com", "www.bandcamp.com",
+    "mixcloud.com", "www.mixcloud.com"
+}
+
+
+def is_media_downloader_url(data):
+    """
+    Checks if the provided URL string originates from a popular media/video source
+    supported by yt-dlp.
+    """
+    if not data:
+        return False
+    raw_url = str(data).split("|", 1)[0].strip()
+    try:
+        parsed = urlparse(raw_url)
+        netloc = parsed.netloc.lower()
+        if ":" in netloc:
+            netloc = netloc.split(":")[0]
+        if not netloc:
+            return False
+        for domain in POPULAR_MEDIA_DOMAINS:
+            if netloc == domain or netloc.endswith("." + domain):
+                return True
+    except Exception:
+        pass
+    return False
+
 

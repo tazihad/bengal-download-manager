@@ -58,3 +58,57 @@ def test_media_downloader_playlist_view(qapp):
     assert "0 of 3 items selected" in dlg.lbl_select_count.text()
     assert dlg.btn_download.isEnabled() is False
     dlg.close()
+
+
+def test_media_downloader_manual_selection_toggle(qapp):
+    """Verify checking/unchecking manual stream selection enables/disables format table."""
+    dlg = MediaDownloaderDialog()
+    assert dlg.chk_manual_selection.text() == "Enable Manual Stream Selection"
+    assert dlg.chk_save_defaults.text() == "Remember"
+
+    # Default is unchecked -> table disabled & unselected
+    assert dlg.chk_manual_selection.isChecked() is False
+    assert dlg.tbl_formats.isEnabled() is False
+    assert dlg.tbl_formats.selectedItems() == []
+
+    # Check manual selection -> table enabled
+    dlg.chk_manual_selection.setChecked(True)
+    assert dlg.tbl_formats.isEnabled() is True
+
+    # Uncheck manual selection -> table disabled & unselected
+    dlg.chk_manual_selection.setChecked(False)
+    assert dlg.tbl_formats.isEnabled() is False
+    assert dlg.tbl_formats.selectedItems() == []
+    dlg.close()
+
+
+def test_media_downloader_cookies_prefs_panel(qapp, tmp_path):
+    """Verify 3-dot button toggles cookies preferences, and cookies.txt path selection."""
+    dlg = MediaDownloaderDialog()
+    assert dlg.btn_prefs is not None
+    assert dlg.frame_cookies_prefs.isHidden() is True
+
+    # 1. Click 3-dot button -> Frame shown
+    dlg.btn_prefs.click()
+    assert dlg.frame_cookies_prefs.isHidden() is False
+    assert "never shared" in dlg.lbl_cookies_info.text()
+
+    # 2. Set cookies.txt path & verify persistence
+    cookies_file = str(tmp_path / "my_cookies.txt")
+    with open(cookies_file, "w") as f:
+        f.write("# Netscape HTTP Cookie File")
+
+    dlg.txt_cookies_path.setText(cookies_file)
+    assert dlg._get_cookies_args() == (None, cookies_file)
+    dlg.close()
+
+    # 3. Open new dialog instance -> path remembered automatically
+    dlg2 = MediaDownloaderDialog()
+    assert dlg2.txt_cookies_path.text() == cookies_file
+    assert dlg2._get_cookies_args() == (None, cookies_file)
+
+    # 4. Clear button clears path & persists change
+    dlg2.btn_clear_cookies.click()
+    assert dlg2.txt_cookies_path.text() == ""
+    assert dlg2._get_cookies_args() == (None, None)
+    dlg2.close()

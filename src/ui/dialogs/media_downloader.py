@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QMessageBox, QApplication, QFrame, QCheckBox,
-    QAbstractItemView, QToolButton, QToolTip
+    QAbstractItemView, QToolButton, QToolTip, QFileDialog
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
@@ -187,10 +187,69 @@ class MediaDownloaderDialog(QDialog):
         self.btn_analyze.setToolTip("Parse media formats or playlist items using yt-dlp")
         self.btn_analyze.clicked.connect(self._on_analyze_or_stop_clicked)
 
+        self.btn_prefs = QPushButton("⋮")
+        self.btn_prefs.setFixedSize(34, 34)
+        self.btn_prefs.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        self.btn_prefs.setCheckable(True)
+        self.btn_prefs.setToolTip("Browser Cookies & Authentication Preferences")
+        self.btn_prefs.clicked.connect(self._toggle_cookies_prefs)
+
         input_layout.addWidget(self.txt_url)
         input_layout.addWidget(self.btn_paste)
         input_layout.addWidget(self.btn_analyze)
+        input_layout.addWidget(self.btn_prefs)
         main_layout.addLayout(input_layout)
+
+        # 2b. Cookies & Authentication Preferences Panel (Toggled via 3-dot button)
+        self.frame_cookies_prefs = QFrame()
+        self.frame_cookies_prefs.setFrameShape(QFrame.Shape.StyledPanel)
+        self.frame_cookies_prefs.setStyleSheet("""
+            QFrame {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 6px;
+            }
+        """)
+        self.frame_cookies_prefs.hide()
+
+        cookies_layout = QVBoxLayout(self.frame_cookies_prefs)
+        cookies_layout.setContentsMargins(10, 8, 10, 8)
+        cookies_layout.setSpacing(6)
+
+        lbl_cookies_header = QLabel("Cookies Authentication (cookies.txt)")
+        font_c = QFont()
+        font_c.setBold(True)
+        lbl_cookies_header.setFont(font_c)
+        cookies_layout.addWidget(lbl_cookies_header)
+
+        manual_path_layout = QHBoxLayout()
+        manual_path_layout.setSpacing(8)
+        lbl_manual_path = QLabel("cookies.txt Path:")
+        self.txt_cookies_path = QLineEdit()
+        self.txt_cookies_path.setPlaceholderText("Select path to cookies.txt file...")
+        self.txt_cookies_path.textChanged.connect(self._save_cookies_path_permanently)
+
+        self.btn_browse_cookies = QPushButton("Browse...")
+        self.btn_browse_cookies.setFixedHeight(28)
+        self.btn_browse_cookies.setToolTip("Select cookies.txt file from disk")
+        self.btn_browse_cookies.clicked.connect(self._on_browse_cookies_clicked)
+
+        self.btn_clear_cookies = QPushButton("Clear")
+        self.btn_clear_cookies.setFixedHeight(28)
+        self.btn_clear_cookies.setToolTip("Clear selected cookies.txt file")
+        self.btn_clear_cookies.clicked.connect(self._on_clear_cookies_clicked)
+
+        manual_path_layout.addWidget(lbl_manual_path)
+        manual_path_layout.addWidget(self.txt_cookies_path, stretch=1)
+        manual_path_layout.addWidget(self.btn_browse_cookies)
+        manual_path_layout.addWidget(self.btn_clear_cookies)
+        cookies_layout.addLayout(manual_path_layout)
+
+        self.lbl_cookies_info = QLabel("🔒 Cookies are read locally, never shared")
+        self.lbl_cookies_info.setStyleSheet("color: gray; font-size: 11px; font-style: italic;")
+        cookies_layout.addWidget(self.lbl_cookies_info)
+
+        main_layout.addWidget(self.frame_cookies_prefs)
 
         # 3. Status Bar & Progress
         self.lbl_status = QLabel("Ready")
@@ -326,12 +385,12 @@ class MediaDownloaderDialog(QDialog):
         chk_layout = QHBoxLayout()
         chk_layout.setSpacing(15)
 
-        self.chk_manual_selection = QCheckBox("Use Manual Format Selection from Table below")
-        self.chk_manual_selection.setToolTip("Check to manually pick a stream row from the table below; uncheck to use preset controls")
+        self.chk_manual_selection = QCheckBox("Enable Manual Stream Selection")
+        self.chk_manual_selection.setToolTip("Enable to manually select a specific video/audio format row from the table below")
         self.chk_manual_selection.toggled.connect(self._on_manual_selection_toggled)
 
-        self.chk_save_defaults = QCheckBox("Save Default Preferences")
-        self.chk_save_defaults.setToolTip("Persist currently selected quality, formats, and selection mode for future downloads")
+        self.chk_save_defaults = QCheckBox("Remember")
+        self.chk_save_defaults.setToolTip("Save current quality preset, format choices, and selection mode for future downloads")
         self.chk_save_defaults.toggled.connect(self._save_preferences_if_enabled)
 
         chk_layout.addWidget(self.chk_manual_selection)
@@ -351,6 +410,22 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_formats.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl_formats.itemSelectionChanged.connect(self._on_format_table_selection_changed)
         
+        self.tbl_formats.setStyleSheet("""
+            QTableWidget:disabled {
+                background-color: palette(window);
+                color: palette(disabled, text);
+                border: 1px solid palette(disabled, mid);
+            }
+            QTableWidget::item:disabled {
+                color: palette(disabled, text);
+                background: transparent;
+            }
+            QHeaderView::section:disabled {
+                color: palette(disabled, text);
+                background-color: palette(window);
+            }
+        """)
+
         font_tbl = self.tbl_formats.font()
         font_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.tbl_formats.setFont(font_tbl)
@@ -486,16 +561,47 @@ class MediaDownloaderDialog(QDialog):
         if hasattr(self, "_worker") and self._worker:
             if self._worker.isRunning():
                 try:
+                    self._worker.stop()
                     self._worker.requestInterruption()
                     self._worker.quit()
-                    self._worker.wait(1000)
+                    self._worker.wait(2000)
                     if self._worker.isRunning():
                         self._worker.terminate()
-                        self._worker.wait(1000)
+                        self._worker.wait(2000)
                 except Exception:
                     pass
         self._finish_loading()
         self.lbl_status.setText("Analysis cancelled.")
+
+    def _toggle_cookies_prefs(self):
+        self.frame_cookies_prefs.setVisible(self.btn_prefs.isChecked())
+
+    def _on_browse_cookies_clicked(self):
+        import os
+        from core.utils import choose_portal_open_file_path
+
+        file_path = choose_portal_open_file_path(title="Select Cookies File", folder=os.path.expanduser("~"))
+        if file_path is None:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select Cookies File",
+                os.path.expanduser("~"),
+                "Text Files (*.txt);;All Files (*)"
+            )
+        if file_path:
+            self.txt_cookies_path.setText(file_path)
+            self._save_cookies_path_permanently()
+
+    def _on_clear_cookies_clicked(self):
+        self.txt_cookies_path.clear()
+        self._save_cookies_path_permanently()
+
+    def _get_cookies_args(self):
+        import os
+        c_path = self.txt_cookies_path.text().strip()
+        if c_path and os.path.exists(c_path):
+            return None, c_path
+        return None, None
 
     def start_analysis(self):
         url = self.txt_url.text().strip()
@@ -511,7 +617,8 @@ class MediaDownloaderDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.lbl_status.setText("Analyzing link...")
 
-        self._worker = MediaExtractorWorker(url)
+        c_browser, c_file = self._get_cookies_args()
+        self._worker = MediaExtractorWorker(url, cookies_browser=c_browser, cookies_file=c_file)
         self._worker.status_signal.connect(self._on_status_msg)
         self._worker.single_video_analyzed.connect(self._on_single_video_ready)
         self._worker.playlist_analyzed.connect(self._on_playlist_ready)
@@ -549,8 +656,12 @@ class MediaDownloaderDialog(QDialog):
             size_mb = f"{fmt['filesize'] / (1024*1024):.1f} MB" if fmt["filesize"] else "-"
             self.tbl_formats.setItem(row_idx, 5, QTableWidgetItem(size_mb))
 
-        if formats:
+        is_manual = self.chk_manual_selection.isChecked()
+        self.tbl_formats.setEnabled(is_manual)
+        if formats and is_manual:
             self.tbl_formats.selectRow(0)
+        elif not is_manual:
+            self.tbl_formats.clearSelection()
 
         self._update_preset_availability(data)
         self.stack.setCurrentWidget(self.page_video)
@@ -592,6 +703,37 @@ class MediaDownloaderDialog(QDialog):
 
         self.cmb_quality_preset.setCurrentIndex(valid_idx)
         self.cmb_quality_preset.blockSignals(False)
+
+        # Dynamic Video & Audio Codec Filters based on analyzed video formats
+        has_h264 = any("avc" in (f.get("vcodec") or "").lower() or f.get("ext") == "mp4" for f in formats if f.get("is_video"))
+        has_webm_vp9 = any("vp9" in (f.get("vcodec") or "").lower() or f.get("ext") == "webm" for f in formats if f.get("is_video"))
+        has_av1 = any("av01" in (f.get("vcodec") or "").lower() or "av1" in (f.get("vcodec") or "").lower() for f in formats if f.get("is_video"))
+
+        has_m4a = any("mp4a" in (f.get("acodec") or "").lower() or f.get("ext") == "m4a" for f in formats if f.get("is_audio"))
+        has_opus = any("opus" in (f.get("acodec") or "").lower() or "vorbis" in (f.get("acodec") or "").lower() or f.get("ext") == "webm" for f in formats if f.get("is_audio"))
+        has_mp3 = any("mp3" in (f.get("acodec") or "").lower() or f.get("ext") == "mp3" for f in formats if f.get("is_audio"))
+
+        v_options = [("Any Format (Default)", "any")]
+        if has_h264: v_options.append(("MP4 (H.264 / AVC)", "h264"))
+        if has_webm_vp9: v_options.append(("WebM (VP9)", "webm"))
+        if has_av1: v_options.append(("AV1 Codec", "av1"))
+
+        a_options = [("Any Format (Default)", "any")]
+        if has_m4a: a_options.append(("M4A (AAC)", "m4a"))
+        if has_opus: a_options.append(("Opus / WebM", "opus"))
+        if has_mp3: a_options.append(("MP3 Audio", "mp3"))
+
+        self.cmb_video_format.blockSignals(True)
+        self.cmb_video_format.clear()
+        for label, filter_key in v_options:
+            self.cmb_video_format.addItem(label, filter_key)
+        self.cmb_video_format.blockSignals(False)
+
+        self.cmb_audio_format.blockSignals(True)
+        self.cmb_audio_format.clear()
+        for label, filter_key in a_options:
+            self.cmb_audio_format.addItem(label, filter_key)
+        self.cmb_audio_format.blockSignals(False)
 
     def _reset_preset_labels(self):
         preset_items = [
@@ -707,6 +849,11 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_quality_preset.setEnabled(not checked)
         self.cmb_video_format.setEnabled(not checked)
         self.cmb_audio_format.setEnabled(not checked)
+        self.tbl_formats.setEnabled(checked)
+        if not checked:
+            self.tbl_formats.clearSelection()
+        elif self.tbl_formats.rowCount() > 0 and len(self.tbl_formats.selectedItems()) == 0:
+            self.tbl_formats.selectRow(0)
         self._save_preferences_if_enabled()
 
     def _on_format_table_selection_changed(self):
@@ -777,12 +924,32 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_quality_preset.setEnabled(not use_manual)
         self.cmb_video_format.setEnabled(not use_manual)
         self.cmb_audio_format.setEnabled(not use_manual)
+        self.tbl_formats.setEnabled(use_manual)
+        if not use_manual:
+            self.tbl_formats.clearSelection()
+
+        c_path = config.get("media_downloader_cookies_path", prefs.get("cookies_path", ""))
+        self.txt_cookies_path.blockSignals(True)
+        self.txt_cookies_path.setText(c_path)
+        self.txt_cookies_path.blockSignals(False)
 
         self.cmb_quality_preset.blockSignals(False)
         self.cmb_video_format.blockSignals(False)
         self.cmb_audio_format.blockSignals(False)
         self.chk_manual_selection.blockSignals(False)
         self.chk_save_defaults.blockSignals(False)
+
+    def _save_cookies_path_permanently(self):
+        """Always save the cookies_path persistently across app restarts."""
+        if hasattr(self, "txt_cookies_path"):
+            from core.config import load_category_config, save_category_config
+            config = load_category_config()
+            path = self.txt_cookies_path.text().strip()
+            config["media_downloader_cookies_path"] = path
+            defaults = config.get("media_downloader_defaults", {})
+            defaults["cookies_path"] = path
+            config["media_downloader_defaults"] = defaults
+            save_category_config(config)
 
     def _save_preferences_if_enabled(self):
         if hasattr(self, "chk_save_defaults") and self.chk_save_defaults.isChecked():
@@ -793,7 +960,8 @@ class MediaDownloaderDialog(QDialog):
                 "video_format_idx": self.cmb_video_format.currentIndex(),
                 "audio_format_idx": self.cmb_audio_format.currentIndex(),
                 "use_manual_selection": self.chk_manual_selection.isChecked(),
-                "save_defaults": True
+                "save_defaults": True,
+                "cookies_path": self.txt_cookies_path.text().strip()
             }
             save_category_config(config)
 
@@ -818,17 +986,11 @@ class MediaDownloaderDialog(QDialog):
                         return (fmt["format_id"], False)
 
         preset_idx = self.cmb_quality_preset.currentIndex()
-        vfmt_idx = self.cmb_video_format.currentIndex()
-        afmt_idx = self.cmb_audio_format.currentIndex()
+        v_key = self.cmb_video_format.currentData() or "any"
+        a_key = self.cmb_audio_format.currentData() or "any"
 
         # Audio-only preset
         if preset_idx == 7:
-            if afmt_idx == 1:
-                return ("bestaudio[ext=mp3]/bestaudio/best", True)
-            elif afmt_idx == 2:
-                return ("bestaudio[ext=m4a]/bestaudio/best", True)
-            elif afmt_idx == 3:
-                return ("bestaudio[acodec^=opus]/bestaudio/best", True)
             return ("bestaudio/best", True)
 
         height_limit = None
@@ -840,25 +1002,25 @@ class MediaDownloaderDialog(QDialog):
         elif preset_idx == 6: height_limit = 360    # 360p
 
         vfilter = ""
-        if vfmt_idx == 1: vfilter = "[ext=mp4]"
-        elif vfmt_idx == 2: vfilter = "[ext=webm]"
-        elif vfmt_idx == 3: vfilter = "[vcodec^=av01]"
-        elif vfmt_idx == 4: vfilter = "[vcodec^=vp9]"
-        elif vfmt_idx == 5: vfilter = "[vcodec^=avc]"
+        if v_key == "h264": vfilter = "[vcodec^=avc1]"
+        elif v_key == "webm": vfilter = "[vcodec^=vp9]"
+        elif v_key == "av1": vfilter = "[vcodec^=av01]"
 
         afilter = ""
-        if afmt_idx == 1: afilter = "[ext=mp3]"
-        elif afmt_idx == 2: afilter = "[ext=m4a]"
-        elif afmt_idx == 3: afilter = "[acodec^=opus]"
+        if a_key == "m4a": afilter = "[ext=m4a]"
+        elif a_key == "opus": afilter = "[acodec^=opus]"
+        elif a_key == "mp3": afilter = "[ext=mp3]"
 
         if height_limit:
             v_spec = f"bestvideo[height<={height_limit}]{vfilter}"
-            a_spec = f"bestaudio{afilter}"
-            format_spec = f"{v_spec}+{a_spec}/{v_spec}/best[height<={height_limit}]/best"
         else:
             v_spec = f"bestvideo{vfilter}"
+
+        if afilter:
             a_spec = f"bestaudio{afilter}"
-            format_spec = f"{v_spec}+{a_spec}/{v_spec}/best"
+            format_spec = f"{v_spec}+{a_spec}/{v_spec}+bestaudio/best[height<={height_limit}]/best" if height_limit else f"{v_spec}+{a_spec}/{v_spec}+bestaudio/best"
+        else:
+            format_spec = f"{v_spec}+bestaudio/best[height<={height_limit}]/best" if height_limit else f"{v_spec}+bestaudio/best"
 
         return (format_spec, False)
 
@@ -889,6 +1051,8 @@ class MediaDownloaderDialog(QDialog):
             QMessageBox.warning(self, "Main Window Missing", "Cannot locate main application window.")
             return
 
+        c_browser, c_file = self._get_cookies_args()
+
         if self.stack.currentWidget() == self.page_video and self._current_video_data:
             title = self._current_video_data.get("title", "video")
             webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
@@ -898,12 +1062,21 @@ class MediaDownloaderDialog(QDialog):
             ext = ".mp3" if is_audio_only else ".mp4"
             filename = f"{clean_title}{ext}"
 
+            total_size_bytes = 0
+            for fmt in self._current_video_data.get("formats", []):
+                f_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
+                if f_size > total_size_bytes:
+                    total_size_bytes = f_size
+
             if hasattr(mw, "start_media_download"):
                 mw.start_media_download(
                     url=webpage_url,
                     filename=filename,
                     format_spec=format_spec,
-                    is_audio_only=is_audio_only
+                    is_audio_only=is_audio_only,
+                    cookies_browser=c_browser,
+                    cookies_file=c_file,
+                    total_size_bytes=total_size_bytes
                 )
             else:
                 mw.process_incoming_url(webpage_url)
@@ -934,7 +1107,9 @@ class MediaDownloaderDialog(QDialog):
                             url=item_url,
                             filename=filename,
                             format_spec=format_spec,
-                            is_audio_only=is_audio_only
+                            is_audio_only=is_audio_only,
+                            cookies_browser=c_browser,
+                            cookies_file=c_file
                         )
                     else:
                         mw.process_incoming_url(item_url)
@@ -949,19 +1124,23 @@ class MediaDownloaderDialog(QDialog):
     def closeEvent(self, event):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
             try:
+                self._worker.stop()
                 self._worker.requestInterruption()
                 self._worker.quit()
-                self._worker.wait(1000)
+                self._worker.wait(2000)
                 if self._worker.isRunning():
                     self._worker.terminate()
-                    self._worker.wait(1000)
+                    self._worker.wait(2000)
             except Exception:
                 pass
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             try:
                 self._dep_worker.requestInterruption()
                 self._dep_worker.quit()
-                self._dep_worker.wait(1000)
+                self._dep_worker.wait(2000)
+                if self._dep_worker.isRunning():
+                    self._dep_worker.terminate()
+                    self._dep_worker.wait(2000)
             except Exception:
                 pass
         super().closeEvent(event)
