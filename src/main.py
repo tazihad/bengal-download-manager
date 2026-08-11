@@ -22,7 +22,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QToolBar, QStatusBar, QStyle,
+    QApplication, QMainWindow, QToolBar, QStatusBar, QStyle, QStyledItemDelegate,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QDialog, 
@@ -911,6 +911,17 @@ def get_app_icon():
     return QIcon.fromTheme("system-run", QIcon(":/icons/fallback.png")) # Just a safe fallback
 
 
+class SidebarItemDelegate(QStyledItemDelegate):
+    """
+    Delegate for the left panel category tree that enforces option.iconMode = QIcon.Mode.Selected
+    when items are hovered or selected, matching icon color with hovered/selected text color.
+    """
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if (option.state & QStyle.StateFlag.State_MouseOver) or (option.state & QStyle.StateFlag.State_Selected):
+            option.iconMode = QIcon.Mode.Selected
+
+
 def get_monochrome_app_icon(color=None, size=24):
     """
     Converts the Bengal Download Manager application logo into a clean, sharp
@@ -1264,6 +1275,7 @@ class MainWindow(QMainWindow):
     def setup_central_widget(self):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.category_tree = QTreeWidget()
+        self.category_tree.setItemDelegate(SidebarItemDelegate(self.category_tree))
         self.category_tree.setHeaderHidden(True)
         self.category_tree.setRootIsDecorated(False)
         self.category_tree.setIconSize(QSize(18, 18))
