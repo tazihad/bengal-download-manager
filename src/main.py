@@ -312,7 +312,9 @@ ACCENT_COLORS = {
     "Emerald Green": "#2ecc71",
     "Crimson Red": "#e74c3c",
     "Amethyst Violet": "#9b59b6",
-    "Obsidian Purple": "#dab9ff"
+    "Obsidian Purple": "#dab9ff",
+    "Material Cobalt": "#a8c7fa",
+    "Material Violet": "#d0bcff"
 }
 
 def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
@@ -430,6 +432,14 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#161218", "#e9e0e8", "#110d13", "#1e1a20", "#221e24", "#dab9ff", "#dab9ff", "#460283", accent=accent_name))
+    elif theme_lower in ("material you dark", "material you", "material dark", "android 17 dark", "materialyou"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#141318", "#e6e1e9", "#0f0e13", "#1d1b20", "#2b2930", "#a8c7fa", "#a8c7fa", "#003062", accent=accent_name))
+    elif theme_lower in ("material you light", "material light", "android 17 light"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#fdf8fd", "#1c1b20", "#ffffff", "#f5eff7", "#e6e0e9", "#005ac1", "#005ac1", "#ffffff", accent=accent_name))
     elif theme_lower in ("one dark", "onedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)

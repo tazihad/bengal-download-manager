@@ -104,7 +104,8 @@ class OptionsDialog(QDialog):
             "Automatic", "BDM Dark (Default)", "BDM Light", 
             "Breeze Dark", "Breeze Light", "Catppuccin",
             "Dracula", "IDM Classic", "Kirigami Dark", 
-            "Kirigami Light", "Nord", "Obsidian Flow", "One Dark", 
+            "Kirigami Light", "Material You Dark", "Material You Light",
+            "Nord", "Obsidian Flow", "One Dark", 
             "Solarized Dark", "Solarized Light", 
             "Ubuntu Dark", "Ubuntu Light"
         ]
@@ -117,7 +118,8 @@ class OptionsDialog(QDialog):
         accent_options = [
             "Amethyst Violet", "BDM (Default)", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
-            "Nord Frost", "Obsidian Purple", "Ubuntu Orange", "Windows Blue"
+            "Material Cobalt", "Material Violet", "Nord Frost", 
+            "Obsidian Purple", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
