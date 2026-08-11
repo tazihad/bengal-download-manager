@@ -344,7 +344,30 @@ class MediaExtractorWorker(QThread):
             stdout, stderr = self.process.communicate(timeout=60)
 
             if self.process.returncode != 0:
-                err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {process.returncode}"
+                # RETRY FALLBACK: If extraction failed with cookies, retry clean extraction without cookies
+                if (self.cookies_browser and self.cookies_browser.lower() not in ("none", "")) or (self.cookies_file and os.path.exists(str(self.cookies_file))):
+                    self.status_signal.emit("Cookies invalid or rejected, retrying clean metadata extraction...")
+                    clean_cmd = [
+                        yt_dlp_bin,
+                        "-J",
+                        "--flat-playlist",
+                        "--no-warnings",
+                        "--remote-components", "ejs:github",
+                        "--ffmpeg-location", bin_dir,
+                        self.url
+                    ]
+                    self.process = subprocess.Popen(
+                        clean_cmd,
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding="utf-8"
+                    )
+                    stdout, stderr = self.process.communicate(timeout=60)
+
+            if self.process.returncode != 0:
+                err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {self.process.returncode}"
                 self.analysis_failed.emit(err_msg)
                 return
 
