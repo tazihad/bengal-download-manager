@@ -553,11 +553,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 opacity: 0.5;
             }
             QToolBar QToolButton {
-                color: #FFFFFF;
                 opacity: 1.0;
             }
             QToolBar QToolButton:disabled {
-                color: #8A8E93;
                 opacity: 0.30;
             }
         """)
@@ -1246,11 +1244,9 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(24, 24))
         toolbar.setStyleSheet("""
             QToolButton {
-                color: #FFFFFF;
                 opacity: 1.0;
             }
             QToolButton:disabled {
-                color: #8A8E93;
                 opacity: 0.30;
             }
         """)
