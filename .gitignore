@@ -40,3 +40,4 @@ linuxdeploy-plugin-appimage.AppImage
 *.AppImage
 *.AppImage.zsync
 test_app.py
+opencode.json

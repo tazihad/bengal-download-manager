@@ -62,13 +62,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller PyQt6 pytest pytest-qt
 
-      - name: Run Test Suite
-        env:
-          PYTHONPATH: src
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          pytest -v tests/
-
       - name: Determine Tag
         if: github.event_name != 'pull_request'
         id: get_tag

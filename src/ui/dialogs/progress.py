@@ -426,7 +426,7 @@ class DownloadProgressDialog(QDialog):
         
         # Map worker status to display status
         worker_status = data[2]
-        if worker_status.startswith("Receiving data"):
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
             display_status = "Downloading"
         elif worker_status == "Connecting...":
             display_status = "Connecting..."

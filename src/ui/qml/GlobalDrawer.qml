@@ -63,6 +63,24 @@ Kirigami.GlobalDrawer {
             text: "Video"
             icon.name: "video-x-generic"
             onTriggered: drawer.categorySelected("Video")
+        },
+        Kirigami.Action {
+            separator: true
+        },
+        Kirigami.Action {
+            text: "Queues"
+            icon.name: "alarm-clock"
+            expandible: true
+            Kirigami.Action {
+                text: "Main download queue"
+                icon.name: "alarm-clock"
+                onTriggered: queuesDialog.open()
+            }
+            Kirigami.Action {
+                text: "Synchronization queue"
+                icon.name: "alarm-clock"
+                onTriggered: queuesDialog.open()
+            }
         }
     ]
 }
