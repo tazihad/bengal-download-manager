@@ -335,6 +335,12 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     pal.setColor(QPalette.ColorRole.Link, QColor(link))
     pal.setColor(QPalette.ColorRole.Highlight, QColor(hl))
     pal.setColor(QPalette.ColorRole.HighlightedText, QColor(hl_text))
+
+    dis_text = QColor(text)
+    dis_text.setAlpha(90)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, dis_text)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, dis_text)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, dis_text)
     return pal
 
 
@@ -719,7 +725,8 @@ def make_faded_icon(icon: "QIcon", opacity: float = 0.30) -> "QIcon":
     painter.drawPixmap(0, 0, src)
     painter.end()
     new_icon = QIcon(icon)
-    new_icon.addPixmap(faded, QIcon.Mode.Disabled)
+    new_icon.addPixmap(faded, QIcon.Mode.Disabled, QIcon.State.Off)
+    new_icon.addPixmap(faded, QIcon.Mode.Disabled, QIcon.State.On)
     return new_icon
 
 
