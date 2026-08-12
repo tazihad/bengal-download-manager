@@ -112,9 +112,11 @@ def test_main_window_move_file(qapp, tmp_path, monkeypatch):
     assert item0.data(Qt.ItemDataRole.UserRole + 1) == str(dest_file)
 
 def test_adaptive_icon_theme(qapp):
-    from PyQt6.QtGui import QPalette, QColor
+    from PyQt6.QtGui import QPalette, QColor, QIcon
     from PyQt6.QtWidgets import QStyle
-    from main import get_themed_icon, ensure_adaptive_icon_theme
+    import main
+    from main import get_themed_icon, ensure_adaptive_icon_theme, normalize_icon_theme_name
+    from ui.icons import get_monochrome_icon
 
     # Set dark palette
     dark_pal = QPalette()
@@ -130,6 +132,29 @@ def test_adaptive_icon_theme(qapp):
     pm = icon.pixmap(24, 24)
     assert not pm.isNull()
     assert pm.width() == 24 and pm.height() == 24
+
+    # Verify disabled mode pixmap is generated and non-empty
+    disabled_pm = icon.pixmap(24, 24, QIcon.Mode.Disabled)
+    assert not disabled_pm.isNull()
+
+    # Test normalize_icon_theme_name for 3 BDM options
+    assert normalize_icon_theme_name("bdm") == "BDM Auto (Default)"
+    assert normalize_icon_theme_name("BDM Dark") == "BDM Dark"
+    assert normalize_icon_theme_name("bdm light") == "BDM Light"
+
+    # Test BDM Dark and BDM Light themes in get_themed_icon
+    main.CURRENT_ICON_THEME = "BDM Dark"
+    icon_dark = get_themed_icon("add_url")
+    assert not icon_dark.isNull()
+    assert not icon_dark.pixmap(24, 24, QIcon.Mode.Disabled).isNull()
+
+    main.CURRENT_ICON_THEME = "BDM Light"
+    icon_light = get_themed_icon("add_url")
+    assert not icon_light.isNull()
+    assert not icon_light.pixmap(24, 24, QIcon.Mode.Disabled).isNull()
+
+    main.CURRENT_ICON_THEME = "BDM Auto (Default)"
+
 
 def test_download_dialogs_window_stacking_parentage(qapp):
     from ui.dialogs import DownloadProgressDialog, DownloadCompleteDialog, DownloadFileInfoDialog
@@ -309,9 +334,9 @@ def test_options_dialog_theme_selection(qapp):
     from main import MainWindow, apply_app_theme, get_themed_tray_icon, get_app_icon, get_monochrome_app_icon
 
     window = MainWindow()
-    window.settings["theme"] = "BDM Dark (Default)"
+    window.settings["theme"] = "BDM Auto (Default)"
     window.settings["accent"] = "BDM (Default)"
-    window.settings["icon_theme"] = "BDM (Default)"
+    window.settings["icon_theme"] = "BDM Auto (Default)"
     window.settings["tray_icon"] = "App Icon (Default)"
     opt_dlg = OptionsDialog(window)
 
@@ -323,7 +348,7 @@ def test_options_dialog_theme_selection(qapp):
 
     # Check items count and options
     expected_themes = [
-        "Automatic", "BDM Dark (Default)", "BDM Light", 
+        "BDM Auto (Default)", "BDM Dark", "BDM Light", "System",
         "Breeze Dark", "Breeze Light", "Catppuccin",
         "Dracula", "IDM Classic", "Kirigami Dark", 
         "Kirigami Light", "Material You Dark", "Material You Light",
@@ -335,7 +360,7 @@ def test_options_dialog_theme_selection(qapp):
     assert items == expected_themes
 
     # Check default selected items
-    assert opt_dlg.combo_theme.currentText() == "BDM Dark (Default)"
+    assert opt_dlg.combo_theme.currentText() == "BDM Auto (Default)"
     assert opt_dlg.combo_tray_icon.currentText() == "App Icon (Default)"
 
     # Select Ubuntu Dark, Ubuntu Orange, Breeze Dark, and Monochrome Light

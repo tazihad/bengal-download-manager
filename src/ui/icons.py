@@ -304,10 +304,11 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))
 
 
-def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24) -> QIcon:
+def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24, disabled_color: QColor = None) -> QIcon:
     """
     Renders a clean, high-DPI vector stroke icon for the given symbol name.
-    Dynamically renders Normal state using WindowText color and Selected state using HighlightedText color.
+    Dynamically renders Normal state using WindowText color, Selected state using HighlightedText color,
+    and Disabled state using a low-opacity faded pixmap to adapt across Light and Dark system themes.
     """
     app = QApplication.instance()
     if color is None:
@@ -330,6 +331,16 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
     normal_pixmap = _render_pixmap(color)
     selected_pixmap = _render_pixmap(selected_color)
 
+    if disabled_color is not None:
+        disabled_pixmap = _render_pixmap(disabled_color)
+    else:
+        disabled_pixmap = QPixmap(normal_pixmap.size())
+        disabled_pixmap.fill(Qt.GlobalColor.transparent)
+        p = QPainter(disabled_pixmap)
+        p.setOpacity(0.35)
+        p.drawPixmap(0, 0, normal_pixmap)
+        p.end()
+
     icon = QIcon()
     icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.Off)
     icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.On)
@@ -337,4 +348,7 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
     icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.On)
     icon.addPixmap(selected_pixmap, QIcon.Mode.Active, QIcon.State.Off)
     icon.addPixmap(selected_pixmap, QIcon.Mode.Active, QIcon.State.On)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
     return icon
+
