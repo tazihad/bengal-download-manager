@@ -334,7 +334,7 @@ def test_options_dialog_theme_selection(qapp):
     from main import MainWindow, apply_app_theme, get_themed_tray_icon, get_app_icon, get_monochrome_app_icon
 
     window = MainWindow()
-    window.settings["theme"] = "BDM Auto (Default)"
+    window.settings["theme"] = "BDM Dark (Default)"
     window.settings["accent"] = "BDM (Default)"
     window.settings["icon_theme"] = "BDM Auto (Default)"
     window.settings["tray_icon"] = "App Icon (Default)"
@@ -348,7 +348,7 @@ def test_options_dialog_theme_selection(qapp):
 
     # Check items count and options
     expected_themes = [
-        "BDM Auto (Default)", "BDM Dark", "BDM Light", "System",
+        "BDM Dark (Default)", "BDM Auto", "BDM Light", "System",
         "Breeze Dark", "Breeze Light", "Catppuccin",
         "Dracula", "IDM Classic", "Kirigami Dark", 
         "Kirigami Light", "Material You Dark", "Material You Light",
@@ -360,7 +360,7 @@ def test_options_dialog_theme_selection(qapp):
     assert items == expected_themes
 
     # Check default selected items
-    assert opt_dlg.combo_theme.currentText() == "BDM Auto (Default)"
+    assert opt_dlg.combo_theme.currentText() == "BDM Dark (Default)"
     assert opt_dlg.combo_tray_icon.currentText() == "App Icon (Default)"
 
     # Select Ubuntu Dark, Ubuntu Orange, Breeze Dark, and Monochrome Light
