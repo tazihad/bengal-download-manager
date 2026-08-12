@@ -348,7 +348,7 @@ def test_options_dialog_theme_selection(qapp):
 
     # Check items count and options
     expected_themes = [
-        "BDM Dark (Default)", "BDM Auto", "BDM Light", "System",
+        "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
         "Breeze Dark", "Breeze Light", "Catppuccin",
         "Dracula", "IDM Classic", "Kirigami Dark", 
         "Kirigami Light", "Material You Dark", "Material You Light",
@@ -486,12 +486,37 @@ def test_add_url_dialog_media_detection(qapp):
     dialog.close()
 
 
+def test_system_accent_color_detection(qapp):
+    from main import detect_accent, apply_app_theme
+    from PyQt6.QtGui import QPalette
+
+    detected = detect_accent("auto", app=qapp)
+    assert detected is not None
+    assert detected.isValid()
+
+    apply_app_theme("BDM Dark (Default)", accent_name="System", app=qapp)
+    current_hl = qapp.palette().color(QPalette.ColorRole.Highlight)
+    assert current_hl.name() == detected.name()
+
+    apply_app_theme("System", accent_name="System", app=qapp)
+    current_hl_sys = qapp.palette().color(QPalette.ColorRole.Highlight)
+    assert current_hl_sys.name() == detected.name()
 
 
+def test_dropdown_options_sorting(qapp):
+    from ui.dialogs.options import OptionsDialog
+    dlg = OptionsDialog()
 
+    themes = [dlg.combo_theme.itemText(i) for i in range(dlg.combo_theme.count())]
+    assert themes[:4] == ["System", "BDM Auto", "BDM Dark (Default)", "BDM Light"]
+    assert themes[4:] == sorted(themes[4:])
 
+    accents = [dlg.combo_accent.itemText(i) for i in range(dlg.combo_accent.count())]
+    assert accents[:2] == ["System", "BDM (Default)"]
+    assert accents[2:] == sorted(accents[2:])
 
-
-
-
+    icons = [dlg.combo_icon_theme.itemText(i) for i in range(dlg.combo_icon_theme.count())]
+    assert icons[:3] == ["BDM Auto (Default)", "BDM Dark", "BDM Light"]
+    assert icons[3:] == sorted(icons[3:])
+    dlg.close()
 
