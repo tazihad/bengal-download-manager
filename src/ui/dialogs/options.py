@@ -101,7 +101,7 @@ class OptionsDialog(QDialog):
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
         theme_options = [
-            "Automatic", "BDM Dark (Default)", "BDM Light", 
+            "BDM Auto (Default)", "BDM Dark", "BDM Light", "System",
             "Breeze Dark", "Breeze Light", "Catppuccin",
             "Dracula", "IDM Classic", "Kirigami Dark", 
             "Kirigami Light", "Material You Dark", "Material You Light",
@@ -119,7 +119,7 @@ class OptionsDialog(QDialog):
             "Amethyst Violet", "BDM (Default)", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
-            "Obsidian Purple", "Ubuntu Orange", "Windows Blue"
+            "Obsidian Purple", "System", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
@@ -127,7 +127,7 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["Adwaita", "BDM (Default)", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
+        icon_theme_options = ["Adwaita", "BDM Auto (Default)", "BDM Dark", "BDM Light", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
@@ -151,13 +151,12 @@ class OptionsDialog(QDialog):
 
         grp_theme.setLayout(grid_theme)
 
-        # Initial values & restore state for Cancel
-        current_theme = "BDM Dark (Default)"
+        current_theme = "BDM Auto (Default)"
         current_accent = "BDM (Default)"
-        current_icon_theme = "BDM (Default)"
+        current_icon_theme = "BDM Auto (Default)"
         current_tray_icon = "App Icon (Default)"
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
-            current_theme = self.main_win.settings.get("theme", "BDM Dark (Default)")
+            current_theme = self.main_win.settings.get("theme", "BDM Auto (Default)")
             current_accent = self.main_win.settings.get("accent", "BDM (Default)")
             current_icon_theme = self.main_win.settings.get("icon_theme", "BDM (Default)")
             current_tray_icon = self.main_win.settings.get("tray_icon", "App Icon (Default)")
@@ -178,7 +177,7 @@ class OptionsDialog(QDialog):
         self.initial_tray_icon = current_tray_icon
 
         idx_t = self.combo_theme.findText(current_theme)
-        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Dark (Default)")
+        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Auto (Default)")
         if idx_t != -1: self.combo_theme.setCurrentIndex(idx_t)
 
         idx_a = self.combo_accent.findText(current_accent)
@@ -186,7 +185,7 @@ class OptionsDialog(QDialog):
         if idx_a != -1: self.combo_accent.setCurrentIndex(idx_a)
 
         idx_i = self.combo_icon_theme.findText(current_icon_theme)
-        if idx_i == -1: idx_i = self.combo_icon_theme.findText("BDM (Default)")
+        if idx_i == -1: idx_i = self.combo_icon_theme.findText("BDM Auto (Default)")
         if idx_i != -1: self.combo_icon_theme.setCurrentIndex(idx_i)
 
         idx_tr = self.combo_tray_icon.findText(current_tray_icon)
@@ -709,9 +708,9 @@ class OptionsDialog(QDialog):
             line_edit.setText(path)
 
     def on_appearance_preview(self, text=None):
-        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
         a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
-        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
+        i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         tr = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
@@ -722,9 +721,9 @@ class OptionsDialog(QDialog):
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
-                t = getattr(self, 'initial_theme', 'BDM Dark (Default)')
+                t = getattr(self, 'initial_theme', 'BDM Auto (Default)')
                 a = getattr(self, 'initial_accent', 'BDM (Default)')
-                i = getattr(self, 'initial_icon_theme', 'BDM (Default)')
+                i = getattr(self, 'initial_icon_theme', 'BDM Auto')
                 tr = getattr(self, 'initial_tray_icon', 'App Icon (Default)')
                 preview_fn(t, a, i, tr)
         super().reject()
@@ -734,9 +733,9 @@ class OptionsDialog(QDialog):
         save_category_config(self.config_data)
         
         new_scale = self.combo_scale.currentText()
-        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
         new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
-        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
+        new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
@@ -772,13 +771,13 @@ class OptionsDialog(QDialog):
         self.accept()
 
     def get_theme(self):
-        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
 
     def get_accent(self):
         return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
 
     def get_icon_theme(self):
-        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM (Default)"
+        return self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
 
     def get_tray_icon(self):
         return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"

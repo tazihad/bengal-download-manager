@@ -303,7 +303,7 @@ def parse_time_to_sec(text):
 ACCENT_COLORS = {
     "BDM (Default)": "#3daee9",
     "BDM": "#3daee9",
-    "Default / Auto": None,
+    "System": None,
     "Breeze Blue": "#3daee9",
     "Ubuntu Orange": "#e95420",
     "Windows Blue": "#0078d4",
@@ -318,7 +318,17 @@ ACCENT_COLORS = {
 }
 
 def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
-    if accent and accent in ACCENT_COLORS and ACCENT_COLORS[accent]:
+    if accent and str(accent).lower() == "system":
+        app = QApplication.instance()
+        if app:
+            sys_pal = app.style().standardPalette()
+            sys_hl = sys_pal.color(QPalette.ColorRole.Highlight)
+            sys_link = sys_pal.color(QPalette.ColorRole.Link)
+            if sys_hl.isValid() and sys_hl.alpha() > 0:
+                hl = sys_hl
+            if sys_link.isValid() and sys_link.alpha() > 0:
+                link = sys_link
+    elif accent and accent in ACCENT_COLORS and ACCENT_COLORS[accent]:
         hl = ACCENT_COLORS[accent]
         link = ACCENT_COLORS[accent]
     pal = QPalette()
@@ -344,17 +354,19 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     return pal
 
 
-def normalize_theme_name(name, default="BDM Dark (Default)"):
+def normalize_theme_name(name, default="BDM Auto (Default)"):
     if not name:
         return default
     s = str(name).strip()
     s_lower = s.lower()
+    if s_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
+        return "BDM Auto (Default)"
+    if s_lower == "system":
+        return "System"
     if s_lower in ("bdm dark", "bdmdark", "dark", "bdm dark (default)"):
-        return "BDM Dark (Default)"
+        return "BDM Dark"
     if s_lower in ("bdm light", "bdmlight", "light"):
         return "BDM Light"
-    if s_lower in ("automatic", "auto"):
-        return "Automatic"
     return s
 
 
@@ -365,16 +377,22 @@ def normalize_accent_name(name, default="BDM (Default)"):
     s_lower = s.lower()
     if s_lower in ("bdm", "bdm (default)", "default"):
         return "BDM (Default)"
+    if s_lower == "system":
+        return "System"
     return s
 
 
-def normalize_icon_theme_name(name, default="BDM (Default)"):
+def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
     if not name:
         return default
     s = str(name).strip()
     s_lower = s.lower()
-    if s_lower in ("bdm", "bdm (default)", "default"):
-        return "BDM (Default)"
+    if s_lower in ("bdm dark", "bdmdark"):
+        return "BDM Dark"
+    elif s_lower in ("bdm light", "bdmlight"):
+        return "BDM Light"
+    elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
+        return "BDM Auto (Default)"
     return s
 
 
@@ -474,11 +492,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         app.setPalette(_build_palette("#eff0f1", "#232629", "#ffffff", "#f8f9fa", "#eef0f2", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
-    elif theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
-        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
-            sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
-    else:  # Automatic
+    elif theme_lower == "system":
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         app.setPalette(app.style().standardPalette())
@@ -487,20 +501,42 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
             p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))
             app.setPalette(p)
+    else:  # BDM Auto (Default) / Automatic
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Unknown)
+        
+        is_sys_dark = False
+        if hasattr(sh, "colorScheme"):
+            cs = sh.colorScheme()
+            if cs == Qt.ColorScheme.Dark:
+                is_sys_dark = True
+            elif cs == Qt.ColorScheme.Light:
+                is_sys_dark = False
+            else:
+                sys_pal = app.style().standardPalette()
+                is_sys_dark = sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
+        else:
+            sys_pal = app.style().standardPalette()
+            is_sys_dark = sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
+
+        if is_sys_dark:
+            app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
+        else:
+            app.setPalette(_build_palette("#eff0f1", "#232629", "#ffffff", "#f8f9fa", "#eef0f2", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
 
     # Icon theme handling
     global CURRENT_ICON_THEME, CURRENT_TRAY_ICON
     if icon_theme_name:
         CURRENT_ICON_THEME = str(icon_theme_name).strip()
     else:
-        CURRENT_ICON_THEME = "BDM (Default)"
+        CURRENT_ICON_THEME = "BDM Auto (Default)"
 
     if tray_icon_name:
         CURRENT_TRAY_ICON = str(tray_icon_name).strip()
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm (default)"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -559,7 +595,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 opacity: 0.5;
             }
             QToolBar QToolButton, QToolBar QToolButton:hover {
-                color: #FFFFFF;
+                color: palette(button-text);
                 opacity: 1.0;
             }
             QToolBar QToolButton:disabled {
@@ -681,10 +717,14 @@ def get_themed_icon(name, fallback=None):
     Returns an icon for the given symbol name.
     If a custom system icon theme is active (e.g. Breeze, Ubuntu, Adwaita), resolves from system icons.
     Otherwise, returns the clean minimal vector stroke monochrome icon from ui/icons.py.
+    Supports BDM Auto (adaptive), BDM Dark, and BDM Light icon options.
     """
     global CURRENT_ICON_THEME
 
-    if CURRENT_ICON_THEME and str(CURRENT_ICON_THEME).lower() not in ("automatic", "bdm", "bdm (default)"):
+    icon_theme_str = str(CURRENT_ICON_THEME).strip() if CURRENT_ICON_THEME else "BDM Auto (Default)"
+    icon_theme_lower = icon_theme_str.lower()
+
+    if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
         for alias in aliases:
             ic = QIcon.fromTheme(alias)
@@ -695,7 +735,15 @@ def get_themed_icon(name, fallback=None):
         return get_monochrome_app_icon()
 
     from ui.icons import get_monochrome_icon
-    icon = get_monochrome_icon(name)
+    from PyQt6.QtGui import QColor
+
+    if icon_theme_lower in ("bdm dark", "bdmdark"):
+        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
+    elif icon_theme_lower in ("bdm light", "bdmlight"):
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#ffffff"))
+    else:
+        icon = get_monochrome_icon(name)
+
     if not icon.isNull():
         return icon
     
@@ -1018,6 +1066,15 @@ class MainWindow(QMainWindow):
 
         # Initial UI State Update
         self.update_ui_states()
+
+        # Listen for dynamic system/OS theme changes
+        app_inst = QApplication.instance()
+        if app_inst:
+            sh_inst = app_inst.styleHints()
+            if hasattr(sh_inst, "colorSchemeChanged"):
+                sh_inst.colorSchemeChanged.connect(self.on_system_theme_changed)
+            if hasattr(app_inst, "paletteChanged"):
+                app_inst.paletteChanged.connect(self.on_system_theme_changed)
         
         # Auto-start local Aria2 daemon for accelerated downloading
         self.aria2_process = self.start_aria2_daemon()
@@ -1107,12 +1164,7 @@ class MainWindow(QMainWindow):
         self.is_quitting = True
         self.close()
 
-    def changeEvent(self, event):
-        if event and event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
-            ensure_adaptive_icon_theme(QApplication.instance())
-            self.setup_actions()
-            self.setup_toolbar()
-        super().changeEvent(event)
+
 
     # --- DRAG AND DROP HANDLERS ---
     def dragEnterEvent(self, event):
@@ -1264,7 +1316,7 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(24, 24))
         toolbar.setStyleSheet("""
             QToolButton, QToolButton:hover {
-                color: #FFFFFF;
+                color: palette(window-text);
                 opacity: 1.0;
             }
             QToolButton:disabled {
@@ -2146,9 +2198,9 @@ class MainWindow(QMainWindow):
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
-                "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
+                "theme": getattr(self, "settings", {}).get("theme", "BDM Auto (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
-                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM (Default)"),
+                "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
@@ -2157,23 +2209,45 @@ class MainWindow(QMainWindow):
             pass
 
     def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
-        if not hasattr(self, "settings") or not isinstance(self.settings, dict):
-            self.settings = {}
-        self.settings["theme"] = theme_name
-        self.settings["accent"] = accent_name
-        self.settings["icon_theme"] = icon_theme_name
-        self.settings["tray_icon"] = tray_icon_name
-        apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
-        self.save_settings()
-        self.refresh_theme_ui()
+        if getattr(self, "_is_applying_theme", False):
+            return
+        self._is_applying_theme = True
+        try:
+            if not hasattr(self, "settings") or not isinstance(self.settings, dict):
+                self.settings = {}
+            self.settings["theme"] = theme_name
+            self.settings["accent"] = accent_name
+            self.settings["icon_theme"] = icon_theme_name
+            self.settings["tray_icon"] = tray_icon_name
+            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
+            self.save_settings()
+            self.refresh_theme_ui()
+        finally:
+            self._is_applying_theme = False
 
     def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
-        apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
-        self.refresh_theme_ui()
+        if getattr(self, "_is_applying_theme", False):
+            return
+        self._is_applying_theme = True
+        try:
+            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
+            self.refresh_theme_ui()
+        finally:
+            self._is_applying_theme = False
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+
+    def on_system_theme_changed(self, *args):
+        if getattr(self, "_is_applying_theme", False):
+            return
+        current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
+        if str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system"):
+            self.apply_theme_setting(current_theme)
 
     def apply_theme_setting(self, theme_name):
         accent_name = getattr(self, "settings", {}).get("accent", "BDM (Default)")
-        icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM (Default)")
+        icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)")
         tray_icon_name = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
         self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name)
 
@@ -2215,23 +2289,28 @@ class MainWindow(QMainWindow):
 
         # Refresh action icons
         action_icon_map = {
-            "action_add_url": "add_url",
-            "action_exit": "exit",
-            "action_stop": "stop",
-            "action_stop_all": "stop_all",
-            "action_resume": "resume",
-            "action_download_now": "resume",
-            "action_redownload": "unfinished",
-            "action_delete": "delete",
-            "action_clear": "clear_completed",
-            "action_options": "options",
-            "action_open_folder": "open_folder",
-            "action_scheduler": "scheduler",
-            "action_media_downloader": "media_downloader"
+            "action_add_url": ("add_url", False),
+            "action_paste_url": ("add_url", False),
+            "action_exit": ("exit", False),
+            "action_stop": ("stop", True),
+            "action_stop_all": ("stop_all", True),
+            "action_resume": ("resume", True),
+            "action_download_now": ("resume", True),
+            "action_redownload": ("unfinished", True),
+            "action_delete": ("delete", True),
+            "action_clear": ("clear_completed", False),
+            "action_options": ("options", False),
+            "action_open_folder": ("open_folder", False),
+            "action_scheduler": ("scheduler", False),
+            "action_media_downloader": ("media_downloader", False)
         }
-        for attr, icon_name in action_icon_map.items():
+        _fi = make_faded_icon
+        for attr, (icon_name, use_fi) in action_icon_map.items():
             if hasattr(self, attr):
-                getattr(self, attr).setIcon(get_themed_icon(icon_name))
+                ic = get_themed_icon(icon_name)
+                if use_fi:
+                    ic = _fi(ic)
+                getattr(self, attr).setIcon(ic)
 
         if hasattr(self, "update_tray_action"):
             self.update_tray_action()
@@ -2264,9 +2343,9 @@ class MainWindow(QMainWindow):
 
     def load_settings(self):
         settings = {
-            "theme": "BDM Dark (Default)",
+            "theme": "BDM Auto (Default)",
             "accent": "BDM (Default)",
-            "icon_theme": "BDM (Default)",
+            "icon_theme": "BDM Auto (Default)",
             "tray_icon": "App Icon (Default)"
         }
         config_dir = get_config_dir()
@@ -3589,9 +3668,9 @@ if __name__ == "__main__":
             print("Bengal Download Manager is already running. Primary instance brought to focus.")
             sys.exit(0)
 
-    _saved_theme = "BDM Dark (Default)"
+    _saved_theme = "BDM Auto (Default)"
     _saved_accent = "BDM (Default)"
-    _saved_icon_theme = "BDM (Default)"
+    _saved_icon_theme = "BDM Auto (Default)"
     _saved_tray_icon = "App Icon (Default)"
     try:
         if os.path.exists(_cfg_path):
