@@ -18,6 +18,23 @@ import shutil
 import subprocess
 import socket
 import threading
+import platform
+import re
+import glob
+import configparser
+from pathlib import Path
+from typing import Optional, Tuple
+
+if platform.system() == "Windows":
+    import ctypes
+    from ctypes import wintypes
+
+try:
+    from gi.repository import Gio  # type: ignore
+    _HAS_GIO = True
+except Exception:
+    _HAS_GIO = False
+
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 from urllib.parse import urlparse, unquote
@@ -300,6 +317,238 @@ def parse_time_to_sec(text):
     except:
         return 0
 
+def xdg_config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+
+
+def xdg_data_home() -> Path:
+    return Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share")))
+
+
+def common_system_data_dirs() -> list[Path]:
+    dirs = [
+        Path("/usr/share"),
+        Path("/usr/local/share"),
+        Path("/var/lib/flatpak/exports/share"),
+        Path("/run/host/usr/share"),
+    ]
+    return [d for d in dirs if d.exists()]
+
+
+def _qcolor_from_rgb_tuple(t: Tuple[int, int, int], a: int = 255) -> QColor:
+    r, g, b = t
+    return QColor(r, g, b, a)
+
+
+def _qcolor_from_hex(hexstr: str) -> Optional[QColor]:
+    if not hexstr:
+        return None
+    s = hexstr.strip()
+    m = re.match(r'^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$', s)
+    if m:
+        return QColor(s)
+    return None
+
+
+def _parse_color_value_string(s: str) -> Optional[Tuple[int, int, int]]:
+    if not s:
+        return None
+    s = s.strip()
+    m = re.match(r'^#?([0-9A-Fa-f]{6})$', s)
+    if m:
+        hexpart = m.group(1)
+        r = int(hexpart[0:2], 16)
+        g = int(hexpart[2:4], 16)
+        b = int(hexpart[4:6], 16)
+        return r, g, b
+    m = re.match(r'^\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*$', s)
+    if m:
+        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return r, g, b
+    m = re.match(r'rgb\s*\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*\)', s)
+    if m:
+        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return r, g, b
+    return None
+
+
+def get_windows_accent_color() -> Optional[QColor]:
+    if platform.system() != "Windows":
+        return None
+    try:
+        dwm = ctypes.WinDLL("dwmapi")
+        color = wintypes.DWORD()
+        opaque = wintypes.BOOL()
+        hr = dwm.DwmGetColorizationColor(ctypes.byref(color), ctypes.byref(opaque))
+        if hr == 0:
+            c = color.value
+            a = (c >> 24) & 0xFF
+            r = (c >> 16) & 0xFF
+            g = (c >> 8) & 0xFF
+            b = c & 0xFF
+            if a == 0:
+                a = 255
+            return _qcolor_from_rgb_tuple((r, g, b), a)
+    except Exception:
+        pass
+    return None
+
+
+def get_gnome_accent_color() -> Optional[QColor]:
+    if not _HAS_GIO:
+        return None
+    try:
+        settings = Gio.Settings.new("org.gnome.desktop.interface")
+        keys = settings.list_keys()
+        candidates = ("accent-color", "accent-color-rgba", "gtk-color-scheme", "gtk-theme")
+        for candidate in candidates:
+            if candidate in keys:
+                val = settings.get_value(candidate).unpack() if settings.get_value(candidate) is not None else None
+                if isinstance(val, str):
+                    col = _qcolor_from_hex(val)
+                    if col:
+                        return col
+                if isinstance(val, (list, tuple)):
+                    try:
+                        r, g, b = int(val[0]), int(val[1]), int(val[2])
+                        a = int(val[3]) if len(val) > 3 else 255
+                        return _qcolor_from_rgb_tuple((r, g, b), a)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return None
+
+
+def get_kde_accent_color() -> Optional[QColor]:
+    cfg_paths = []
+    kg = xdg_config_home() / "kdeglobals"
+    if kg.exists():
+        cfg_paths.append(kg)
+
+    cs_dirs = [xdg_data_home() / "color-schemes"]
+    for sysd in common_system_data_dirs():
+        cs_dirs.append(sysd / "color-schemes")
+
+    color_files = []
+    for d in cs_dirs:
+        if d.exists() and d.is_dir():
+            color_files.extend(sorted(glob.glob(str(d / "*.colors"))))
+
+    for p in cfg_paths:
+        try:
+            with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+            cs_match = re.search(r'^\s*ColorScheme\s*=\s*(\S+)\s*$', text, flags=re.MULTILINE)
+            if cs_match:
+                scheme_name = cs_match.group(1)
+                potential = [
+                    xdg_data_home() / "color-schemes" / f"{scheme_name}.colors",
+                ]
+                for sysd in common_system_data_dirs():
+                    potential.append(sysd / "color-schemes" / f"{scheme_name}.colors")
+                for pot in potential:
+                    if pot.exists():
+                        color_files.insert(0, str(pot))
+        except Exception:
+            pass
+
+    seen = set()
+    candidate_files = []
+    for p in color_files:
+        if p and p not in seen and Path(p).exists():
+            seen.add(p)
+            candidate_files.append(p)
+
+    keys_of_interest = [
+        "SelectionBackground", "SelectionBackgroundNormal", "Highlight", "Accent", "AccentColor",
+        "ButtonBackgroundActive", "ButtonBackgroundNormal", "Foreground", "Background"
+    ]
+
+    for path in candidate_files:
+        try:
+            cfg = configparser.RawConfigParser()
+            cfg.optionxform = str
+            cfg.read(path, encoding="utf-8")
+            for section in cfg.sections():
+                for key in cfg[section]:
+                    for ki in keys_of_interest:
+                        if ki.lower() in key.lower():
+                            raw = cfg[section][key]
+                            parsed = _parse_color_value_string(raw)
+                            if parsed:
+                                return _qcolor_from_rgb_tuple(parsed, 255)
+            for ki in keys_of_interest:
+                for sec in cfg.sections():
+                    if cfg.has_option(sec, ki):
+                        raw = cfg.get(sec, ki)
+                        parsed = _parse_color_value_string(raw)
+                        if parsed:
+                            return _qcolor_from_rgb_tuple(parsed, 255)
+        except Exception:
+            continue
+
+    try:
+        for p in cfg_paths:
+            with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    mhex = re.search(r'#([0-9A-Fa-f]{6})', line)
+                    if mhex:
+                        return _qcolor_from_hex("#" + mhex.group(1))
+    except Exception:
+        pass
+
+    return None
+
+
+def get_qt_accent_color(app=None) -> Optional[QColor]:
+    if app is None:
+        app = QApplication.instance()
+    if app:
+        col = app.palette().color(QPalette.ColorRole.Highlight)
+        if col.isValid():
+            return col
+    return None
+
+
+def detect_accent(method: str = "auto", app=None) -> QColor:
+    system = platform.system()
+    method = method.lower() if method else "auto"
+
+    if method == "auto":
+        if system == "Windows":
+            methods = ["windows", "qt"]
+        elif system == "Linux":
+            methods = ["gnome", "kde", "qt"]
+        else:
+            methods = ["qt"]
+    else:
+        methods = [method, "qt"]
+
+    for m in methods:
+        try:
+            if m == "windows" and system == "Windows":
+                c = get_windows_accent_color()
+                if c and c.isValid():
+                    return c
+            elif m == "gnome":
+                c = get_gnome_accent_color()
+                if c and c.isValid():
+                    return c
+            elif m == "kde":
+                c = get_kde_accent_color()
+                if c and c.isValid():
+                    return c
+            elif m == "qt":
+                c = get_qt_accent_color(app)
+                if c and c.isValid():
+                    return c
+        except Exception:
+            continue
+
+    return QColor("#0078d4")
+
+
 ACCENT_COLORS = {
     "BDM (Default)": "#3daee9",
     "BDM": "#3daee9",
@@ -319,15 +568,10 @@ ACCENT_COLORS = {
 
 def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     if accent and str(accent).lower() == "system":
-        app = QApplication.instance()
-        if app:
-            sys_pal = app.style().standardPalette()
-            sys_hl = sys_pal.color(QPalette.ColorRole.Highlight)
-            sys_link = sys_pal.color(QPalette.ColorRole.Link)
-            if sys_hl.isValid() and sys_hl.alpha() > 0:
-                hl = sys_hl
-            if sys_link.isValid() and sys_link.alpha() > 0:
-                link = sys_link
+        sys_acc = detect_accent("auto", app=QApplication.instance())
+        if sys_acc and sys_acc.isValid():
+            hl = sys_acc
+            link = sys_acc
     elif accent and accent in ACCENT_COLORS and ACCENT_COLORS[accent]:
         hl = ACCENT_COLORS[accent]
         link = ACCENT_COLORS[accent]
@@ -496,7 +740,14 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         app.setPalette(app.style().standardPalette())
-        if accent_name and accent_name in ACCENT_COLORS and ACCENT_COLORS[accent_name]:
+        if accent_name and str(accent_name).lower() == "system":
+            sys_acc = detect_accent("auto", app=app)
+            if sys_acc and sys_acc.isValid():
+                p = QPalette(app.palette())
+                p.setColor(QPalette.ColorRole.Highlight, sys_acc)
+                p.setColor(QPalette.ColorRole.Link, sys_acc)
+                app.setPalette(p)
+        elif accent_name and accent_name in ACCENT_COLORS and ACCENT_COLORS[accent_name]:
             p = QPalette(app.palette())
             p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
             p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))

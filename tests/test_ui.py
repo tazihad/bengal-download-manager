@@ -486,12 +486,18 @@ def test_add_url_dialog_media_detection(qapp):
     dialog.close()
 
 
+def test_system_accent_color_detection(qapp):
+    from main import detect_accent, apply_app_theme
+    from PyQt6.QtGui import QPalette
 
+    detected = detect_accent("auto", app=qapp)
+    assert detected is not None
+    assert detected.isValid()
 
+    apply_app_theme("BDM Dark (Default)", accent_name="System", app=qapp)
+    current_hl = qapp.palette().color(QPalette.ColorRole.Highlight)
+    assert current_hl.name() == detected.name()
 
-
-
-
-
-
-
+    apply_app_theme("System", accent_name="System", app=qapp)
+    current_hl_sys = qapp.palette().color(QPalette.ColorRole.Highlight)
+    assert current_hl_sys.name() == detected.name()
