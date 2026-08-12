@@ -101,7 +101,7 @@ class OptionsDialog(QDialog):
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
         theme_options = [
-            "BDM Dark (Default)", "BDM Auto", "BDM Light", "System",
+            "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
             "Breeze Dark", "Breeze Light", "Catppuccin",
             "Dracula", "IDM Classic", "Kirigami Dark", 
             "Kirigami Light", "Material You Dark", "Material You Light",
@@ -116,10 +116,10 @@ class OptionsDialog(QDialog):
         self.combo_accent = QComboBox()
         self.combo_accent.setToolTip("Select accent/highlight color")
         accent_options = [
-            "Amethyst Violet", "BDM (Default)", "Breeze Blue", 
+            "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
-            "Obsidian Purple", "System", "Ubuntu Orange", "Windows Blue"
+            "Obsidian Purple", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
@@ -127,7 +127,7 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["Adwaita", "BDM Auto (Default)", "BDM Dark", "BDM Light", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
+        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
