@@ -394,17 +394,33 @@ def get_windows_accent_color() -> Optional[QColor]:
     return None
 
 
+GNOME_ACCENT_MAP = {
+    "blue": "#3584e4",
+    "teal": "#2190a4",
+    "green": "#3a944a",
+    "yellow": "#c88800",
+    "orange": "#ed6218",
+    "red": "#e01b24",
+    "pink": "#d44a7d",
+    "purple": "#9141ac",
+    "slate": "#6f8396",
+    "brown": "#986a44",
+}
+
+
 def get_gnome_accent_color() -> Optional[QColor]:
     if not _HAS_GIO:
         return None
     try:
         settings = Gio.Settings.new("org.gnome.desktop.interface")
         keys = settings.list_keys()
-        candidates = ("accent-color", "accent-color-rgba", "gtk-color-scheme", "gtk-theme")
+        candidates = ("accent-color", "accent-color-rgba", "gtk-color-scheme")
         for candidate in candidates:
             if candidate in keys:
                 val = settings.get_value(candidate).unpack() if settings.get_value(candidate) is not None else None
                 if isinstance(val, str):
+                    if val.lower() in GNOME_ACCENT_MAP:
+                        return _qcolor_from_hex(GNOME_ACCENT_MAP[val.lower()])
                     col = _qcolor_from_hex(val)
                     if col:
                         return col
@@ -421,10 +437,8 @@ def get_gnome_accent_color() -> Optional[QColor]:
 
 
 def get_kde_accent_color() -> Optional[QColor]:
-    cfg_paths = []
     kg = xdg_config_home() / "kdeglobals"
-    if kg.exists():
-        cfg_paths.append(kg)
+    cfg_paths = [kg] if kg.exists() else []
 
     cs_dirs = [xdg_data_home() / "color-schemes"]
     for sysd in common_system_data_dirs():
@@ -435,16 +449,29 @@ def get_kde_accent_color() -> Optional[QColor]:
         if d.exists() and d.is_dir():
             color_files.extend(sorted(glob.glob(str(d / "*.colors"))))
 
+    keys_of_interest = [
+        "accentcolor", "AccentColor", "Accent", "SelectionBackground",
+        "SelectionBackgroundNormal", "Highlight", "ButtonBackgroundActive"
+    ]
+
     for p in cfg_paths:
         try:
+            cfg = configparser.RawConfigParser()
+            cfg.optionxform = str
+            cfg.read(p, encoding="utf-8")
+            for ki in keys_of_interest:
+                for sec in cfg.sections():
+                    if cfg.has_option(sec, ki):
+                        raw = cfg.get(sec, ki)
+                        parsed = _parse_color_value_string(raw)
+                        if parsed:
+                            return _qcolor_from_rgb_tuple(parsed, 255)
             with open(p, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
             cs_match = re.search(r'^\s*ColorScheme\s*=\s*(\S+)\s*$', text, flags=re.MULTILINE)
             if cs_match:
                 scheme_name = cs_match.group(1)
-                potential = [
-                    xdg_data_home() / "color-schemes" / f"{scheme_name}.colors",
-                ]
+                potential = [xdg_data_home() / "color-schemes" / f"{scheme_name}.colors"]
                 for sysd in common_system_data_dirs():
                     potential.append(sysd / "color-schemes" / f"{scheme_name}.colors")
                 for pot in potential:
@@ -460,24 +487,11 @@ def get_kde_accent_color() -> Optional[QColor]:
             seen.add(p)
             candidate_files.append(p)
 
-    keys_of_interest = [
-        "SelectionBackground", "SelectionBackgroundNormal", "Highlight", "Accent", "AccentColor",
-        "ButtonBackgroundActive", "ButtonBackgroundNormal", "Foreground", "Background"
-    ]
-
     for path in candidate_files:
         try:
             cfg = configparser.RawConfigParser()
             cfg.optionxform = str
             cfg.read(path, encoding="utf-8")
-            for section in cfg.sections():
-                for key in cfg[section]:
-                    for ki in keys_of_interest:
-                        if ki.lower() in key.lower():
-                            raw = cfg[section][key]
-                            parsed = _parse_color_value_string(raw)
-                            if parsed:
-                                return _qcolor_from_rgb_tuple(parsed, 255)
             for ki in keys_of_interest:
                 for sec in cfg.sections():
                     if cfg.has_option(sec, ki):
@@ -487,16 +501,6 @@ def get_kde_accent_color() -> Optional[QColor]:
                             return _qcolor_from_rgb_tuple(parsed, 255)
         except Exception:
             continue
-
-    try:
-        for p in cfg_paths:
-            with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    mhex = re.search(r'#([0-9A-Fa-f]{6})', line)
-                    if mhex:
-                        return _qcolor_from_hex("#" + mhex.group(1))
-    except Exception:
-        pass
 
     return None
 
@@ -519,7 +523,13 @@ def detect_accent(method: str = "auto", app=None) -> QColor:
         if system == "Windows":
             methods = ["windows", "qt"]
         elif system == "Linux":
-            methods = ["gnome", "kde", "qt"]
+            desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
+            if "KDE" in desktop:
+                methods = ["kde", "gnome", "qt"]
+            elif "GNOME" in desktop or "UBUNTU" in desktop:
+                methods = ["gnome", "kde", "qt"]
+            else:
+                methods = ["kde", "gnome", "qt"]
         else:
             methods = ["qt"]
     else:
