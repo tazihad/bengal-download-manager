@@ -354,17 +354,17 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     return pal
 
 
-def normalize_theme_name(name, default="BDM Auto (Default)"):
+def normalize_theme_name(name, default="BDM Dark (Default)"):
     if not name:
         return default
     s = str(name).strip()
     s_lower = s.lower()
+    if s_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
+        return "BDM Dark (Default)"
     if s_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
-        return "BDM Auto (Default)"
+        return "BDM Auto"
     if s_lower == "system":
         return "System"
-    if s_lower in ("bdm dark", "bdmdark", "dark", "bdm dark (default)"):
-        return "BDM Dark"
     if s_lower in ("bdm light", "bdmlight", "light"):
         return "BDM Light"
     return s
@@ -501,7 +501,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
             p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))
             app.setPalette(p)
-    else:  # BDM Auto (Default) / Automatic
+    elif theme_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         
@@ -523,6 +523,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
         else:
             app.setPalette(_build_palette("#eff0f1", "#232629", "#ffffff", "#f8f9fa", "#eef0f2", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
+    else:  # BDM Dark (Default) / Default
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
 
     # Icon theme handling
     global CURRENT_ICON_THEME, CURRENT_TRAY_ICON
@@ -737,12 +741,23 @@ def get_themed_icon(name, fallback=None):
     from ui.icons import get_monochrome_icon
     from PyQt6.QtGui import QColor
 
-    if icon_theme_lower in ("bdm dark", "bdmdark"):
+    if icon_theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark"):
         icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
     elif icon_theme_lower in ("bdm light", "bdmlight"):
-        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#ffffff"))
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"))
     else:
-        icon = get_monochrome_icon(name)
+        app = QApplication.instance()
+        is_dark = False
+        if app:
+            pal = app.palette()
+            bg_val = pal.color(QPalette.ColorRole.Window).value()
+            fg_val = pal.color(QPalette.ColorRole.WindowText).value()
+            if bg_val < 128 or fg_val > 128:
+                is_dark = True
+        if is_dark:
+            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
+        else:
+            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"))
 
     if not icon.isNull():
         return icon
@@ -2198,7 +2213,7 @@ class MainWindow(QMainWindow):
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
-                "theme": getattr(self, "settings", {}).get("theme", "BDM Auto (Default)"),
+                "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
@@ -2241,8 +2256,8 @@ class MainWindow(QMainWindow):
     def on_system_theme_changed(self, *args):
         if getattr(self, "_is_applying_theme", False):
             return
-        current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
-        if str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system"):
+        current_theme = getattr(self, "settings", {}).get("theme", "BDM Dark (Default)")
+        if str(current_theme).lower() in ("bdm auto", "bdmauto", "automatic", "auto", "system"):
             self.apply_theme_setting(current_theme)
 
     def apply_theme_setting(self, theme_name):
@@ -2252,6 +2267,10 @@ class MainWindow(QMainWindow):
         self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name)
 
     def refresh_theme_ui(self):
+        app = QApplication.instance()
+        if app:
+            self.setPalette(app.palette())
+
         # Refresh category tree style & icons
         if hasattr(self, "category_tree"):
             self.style().unpolish(self.category_tree)
@@ -2343,7 +2362,7 @@ class MainWindow(QMainWindow):
 
     def load_settings(self):
         settings = {
-            "theme": "BDM Auto (Default)",
+            "theme": "BDM Dark (Default)",
             "accent": "BDM (Default)",
             "icon_theme": "BDM Auto (Default)",
             "tray_icon": "App Icon (Default)"
@@ -3668,7 +3687,7 @@ if __name__ == "__main__":
             print("Bengal Download Manager is already running. Primary instance brought to focus.")
             sys.exit(0)
 
-    _saved_theme = "BDM Auto (Default)"
+    _saved_theme = "BDM Dark (Default)"
     _saved_accent = "BDM (Default)"
     _saved_icon_theme = "BDM Auto (Default)"
     _saved_tray_icon = "App Icon (Default)"
