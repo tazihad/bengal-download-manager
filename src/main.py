@@ -744,9 +744,20 @@ def get_themed_icon(name, fallback=None):
     if icon_theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark"):
         icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
     elif icon_theme_lower in ("bdm light", "bdmlight"):
-        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#ffffff"))
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"))
     else:
-        icon = get_monochrome_icon(name)
+        app = QApplication.instance()
+        is_dark = False
+        if app:
+            pal = app.palette()
+            bg_val = pal.color(QPalette.ColorRole.Window).value()
+            fg_val = pal.color(QPalette.ColorRole.WindowText).value()
+            if bg_val < 128 or fg_val > 128:
+                is_dark = True
+        if is_dark:
+            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
+        else:
+            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"))
 
     if not icon.isNull():
         return icon
@@ -2256,6 +2267,10 @@ class MainWindow(QMainWindow):
         self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name)
 
     def refresh_theme_ui(self):
+        app = QApplication.instance()
+        if app:
+            self.setPalette(app.palette())
+
         # Refresh category tree style & icons
         if hasattr(self, "category_tree"):
             self.style().unpolish(self.category_tree)

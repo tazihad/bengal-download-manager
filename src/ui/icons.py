@@ -315,7 +315,7 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
         color = app.palette().color(QPalette.ColorRole.WindowText) if app else QColor("#333333")
 
     if selected_color is None:
-        selected_color = app.palette().color(QPalette.ColorRole.HighlightedText) if app else QColor("#ffffff")
+        selected_color = color
 
     def _render_pixmap(c: QColor) -> QPixmap:
         pixmap = QPixmap(size * 2, size * 2)
@@ -344,10 +344,10 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
     icon = QIcon()
     icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.Off)
     icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.On)
+    icon.addPixmap(normal_pixmap, QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(normal_pixmap, QIcon.Mode.Active, QIcon.State.On)
     icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.Off)
     icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.On)
-    icon.addPixmap(selected_pixmap, QIcon.Mode.Active, QIcon.State.Off)
-    icon.addPixmap(selected_pixmap, QIcon.Mode.Active, QIcon.State.On)
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
     return icon
