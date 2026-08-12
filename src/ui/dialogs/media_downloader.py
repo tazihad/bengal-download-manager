@@ -42,11 +42,11 @@ class MediaDownloaderDialog(QDialog):
 
         self.setStyleSheet("""
             QPushButton, QToolButton {
-                color: #FFFFFF;
+                color: palette(button-text);
                 opacity: 1.0;
             }
             QPushButton:disabled, QToolButton:disabled {
-                color: #8A8E93;
+                color: palette(disabled, button-text);
                 background-color: palette(disabled, window);
                 border: 1px solid palette(disabled, mid);
                 opacity: 0.30;
