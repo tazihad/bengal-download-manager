@@ -3529,12 +3529,12 @@ class MainWindow(QMainWindow):
             pct_str = ""
             if len(data) > 6 and tot_bytes > 0:
                 pct_val = (comp_bytes / tot_bytes) * 100
-                if pct_val >= 99.999 or worker_status == "Complete":
+                if comp_bytes >= tot_bytes or pct_val >= 99.95 or worker_status == "Complete":
                     pct_str = "Complete"
                 else:
                     pct_str = f"{pct_val:.2f}%"
 
-            if display_status == "Complete" or worker_status == "Complete":
+            if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":
                 display_status = "Complete"
                 final_display = "Complete"
             elif display_status == "Downloading":
