@@ -1,5 +1,5 @@
 name: 'Build Flatpak'
-description: 'Builds the Flatpak bundle for the application'
+description: 'Builds the Flatpak bundle for the application with compiled AppStream catalog'
 inputs:
   version:
     description: 'Version string (without leading v)'
@@ -15,12 +15,12 @@ runs:
     - name: Build Flatpak Bundle
       shell: bash
       run: |
-        sudo apt-get update && sudo apt-get install -y flatpak
+        sudo apt-get update && sudo apt-get install -y flatpak appstream appstream-util
         APP_ID="io.github.tazihad.bengal-download-manager"
         BUILD_DIR="flatpak_app_dir"
         VERSION="${{ inputs.version }}"
         ARCH="${{ inputs.arch }}"
-        mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo" "$BUILD_DIR/files/share/appdata"
+        mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo" "$BUILD_DIR/files/share/appdata" "$BUILD_DIR/files/share/appstream"
         cp build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH} "$BUILD_DIR/files/bin/bengal-download-manager"
         chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
         
@@ -29,10 +29,14 @@ runs:
           chmod +x "$BUILD_DIR/files/bin/aria2c"
         fi
 
-        cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
+        cp assets/io.github.tazihad.bengal-download-manager.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png" 2>/dev/null || cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
         cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
+
+        # Compose AppStream catalog metadata
+        appstreamcli compose --origin=flatpak --prefix="$BUILD_DIR/files" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" 2>/dev/null || appstream-util compose --origin=flatpak "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appstream" 2>/dev/null || true
+
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
         name=$APP_ID
@@ -58,6 +62,8 @@ runs:
         [Environment]
         QT_QPA_PLATFORMTHEME=xdgdesktopportal
         EOF
+
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
         flatpak build-export repo "$BUILD_DIR"
+        flatpak build-update-repo repo
         flatpak build-bundle repo bengal-download-manager-${VERSION}-${ARCH}.flatpak $APP_ID

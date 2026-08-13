@@ -45,9 +45,16 @@ if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
     chmod +x "$BUILD_DIR/files/bin/aria2c"
 fi
 
-cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
+mkdir -p "$BUILD_DIR/files/share/appdata"
+mkdir -p "$BUILD_DIR/files/share/appstream"
+
+cp assets/io.github.tazihad.bengal-download-manager.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png" 2>/dev/null || cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
 cp flatpak/io.github.tazihad.bengal-download-manager.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
 cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
+
+# Compose AppStream catalog metadata if tools available
+appstreamcli compose --origin=flatpak --prefix="$BUILD_DIR/files" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" 2>/dev/null || appstream-util compose --origin=flatpak "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appstream" 2>/dev/null || true
 
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]
