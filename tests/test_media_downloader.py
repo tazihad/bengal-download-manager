@@ -189,3 +189,13 @@ def test_yt_dlp_long_filename_truncation(tmp_path):
         base_tmpl = os.path.basename(out_tmpl)
         assert len(base_tmpl.encode("utf-8")) < 150
 
+
+def test_dependency_manager_worker_force_download(tmp_path):
+    """Test DependencyManagerWorker force_download invokes download for installed tools."""
+    from core.media_downloader import DependencyManagerWorker
+    worker = DependencyManagerWorker(force_download=True)
+    with patch.object(worker, "_download_and_install_tool") as mock_dl:
+        with patch("os.access", return_value=True), patch("pathlib.Path.exists", return_value=True):
+            worker.run()
+            assert mock_dl.call_count == 5
+

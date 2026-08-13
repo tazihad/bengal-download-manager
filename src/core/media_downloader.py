@@ -151,7 +151,7 @@ class DependencyManagerWorker(QThread):
             local_bin = BIN_DIR / binary_name
             is_local_installed = local_bin.exists() and os.access(local_bin, os.X_OK)
 
-            if not is_local_installed:
+            if not is_local_installed or self.force_download:
                 self._download_and_install_tool(tool)
             else:
                 ver = get_tool_version(tool) or "Installed"
@@ -160,6 +160,7 @@ class DependencyManagerWorker(QThread):
         self.all_finished_signal.emit()
 
     def _download_and_install_tool(self, tool_name: str):
+        import ssl
         tool_info = DEPENDENCY_TOOLS[tool_name]
         url = tool_info["url"]
         tool_type = tool_info["type"]
@@ -182,13 +183,29 @@ class DependencyManagerWorker(QThread):
             self.tool_status_signal.emit(tool_name, display_str, "yellow")
 
         try:
-            urllib.request.urlretrieve(url, tmp_download_path, reporthook=_reporthook)
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
+            try:
+                ssl_ctx = ssl.create_default_context()
+            except Exception:
+                ssl_ctx = ssl._create_unverified_context()
+
+            with urllib.request.urlopen(req, context=ssl_ctx, timeout=30) as resp, open(tmp_download_path, "wb") as out_f:
+                totalsize = int(resp.headers.get("Content-Length", 0))
+                blocksize = 8192
+                blocknum = 0
+                while True:
+                    chunk = resp.read(blocksize)
+                    if not chunk:
+                        break
+                    out_f.write(chunk)
+                    blocknum += 1
+                    _reporthook(blocknum, blocksize, totalsize)
 
             if tool_type == "direct":
                 dest = BIN_DIR / binary_name
                 if dest.exists():
                     dest.unlink()
-                tmp_download_path.rename(dest)
+                shutil.move(str(tmp_download_path), str(dest))
                 dest.chmod(0o755)
 
             elif tool_type == "zip":
