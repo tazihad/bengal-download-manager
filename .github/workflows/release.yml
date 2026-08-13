@@ -27,8 +27,27 @@ on:
       - '.gitignore'
 
 jobs:
+  prepare:
+    name: Determine Tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get_tag.outputs.tag }}
+      version: ${{ steps.get_tag.outputs.version }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determine Tag
+        id: get_tag
+        uses: ./.github/actions/determine-tag
+        with:
+          manual_tag: ${{ github.event.inputs.tag_name }}
+
   build:
     name: Build (${{ matrix.arch }})
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +58,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
+      contents: read
     
     steps:
       - name: Checkout Code
@@ -62,31 +81,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller PyQt6 pytest pytest-qt
 
-      - name: Determine Tag
-        if: github.event_name != 'pull_request'
-        id: get_tag
-        uses: ./.github/actions/determine-tag
-        with:
-          manual_tag: ${{ github.event.inputs.tag_name }}
-
       - name: Update Version File
         if: github.event_name != 'pull_request'
         uses: ./.github/actions/update-version
         with:
-          version: ${{ steps.get_tag.outputs.version }}
+          version: ${{ needs.prepare.outputs.version }}
 
       - name: Build Binary
         if: github.event_name != 'pull_request'
         uses: ./.github/actions/build-binary
         with:
-          version: ${{ steps.get_tag.outputs.version }}
+          version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
       - name: Build AppImage
         if: github.event_name != 'pull_request'
         uses: ./.github/actions/build-appimage
         with:
-          version: ${{ steps.get_tag.outputs.version }}
+          version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
       - name: Build Extension
@@ -97,22 +109,51 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: ./.github/actions/build-flatpak
         with:
-          version: ${{ steps.get_tag.outputs.version }}
+          version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
-      - name: Create GitHub Release
+      - name: Stage Release Artifacts
         if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p release_artifacts
+          cp build_cmake/dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }} release_artifacts/ 2>/dev/null || true
+          cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage release_artifacts/ 2>/dev/null || true
+          cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage.zsync release_artifacts/ 2>/dev/null || true
+          cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            cp extension-chromium.crx release_artifacts/ 2>/dev/null || true
+            cp extension-firefox.xpi release_artifacts/ 2>/dev/null || true
+          fi
+
+      - name: Upload Build Artifacts
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.arch }}
+          path: release_artifacts/*
+
+  release:
+    name: Publish Release
+    needs: [prepare, build]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          merge-multiple: true
+          path: release_dist
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.get_tag.outputs.tag }}
-          name: Release ${{ steps.get_tag.outputs.tag }}
-          files: |
-            build_cmake/dist/bengal-download-manager-${{ steps.get_tag.outputs.version }}-${{ matrix.arch }}
-            bengal-download-manager-${{ steps.get_tag.outputs.version }}-${{ matrix.arch }}.AppImage
-            bengal-download-manager-${{ steps.get_tag.outputs.version }}-${{ matrix.arch }}.AppImage.zsync
-            bengal-download-manager-${{ steps.get_tag.outputs.version }}-${{ matrix.arch }}.flatpak
-            extension-chromium.crx
-            extension-firefox.xpi
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Release ${{ needs.prepare.outputs.tag }}
+          files: release_dist/*
           draft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           generate_release_notes: true
