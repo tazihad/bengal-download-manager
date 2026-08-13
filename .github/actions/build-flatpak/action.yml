@@ -24,11 +24,9 @@ runs:
 
         # Create standard directory layout
         mkdir -p "$BUILD_DIR/files/bin" \
-                 "$BUILD_DIR/files/share/applications" \
-                 "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
-                 "$BUILD_DIR/files/share/metainfo" \
-                 "$BUILD_DIR/files/share/app-info/xmls" \
-                 "$BUILD_DIR/files/share/app-info/icons"
+                "$BUILD_DIR/files/share/applications" \
+                "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
+                "$BUILD_DIR/files/share/metainfo"
 
         cp build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH} "$BUILD_DIR/files/bin/bengal-download-manager"
         chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
@@ -42,8 +40,8 @@ runs:
         cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
-        # Correct AppStream catalog generation
-        appstreamcli compose --origin=flatpak --prefix="$BUILD_DIR/files" --output-dir="$BUILD_DIR/files/share/app-info" "$BUILD_DIR/files"
+        # Compose AppStream catalog (appstreamcli handles output directory creation internally via --prefix)
+        appstreamcli compose --origin=flatpak --prefix="$BUILD_DIR/files" "$BUILD_DIR/files"
 
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
