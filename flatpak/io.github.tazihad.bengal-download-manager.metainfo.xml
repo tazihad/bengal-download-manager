@@ -8,10 +8,10 @@
     <name type="name">tazihad</name>
   </developer>
 
-  <name type="name">Bengal Download Manager</name>
-  <summary type="summary">High-speed multi-threaded download manager</summary>
+  <name>Bengal Download Manager</name>
+  <summary>High-speed multi-threaded download manager</summary>
 
-  <description type="description">
+  <description>
     <p>
       Bengal Download Manager is a lightweight, open-source download manager
       built with PyQt6, KDE Kirigami, and Aria2. It features multi-threaded segment
