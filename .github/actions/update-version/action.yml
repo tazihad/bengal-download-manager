@@ -20,18 +20,18 @@ runs:
           if [ -f "flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml" ]; then
             TODAY=$(date +'%Y-%m-%d')
             echo "Updating metainfo.xml with version: $VER and date: $TODAY"
-            python3 -c "
-import sys, re
-ver = sys.argv[1]
-today = sys.argv[2]
-path = 'flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml'
-with open(path, 'r') as f:
-    content = f.read()
-new_release = f'<releases>\n    <release version=\"{ver}\" date=\"{today}\"/>\n  </releases>'
-content = re.sub(r'<releases>.*?</releases>', new_release, content, flags=re.DOTALL)
-with open(path, 'w') as f:
-    f.write(content)
-" "$VER" "$TODAY"
+            python3 -c '
+        import sys, re
+        ver = sys.argv[1]
+        today = sys.argv[2]
+        path = "flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml"
+        with open(path, "r") as f:
+            content = f.read()
+        new_release = f"<releases>\n    <release version=\"{ver}\" date=\"{today}\"/>\n  </releases>"
+        content = re.sub(r"<releases>.*?</releases>", new_release, content, flags=re.DOTALL)
+        with open(path, "w") as f:
+            f.write(content)
+        ' "$VER" "$TODAY"
             cat flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml
           fi
         else
