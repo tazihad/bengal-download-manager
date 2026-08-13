@@ -54,7 +54,7 @@ cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/fi
 cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
 
 # Compose AppStream catalog metadata if tools available
-appstreamcli compose --origin=flatpak --prefix="$BUILD_DIR/files" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" 2>/dev/null || appstream-util compose --origin=flatpak "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appstream" 2>/dev/null || true
+appstreamcli compose --origin=flatpak --prefix=/ "$BUILD_DIR/files" 2>/dev/null || appstream-util compose --origin=flatpak "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appstream" 2>/dev/null || true
 
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]

@@ -41,7 +41,7 @@ runs:
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
         # Compose AppStream catalog
-        appstreamcli compose --origin=flatpak "$BUILD_DIR/files"
+        appstreamcli compose --origin=flatpak --prefix=/ "$BUILD_DIR/files"
 
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
