@@ -40,8 +40,8 @@ runs:
         cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
-        # Compose AppStream catalog (appstreamcli handles output directory creation internally via --prefix)
-        appstreamcli compose --origin=flatpak --prefix="$BUILD_DIR/files" "$BUILD_DIR/files"
+        # Compose AppStream catalog
+        appstreamcli compose --origin=flatpak "$BUILD_DIR/files"
 
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
