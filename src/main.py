@@ -1003,9 +1003,9 @@ def get_themed_icon(name, fallback=None):
     from PyQt6.QtGui import QColor
 
     if icon_theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark"):
-        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
+        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#111111"))
     elif icon_theme_lower in ("bdm light", "bdmlight"):
-        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"))
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#111111"))
     else:
         app = QApplication.instance()
         is_dark = False
@@ -1016,9 +1016,9 @@ def get_themed_icon(name, fallback=None):
             if bg_val < 128 or fg_val > 128:
                 is_dark = True
         if is_dark:
-            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"))
+            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#111111"))
         else:
-            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"))
+            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#111111"))
 
     if not icon.isNull():
         return icon
@@ -1649,11 +1649,11 @@ class MainWindow(QMainWindow):
             }
             QTreeWidget::item:hover {
                 background-color: palette(highlight);
-                color: palette(highlighted-text);
+                color: #111111;
             }
             QTreeWidget::item:selected {
                 background-color: palette(highlight);
-                color: palette(highlighted-text);
+                color: #111111;
                 font-weight: 600;
             }
             QTreeWidget::branch {
