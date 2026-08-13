@@ -22,10 +22,13 @@ venv/bin/python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt;
 rm -rf AppDir
 
 install -Dm755 dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
+install -Dm644 assets/bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
 install -Dm644 assets/bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
-install -Dm644 assets/bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
+install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/io.github.tazihad.bengal-download-manager.desktop
+install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
 if [ -f flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml ]; then
     install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml AppDir/usr/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
+    install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml AppDir/usr/share/appdata/io.github.tazihad.bengal-download-manager.appdata.xml
 fi
 
 echo "=== 3. Fetching linuxdeploy and appimage plugin ==="
@@ -53,7 +56,7 @@ OUTPUT="${OUTPUT_APPIMAGE}" \
 LDAI_OUTPUT="${OUTPUT_APPIMAGE}" \
 ./linuxdeploy.AppImage \
     --appdir AppDir \
-    --desktop-file assets/bengal-download-manager.desktop \
+    --desktop-file flatpak/io.github.tazihad.bengal-download-manager.desktop \
     --icon-file assets/bengal-download-manager.png \
     --output appimage
 

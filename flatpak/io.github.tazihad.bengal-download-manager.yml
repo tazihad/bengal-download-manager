@@ -36,6 +36,7 @@ modules:
       - install -D -m 644 assets/logo.png /app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
       - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.desktop /app/share/applications/io.github.tazihad.bengal-download-manager.desktop
       - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml /app/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
+      - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml /app/share/appdata/io.github.tazihad.bengal-download-manager.appdata.xml
     sources:
       - type: dir
         path: .

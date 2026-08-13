@@ -5,6 +5,10 @@
   <project_license>MIT</project_license>
   <name>Bengal Download Manager</name>
   <summary>High-speed multi-threaded download manager</summary>
+  <developer_name>tazihad</developer_name>
+  <developer id="io.github.tazihad">
+    <name>tazihad</name>
+  </developer>
   <description>
     <p>
       Bengal Download Manager is a lightweight, open-source download manager
@@ -14,6 +18,7 @@
     </p>
   </description>
   <launchable type="desktop-id">io.github.tazihad.bengal-download-manager.desktop</launchable>
+  <icon type="stock">io.github.tazihad.bengal-download-manager</icon>
   <url type="homepage">https://github.com/tazihad/bengal-download-manager</url>
   <url type="bugtracker">https://github.com/tazihad/bengal-download-manager/issues</url>
   <releases>

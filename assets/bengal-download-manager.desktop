@@ -1,10 +1,11 @@
 [Desktop Entry]
 Name=Bengal Download Manager
-Exec=bengal-download-manager
-Icon=bengal-download-manager
+Comment=Fast multi-threaded download manager powered by Aria2 and PyQt6 / Kirigami
+Exec=bengal-download-manager %u
+Icon=io.github.tazihad.bengal-download-manager
+Terminal=false
 Type=Application
 Categories=Network;FileTransfer;
-Terminal=false
-Comment=Multi-threaded download manager built with Aria2 backend.
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+Keywords=download;manager;aria2;multithread;
 StartupWMClass=io.github.tazihad.bengal-download-manager
-

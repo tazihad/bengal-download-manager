@@ -20,7 +20,7 @@ runs:
         BUILD_DIR="flatpak_app_dir"
         VERSION="${{ inputs.version }}"
         ARCH="${{ inputs.arch }}"
-        mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo"
+        mkdir -p "$BUILD_DIR/files/bin" "$BUILD_DIR/files/share/applications" "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" "$BUILD_DIR/files/share/metainfo" "$BUILD_DIR/files/share/appdata"
         cp build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH} "$BUILD_DIR/files/bin/bengal-download-manager"
         chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
         
@@ -32,6 +32,7 @@ runs:
         cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
         cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
         cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+        cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
         name=$APP_ID
