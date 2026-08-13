@@ -17,13 +17,14 @@ if [ ! -f "dist/bengal-download-manager" ]; then
 fi
 
 echo "=== 2. Preparing Icon & AppDir Structure ==="
-venv/bin/python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bengal-download-manager.png')"
+venv/bin/python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/io.github.tazihad.bengal-download-manager.png')"
+cp assets/io.github.tazihad.bengal-download-manager.png assets/bengal-download-manager.png
 
 rm -rf AppDir
 
 install -Dm755 dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
-install -Dm644 assets/bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
-install -Dm644 assets/bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
+install -Dm644 assets/io.github.tazihad.bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
+install -Dm644 assets/io.github.tazihad.bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
 install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/io.github.tazihad.bengal-download-manager.desktop
 install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
 if [ -f flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml ]; then
@@ -57,7 +58,7 @@ LDAI_OUTPUT="${OUTPUT_APPIMAGE}" \
 ./linuxdeploy.AppImage \
     --appdir AppDir \
     --desktop-file flatpak/io.github.tazihad.bengal-download-manager.desktop \
-    --icon-file assets/bengal-download-manager.png \
+    --icon-file assets/io.github.tazihad.bengal-download-manager.png \
     --output appimage
 
 # Ensure target files exist or move fallback generated files safely without failing set -e

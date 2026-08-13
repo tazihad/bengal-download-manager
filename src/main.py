@@ -1216,7 +1216,9 @@ def get_app_icon():
         "/app/share/icons/hicolor/256x256/apps/bengal-download-manager.png",
         os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png"),
         # AppImage specific locations
+        os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
         os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
+        os.path.join(os.environ.get('APPDIR', ''), "io.github.tazihad.bengal-download-manager.png"),
         os.path.join(os.environ.get('APPDIR', ''), "bengal-download-manager.png"),
         # Development and local paths
         os.path.join(os.path.dirname(current_dir), "assets", "logo.png"),
