@@ -59,18 +59,14 @@ runs:
 
         # Dynamically inject the exact version into AppStream metainfo XML
         TODAY=$(date +'%Y-%m-%d')
-        python3 -c '
-import sys, re
-ver = sys.argv[1]
-today = sys.argv[2]
-path = sys.argv[3]
-with open(path, "r") as f:
-    content = f.read()
-new_release = f"<releases>\n    <release version=\"{ver}\" date=\"{today}\"/>\n  </releases>"
-content = re.sub(r"<releases>.*?</releases>", new_release, content, flags=re.DOTALL)
-with open(path, "w") as f:
-    f.write(content)
-' "$VERSION" "$TODAY" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+        python3 -c "
+        import sys, re
+        ver, today, path = sys.argv[1], sys.argv[2], sys.argv[3]
+        with open(path, 'r') as f: content = f.read()
+        new_release = f'<releases>\n    <release version=\"{ver}\" date=\"{today}\"/>\n  </releases>'
+        content = re.sub(r'<releases>.*?</releases>', new_release, content, flags=re.DOTALL)
+        with open(path, 'w') as f: f.write(content)
+        " "$VERSION" "$TODAY" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
         cp "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
 
