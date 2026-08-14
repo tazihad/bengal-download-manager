@@ -119,7 +119,7 @@ jobs:
           cp build_cmake/dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }} release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage.zsync release_artifacts/ 2>/dev/null || true
-          cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
+          cp dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
             cp extension-chromium.crx release_artifacts/ 2>/dev/null || true
             cp extension-firefox.xpi release_artifacts/ 2>/dev/null || true

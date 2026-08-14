@@ -24,9 +24,9 @@ flatpak run org.flatpak.Builder \
 echo "✓ Build successful"
 
 echo "Creating single-file bundle (.flatpak)..."
-# Pass 'repo' directly to build-bundle
-flatpak build-bundle repo bengal-download-manager.flatpak io.github.tazihad.bengal-download-manager
-echo "✓ Bundle created: bengal-download-manager.flatpak"
+mkdir -p dist
+flatpak build-bundle repo dist/bengal-download-manager.flatpak io.github.tazihad.bengal-download-manager
+echo "✓ Bundle created: dist/bengal-download-manager.flatpak"
 
 echo "Cleanup..."
 rm -rf build repo

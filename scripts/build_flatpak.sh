@@ -109,8 +109,10 @@ QT_QPA_PLATFORMTHEME=xdgdesktopportal
 EOF
 
 echo "=== 3. Exporting Flatpak Repository & Bundle ==="
+mkdir -p dist
 flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
 flatpak build-export --update-appstream repo "$BUILD_DIR"
 flatpak build-update-repo --generate-static-deltas repo
-flatpak build-bundle repo bengal-download-manager.flatpak "$APP_ID"
-echo "✓ Bundle created: bengal-download-manager.flatpak"
+flatpak build-bundle repo "dist/bengal-download-manager.flatpak" "$APP_ID"
+cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
+echo "✓ Bundle created: dist/bengal-download-manager.flatpak"
