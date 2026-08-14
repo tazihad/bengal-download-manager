@@ -216,12 +216,17 @@ class DependencyManagerWorker(QThread):
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
-            try:
-                ssl_ctx = ssl.create_default_context()
-            except Exception:
-                ssl_ctx = ssl._create_unverified_context()
+            resp = None
+            for use_unverified in (False, True):
+                try:
+                    ssl_ctx = ssl._create_unverified_context() if use_unverified else ssl.create_default_context()
+                    resp = urllib.request.urlopen(req, context=ssl_ctx, timeout=30)
+                    break
+                except Exception as net_err:
+                    if use_unverified:
+                        raise net_err
 
-            with urllib.request.urlopen(req, context=ssl_ctx, timeout=30) as resp, open(tmp_download_path, "wb") as out_f:
+            with resp, open(tmp_download_path, "wb") as out_f:
                 totalsize = int(resp.headers.get("Content-Length", 0))
                 blocksize = 16384
                 blocknum = 0
@@ -272,7 +277,7 @@ class DependencyManagerWorker(QThread):
             self.tool_status_signal.emit(tool_name, f"{tool_name} ({ver})", "green")
             return True
 
-        except Exception:
+        except Exception as e:
             if tmp_download_path.exists():
                 tmp_download_path.unlink(missing_ok=True)
             current_ver = get_tool_version(tool_name, local_only=True)
@@ -289,18 +294,18 @@ class YtDlpManager:
 
     @staticmethod
     def get_binary_path() -> str:
-        """Returns path to executable yt-dlp binary, checking app bin dir first, then system PATH."""
+        """Returns path to executable yt-dlp binary strictly from the XDG data bin directory."""
         return get_tool_path("yt-dlp")
 
     @staticmethod
     def is_binary_available() -> bool:
-        """Checks if yt-dlp executable exists either in app bin dir or system PATH."""
+        """Checks if yt-dlp executable exists in the XDG data bin directory."""
         path = get_tool_path("yt-dlp")
         return bool(path and os.path.exists(path) and os.access(path, os.X_OK))
 
     @classmethod
     def ensure_binary(cls, progress_callback=None) -> str:
-        """Ensures yt-dlp executable exists. Downloads it if missing."""
+        """Ensures yt-dlp executable exists in XDG data BIN_DIR. Downloads it if missing."""
         if cls.is_binary_available():
             return cls.get_binary_path()
 
@@ -316,7 +321,30 @@ class YtDlpManager:
 
         tmp_path = YT_DLP_BIN.with_suffix(".tmp")
         try:
-            urllib.request.urlretrieve(DEPENDENCY_TOOLS["yt-dlp"]["url"], tmp_path, reporthook=_reporthook)
+            import ssl
+            req = urllib.request.Request(DEPENDENCY_TOOLS["yt-dlp"]["url"], headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
+            resp = None
+            for use_unverified in (False, True):
+                try:
+                    ssl_ctx = ssl._create_unverified_context() if use_unverified else ssl.create_default_context()
+                    resp = urllib.request.urlopen(req, context=ssl_ctx, timeout=30)
+                    break
+                except Exception as net_err:
+                    if use_unverified:
+                        raise net_err
+
+            with resp, open(tmp_path, "wb") as out_f:
+                totalsize = int(resp.headers.get("Content-Length", 0))
+                blocksize = 16384
+                blocknum = 0
+                while True:
+                    chunk = resp.read(blocksize)
+                    if not chunk:
+                        break
+                    out_f.write(chunk)
+                    blocknum += 1
+                    _reporthook(blocknum, blocksize, totalsize)
+
             tmp_path.rename(YT_DLP_BIN)
             YT_DLP_BIN.chmod(0o755)
             if progress_callback:

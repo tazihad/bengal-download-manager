@@ -506,7 +506,10 @@ class MediaDownloaderDialog(QDialog):
                 try:
                     self._dep_worker.requestInterruption()
                     self._dep_worker.quit()
-                    self._dep_worker.wait(500)
+                    self._dep_worker.wait(1000)
+                    if self._dep_worker.isRunning():
+                        self._dep_worker.terminate()
+                        self._dep_worker.wait(500)
                 except Exception:
                     pass
             else:
