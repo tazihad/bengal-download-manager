@@ -523,3 +523,46 @@ def test_dropdown_options_sorting(qapp):
     assert icons[3:] == sorted(icons[3:])
     dlg.close()
 
+
+def test_download_complete_persistence_on_restart(qapp, tmp_path, monkeypatch):
+    monkeypatch.setattr("core.utils.get_data_dir", lambda: str(tmp_path))
+    monkeypatch.setattr("main.get_data_dir", lambda: str(tmp_path))
+
+    # 1. Create a real completed downloaded file on disk
+    downloaded_file = tmp_path / "finished_movie.mp4"
+    downloaded_file.write_bytes(b"A" * 1024 * 100)
+
+    win1 = MainWindow(start_ipc=False)
+    win1.hide()
+    win1.start_download(
+        url="http://example.com/finished_movie.mp4",
+        custom_save_dir=str(tmp_path),
+        start_paused=True,
+        show_dialog=False
+    )
+    item_ref = win1.download_table.item(0, 0)
+    item_ref.setData(Qt.ItemDataRole.UserRole + 1, str(downloaded_file))
+
+    # Emit progress at 98.30%
+    win1.update_download_row(item_ref, ("finished_movie.mp4", "100.00 KB", "Downloading", "00:01", "10.00 KB/s", 98300, 100000))
+    status_item = win1.download_table.item(0, 2)
+    assert status_item.text() == "98.30%"
+
+    # Finish download
+    win1.download_finished(item_ref, "Complete")
+    assert win1.download_table.item(0, 2).text() == "Complete"
+
+    # Simulate app exit: stop_all_downloads and save_data
+    win1.stop_all_downloads()
+    assert win1.download_table.item(0, 2).text() == "Complete"
+    win1.save_data()
+
+    # 2. Reopen window and load persisted downloads.json
+    win2 = MainWindow(start_ipc=False)
+    win2.hide()
+    assert win2.download_table.rowCount() == 1
+    assert win2.download_table.item(0, 0).text() == "finished_movie.mp4"
+    assert win2.download_table.item(0, 2).text() == "Complete"
+    assert win2.download_table.item(0, 2).data(Qt.ItemDataRole.UserRole + 1) == "Complete"
+
+

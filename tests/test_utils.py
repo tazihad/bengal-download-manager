@@ -126,3 +126,30 @@ def test_setup_logging_debug_flag():
     logger_info = setup_logging(debug=False)
     assert logger_info.level == logging.INFO
 
+
+def test_get_clean_env(monkeypatch):
+    from core.utils import get_clean_env
+
+    # 1. Test stripping PyInstaller and Qt variables
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEI12345")
+    monkeypatch.setenv("QT_PLUGIN_PATH", "/tmp/_MEI12345/PyQt6/Qt6/plugins")
+    monkeypatch.setenv("PYTHONHOME", "/tmp/_MEI12345")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/_MEI12345")
+    monkeypatch.setenv("_MEIPASS2", "/tmp/_MEI12345")
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
+    monkeypatch.delenv("ORIG_LD_LIBRARY_PATH", raising=False)
+
+    clean = get_clean_env(extra_paths="/custom/bin")
+    assert "LD_LIBRARY_PATH" not in clean
+    assert "QT_PLUGIN_PATH" not in clean
+    assert "PYTHONHOME" not in clean
+    assert "PYTHONPATH" not in clean
+    assert "_MEIPASS2" not in clean
+    assert clean["PATH"].startswith("/custom/bin:")
+
+    # 2. Test restoring original LD_LIBRARY_PATH if present
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/usr/local/lib:/usr/lib")
+    clean_restored = get_clean_env()
+    assert clean_restored["LD_LIBRARY_PATH"] == "/usr/local/lib:/usr/lib"
+
+

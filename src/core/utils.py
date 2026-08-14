@@ -461,18 +461,30 @@ def ensure_aria2():
     except Exception:
         return None
 
-def get_clean_env():
+def get_clean_env(extra_paths=None):
     """
-    Returns a copy of the environment with Qt-specific paths removed.
-    Prevents child processes from using bundled libraries.
+    Returns a copy of the environment with PyInstaller and Qt-specific paths removed or restored.
+    Prevents child processes (e.g. yt-dlp, ffmpeg, aria2c, xdg-open) from using bundled PyInstaller libraries.
     """
     clean_env = os.environ.copy()
     keys_to_clear = [
         "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
-        "PYTHONHOME", "PYTHONPATH"
+        "PYTHONHOME", "PYTHONPATH", "DYLD_LIBRARY_PATH", "_MEIPASS2"
     ]
     for key in keys_to_clear:
         clean_env.pop(key, None)
+
+    for orig_key in ("LD_LIBRARY_PATH_ORIG", "ORIG_LD_LIBRARY_PATH"):
+        if orig_key in os.environ and os.environ[orig_key]:
+            clean_env["LD_LIBRARY_PATH"] = os.environ[orig_key]
+            break
+
+    if "DYLD_LIBRARY_PATH_ORIG" in os.environ and os.environ["DYLD_LIBRARY_PATH_ORIG"]:
+        clean_env["DYLD_LIBRARY_PATH"] = os.environ["DYLD_LIBRARY_PATH_ORIG"]
+
+    if extra_paths:
+        clean_env["PATH"] = f"{extra_paths}:{clean_env.get('PATH', '')}"
+
     return clean_env
 
 def open_file_generic(path):
