@@ -9,11 +9,11 @@ cd "$ROOT_DIR"
 APP_ID="io.github.tazihad.bengal-download-manager"
 BUILD_DIR="flatpak_app_dir"
 
-echo "=== 1. Building PyInstaller Binary ==="
+echo "=== 1. Building PyInstaller Application ==="
 rm -rf build dist
 PYTHONPATH=src venv/bin/pyinstaller \
     --name "bengal-download-manager" \
-    --onefile \
+    --onedir \
     --clean \
     --paths "src" \
     --collect-all core \
@@ -26,12 +26,14 @@ PYTHONPATH=src venv/bin/pyinstaller \
 echo "=== 2. Creating Flatpak App Structure ($BUILD_DIR) ==="
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/files/bin"
+mkdir -p "$BUILD_DIR/files/lib/bengal-download-manager"
 mkdir -p "$BUILD_DIR/files/share/applications"
 mkdir -p "$BUILD_DIR/files/share/icons/hicolor/256x256/apps"
 mkdir -p "$BUILD_DIR/files/share/metainfo"
 
-cp dist/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
-chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
+cp -a dist/bengal-download-manager/. "$BUILD_DIR/files/lib/bengal-download-manager/"
+chmod +x "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager"
+ln -sf /app/lib/bengal-download-manager/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
 
 ARCH=$(uname -m)
 if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
