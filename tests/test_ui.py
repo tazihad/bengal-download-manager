@@ -219,13 +219,14 @@ def test_header_highlight_sections_disabled_and_max_conn_default(qapp):
     from main import MainWindow
     from ui.dialogs import OptionsDialog
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     assert window.download_table.horizontalHeader().highlightSections() is False
 
     opt_dlg = OptionsDialog(window)
     opt_dlg.save_extension_data()
     assert opt_dlg.extension_data.get("max_connections") == 8
     opt_dlg.close()
+    window.close()
 def test_start_menu_launch_vs_autostart_minimized_flag(monkeypatch):
     argv_normal = ["bengal-download-manager"]
     argv_minimized = ["bengal-download-manager", "--minimized"]
@@ -237,7 +238,7 @@ def test_options_dialog_startup_checkbox_ordering_and_browser_removal(qapp):
     from main import MainWindow
     from ui.dialogs import OptionsDialog
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     opt_dlg = OptionsDialog(window)
 
     # Ensure browser integration checkbox is removed
@@ -257,11 +258,12 @@ def test_options_dialog_startup_checkbox_ordering_and_browser_removal(qapp):
     assert startup_idx == 0
 
     opt_dlg.close()
+    window.close()
 
 def test_download_table_item_filename_tooltip(qapp):
     from main import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     item = window.start_download("https://example.com/long_test_filename_document.pdf", start_paused=True, show_dialog=False)
     
     assert item.toolTip() == "long_test_filename_document.pdf"
@@ -271,7 +273,7 @@ def test_download_table_item_filename_tooltip(qapp):
 def test_ui_comprehensive_tooltips(qapp):
     from main import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     
     # Actions tooltips
     assert window.action_add_url.toolTip() != ""
@@ -293,13 +295,14 @@ def test_options_dialog_ui_scale_dropdown(qapp, tmp_path, monkeypatch):
     import core.utils
     from PyQt6.QtWidgets import QMessageBox
     monkeypatch.setattr(main, "get_config_dir", lambda: str(tmp_path))
-    monkeypatch.setattr(core.utils, "get_config_dir", lambda: str(tmp_path))
+    import ui.dialogs.options
     monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ui.dialogs.options.QMessageBox, "information", lambda *args, **kwargs: None)
 
     from main import MainWindow
     from ui.dialogs import OptionsDialog
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     opt_dlg = OptionsDialog(window)
 
     # Check combo_scale existence
@@ -333,7 +336,7 @@ def test_options_dialog_theme_selection(qapp):
     from ui.dialogs import OptionsDialog
     from main import MainWindow, apply_app_theme, get_themed_tray_icon, get_app_icon, get_monochrome_app_icon
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     window.settings["theme"] = "BDM Dark (Default)"
     window.settings["accent"] = "BDM (Default)"
     window.settings["icon_theme"] = "BDM Auto (Default)"
@@ -449,7 +452,7 @@ def test_main_window_paste_url_shortcut(qapp, monkeypatch):
     from PyQt6.QtWidgets import QApplication
     from ui.dialogs import AddUrlDialog
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     test_url = "https://example.com/pasted_archive.zip"
     QApplication.clipboard().setText(test_url)
 

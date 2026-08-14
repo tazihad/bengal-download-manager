@@ -46,15 +46,41 @@ if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
 fi
 
 mkdir -p "$BUILD_DIR/files/share/appdata"
-mkdir -p "$BUILD_DIR/files/share/appstream"
+mkdir -p "$BUILD_DIR/files/share/app-info/xmls"
+mkdir -p "$BUILD_DIR/files/share/app-info/icons/flatpak"
+
+VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
+VERSION="${VERSION#v}"
 
 cp assets/io.github.tazihad.bengal-download-manager.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png" 2>/dev/null || cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
 cp flatpak/io.github.tazihad.bengal-download-manager.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
 cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
-cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
+
+# Dynamically inject the exact version into AppStream metainfo XML
+TODAY=$(date +'%Y-%m-%d')
+python3 -c '
+import sys, re
+ver = sys.argv[1]
+today = sys.argv[2]
+path = sys.argv[3]
+with open(path, "r") as f:
+    content = f.read()
+new_release = f"<releases>\n    <release version=\"{ver}\" date=\"{today}\"/>\n  </releases>"
+content = re.sub(r"<releases>.*?</releases>", new_release, content, flags=re.DOTALL)
+with open(path, "w") as f:
+    f.write(content)
+' "$VERSION" "$TODAY" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+
+cp "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
 
 # Compose AppStream catalog metadata if tools available
-appstreamcli compose --origin=flatpak --prefix=/ "$BUILD_DIR/files" 2>/dev/null || appstream-util compose --origin=flatpak "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appstream" 2>/dev/null || true
+appstreamcli compose \
+  --origin="$APP_ID" \
+  --prefix=/ \
+  --result-root="$BUILD_DIR/files" \
+  --data-dir="$BUILD_DIR/files/share/app-info/xmls" \
+  --icons-dir="$BUILD_DIR/files/share/app-info/icons/flatpak" \
+  "$BUILD_DIR/files" 2>/dev/null || true
 
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]

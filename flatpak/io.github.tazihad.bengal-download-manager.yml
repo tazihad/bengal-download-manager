@@ -29,14 +29,25 @@ finish-args:
   - --env=QT_QPA_PLATFORMTHEME=xdgdesktopportal
 
 modules:
+  - name: pyinstaller-deps
+    buildsystem: simple
+    build-commands:
+      # Install pyinstaller into the build environment
+      - pip install --prefix=/app pyinstaller
+    sources: []
+
   - name: bengal-download-manager
     buildsystem: simple
     build-commands:
+      - pip install --prefix=/app -r requirements.txt || true
+      - pyinstaller --onefile --name bengal-download-manager main.py
       - install -D -m 755 dist/bengal-download-manager /app/bin/bengal-download-manager
-      - install -D -m 644 assets/logo.png /app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
-      - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.desktop /app/share/applications/io.github.tazihad.bengal-download-manager.desktop
-      - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml /app/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
-      - install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml /app/share/appdata/io.github.tazihad.bengal-download-manager.appdata.xml
+      - install -D -m 644 assets/logo.png /app/share/icons/hicolor/256x256/apps/${FLATPAK_ID}.png
+      - install -D -m 644 flatpak/${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop
+      - install -D -m 644 flatpak/${FLATPAK_ID}.metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
+      - install -D -m 644 flatpak/${FLATPAK_ID}.metainfo.xml /app/share/appdata/${FLATPAK_ID}.appdata.xml
     sources:
       - type: dir
         path: .
+
+
