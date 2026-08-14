@@ -22,6 +22,11 @@ APP_DATA_DIR = Path(get_data_dir())
 BIN_DIR = APP_DATA_DIR / "bin"
 YT_DLP_BIN = BIN_DIR / "yt-dlp"
 
+import platform
+
+_ARCH = platform.machine().lower()
+IS_ARM = _ARCH in ("aarch64", "arm64")
+
 DEPENDENCY_TOOLS = {
     "yt-dlp": {
         "binary_name": "yt-dlp",
@@ -32,21 +37,33 @@ DEPENDENCY_TOOLS = {
     "ffmpeg": {
         "binary_name": "ffmpeg",
         "version_cmd": ["-version"],
-        "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
+        "url": (
+            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz"
+            if IS_ARM else
+            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+        ),
         "type": "tar.xz",
         "extract_files": ["ffmpeg", "ffprobe"]
     },
     "ffprobe": {
         "binary_name": "ffprobe",
         "version_cmd": ["-version"],
-        "url": "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
+        "url": (
+            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz"
+            if IS_ARM else
+            "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+        ),
         "type": "tar.xz",
         "extract_files": ["ffmpeg", "ffprobe"]
     },
     "deno": {
         "binary_name": "deno",
         "version_cmd": ["--version"],
-        "url": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip",
+        "url": (
+            "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip"
+            if IS_ARM else
+            "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip"
+        ),
         "type": "zip",
         "extract_files": ["deno"]
     },
@@ -60,32 +77,30 @@ DEPENDENCY_TOOLS = {
 }
 
 
-def get_tool_path(tool_name: str) -> str:
-    """Returns executable path for tool, checking BIN_DIR first, then system PATH."""
+def get_local_tool_path(tool_name: str) -> str:
+    """Returns local executable path in XDG data BIN_DIR if it exists and is executable, else empty string."""
     if tool_name not in DEPENDENCY_TOOLS:
         return ""
     if tool_name == "yt-dlp":
         if YT_DLP_BIN.exists() and os.access(YT_DLP_BIN, os.X_OK):
             return str(YT_DLP_BIN)
-        system_path = shutil.which("yt-dlp")
-        if system_path:
-            return system_path
-        return str(YT_DLP_BIN)
-
+        return ""
     binary_name = DEPENDENCY_TOOLS[tool_name]["binary_name"]
     local_bin = BIN_DIR / binary_name
     if local_bin.exists() and os.access(local_bin, os.X_OK):
         return str(local_bin)
-    system_path = shutil.which(binary_name)
-    if system_path:
-        return system_path
-    return str(local_bin)
+    return ""
 
 
-def get_tool_version(tool_name: str) -> str:
-    """Queries tool version via subprocess. Returns version string or empty string if not installed."""
+def get_tool_path(tool_name: str, allow_system: bool = False) -> str:
+    """Returns executable path for tool strictly from XDG data BIN_DIR."""
+    return get_local_tool_path(tool_name)
+
+
+def get_tool_version(tool_name: str, local_only: bool = True) -> str:
+    """Queries tool version strictly from XDG data BIN_DIR. Returns empty string if not installed."""
     path = get_tool_path(tool_name)
-    if not os.path.exists(path) or not os.access(path, os.X_OK):
+    if not path or not os.path.exists(path) or not os.access(path, os.X_OK):
         return ""
     try:
         cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
@@ -141,25 +156,38 @@ class DependencyManagerWorker(QThread):
     def run(self):
         BIN_DIR.mkdir(parents=True, exist_ok=True)
         tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
+        downloaded_extract_urls = set()
 
         for tool in tool_names:
-            if self.force_download:
-                self.tool_status_signal.emit(tool, f"{tool} (Checking...)", "yellow")
-                self.msleep(150)
+            if self.isInterruptionRequested():
+                break
 
             binary_name = DEPENDENCY_TOOLS[tool]["binary_name"]
             local_bin = BIN_DIR / binary_name
             is_local_installed = local_bin.exists() and os.access(local_bin, os.X_OK)
 
+            if self.force_download:
+                self.tool_status_signal.emit(tool, f"{tool} (Checking...)", "yellow")
+                self.msleep(50)
+
+            # Skip redundant archive download if previously extracted by companion tool (e.g., ffprobe from ffmpeg)
+            tool_url = DEPENDENCY_TOOLS[tool]["url"]
+            if self.force_download and tool_url in downloaded_extract_urls and is_local_installed:
+                ver = get_tool_version(tool, local_only=True) or "vLatest"
+                self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
+                continue
+
             if not is_local_installed or self.force_download:
-                self._download_and_install_tool(tool)
+                success = self._download_and_install_tool(tool)
+                if success:
+                    downloaded_extract_urls.add(tool_url)
             else:
-                ver = get_tool_version(tool) or "Installed"
+                ver = get_tool_version(tool, local_only=True) or "Installed"
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
 
         self.all_finished_signal.emit()
 
-    def _download_and_install_tool(self, tool_name: str):
+    def _download_and_install_tool(self, tool_name: str) -> bool:
         import ssl
         tool_info = DEPENDENCY_TOOLS[tool_name]
         url = tool_info["url"]
@@ -169,9 +197,13 @@ class DependencyManagerWorker(QThread):
         self.tool_status_signal.emit(tool_name, f"{tool_name} (Downloading...)", "yellow")
 
         # Use XDG cache dir for temporary download to avoid polluting BIN_DIR
-        tmp_download_path = Path(os.path.join(get_cache_dir(), f"{tool_name}_download.tmp"))
+        cache_dir = get_cache_dir()
+        os.makedirs(cache_dir, exist_ok=True)
+        tmp_download_path = Path(os.path.join(cache_dir, f"{tool_name}_download.tmp"))
 
         def _reporthook(blocknum, blocksize, totalsize):
+            if self.isInterruptionRequested():
+                raise InterruptedError("Download interrupted")
             dl_bytes = blocknum * blocksize
             if totalsize > 0:
                 dl_mb = dl_bytes / (1024 * 1024)
@@ -184,16 +216,23 @@ class DependencyManagerWorker(QThread):
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
-            try:
-                ssl_ctx = ssl.create_default_context()
-            except Exception:
-                ssl_ctx = ssl._create_unverified_context()
+            resp = None
+            for use_unverified in (False, True):
+                try:
+                    ssl_ctx = ssl._create_unverified_context() if use_unverified else ssl.create_default_context()
+                    resp = urllib.request.urlopen(req, context=ssl_ctx, timeout=30)
+                    break
+                except Exception as net_err:
+                    if use_unverified:
+                        raise net_err
 
-            with urllib.request.urlopen(req, context=ssl_ctx, timeout=30) as resp, open(tmp_download_path, "wb") as out_f:
+            with resp, open(tmp_download_path, "wb") as out_f:
                 totalsize = int(resp.headers.get("Content-Length", 0))
-                blocksize = 8192
+                blocksize = 16384
                 blocknum = 0
                 while True:
+                    if self.isInterruptionRequested():
+                        raise InterruptedError("Download interrupted")
                     chunk = resp.read(blocksize)
                     if not chunk:
                         break
@@ -234,17 +273,20 @@ class DependencyManagerWorker(QThread):
                                 dest.chmod(0o755)
                 tmp_download_path.unlink(missing_ok=True)
 
-            ver = get_tool_version(tool_name) or "vLatest"
+            ver = get_tool_version(tool_name, local_only=True) or "vLatest"
             self.tool_status_signal.emit(tool_name, f"{tool_name} ({ver})", "green")
+            return True
 
         except Exception as e:
             if tmp_download_path.exists():
                 tmp_download_path.unlink(missing_ok=True)
-            current_ver = get_tool_version(tool_name)
+            current_ver = get_tool_version(tool_name, local_only=True)
             if current_ver:
                 self.tool_status_signal.emit(tool_name, f"{tool_name} ({current_ver})", "green")
+                return True
             else:
-                self.tool_status_signal.emit(tool_name, f"{tool_name} (Failed)", "gray")
+                self.tool_status_signal.emit(tool_name, f"{tool_name} (Not Installed)", "gray")
+                return False
 
 
 class YtDlpManager:
@@ -252,18 +294,18 @@ class YtDlpManager:
 
     @staticmethod
     def get_binary_path() -> str:
-        """Returns path to executable yt-dlp binary, checking app bin dir first, then system PATH."""
+        """Returns path to executable yt-dlp binary strictly from the XDG data bin directory."""
         return get_tool_path("yt-dlp")
 
     @staticmethod
     def is_binary_available() -> bool:
-        """Checks if yt-dlp executable exists either in app bin dir or system PATH."""
+        """Checks if yt-dlp executable exists in the XDG data bin directory."""
         path = get_tool_path("yt-dlp")
         return bool(path and os.path.exists(path) and os.access(path, os.X_OK))
 
     @classmethod
     def ensure_binary(cls, progress_callback=None) -> str:
-        """Ensures yt-dlp executable exists. Downloads it if missing."""
+        """Ensures yt-dlp executable exists in XDG data BIN_DIR. Downloads it if missing."""
         if cls.is_binary_available():
             return cls.get_binary_path()
 
@@ -279,7 +321,30 @@ class YtDlpManager:
 
         tmp_path = YT_DLP_BIN.with_suffix(".tmp")
         try:
-            urllib.request.urlretrieve(DEPENDENCY_TOOLS["yt-dlp"]["url"], tmp_path, reporthook=_reporthook)
+            import ssl
+            req = urllib.request.Request(DEPENDENCY_TOOLS["yt-dlp"]["url"], headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
+            resp = None
+            for use_unverified in (False, True):
+                try:
+                    ssl_ctx = ssl._create_unverified_context() if use_unverified else ssl.create_default_context()
+                    resp = urllib.request.urlopen(req, context=ssl_ctx, timeout=30)
+                    break
+                except Exception as net_err:
+                    if use_unverified:
+                        raise net_err
+
+            with resp, open(tmp_path, "wb") as out_f:
+                totalsize = int(resp.headers.get("Content-Length", 0))
+                blocksize = 16384
+                blocknum = 0
+                while True:
+                    chunk = resp.read(blocksize)
+                    if not chunk:
+                        break
+                    out_f.write(chunk)
+                    blocknum += 1
+                    _reporthook(blocknum, blocksize, totalsize)
+
             tmp_path.rename(YT_DLP_BIN)
             YT_DLP_BIN.chmod(0o755)
             if progress_callback:

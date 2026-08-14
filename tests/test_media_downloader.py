@@ -197,5 +197,19 @@ def test_dependency_manager_worker_force_download(tmp_path):
     with patch.object(worker, "_download_and_install_tool") as mock_dl:
         with patch("os.access", return_value=True), patch("pathlib.Path.exists", return_value=True):
             worker.run()
-            assert mock_dl.call_count == 5
+            # yt-dlp, ffmpeg (covering ffprobe), deno, AtomicParsley -> 4 unique downloads
+            assert mock_dl.call_count == 4
+
+
+def test_get_tool_version_local_only_does_not_return_system_binary(tmp_path):
+    """Test get_tool_version strictly queries XDG data BIN_DIR and ignores host system PATH."""
+    from core.media_downloader import get_tool_version, get_local_tool_path, get_tool_path
+
+    # Simulate local bin does not exist
+    with patch("core.media_downloader.BIN_DIR", tmp_path / "empty_bin"), \
+         patch("core.media_downloader.YT_DLP_BIN", tmp_path / "empty_bin" / "yt-dlp"), \
+         patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+        assert get_local_tool_path("ffmpeg") == ""
+        assert get_tool_path("ffmpeg") == ""
+        assert get_tool_version("ffmpeg") == ""
 

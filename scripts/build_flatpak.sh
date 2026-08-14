@@ -20,10 +20,12 @@ fi
 
 VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
 
-echo "=== 1. Building PyInstaller Standalone Executable ==="
+echo "=== 1. Building PyInstaller Standalone Application ==="
+rm -rf build dist
 PYTHONPATH=src venv/bin/pyinstaller \
     --name "bengal-download-manager" \
-    --onefile \
+    --onedir \
+    --clean \
     --paths "src" \
     --collect-all core \
     --collect-all ui \
@@ -35,6 +37,7 @@ PYTHONPATH=src venv/bin/pyinstaller \
 echo "=== 2. Assembling Flatpak Package Structure ($BUILD_DIR) ==="
 rm -rf "$BUILD_DIR" repo
 mkdir -p "$BUILD_DIR/files/bin" \
+        "$BUILD_DIR/files/lib/bengal-download-manager" \
         "$BUILD_DIR/files/share/applications" \
         "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
         "$BUILD_DIR/files/share/metainfo" \
@@ -42,8 +45,9 @@ mkdir -p "$BUILD_DIR/files/bin" \
         "$BUILD_DIR/files/share/app-info/xmls" \
         "$BUILD_DIR/files/share/app-info/icons/flatpak"
 
-cp dist/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
-chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
+cp -a dist/bengal-download-manager/. "$BUILD_DIR/files/lib/bengal-download-manager/"
+chmod +x "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager"
+ln -sf /app/lib/bengal-download-manager/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
 
 if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
     cp "assets/bin/$ARCH_NAME/aria2c" "$BUILD_DIR/files/bin/aria2c"
@@ -107,8 +111,10 @@ QT_QPA_PLATFORMTHEME=xdgdesktopportal
 EOF
 
 echo "=== 3. Exporting Flatpak Repository & Bundle ==="
+mkdir -p dist
 flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
 flatpak build-export --update-appstream repo "$BUILD_DIR"
 flatpak build-update-repo --generate-static-deltas repo
-flatpak build-bundle repo bengal-download-manager.flatpak "$APP_ID"
-echo "✓ Bundle created: bengal-download-manager.flatpak"
+flatpak build-bundle repo "dist/bengal-download-manager.flatpak" "$APP_ID"
+cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
+echo "✓ Bundle created: dist/bengal-download-manager.flatpak"
