@@ -566,3 +566,30 @@ def test_download_complete_persistence_on_restart(qapp, tmp_path, monkeypatch):
     assert win2.download_table.item(0, 2).data(Qt.ItemDataRole.UserRole + 1) == "Complete"
 
 
+def test_download_progress_dialog_close_after_complete(qapp, tmp_path):
+    from ui.dialogs.progress import DownloadProgressDialog
+    from unittest.mock import MagicMock
+
+    mock_worker = MagicMock()
+    mock_worker.filename = "test.zip"
+    mock_worker.url = "http://example.com/test.zip"
+    mock_worker.row_index = 0
+    mock_worker.target_path = str(tmp_path / "test.zip")
+    mock_worker.format_bytes.return_value = "10.00 MB"
+
+    dlg = DownloadProgressDialog(mock_worker)
+    dlg.hide()
+
+    # Complete the download
+    dlg.on_finished(0, "Complete")
+    assert dlg.is_completed is True
+    assert dlg.btn_cancel.text() == "Close"
+
+    # Close the dialog
+    dlg.close()
+    # Ensure worker finished_signal.emit was NOT called with Paused
+    for call in mock_worker.finished_signal.emit.call_args_list:
+        assert "Paused" not in call[0]
+
+
+

@@ -466,6 +466,7 @@ class DownloadProgressDialog(QDialog):
 
     def on_finished(self, row, status):
         if status == "Complete":
+            self.is_completed = True
             display_status = "Complete"
         elif status == "Cancelled":
             display_status = "Cancelled"
@@ -510,7 +511,7 @@ class DownloadProgressDialog(QDialog):
             
             
     def closeEvent(self, event):
-        if self.btn_cancel.text() == "Cancel":
+        if not getattr(self, "is_completed", False) and self.btn_cancel.text() == "Cancel":
             self.worker.stop()
             self.worker.finished_signal.emit(self.worker.row_index, "Paused")
         self.reject()

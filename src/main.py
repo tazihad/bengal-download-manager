@@ -3603,6 +3603,10 @@ class MainWindow(QMainWindow):
             self._notify_views_changed()
 
     def download_finished(self, item_ref, status_text):
+        # Ignore spurious Paused/Cancelled signals if already Complete
+        if item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete" and status_text in ["Paused", "Cancelled"]:
+            return
+
         # Normalize status
         if status_text == "Complete":
             display_status = "Complete"
