@@ -9,10 +9,12 @@ cd "$ROOT_DIR"
 APP_ID="io.github.tazihad.bengal-download-manager"
 BUILD_DIR="flatpak_app_dir"
 
-echo "=== 1. Building Standalone PyInstaller Executable ==="
+echo "=== 1. Building PyInstaller Binary ==="
+rm -rf build dist
 PYTHONPATH=src venv/bin/pyinstaller \
     --name "bengal-download-manager" \
     --onefile \
+    --clean \
     --paths "src" \
     --collect-all core \
     --collect-all ui \

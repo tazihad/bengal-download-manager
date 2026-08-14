@@ -21,9 +21,11 @@ fi
 VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
 
 echo "=== 1. Building PyInstaller Standalone Executable ==="
+rm -rf build dist
 PYTHONPATH=src venv/bin/pyinstaller \
     --name "bengal-download-manager" \
     --onefile \
+    --clean \
     --paths "src" \
     --collect-all core \
     --collect-all ui \
