@@ -213,3 +213,61 @@ def test_get_tool_version_local_only_does_not_return_system_binary(tmp_path):
         assert get_tool_path("ffmpeg") == ""
         assert get_tool_version("ffmpeg") == ""
 
+
+def test_media_downloader_subprocess_clean_env(monkeypatch, tmp_path):
+    """Test MediaExtractorWorker and YtDlpDownloadWorker pass sanitized clean_env without PyInstaller LD_LIBRARY_PATH."""
+    from core.media_downloader import MediaExtractorWorker, YtDlpDownloadWorker, get_tool_version
+
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEItest123")
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
+
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    # 1. Test get_tool_version
+    with patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.YT_DLP_BIN", fake_bin), \
+         patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="2024.08.01", stderr="", returncode=0)
+        get_tool_version("yt-dlp")
+        assert mock_run.called
+        run_env = mock_run.call_args[1].get("env", {})
+        assert "LD_LIBRARY_PATH" not in run_env
+
+    # 2. Test MediaExtractorWorker
+    extractor = MediaExtractorWorker("https://example.com/watch?v=test")
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.communicate.return_value = ('{"id":"test","title":"Test","formats":[]}', "")
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+        extractor.run()
+        assert mock_popen.called
+        popen_env = mock_popen.call_args[1].get("env", {})
+        assert "LD_LIBRARY_PATH" not in popen_env
+
+    # 3. Test YtDlpDownloadWorker
+    downloader = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=test",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test.mp4"
+    )
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = []
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+        downloader.run()
+        assert mock_popen.called
+        popen_env = mock_popen.call_args[1].get("env", {})
+        assert "LD_LIBRARY_PATH" not in popen_env
+
+

@@ -461,18 +461,65 @@ def ensure_aria2():
     except Exception:
         return None
 
-def get_clean_env():
+def get_clean_env(extra_paths=None):
     """
-    Returns a copy of the environment with Qt-specific paths removed.
-    Prevents child processes from using bundled libraries.
+    Returns a copy of the environment with PyInstaller, Qt, and Python paths completely sanitized.
+    Ensures external binaries and scripts (e.g. yt-dlp, python3, ffmpeg, aria2c) load host system libraries.
     """
     clean_env = os.environ.copy()
+
+    # 1. Collect all PyInstaller bundle paths (e.g. /tmp/_MEIxxxxxx)
+    mei_dirs = set()
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass:
+        mei_dirs.add(os.path.abspath(meipass))
+
+    for k, v in list(clean_env.items()):
+        if "_MEI" in v or "_mei" in v:
+            for part in v.split(os.pathsep):
+                if "_MEI" in part or "_mei" in part:
+                    mei_dirs.add(os.path.abspath(part))
+
+    # 2. Hard clear PyInstaller, loader, and Qt specific environment keys
     keys_to_clear = [
-        "LD_LIBRARY_PATH", "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
-        "PYTHONHOME", "PYTHONPATH"
+        "LD_LIBRARY_PATH", "LD_LIBRARY_PATH_ORIG", "ORIG_LD_LIBRARY_PATH",
+        "LD_PRELOAD", "LD_AUDIT",
+        "DYLD_LIBRARY_PATH", "DYLD_LIBRARY_PATH_ORIG", "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+        "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QML_IMPORT_PATH", "QML2_IMPORT_PATH",
+        "PYTHONHOME", "PYTHONPATH", "PYTHONEXECUTABLE", "_MEIPASS2"
     ]
     for key in keys_to_clear:
         clean_env.pop(key, None)
+
+    # 3. Restore original LD_LIBRARY_PATH only if it does NOT point to any MEIPASS directory
+    for orig_key in ("LD_LIBRARY_PATH_ORIG", "ORIG_LD_LIBRARY_PATH"):
+        orig_val = os.environ.get(orig_key, "")
+        if orig_val:
+            safe_parts = [
+                p for p in orig_val.split(os.pathsep)
+                if p and not any(m in p for m in ("_MEI", "_mei")) and not any(p.startswith(d) for d in mei_dirs)
+            ]
+            if safe_parts:
+                clean_env["LD_LIBRARY_PATH"] = os.pathsep.join(safe_parts)
+            break
+
+    # 4. Scrub ALL remaining environment variables from containing any MEIPASS paths
+    for k, v in list(clean_env.items()):
+        if any(m in v for m in ("_MEI", "_mei")) or any(d in v for d in mei_dirs):
+            parts = v.split(os.pathsep)
+            filtered = [
+                p for p in parts
+                if p and not any(m in p for m in ("_MEI", "_mei")) and not any(p.startswith(d) for d in mei_dirs)
+            ]
+            if filtered:
+                clean_env[k] = os.pathsep.join(filtered)
+            else:
+                clean_env.pop(k, None)
+
+    # 5. Prepend extra tool paths to PATH if provided
+    if extra_paths:
+        clean_env["PATH"] = f"{extra_paths}:{clean_env.get('PATH', '')}"
+
     return clean_env
 
 def open_file_generic(path):

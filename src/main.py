@@ -62,7 +62,7 @@ from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
-    is_media_downloader_url, setup_logging, format_bytes
+    is_media_downloader_url, setup_logging, format_bytes, get_clean_env
 )
 
 # Default TCP port for extension communication
@@ -1390,7 +1390,7 @@ class MainWindow(QMainWindow):
             proxy_conf = generate_proxychains_config()
             proxychains_bin = get_proxychains_bin()
 
-            popen_kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+            popen_kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "env": get_clean_env()}
 
             if proxy_conf and proxychains_bin:
                 if "proxychains4" in proxychains_bin:
@@ -2200,22 +2200,29 @@ class MainWindow(QMainWindow):
                 internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
                 display_text = safe_get(2)
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+                complete_flag = item_name.data(Qt.ItemDataRole.UserRole + 11)
                 
                 status = internal_status if internal_status else display_text
                 
                 # Normalize exact 100% or Complete variations to "Complete"
-                if status == "Complete" or display_text == "Complete" or "100.00%" in str(status) or "100.00%" in str(display_text):
+                if status == "Complete" or display_text == "Complete" or complete_flag == "Complete" or "100.00%" in str(status) or "100.00%" in str(display_text):
                     status = "Complete"
-                
-                # If currently active or paused, normalize to include percentage if available
-                if status in ["Downloading", "Connecting...", "Pending...", "Resuming...", "Paused", "Cancelled"]:
-                    if pct_data:
-                        status = pct_data
-                    elif "%" in display_text:
-                        # Fallback to parsing text if UserRole is empty
-                        status = display_text
-                    else:
-                        status = "Paused"
+                elif status in ["Downloading", "Connecting...", "Pending...", "Resuming...", "Paused", "Cancelled"]:
+                    # Verify if file already fully exists on disk without temp/part files
+                    if path and os.path.exists(path) and os.path.isfile(path) and not os.path.exists(path + ".aria2") and not os.path.exists(path + ".tmpbdm") and not path.endswith(".part"):
+                        file_sz = os.path.getsize(path)
+                        parsed_table_sz = parse_size_to_bytes(size)
+                        if file_sz > 0 and (parsed_table_sz == 0 or file_sz >= parsed_table_sz):
+                            status = "Complete"
+
+                    if status != "Complete":
+                        if pct_data and "%" in str(pct_data):
+                            status = pct_data
+                        elif "%" in display_text:
+                            # Fallback to parsing text if UserRole is empty
+                            status = display_text
+                        else:
+                            status = "Paused"
                 
                 # STRICT 100% CHECK: only force "Complete" if it's exactly 100%
                 if isinstance(status, str) and "100.00%" in status:
@@ -2278,19 +2285,25 @@ class MainWindow(QMainWindow):
                 
                 self.download_table.setItem(row, 0, item_name)
                 
-                self._set_sortable_item(row, 1, d.get("size", "..."), parse_size_to_bytes)
                 # Col 2: Status (Sanitize: show percentage, never "Paused")
                 raw_status = d.get("status", "0.00%")
                 display_status = raw_status
+                file_path = d.get("path", "")
                 
-                # Determine internal state based on status text
+                # Determine internal state based on status text and file existence
                 is_actually_complete = False
                 if raw_status == "Complete" or "100.00%" in str(raw_status):
                     is_actually_complete = True
+                elif file_path and os.path.exists(file_path) and os.path.isfile(file_path) and not os.path.exists(file_path + ".aria2") and not os.path.exists(file_path + ".tmpbdm") and not file_path.endswith(".part"):
+                    file_sz = os.path.getsize(file_path)
+                    expected_sz = parse_size_to_bytes(d.get("size", "0"))
+                    if file_sz > 0 and (expected_sz == 0 or file_sz >= expected_sz):
+                        is_actually_complete = True
 
                 if is_actually_complete:
                     display_status = "Complete"
                     internal_state = "Complete"
+                    item_name.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
                 elif "%" in raw_status:
                     display_status = raw_status
                     internal_state = "Paused"
@@ -3282,17 +3295,21 @@ class MainWindow(QMainWindow):
             if item.column() == 0:
                 key = id(item)
                 if key in self.active_downloads:
-                    dialog = self.active_downloads[key]
+                    dialog = self.active_downloads.pop(key, None)
                     self._stop_worker_entry(dialog)
 
                     # Update status preserving percentage string
                     status_item = self.download_table.item(item.row(), 2)
+                    if status_item:
+                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                        if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                            continue
                     if not status_item:
                         status_item = QTableWidgetItem()
                         self.download_table.setItem(item.row(), 2, status_item)
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
                     pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = pct_data if pct_data else "Paused"
+                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
                     self._set_status_text(item.row(), final_display)
 
                     # Reset Time Left and Rate on pause
@@ -3342,12 +3359,16 @@ class MainWindow(QMainWindow):
                 item_ref = self.download_table.item(r, 0)
                 if item_ref and id(item_ref) == key:
                     status_item = self.download_table.item(r, 2)
+                    if status_item:
+                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                        if current_status == "Complete" or status_item.text() == "Complete" or item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                            continue
                     if not status_item:
                         status_item = QTableWidgetItem()
                         self.download_table.setItem(r, 2, status_item)
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
                     pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = pct_data if pct_data else "Paused"
+                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
                     self._set_status_text(r, final_display)
 
                     self._set_sortable_item(r, 3, "", parse_time_to_sec)
@@ -3357,6 +3378,7 @@ class MainWindow(QMainWindow):
                     item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                     self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     break
+        self.active_downloads.clear()
 
     def remove_from_list(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
@@ -3581,6 +3603,10 @@ class MainWindow(QMainWindow):
             self._notify_views_changed()
 
     def download_finished(self, item_ref, status_text):
+        # Ignore spurious Paused/Cancelled signals if already Complete
+        if item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete" and status_text in ["Paused", "Cancelled"]:
+            return
+
         # Normalize status
         if status_text == "Complete":
             display_status = "Complete"
@@ -3609,6 +3635,7 @@ class MainWindow(QMainWindow):
             
             if display_status == "Complete":
                 final_display = "Complete"
+                status_item.setData(Qt.ItemDataRole.UserRole, "Complete")
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct if pct else "0.00%"
@@ -3629,10 +3656,12 @@ class MainWindow(QMainWindow):
 
         # Handle UI Popups / Dialogs
         key = id(item_ref)
+        if key in self.active_downloads:
+            dlg = self.active_downloads.pop(key, None)
+            if hasattr(dlg, 'close'):
+                dlg.close()
+
         if display_status == "Complete":
-            if key in self.active_downloads:
-                self.active_downloads[key].close()
-            
             # If File Info dialog is still open, return and wait for confirmed action
             if key in self.active_file_info_dialogs:
                 return
@@ -3771,28 +3800,40 @@ class MainWindow(QMainWindow):
         self.active_downloads[key] = worker
 
         worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
-        worker.finished_signal.connect(lambda r, path, k=key: self._on_media_download_finished(k, r, path))
+        worker.finished_signal.connect(lambda _, path, ref=item_name, k=key: self._on_media_download_finished(k, ref, path))
 
         worker.start()
         self.download_table.setSortingEnabled(True)
         self.save_data()
         return item_name
 
-    def _on_media_download_finished(self, key, row, path):
+    def _on_media_download_finished(self, key, item_ref, path):
         if key in self.active_downloads:
             self.active_downloads.pop(key, None)
-        if path and os.path.exists(path):
-            item_name = self.download_table.item(row, 0)
-            if item_name:
-                item_name.setData(Qt.ItemDataRole.UserRole + 1, path)
+        try:
+            row = self.download_table.row(item_ref)
+        except RuntimeError:
+            row = -1
+
+        if row != -1:
+            if path and os.path.exists(path):
+                item_ref.setData(Qt.ItemDataRole.UserRole + 1, path)
+                item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
                 actual_size = os.path.getsize(path)
                 self._set_sortable_item(row, 1, format_bytes(actual_size), parse_size_to_bytes)
                 self._set_status_text(row, "Complete")
                 status_item = self.download_table.item(row, 2)
                 if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole, "Complete")
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            else:
+                status_item = self.download_table.item(row, 2)
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Error")
+                self._set_status_text(row, "Error")
+
         self.update_ui_states()
         self.save_data()
         self._try_start_queued()
@@ -3830,7 +3871,7 @@ class MainWindow(QMainWindow):
                             key = id(item_ref)
                             self.active_downloads[key] = worker
                             worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
-                            worker.finished_signal.connect(lambda rr, path, k=key: self._on_media_download_finished(k, rr, path))
+                            worker.finished_signal.connect(lambda _, path, ref=item_ref, k=key: self._on_media_download_finished(k, ref, path))
                             self._set_status_text(r, "Downloading...")
                             worker.start()
                         else:

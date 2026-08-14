@@ -14,9 +14,8 @@ import zipfile
 import urllib.request
 import subprocess
 from pathlib import Path
-from .utils import get_cache_dir
+from .utils import get_cache_dir, get_data_dir, get_clean_env
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
-from .utils import get_data_dir
 
 APP_DATA_DIR = Path(get_data_dir())
 BIN_DIR = APP_DATA_DIR / "bin"
@@ -104,7 +103,8 @@ def get_tool_version(tool_name: str, local_only: bool = True) -> str:
         return ""
     try:
         cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+        clean_env = get_clean_env(str(BIN_DIR))
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=3, env=clean_env)
         out = (res.stdout + res.stderr).strip()
         if not out:
             return "Installed"
@@ -395,8 +395,7 @@ class MediaExtractorWorker(QThread):
             self.status_signal.emit("Analyzing media URL metadata...")
             
             bin_dir = str(BIN_DIR)
-            env = os.environ.copy()
-            env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+            clean_env = get_clean_env(bin_dir)
 
             cmd = [
                 yt_dlp_bin,
@@ -416,7 +415,7 @@ class MediaExtractorWorker(QThread):
 
             self.process = subprocess.Popen(
                 cmd,
-                env=env,
+                env=clean_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -440,7 +439,7 @@ class MediaExtractorWorker(QThread):
                     ]
                     self.process = subprocess.Popen(
                         clean_cmd,
-                        env=env,
+                        env=clean_env,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
@@ -660,15 +659,14 @@ class YtDlpDownloadWorker(QThread):
 
             cmd.append(self.url)
 
-            env = os.environ.copy()
-            env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+            clean_env = get_clean_env(bin_dir)
 
             self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
             self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
 
             self.process = subprocess.Popen(
                 cmd,
-                env=env,
+                env=clean_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

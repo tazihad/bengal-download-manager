@@ -270,6 +270,17 @@ class Aria2Worker(QThread):
                         self.finished_signal.emit(self.row_index, "Error")
                         break
 
+                self.main_progress_signal.emit(self.row_index, (
+                    self.filename,
+                    self.format_bytes(total_length, precision=2, pad=False) if total_length > 0 else "Unknown",
+                    "Complete",
+                    "",
+                    "",
+                    total_length,
+                    total_length,
+                    0
+                ))
+                self.main_bar_signal.emit(total_length, total_length)
                 self.finished_signal.emit(self.row_index, "Complete")
                 break
             elif state in ["error", "removed"]:
