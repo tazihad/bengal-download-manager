@@ -202,7 +202,7 @@ def test_dependency_manager_worker_force_download(tmp_path):
 
 
 def test_get_tool_version_local_only_does_not_return_system_binary(tmp_path):
-    """Test get_tool_version with local_only=True returns empty string when not installed in BIN_DIR."""
+    """Test get_tool_version strictly queries XDG data BIN_DIR and ignores host system PATH."""
     from core.media_downloader import get_tool_version, get_local_tool_path, get_tool_path
 
     # Simulate local bin does not exist
@@ -210,8 +210,6 @@ def test_get_tool_version_local_only_does_not_return_system_binary(tmp_path):
          patch("core.media_downloader.YT_DLP_BIN", tmp_path / "empty_bin" / "yt-dlp"), \
          patch("shutil.which", return_value="/usr/bin/ffmpeg"):
         assert get_local_tool_path("ffmpeg") == ""
-        assert get_tool_path("ffmpeg", allow_system=False) == ""
-        assert get_tool_version("ffmpeg", local_only=True) == ""
-        # When allow_system=True, system path is returned
-        assert get_tool_path("ffmpeg", allow_system=True) == "/usr/bin/ffmpeg"
+        assert get_tool_path("ffmpeg") == ""
+        assert get_tool_version("ffmpeg") == ""
 

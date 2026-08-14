@@ -78,7 +78,7 @@ DEPENDENCY_TOOLS = {
 
 
 def get_local_tool_path(tool_name: str) -> str:
-    """Returns local executable path in app BIN_DIR if it exists and is executable, else empty string."""
+    """Returns local executable path in XDG data BIN_DIR if it exists and is executable, else empty string."""
     if tool_name not in DEPENDENCY_TOOLS:
         return ""
     if tool_name == "yt-dlp":
@@ -93,21 +93,13 @@ def get_local_tool_path(tool_name: str) -> str:
 
 
 def get_tool_path(tool_name: str, allow_system: bool = False) -> str:
-    """Returns executable path for tool, checking local BIN_DIR first, and optionally system PATH if allow_system=True."""
-    local_path = get_local_tool_path(tool_name)
-    if local_path:
-        return local_path
-    if allow_system:
-        binary_name = DEPENDENCY_TOOLS.get(tool_name, {}).get("binary_name", tool_name)
-        system_path = shutil.which(binary_name)
-        if system_path:
-            return system_path
-    return ""
+    """Returns executable path for tool strictly from XDG data BIN_DIR."""
+    return get_local_tool_path(tool_name)
 
 
 def get_tool_version(tool_name: str, local_only: bool = True) -> str:
-    """Queries tool version from local app bin dir (or system if local_only=False). Returns version string or empty string if not installed."""
-    path = get_tool_path(tool_name, allow_system=not local_only)
+    """Queries tool version strictly from XDG data BIN_DIR. Returns empty string if not installed."""
+    path = get_tool_path(tool_name)
     if not path or not os.path.exists(path) or not os.access(path, os.X_OK):
         return ""
     try:
