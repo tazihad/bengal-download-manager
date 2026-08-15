@@ -1,23 +1,31 @@
 // --- THEME MANAGEMENT ---
 function applyTheme(theme) {
-  if (theme === 'system') {
+  const currentTheme = theme || 'system';
+  if (currentTheme === 'system') {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme-setting', 'system');
   } else {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    document.documentElement.setAttribute('data-theme-setting', currentTheme);
   }
 
-  // Sync radio buttons
+  // Sync radio buttons if DOM is ready
   const radios = document.querySelectorAll('input[name="theme-radio"]');
   radios.forEach(radio => {
-    radio.checked = (radio.value === theme);
+    radio.checked = (radio.value === currentTheme);
   });
 
   const themeSelect = document.getElementById('theme');
   if (themeSelect) {
-    themeSelect.value = theme;
+    themeSelect.value = currentTheme;
   }
 }
+
+// Initial theme check as early as possible
+chrome.storage.local.get({ theme: 'system' }, (items) => {
+  applyTheme(items.theme || 'system');
+});
 
 // System theme change listener
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -26,6 +34,13 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
       applyTheme('system');
     }
   });
+});
+
+// Real-time storage change listener across tabs/popups
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.theme) {
+    applyTheme(changes.theme.newValue);
+  }
 });
 
 // --- TOAST NOTIFICATIONS ---
@@ -124,6 +139,10 @@ function renderTagList(containerId, listKey) {
     removeBtn.addEventListener('click', () => {
       filterLists[listKey].splice(index, 1);
       renderTagList(containerId, listKey);
+      // Auto-persist filter list updates
+      const updatePayload = {};
+      updatePayload[listKey] = filterLists[listKey];
+      chrome.storage.local.set(updatePayload);
     });
 
     chip.appendChild(removeBtn);
@@ -149,6 +168,10 @@ function setupFilterInput(inputId, buttonId, containerId, listKey, isExtension =
     if (!filterLists[listKey].includes(val)) {
       filterLists[listKey].push(val);
       renderTagList(containerId, listKey);
+      // Auto-persist filter item
+      const updatePayload = {};
+      updatePayload[listKey] = filterLists[listKey];
+      chrome.storage.local.set(updatePayload);
     }
     input.value = '';
     input.focus();
@@ -183,11 +206,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 2. Theme Radio Cards
+  // 2. Theme Radio Cards (with instant auto-save)
   const themeRadios = document.querySelectorAll('input[name="theme-radio"]');
   themeRadios.forEach(radio => {
     radio.addEventListener('change', () => {
-      applyTheme(radio.value);
+      const selectedTheme = radio.value;
+      applyTheme(selectedTheme);
+      chrome.storage.local.set({ theme: selectedTheme }, () => {
+        showToast('Theme updated ✓', 'success');
+      });
     });
   });
 

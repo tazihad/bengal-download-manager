@@ -9,9 +9,36 @@
   --bdm-warning: #f59e0b;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --transition: 0.2s ease-in-out;
+
+  /* Default Light values */
+  --bg-window: #eff0f1;
+  --bg-card: #fcfcfc;
+  --bg-sidebar: #e4e7eb;
+  --bg-input: #ffffff;
+  --bg-tag: #e4e7eb;
+  --text-main: #31363b;
+  --text-muted: #6b7280;
+  --border-color: #bdc3c7;
+  --border-subtle: #d8dcde;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-/* Light Theme (BDM Breeze Light) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-window: #2a2e32;
+    --bg-card: #1b1e20;
+    --bg-sidebar: #232629;
+    --bg-input: #151719;
+    --bg-tag: #2f3438;
+    --text-main: #fcfcfc;
+    --text-muted: #9ca3af;
+    --border-color: #4d5054;
+    --border-subtle: #383c40;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* Explicit Light Theme (BDM Breeze Light) */
 [data-theme="light"] {
   --bg-window: #eff0f1;
   --bg-card: #fcfcfc;
@@ -25,7 +52,7 @@
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-/* Dark Theme (BDM Breeze Dark) */
+/* Explicit Dark Theme (BDM Breeze Dark) */
 [data-theme="dark"] {
   --bg-window: #2a2e32;
   --bg-card: #1b1e20;

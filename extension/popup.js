@@ -1,18 +1,34 @@
 function applyTheme(theme) {
-  if (theme === 'system') {
+  const currentTheme = theme || 'system';
+  if (currentTheme === 'system') {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme-setting', 'system');
   } else {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    document.documentElement.setAttribute('data-theme-setting', currentTheme);
   }
 }
 
+// Initial theme check
+chrome.storage.local.get({ theme: 'system' }, (items) => {
+  applyTheme(items.theme || 'system');
+});
+
+// System theme listener
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   chrome.storage.local.get({ theme: 'system' }, (items) => {
     if (items.theme === 'system') {
       applyTheme('system');
     }
   });
+});
+
+// Live storage sync
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.theme) {
+    applyTheme(changes.theme.newValue);
+  }
 });
 
 document.getElementById('options-link').addEventListener('click', (e) => {
