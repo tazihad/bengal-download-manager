@@ -54,7 +54,7 @@ function showToast(message, type = 'success') {
   }, 2500);
 }
 
-// --- ARIA2 CONNECTION TEST ---
+// --- BENGAL DM & ARIA2 CONNECTION TEST ---
 async function testConnection(port, token) {
   const connText = document.getElementById('conn-text');
   const dot = document.getElementById('dot');
@@ -67,23 +67,36 @@ async function testConnection(port, token) {
   refreshBtn.classList.add('spinning');
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    // 1. Query Bengal DM app backend to verify app is running and retrieve BDM version
+    let bdmData = null;
+    try {
+      let bdmResp = await fetch("http://127.0.0.1:9000/", { method: 'GET', signal: controller.signal });
+      if (bdmResp.ok) bdmData = await bdmResp.json();
+    } catch {
+      try {
+        let bdmResp = await fetch("http://localhost:9000/", { method: 'GET', signal: controller.signal });
+        if (bdmResp.ok) bdmData = await bdmResp.json();
+      } catch {}
+    }
+
+    // 2. Query Aria2 RPC
     const url = `http://127.0.0.1:${port}/jsonrpc`;
     const params = token ? [`token:${token}`] : [];
     const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion", params: params };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    let response;
+    let ariaResponse;
     try {
-      response = await fetch(url, {
+      ariaResponse = await fetch(url, {
         method: 'POST',
         headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         signal: controller.signal
       });
     } catch {
-      response = await fetch(`http://localhost:${port}/jsonrpc`, {
+      ariaResponse = await fetch(`http://localhost:${port}/jsonrpc`, {
         method: 'POST',
         headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -93,11 +106,13 @@ async function testConnection(port, token) {
 
     clearTimeout(timeoutId);
 
-    const data = await response.json();
-    if (data.result && data.result.version) {
+    const ariaData = await ariaResponse.json();
+
+    if (ariaData.result && ariaData.result.version) {
       dot.className = "dot online";
-      connText.textContent = `Connected (v${data.result.version})`;
-    } else if (data.error) {
+      const bdmVersion = (bdmData && bdmData.version) ? `v${bdmData.version}` : "";
+      connText.textContent = bdmVersion ? `Connected (${bdmVersion})` : "Connected";
+    } else if (ariaData.error) {
       dot.className = "dot offline";
       connText.textContent = "Auth Error";
     } else {

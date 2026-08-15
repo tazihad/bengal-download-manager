@@ -82,10 +82,16 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-
         ext_data = load_extension_config()
+        try:
+            from core.version import VERSION
+            app_version = VERSION
+        except Exception:
+            app_version = "0.1"
+
         config_json = json.dumps({
             "status": "Bengal DM is running",
+            "version": app_version,
             "aria2": {
                 "port": ext_data.get("port", 56800),
                 "token": ext_data.get("token", "")
