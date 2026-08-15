@@ -319,6 +319,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (aboutAppVer) aboutAppVer.textContent = formatted;
     }
 
+    const manifest = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest() : null;
+    if (manifest && manifest.version) {
+      const extVerElem = document.getElementById('about-ext-version');
+      if (extVerElem) extVerElem.textContent = `${manifest.version} (Manifest V${manifest.manifest_version || 3})`;
+    }
+
     filterLists.whitelistUrls = Array.isArray(items.whitelistUrls) ? [...items.whitelistUrls] : [];
     filterLists.whitelistExts = Array.isArray(items.whitelistExts) ? [...items.whitelistExts] : [];
     filterLists.blacklistUrls = Array.isArray(items.blacklistUrls) ? [...items.blacklistUrls] : [];
