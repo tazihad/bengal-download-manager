@@ -20,9 +20,11 @@ def _get_version():
             ver = res.stdout.strip()
             if ver.startswith("v"):
                 ver = ver[1:]
+            if "-" in ver:
+                ver = ver.split("-")[0]
             return ver
     except Exception:
         pass
-    return "0.1.20"
+    return "0.1.81"
 
 VERSION = _get_version()

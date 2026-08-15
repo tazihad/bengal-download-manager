@@ -22,6 +22,15 @@ function applyTheme(theme) {
   }
 }
 
+function formatAppVersion(ver) {
+  if (!ver) return "";
+  let clean = String(ver).trim();
+  if (!clean.startsWith('v') && !clean.startsWith('V')) {
+    clean = 'v' + clean;
+  }
+  return clean;
+}
+
 // Initial theme check as early as possible
 chrome.storage.local.get({ theme: 'system' }, (items) => {
   applyTheme(items.theme || 'system');
@@ -38,8 +47,22 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 // Real-time storage change listener across tabs/popups
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && changes.theme) {
-    applyTheme(changes.theme.newValue);
+  if (areaName === 'local') {
+    if (changes.theme) {
+      applyTheme(changes.theme.newValue);
+    }
+    if (changes.bdmVersion) {
+      const formatted = formatAppVersion(changes.bdmVersion.newValue);
+      const connText = document.getElementById('conn-text');
+      const dot = document.getElementById('dot');
+      if (connText && dot && dot.classList.contains('online') && formatted) {
+        connText.textContent = `Connected (${formatted})`;
+      }
+      const aboutAppVer = document.getElementById('about-app-version');
+      if (aboutAppVer && formatted) {
+        aboutAppVer.textContent = formatted;
+      }
+    }
   }
 });
 
@@ -59,6 +82,7 @@ async function testConnection(port, token) {
   const connText = document.getElementById('conn-text');
   const dot = document.getElementById('dot');
   const refreshBtn = document.getElementById('refresh-btn');
+  const aboutAppVer = document.getElementById('about-app-version');
 
   if (!connText || !dot || !refreshBtn) return;
 
@@ -68,17 +92,29 @@ async function testConnection(port, token) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     // 1. Query Bengal DM app backend to verify app is running and retrieve BDM version
     let bdmData = null;
     try {
-      let bdmResp = await fetch("http://127.0.0.1:9000/", { method: 'GET', signal: controller.signal });
-      if (bdmResp.ok) bdmData = await bdmResp.json();
+      const bdmResp = await fetch("http://127.0.0.1:9000/", {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+      if (bdmResp.ok) {
+        bdmData = await bdmResp.json();
+      }
     } catch {
       try {
-        let bdmResp = await fetch("http://localhost:9000/", { method: 'GET', signal: controller.signal });
-        if (bdmResp.ok) bdmData = await bdmResp.json();
+        const bdmResp = await fetch("http://localhost:9000/", {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
+        if (bdmResp.ok) {
+          bdmData = await bdmResp.json();
+        }
       } catch {}
     }
 
@@ -108,19 +144,33 @@ async function testConnection(port, token) {
 
     const ariaData = await ariaResponse.json();
 
-    if (ariaData.result && ariaData.result.version) {
+    if (ariaData && (ariaData.result || bdmData)) {
       dot.className = "dot online";
-      const bdmVersion = (bdmData && bdmData.version) ? `v${bdmData.version}` : "";
-      connText.textContent = bdmVersion ? `Connected (${bdmVersion})` : "Connected";
-    } else if (ariaData.error) {
+
+      let versionStr = (bdmData && bdmData.version) ? bdmData.version : "";
+      if (versionStr) {
+        chrome.storage.local.set({ bdmVersion: versionStr });
+      } else {
+        const cached = await new Promise(r => chrome.storage.local.get({ bdmVersion: "" }, r));
+        versionStr = cached.bdmVersion || "";
+      }
+
+      const formattedVersion = formatAppVersion(versionStr);
+      connText.textContent = formattedVersion ? `Connected (${formattedVersion})` : "Connected";
+      if (aboutAppVer) {
+        aboutAppVer.textContent = formattedVersion || "Connected (Active)";
+      }
+    } else if (ariaData && ariaData.error) {
       dot.className = "dot offline";
       connText.textContent = "Auth Error";
+      if (aboutAppVer) aboutAppVer.textContent = "Authentication Error";
     } else {
       throw new Error("Invalid response");
     }
   } catch (error) {
     dot.className = "dot offline";
     connText.textContent = error.name === 'AbortError' ? "Timeout" : "Disconnected";
+    if (aboutAppVer) aboutAppVer.textContent = "Disconnected (App Not Running)";
   } finally {
     refreshBtn.classList.remove('spinning');
   }
@@ -244,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     port: 56800,
     token: "",
     theme: "system",
+    bdmVersion: "",
     whitelistUrls: [],
     whitelistExts: [],
     blacklistUrls: [],
@@ -261,6 +312,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('token').value = items.token || '';
 
     applyTheme(items.theme || 'system');
+
+    if (items.bdmVersion) {
+      const formatted = formatAppVersion(items.bdmVersion);
+      const aboutAppVer = document.getElementById('about-app-version');
+      if (aboutAppVer) aboutAppVer.textContent = formatted;
+    }
 
     filterLists.whitelistUrls = Array.isArray(items.whitelistUrls) ? [...items.whitelistUrls] : [];
     filterLists.whitelistExts = Array.isArray(items.whitelistExts) ? [...items.whitelistExts] : [];
@@ -322,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
         const theme = selectedRadio ? selectedRadio.value : 'system';
 
-        chrome.storage.local.set({
+        const savePayload = {
           host: "localhost",
           port,
           token: token || '',
@@ -331,7 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
           whitelistExts: filterLists.whitelistExts,
           blacklistUrls: filterLists.blacklistUrls,
           blacklistExts: filterLists.blacklistExts
-        }, () => {
+        };
+
+        if (data.version) {
+          savePayload.bdmVersion = data.version;
+          const aboutAppVer = document.getElementById('about-app-version');
+          if (aboutAppVer) aboutAppVer.textContent = formatAppVersion(data.version);
+        }
+
+        chrome.storage.local.set(savePayload, () => {
           showToast('Synced & Saved ✓', 'success');
           testConnection(port, token || '');
         });

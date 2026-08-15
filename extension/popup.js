@@ -10,6 +10,15 @@ function applyTheme(theme) {
   }
 }
 
+function formatAppVersion(ver) {
+  if (!ver) return "";
+  let clean = String(ver).trim();
+  if (!clean.startsWith('v') && !clean.startsWith('V')) {
+    clean = 'v' + clean;
+  }
+  return clean;
+}
+
 // Initial theme check
 chrome.storage.local.get({ theme: 'system' }, (items) => {
   applyTheme(items.theme || 'system');
@@ -68,7 +77,7 @@ async function checkAria2(port, token) {
   }
 }
 
-chrome.storage.local.get({ theme: "system", port: 56800, token: "" }, async (items) => {
+chrome.storage.local.get({ theme: "system", port: 56800, token: "", bdmVersion: "" }, async (items) => {
   applyTheme(items.theme || "system");
 
   const statusText = document.getElementById('status-text');
@@ -79,19 +88,40 @@ chrome.storage.local.get({ theme: "system", port: 56800, token: "" }, async (ite
     const timeoutId = setTimeout(() => controller.abort(), 1500);
 
     // 1. Ping the Python app on port 9000
-    const response = await fetch("http://127.0.0.1:9000/", {
-      method: 'GET',
-      signal: controller.signal
-    });
+    let bdmData = null;
+    try {
+      const response = await fetch("http://127.0.0.1:9000/", {
+        method: 'GET',
+        signal: controller.signal
+      });
+      if (response.ok) {
+        bdmData = await response.json();
+      }
+    } catch {
+      try {
+        const response = await fetch("http://localhost:9000/", {
+          method: 'GET',
+          signal: controller.signal
+        });
+        if (response.ok) {
+          bdmData = await response.json();
+        }
+      } catch {}
+    }
 
     clearTimeout(timeoutId);
 
-    if (response.ok) {
+    if (bdmData) {
       // 2. Ping Aria2 to ensure sync
       const ariaOnline = await checkAria2(items.port, items.token);
       if (ariaOnline) {
         dot.className = "dot online";
-        statusText.textContent = "Bengal DM Running";
+        let ver = bdmData.version || items.bdmVersion;
+        if (bdmData.version) {
+          chrome.storage.local.set({ bdmVersion: bdmData.version });
+        }
+        const formatted = formatAppVersion(ver);
+        statusText.textContent = formatted ? `Bengal DM Running (${formatted})` : "Bengal DM Running";
       } else {
         dot.className = "dot offline";
         statusText.textContent = "Ports Out of Sync";
