@@ -124,7 +124,7 @@ chrome.storage.local.get({ theme: "system", port: 56800, token: "", bdmVersion: 
         statusText.textContent = formatted ? `Bengal DM Running (${formatted})` : "Bengal DM Running";
       } else {
         dot.className = "dot offline";
-        statusText.textContent = "Ports Out of Sync";
+        statusText.textContent = items.token ? "Auth Error / Out of Sync" : "Ports Out of Sync";
       }
     } else {
       throw new Error("Invalid Response");

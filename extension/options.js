@@ -144,7 +144,7 @@ async function testConnection(port, token) {
 
     const ariaData = await ariaResponse.json();
 
-    if (ariaData && (ariaData.result || bdmData)) {
+    if (ariaData && ariaData.result && ariaData.result.version) {
       dot.className = "dot online";
 
       let versionStr = (bdmData && bdmData.version) ? bdmData.version : "";
@@ -163,7 +163,7 @@ async function testConnection(port, token) {
     } else if (ariaData && ariaData.error) {
       dot.className = "dot offline";
       connText.textContent = "Auth Error";
-      if (aboutAppVer) aboutAppVer.textContent = "Authentication Error";
+      if (aboutAppVer) aboutAppVer.textContent = "Authentication Error (Invalid Token)";
     } else {
       throw new Error("Invalid response");
     }
