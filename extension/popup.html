@@ -1,24 +1,31 @@
 <!DOCTYPE html>
-<html data-theme="system">
-
+<html lang="en" data-theme="system">
 <head>
-    <meta charset="utf-8">
-    <title>Bengal DM Connector</title>
-    <link rel="stylesheet" href="popup.css">
+  <meta charset="utf-8">
+  <title>Bengal DM Connector</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
-
 <body>
-    <div class="header">
-        <h3>Bengal DM</h3>
-        <a href="#" id="options-link" class="settings-btn" title="Settings">⚙️</a>
-    </div>
+  <div class="popup-container">
+    <header class="header">
+      <div class="brand">
+        <img src="assets/icon-32.png" alt="Logo" class="logo">
+        <span class="title">Bengal DM</span>
+      </div>
+      <a href="#" id="options-link" class="settings-btn" title="Open Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </a>
+    </header>
 
     <div class="status-box">
-        <div id="dot" class="dot"></div>
-        <span id="status-text">Connecting...</span>
+      <div id="dot" class="dot"></div>
+      <div class="status-info">
+        <span class="status-label">Backend Status</span>
+        <span id="status-text" class="status-value">Connecting...</span>
+      </div>
     </div>
+  </div>
 
-    <script src="popup.js"></script>
+  <script src="popup.js"></script>
 </body>
-
 </html>
