@@ -2195,6 +2195,14 @@ class MainWindow(QMainWindow):
                 path = item_name.data(Qt.ItemDataRole.UserRole + 1) 
                 filename = item_name.text()
                 size = safe_get(1)
+                if (not size or size in ["Unknown", "?", "Calculating...", "0 B", "0.00 B"]) and path and os.path.exists(path) and os.path.isfile(path):
+                    try:
+                        file_sz = os.path.getsize(path)
+                        if file_sz > 0:
+                            size = format_bytes(file_sz)
+                            self._set_sortable_item(row, 1, size, parse_size_to_bytes)
+                    except Exception:
+                        pass
                 # Use standardized internal status if available, otherwise fallback to text
                 status_item = self.download_table.item(row, 2)
                 internal_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
@@ -2285,10 +2293,21 @@ class MainWindow(QMainWindow):
                 
                 self.download_table.setItem(row, 0, item_name)
                 
+                # Col 1: Size
+                file_path = d.get("path", "")
+                saved_size = d.get("size", "")
+                if (not saved_size or saved_size in ["Unknown", "?", "Calculating...", "0 B", "0.00 B"]) and file_path and os.path.exists(file_path) and os.path.isfile(file_path):
+                    try:
+                        file_sz = os.path.getsize(file_path)
+                        if file_sz > 0:
+                            saved_size = format_bytes(file_sz)
+                    except Exception:
+                        pass
+                self._set_sortable_item(row, 1, saved_size if saved_size else "Unknown", parse_size_to_bytes)
+                
                 # Col 2: Status (Sanitize: show percentage, never "Paused")
                 raw_status = d.get("status", "0.00%")
                 display_status = raw_status
-                file_path = d.get("path", "")
                 
                 # Determine internal state based on status text and file existence
                 is_actually_complete = False
@@ -3636,6 +3655,14 @@ class MainWindow(QMainWindow):
             if display_status == "Complete":
                 final_display = "Complete"
                 status_item.setData(Qt.ItemDataRole.UserRole, "Complete")
+                path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
+                if path and os.path.exists(path) and os.path.isfile(path):
+                    try:
+                        actual_sz = os.path.getsize(path)
+                        if actual_sz > 0:
+                            self._set_sortable_item(row, 1, format_bytes(actual_sz), parse_size_to_bytes)
+                    except Exception:
+                        pass
             elif display_status in ["Paused", "Cancelled"]:
                 pct = status_item.data(Qt.ItemDataRole.UserRole)
                 final_display = pct if pct else "0.00%"
