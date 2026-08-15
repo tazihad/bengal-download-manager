@@ -4,6 +4,24 @@ const IGNORED_EXTENSIONS = [
   'woff', 'woff2', 'eot', 'ttf', 'otf'
 ];
 
+const RECOGNIZED_DOWNLOAD_EXTS = [
+  'exe', 'msi', 'zip', '7z', 'rar', 'tar', 'gz', 'tgz', 'bz2', 'xz',
+  'iso', 'dmg', 'apk', 'deb', 'rpm', 'bin', 'appimage', 'pkg',
+  'pdf', 'epub', 'mobi', 'djvu',
+  'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v',
+  'mp3', 'flac', 'wav', 'ogg', 'm4a', 'aac', 'opus',
+  'torrent'
+];
+
+function getFileExtension(url) {
+  if (!url) return "";
+  const clean = url.split('?')[0].split('#')[0];
+  const parts = clean.split('/');
+  const last = parts.pop() || "";
+  const subParts = last.split('.');
+  return subParts.length > 1 ? subParts.pop().toLowerCase() : "";
+}
+
 // --- LINK CLICK MONITORING SYSTEM ---
 document.addEventListener('click', (event) => {
   const link = event.target.closest('a, area');
@@ -13,12 +31,13 @@ document.addEventListener('click', (event) => {
   if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) return;
 
   try {
-    const url = new URL(link.href);
-    const pathname = url.pathname.toLowerCase();
-    const parts = pathname.split('?')[0].split('#')[0].split('.');
-    const extension = parts.length > 1 ? parts.pop() : "";
-
+    const extension = getFileExtension(link.href);
     const downloadAttr = link.getAttribute('download');
+
+    // Never intercept web assets or regular web navigation links
+    if (extension && IGNORED_EXTENSIONS.includes(extension) && !downloadAttr) {
+      return;
+    }
 
     // Query background service to check Bengal DM backend status & filtering rules
     chrome.runtime.sendMessage({ action: "check_status", url: link.href }, (statusResponse) => {
@@ -31,8 +50,11 @@ document.addEventListener('click', (event) => {
         return;
       }
 
-      // If not whitelisted and not explicitly marked as download / binary extension, ignore
-      if (!statusResponse.whitelisted && !downloadAttr && (!extension || IGNORED_EXTENSIONS.includes(extension))) {
+      const isDownloadExt = extension && RECOGNIZED_DOWNLOAD_EXTS.includes(extension);
+      const isExplicitWhitelistedExt = Boolean(statusResponse.whitelistedExt);
+
+      // Only intercept if the link has a download attribute or recognized downloadable file extension
+      if (!downloadAttr && !isDownloadExt && !isExplicitWhitelistedExt) {
         return;
       }
 
