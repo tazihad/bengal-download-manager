@@ -249,8 +249,13 @@ class MediaDownloaderDialog(QDialog):
         manual_path_layout.addWidget(self.btn_clear_cookies)
         cookies_layout.addLayout(manual_path_layout)
 
-        self.lbl_cookies_info = QLabel("🔒 Cookies are read locally, never shared")
-        self.lbl_cookies_info.setStyleSheet("color: gray; font-size: 11px; font-style: italic;")
+        self.lbl_cookies_info = QLabel(
+            '🔒 Cookies are read locally, never shared. • <a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: palette(highlight); text-decoration: underline;">How to export cookies.txt guide</a>'
+        )
+        self.lbl_cookies_info.setStyleSheet("font-size: 11px;")
+        self.lbl_cookies_info.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_cookies_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.lbl_cookies_info.setOpenExternalLinks(True)
         cookies_layout.addWidget(self.lbl_cookies_info)
 
         main_layout.addWidget(self.frame_cookies_prefs)

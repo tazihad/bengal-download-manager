@@ -39,7 +39,16 @@ The **Media Downloader** feature in Bengal Download Manager allows users to extr
 
 ---
 
-## 3. Usage Instructions
+## 3. Cookies Authentication
+
+For age-restricted videos, private playlists, or restricted streams:
+1. Click the **Gear / Settings** icon (`⚙`) next to *Analyze Link* to expand the **Cookies Authentication** panel.
+2. Select your exported `cookies.txt` file (see [How to Export cookies.txt Guide](COOKIES_GUIDE.md)).
+3. `yt-dlp` automatically loads the cookies file locally to authenticate requests.
+
+---
+
+## 4. Usage Instructions
 
 1. Launch Bengal Download Manager (`python src/main.py`).
 2. Click the **Media Downloader** button on the main toolbar (right of **Options**).

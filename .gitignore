@@ -23,8 +23,9 @@ build/
 Thumbs.db
 
 # custom
-docs/
-!docs/superpowers/specs/
+docs/*
+!docs/*.md
+!docs/superpowers/
 .superpowers/
 .worktrees/
 .agents/
