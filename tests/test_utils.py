@@ -163,4 +163,66 @@ def test_get_clean_env(monkeypatch):
     assert "/tmp/_MEI12345" not in clean_filtered["LD_LIBRARY_PATH"]
 
 
+def test_advance_semantic_version():
+    from core.utils import advance_semantic_version
+    # Standard patch increments
+    assert advance_semantic_version(0, 1, 79) == (0, 1, "80")
+    assert advance_semantic_version(0, 1, 0) == (0, 1, "1")
+    assert advance_semantic_version(0, 2, 1) == (0, 2, "2")
+    # Rollover when patch reaches 99
+    assert advance_semantic_version(0, 1, 99) == (0, 2, "00")
+    assert advance_semantic_version(0, 2, 99) == (0, 3, "00")
+    assert advance_semantic_version(1, 9, 99) == (1, 10, "00")
+
+
+def test_determine_next_release_tag():
+    from core.utils import determine_next_release_tag
+
+    # 1. Stable 0.1.79 -> Upcoming alpha on dev branch
+    tag, ver = determine_next_release_tag(ref="refs/heads/dev", tags_list=["v0.1.79"])
+    assert tag == "v0.1.80-alpha.1"
+    assert ver == "0.1.80-alpha.1"
+
+    # 2. In-progress alpha 0.1.80-alpha.1 -> Next alpha on dev branch
+    tag, ver = determine_next_release_tag(ref="refs/heads/dev", tags_list=["v0.1.79", "v0.1.80-alpha.1"])
+    assert tag == "v0.1.80-alpha.2"
+    assert ver == "0.1.80-alpha.2"
+
+    # 3. Merging alpha 0.1.80-alpha.2 to main -> Stable 0.1.80 release
+    tag, ver = determine_next_release_tag(ref="refs/heads/main", tags_list=["v0.1.79", "v0.1.80-alpha.2"])
+    assert tag == "v0.1.80"
+    assert ver == "0.1.80"
+
+    # 4. Merging direct commit to main when latest stable is 0.1.79 -> Stable 0.1.80
+    tag, ver = determine_next_release_tag(ref="refs/heads/main", tags_list=["v0.1.79"])
+    assert tag == "v0.1.80"
+    assert ver == "0.1.80"
+
+    # 5. Stable 0.1.99 -> Upcoming alpha on dev branch should roll over to 0.2.00-alpha.1
+    tag, ver = determine_next_release_tag(ref="refs/heads/dev", tags_list=["v0.1.99"])
+    assert tag == "v0.2.00-alpha.1"
+    assert ver == "0.2.00-alpha.1"
+
+    # 6. Stable 0.1.99 -> Merged directly to main should roll over to 0.2.00
+    tag, ver = determine_next_release_tag(ref="refs/heads/main", tags_list=["v0.1.99"])
+    assert tag == "v0.2.00"
+    assert ver == "0.2.00"
+
+    # 7. Alpha 0.2.00-alpha.1 -> Merged to main should create 0.2.00
+    tag, ver = determine_next_release_tag(ref="refs/heads/main", tags_list=["v0.1.99", "v0.2.00-alpha.1"])
+    assert tag == "v0.2.00"
+    assert ver == "0.2.00"
+
+    # 8. Stable 0.2.00 -> Next alpha on dev branch should be 0.2.1-alpha.1
+    tag, ver = determine_next_release_tag(ref="refs/heads/dev", tags_list=["v0.1.99", "v0.2.00"])
+    assert tag == "v0.2.1-alpha.1"
+    assert ver == "0.2.1-alpha.1"
+
+    # 9. Manual override tag input
+    tag, ver = determine_next_release_tag(manual_tag="0.3.5")
+    assert tag == "v0.3.5"
+    assert ver == "0.3.5"
+
+
+
 

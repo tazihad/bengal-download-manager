@@ -20,72 +20,109 @@ runs:
       id: logic
       shell: bash
       run: |
-        if [ -n "${{ inputs.manual_tag }}" ]; then
-          TAG="${{ inputs.manual_tag }}"
-        else
-          # Get highest tag sorted by version refname
-          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
-          if [ -z "$LATEST_TAG" ]; then
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0-alpha.0")
-          fi
-          echo "Latest tag found: $LATEST_TAG"
-          
-          # Regex to match vX.Y.Z-suffix.N or vX.Y.Z
-          if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
-              X="${BASH_REMATCH[1]}"
-              Y="${BASH_REMATCH[2]}"
-              Z="${BASH_REMATCH[3]}"
-              HAS_SUFFIX="${BASH_REMATCH[4]}"
-              SUFFIX="${BASH_REMATCH[5]:-alpha}"
-              N="${BASH_REMATCH[6]:-0}"
-              
-              if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-                  # Merge to Main: Create stable release tag vX.Y.Z
-                  if [[ -n "$HAS_SUFFIX" ]]; then
-                      # Latest tag was alpha vX.Y.Z-alpha.N -> stable tag is vX.Y.Z
-                      TAG="v${X}.${Y}.${Z}"
-                  else
-                      # Latest tag was stable vX.Y.Z -> stable tag is vX.Y.(Z+1)
-                      NEXT_Z=$((Z + 1))
-                      TAG="v${X}.${Y}.${NEXT_Z}"
-                  fi
-                  
-                  # Guarantee TAG is brand new and does not already exist
-                  while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
-                      Z=$((Z + 1))
-                      TAG="v${X}.${Y}.${Z}"
-                  done
-              else
-                  # Push to Dev: Create pre-release tag ahead of stable (vX.Y.(Z+1)-alpha.1)
-                  if [[ -n "$HAS_SUFFIX" ]]; then
-                      # Latest tag was already alpha vX.Y.Z-alpha.N -> increment N
-                      NEXT_N=$((N + 1))
-                      TAG="v${X}.${Y}.${Z}-${SUFFIX}.${NEXT_N}"
-                  else
-                      # Latest tag was stable vX.Y.Z -> next alpha is vX.Y.(Z+1)-alpha.1
-                      NEXT_Z=$((Z + 1))
-                      TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
-                  fi
-                  
-                  # Guarantee TAG is brand new and does not already exist
-                  while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
-                      if [[ -n "$HAS_SUFFIX" ]]; then
-                          N=$((N + 1))
-                          TAG="v${X}.${Y}.${Z}-${SUFFIX}.${N}"
-                      else
-                          NEXT_Z=$((NEXT_Z + 1))
-                          TAG="v${X}.${Y}.${NEXT_Z}-${SUFFIX}.1"
-                      fi
-                  done
-              fi
-          else
-              # Fallback for unknown format
-              TAG="${LATEST_TAG}-build-${{ github.run_number }}"
-              while git rev-parse "refs/tags/$TAG" >/dev/null 2>&1 || git tag -l "$TAG" | grep -q "^$TAG$"; do
-                  TAG="${LATEST_TAG}-build-${{ github.run_number }}-${RANDOM}"
-              done
-          fi
-        fi
-        echo "tag=$TAG" >> $GITHUB_OUTPUT
-        echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-        echo "Determined Tag: $TAG"
+        python3 - << 'EOF'
+        import os
+        import re
+        import subprocess
+
+        def advance_version(x, y, z):
+            # Advance patch version; rollover to minor when reaching or exceeding 99
+            if z >= 99:
+                return x, y + 1, "00"
+            return x, y, str(z + 1)
+
+        manual_tag = """${{ inputs.manual_tag }}""".strip()
+        ref = """${{ github.ref }}""".strip()
+        github_output = os.environ.get("GITHUB_OUTPUT")
+
+        pattern = re.compile(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([a-zA-Z]+)\.([0-9]+))?$")
+
+        if manual_tag:
+            tag = manual_tag if manual_tag.startswith("v") else f"v{manual_tag}"
+            version = tag[1:] if tag.startswith("v") else tag
+        else:
+            try:
+                raw_tags = subprocess.check_output(["git", "tag", "-l"]).decode("utf-8").split("\n")
+            except Exception:
+                raw_tags = []
+
+            parsed = []
+            existing_tags = set()
+            for t in raw_tags:
+                t_clean = t.strip()
+                if not t_clean:
+                    continue
+                existing_tags.add(t_clean)
+                m = pattern.match(t_clean)
+                if m:
+                    x = int(m.group(1))
+                    y = int(m.group(2))
+                    z = int(m.group(3))
+                    z_raw = m.group(3)
+                    suffix = m.group(4) or ""
+                    is_stable = (suffix == "")
+                    n = int(m.group(5)) if m.group(5) else 0
+                    parsed.append((x, y, z, is_stable, n, z_raw, suffix, t_clean))
+
+            if not parsed:
+                latest = (0, 1, 0, False, 0, "0", "alpha", "v0.1.0-alpha.0")
+            else:
+                parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
+                latest = parsed[-1]
+
+            x, y, z, is_stable, n, z_raw, suffix, latest_tag = latest
+            suffix = suffix or "alpha"
+            print(f"Latest tag found: {latest_tag}")
+
+            is_main = (ref == "refs/heads/main")
+
+            if is_main:
+                if not is_stable:
+                    # Latest tag was pre-release vX.Y.Z-alpha.N -> stable release tag is vX.Y.Z
+                    tag = f"v{x}.{y}.{z_raw}"
+                else:
+                    # Latest tag was stable vX.Y.Z -> advance version
+                    nx, ny, nz = advance_version(x, y, z)
+                    tag = f"v{nx}.{ny}.{nz}"
+
+                # Ensure tag does not already exist
+                while tag in existing_tags:
+                    m = pattern.match(tag)
+                    if m:
+                        tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                        nx, ny, nz = advance_version(tx, ty, tz)
+                        tag = f"v{nx}.{ny}.{nz}"
+                    else:
+                        break
+            else:
+                # Pre-release (e.g. push to dev or feature branch)
+                if not is_stable:
+                    # Already in pre-release cycle vX.Y.Z-alpha.N -> increment N
+                    next_n = n + 1
+                    tag = f"v{x}.{y}.{z_raw}-{suffix}.{next_n}"
+                else:
+                    # Latest tag was stable vX.Y.Z -> advance to upcoming pre-release (vX.Y.(Z+1)-alpha.1 or vX.(Y+1).00-alpha.1)
+                    nx, ny, nz = advance_version(x, y, z)
+                    tag = f"v{nx}.{ny}.{nz}-alpha.1"
+
+                # Ensure tag does not already exist
+                while tag in existing_tags:
+                    m = pattern.match(tag)
+                    if m:
+                        tx, ty, tz_raw = m.group(1), m.group(2), m.group(3)
+                        tsuffix = m.group(4) or "alpha"
+                        tn = int(m.group(5)) if m.group(5) else 0
+                        tag = f"v{tx}.{ty}.{tz_raw}-{tsuffix}.{tn + 1}"
+                    else:
+                        break
+
+            version = tag[1:] if tag.startswith("v") else tag
+
+        print(f"Determined Tag: {tag}")
+        print(f"Determined Version: {version}")
+
+        if github_output:
+            with open(github_output, "a") as f:
+                f.write(f"tag={tag}\n")
+                f.write(f"version={version}\n")
+        EOF

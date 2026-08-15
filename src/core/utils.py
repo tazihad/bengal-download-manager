@@ -1157,3 +1157,103 @@ def is_media_downloader_url(data):
     return False
 
 
+def advance_semantic_version(x: int, y: int, z: int) -> tuple[int, int, str]:
+    """
+    Advances the patch version. When patch version reaches or exceeds 99,
+    rolls over minor version (y + 1) and resets patch to '00'.
+    e.g. (0, 1, 79) -> (0, 1, '80')
+         (0, 1, 99) -> (0, 2, '00')
+    """
+    if z >= 99:
+        return x, y + 1, "00"
+    return x, y, str(z + 1)
+
+
+def determine_next_release_tag(
+    manual_tag: str = "",
+    ref: str = "refs/heads/dev",
+    tags_list: list[str] | None = None
+) -> tuple[str, str]:
+    """
+    Determines next git tag and version string based on existing tags and git branch ref.
+    Alpha releases on non-main branches use upcoming advance version tags (e.g. 0.1.79 -> 0.1.80-alpha.1).
+    """
+    pattern = re.compile(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([a-zA-Z]+)\.([0-9]+))?$")
+    if manual_tag:
+        tag = manual_tag if manual_tag.startswith("v") else f"v{manual_tag}"
+        version = tag[1:] if tag.startswith("v") else tag
+        return tag, version
+
+    if tags_list is None:
+        try:
+            tags_list = subprocess.check_output(["git", "tag", "-l"]).decode("utf-8").split("\n")
+        except Exception:
+            tags_list = []
+
+    parsed = []
+    existing_tags = set()
+    for t in tags_list:
+        t_clean = t.strip()
+        if not t_clean:
+            continue
+        existing_tags.add(t_clean)
+        m = pattern.match(t_clean)
+        if m:
+            x = int(m.group(1))
+            y = int(m.group(2))
+            z = int(m.group(3))
+            z_raw = m.group(3)
+            suffix = m.group(4) or ""
+            is_stable = (suffix == "")
+            n = int(m.group(5)) if m.group(5) else 0
+            parsed.append((x, y, z, is_stable, n, z_raw, suffix, t_clean))
+
+    if not parsed:
+        latest = (0, 1, 0, False, 0, "0", "alpha", "v0.1.0-alpha.0")
+    else:
+        parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
+        latest = parsed[-1]
+
+    x, y, z, is_stable, n, z_raw, suffix, latest_tag = latest
+    suffix = suffix or "alpha"
+
+    is_main = (ref == "refs/heads/main")
+
+    if is_main:
+        if not is_stable:
+            tag = f"v{x}.{y}.{z_raw}"
+        else:
+            nx, ny, nz = advance_semantic_version(x, y, z)
+            tag = f"v{nx}.{ny}.{nz}"
+
+        while tag in existing_tags:
+            m = pattern.match(tag)
+            if m:
+                tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                nx, ny, nz = advance_semantic_version(tx, ty, tz)
+                tag = f"v{nx}.{ny}.{nz}"
+            else:
+                break
+    else:
+        if not is_stable:
+            next_n = n + 1
+            tag = f"v{x}.{y}.{z_raw}-{suffix}.{next_n}"
+        else:
+            nx, ny, nz = advance_semantic_version(x, y, z)
+            tag = f"v{nx}.{ny}.{nz}-alpha.1"
+
+        while tag in existing_tags:
+            m = pattern.match(tag)
+            if m:
+                tx, ty, tz_raw = m.group(1), m.group(2), m.group(3)
+                tsuffix = m.group(4) or "alpha"
+                tn = int(m.group(5)) if m.group(5) else 0
+                tag = f"v{tx}.{ty}.{tz_raw}-{tsuffix}.{tn + 1}"
+            else:
+                break
+
+    version = tag[1:] if tag.startswith("v") else tag
+    return tag, version
+
+
+
