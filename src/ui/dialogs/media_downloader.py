@@ -206,19 +206,24 @@ class MediaDownloaderDialog(QDialog):
 
         # 2b. Cookies & Authentication Preferences Panel (Toggled via 3-dot button)
         self.frame_cookies_prefs = QFrame()
-        self.frame_cookies_prefs.setFrameShape(QFrame.Shape.StyledPanel)
+        self.frame_cookies_prefs.setObjectName("cookiesPrefsFrame")
+        self.frame_cookies_prefs.setFrameShape(QFrame.Shape.NoFrame)
         self.frame_cookies_prefs.setStyleSheet("""
-            QFrame {
+            QFrame#cookiesPrefsFrame {
                 background-color: palette(alternate-base);
                 border: 1px solid palette(mid);
-                border-radius: 6px;
+                border-radius: 8px;
+            }
+            QFrame#cookiesPrefsFrame QLabel {
+                background: transparent;
+                border: none;
             }
         """)
         self.frame_cookies_prefs.hide()
 
         cookies_layout = QVBoxLayout(self.frame_cookies_prefs)
-        cookies_layout.setContentsMargins(10, 8, 10, 8)
-        cookies_layout.setSpacing(6)
+        cookies_layout.setContentsMargins(12, 10, 12, 10)
+        cookies_layout.setSpacing(8)
 
         lbl_cookies_header = QLabel("Cookies Authentication (cookies.txt)")
         font_c = QFont()
@@ -231,6 +236,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_manual_path = QLabel("cookies.txt Path:")
         self.txt_cookies_path = QLineEdit()
         self.txt_cookies_path.setPlaceholderText("Select path to cookies.txt file...")
+        self.txt_cookies_path.setFixedHeight(28)
         self.txt_cookies_path.textChanged.connect(self._save_cookies_path_permanently)
 
         self.btn_browse_cookies = QPushButton("Browse...")
