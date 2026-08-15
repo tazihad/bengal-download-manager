@@ -562,8 +562,44 @@ def test_download_complete_persistence_on_restart(qapp, tmp_path, monkeypatch):
     win2.hide()
     assert win2.download_table.rowCount() == 1
     assert win2.download_table.item(0, 0).text() == "finished_movie.mp4"
+    assert win2.download_table.item(0, 1) is not None
+    assert win2.download_table.item(0, 1).text() == "100.00 KB"
     assert win2.download_table.item(0, 2).text() == "Complete"
     assert win2.download_table.item(0, 2).data(Qt.ItemDataRole.UserRole + 1) == "Complete"
+
+
+def test_download_size_displayed_all_time(qapp, tmp_path):
+    target_file = tmp_path / "sample.iso"
+    target_file.write_bytes(b"x" * 2048)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.download_table.setRowCount(0)
+
+    win.start_download(
+        url="http://example.com/sample.iso",
+        custom_save_dir=str(tmp_path),
+        start_paused=True,
+        show_dialog=False
+    )
+    item_ref = win.download_table.item(0, 0)
+    item_ref.setData(Qt.ItemDataRole.UserRole + 1, str(target_file))
+
+    win.download_finished(item_ref, "Complete")
+
+    # Table size must be displayed
+    assert win.download_table.item(0, 1) is not None
+    assert win.download_table.item(0, 1).text() == "2.00 KB"
+
+    # Save and reload
+    win.save_data()
+
+    reloaded_win = MainWindow(start_ipc=False)
+    reloaded_win.hide()
+    assert reloaded_win.download_table.rowCount() == 1
+    assert reloaded_win.download_table.item(0, 1) is not None
+    assert reloaded_win.download_table.item(0, 1).text() == "2.00 KB"
+    assert reloaded_win.download_table.item(0, 2).text() == "Complete"
 
 
 def test_download_progress_dialog_close_after_complete(qapp, tmp_path):
