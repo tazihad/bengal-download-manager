@@ -82,10 +82,16 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-
         ext_data = load_extension_config()
+        try:
+            from core.version import VERSION
+            app_version = VERSION
+        except Exception:
+            app_version = "0.1"
+
         config_json = json.dumps({
             "status": "Bengal DM is running",
+            "version": app_version,
             "aria2": {
                 "port": ext_data.get("port", 56800),
                 "token": ext_data.get("token", "")
@@ -1370,6 +1376,16 @@ class MainWindow(QMainWindow):
 
     def start_aria2_daemon(self):
         try:
+            if hasattr(self, 'aria2_process') and self.aria2_process:
+                try:
+                    self.aria2_process.terminate()
+                    try:
+                        self.aria2_process.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        self.aria2_process.kill()
+                except Exception:
+                    pass
+
             aria2_bin = ensure_aria2() or "aria2c"
             ext_data = load_extension_config()
             port = ext_data.get("port", 56800)

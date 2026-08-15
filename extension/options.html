@@ -1,41 +1,245 @@
 <!DOCTYPE html>
-<html data-theme="system">
-
+<html lang="en" data-theme="system">
 <head>
-    <meta charset="utf-8">
-    <title>Bengal DM - Integration Settings</title>
-    <link rel="stylesheet" href="options.css">
+  <meta charset="utf-8">
+  <title>Bengal Download Manager - Options</title>
+  <link rel="stylesheet" href="options.css">
 </head>
-
 <body>
-    <div class="card">
-        <h2>Settings</h2>
+  <div class="app-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="assets/icon-48.png" alt="BDM Logo" class="brand-icon">
+        <div class="brand-text">
+          <h1>Bengal DM</h1>
+          <span class="brand-sub">Settings</span>
+        </div>
+      </div>
 
-        <label>Aria2 Port: <input type="number" id="port" placeholder="56800"></label>
-        <label>RPC Secret (Optional): <input type="password" id="token" placeholder="Leave blank if none"></label>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="tab-connection">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          <span>Connection</span>
+        </button>
+        <button class="nav-item" data-tab="tab-appearance">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <span>Appearance</span>
+        </button>
+        <button class="nav-item" data-tab="tab-whitelist">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span>Whitelist</span>
+        </button>
+        <button class="nav-item" data-tab="tab-blacklist">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          <span>Blacklist</span>
+        </button>
+        <button class="nav-item" data-tab="tab-about">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>About</span>
+        </button>
+      </nav>
 
-        <label>UI Theme:
-            <select id="theme">
-                <option value="system">System Default</option>
-                <option value="light">Light Mode</option>
-                <option value="dark">Dark Mode</option>
-            </select>
-        </label>
+      <div class="sidebar-status">
+        <div class="status-indicator">
+          <div id="dot" class="dot"></div>
+          <span id="conn-text">Checking...</span>
+        </div>
+        <button id="refresh-btn" class="icon-btn" title="Refresh Connection Status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
 
-        <div class="status-section">
-            <div class="status-left">
-                <div id="dot" class="dot"></div>
-                <span id="conn-text">Checking...</span>
-            </div>
-            <button id="refresh-btn" class="refresh-btn" title="Test Connection">🔄</button>
+      <div class="sidebar-actions">
+        <button id="save" class="btn btn-primary" title="Save All Settings">Save Settings</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Tabs -->
+    <main class="content-panel">
+      <!-- Toast feedback -->
+      <div id="status-toast" class="status-toast"></div>
+
+      <!-- Tab: Connection -->
+      <section id="tab-connection" class="tab-pane active">
+        <div class="pane-header">
+          <h2>Connection & IPC Settings</h2>
+          <p class="pane-desc">Configure the connection parameters between this browser extension and Bengal Download Manager.</p>
         </div>
 
-        <button id="save" class="save-btn">Save Preferences</button>
-        <button id="sync" class="sync-btn">Sync from Bengal DM</button>
-        <button id="reset" class="reset-btn">Reset to Defaults</button>
-        <div id="status-msg"></div>
-    </div>
-    <script src="options.js"></script>
-</body>
+        <div class="card">
+          <div class="card-title">Aria2 RPC Configuration</div>
+          <p class="card-desc">Bengal Download Manager communicates locally over loopback (127.0.0.1) using an internal Aria2 daemon.</p>
 
+          <div class="form-group">
+            <label for="port">RPC Port</label>
+            <input type="number" id="port" class="form-input" value="56800" min="1024" max="65535">
+            <span class="field-hint">Default Bengal DM Port is 56800.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="token">Secret RPC Token</label>
+            <input type="text" id="token" class="form-input" placeholder="Leave empty if token is disabled">
+            <span class="field-hint">Configured in Bengal DM options if RPC authentication is enabled.</span>
+          </div>
+
+          <div class="card-actions">
+            <button id="sync" class="btn btn-secondary">Sync from Bengal DM</button>
+            <button id="reset" class="btn btn-subtle">Reset Defaults</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Appearance -->
+      <section id="tab-appearance" class="tab-pane">
+        <div class="pane-header">
+          <h2>Appearance & Theming</h2>
+          <p class="pane-desc">Choose your preferred visual theme for the extension popup and options pages.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Theme Selection</div>
+          <p class="card-desc">Select how Bengal Download Manager extension adapts to your desktop appearance.</p>
+
+          <div class="theme-options-grid">
+            <!-- System Default -->
+            <label class="theme-card">
+              <input type="radio" name="theme-radio" value="system" checked>
+              <div class="theme-card-body">
+                <div class="theme-preview system-preview">
+                  <div class="split-left"></div>
+                  <div class="split-right"></div>
+                </div>
+                <span class="theme-name">System Default</span>
+                <span class="theme-detail">Matches OS / desktop appearance</span>
+              </div>
+            </label>
+
+            <!-- Light Mode -->
+            <label class="theme-card">
+              <input type="radio" name="theme-radio" value="light">
+              <div class="theme-card-body">
+                <div class="theme-preview light-preview"></div>
+                <span class="theme-name">Light Mode</span>
+                <span class="theme-detail">BDM Breeze Light theme</span>
+              </div>
+            </label>
+
+            <!-- Dark Mode -->
+            <label class="theme-card">
+              <input type="radio" name="theme-radio" value="dark">
+              <div class="theme-card-body">
+                <div class="theme-preview dark-preview"></div>
+                <span class="theme-name">Dark Mode</span>
+                <span class="theme-detail">BDM Breeze Dark theme</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- Hidden select for compatibility -->
+          <select id="theme" style="display: none;">
+            <option value="system">System Default</option>
+            <option value="light">Light Mode</option>
+            <option value="dark">Dark Mode</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Tab: Whitelist -->
+      <section id="tab-whitelist" class="tab-pane">
+        <div class="pane-header">
+          <h2>Whitelist Filters</h2>
+          <p class="pane-desc">Downloads matching whitelisted URLs or file extensions are always intercepted by Bengal DM.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Whitelisted URLs & Domains</div>
+          <p class="card-desc">Always capture downloads originating from these websites or URL patterns (e.g. <code>github.com</code>, <code>releases.ubuntu.com</code>).</p>
+          
+          <div class="tag-input-row">
+            <input type="text" id="whitelist-url-input" class="form-input" placeholder="Add domain or URL pattern (e.g. example.com)">
+            <button id="add-whitelist-url" class="btn btn-secondary">Add URL</button>
+          </div>
+          <div id="whitelist-url-tags" class="tags-container"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Whitelisted File Extensions</div>
+          <p class="card-desc">Always capture downloads with these specific extensions (e.g. <code>.iso</code>, <code>.zip</code>, <code>.tar.gz</code>).</p>
+          
+          <div class="tag-input-row">
+            <input type="text" id="whitelist-ext-input" class="form-input" placeholder="Add extension (e.g. .iso, .zip, .exe)">
+            <button id="add-whitelist-ext" class="btn btn-secondary">Add Extension</button>
+          </div>
+          <div id="whitelist-ext-tags" class="tags-container"></div>
+        </div>
+      </section>
+
+      <!-- Tab: Blacklist -->
+      <section id="tab-blacklist" class="tab-pane">
+        <div class="pane-header">
+          <h2>Blacklist Filters</h2>
+          <p class="pane-desc">Downloads matching blacklisted URLs or file extensions are ignored and left to standard browser downloading.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Blacklisted URLs & Domains</div>
+          <p class="card-desc">Never intercept downloads from these websites or URL patterns.</p>
+          
+          <div class="tag-input-row">
+            <input type="text" id="blacklist-url-input" class="form-input" placeholder="Add domain or URL pattern (e.g. adsite.com)">
+            <button id="add-blacklist-url" class="btn btn-secondary">Add URL</button>
+          </div>
+          <div id="blacklist-url-tags" class="tags-container"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Blacklisted File Extensions</div>
+          <p class="card-desc">Never intercept files with these extensions (e.g. <code>.jpg</code>, <code>.pdf</code>, <code>.txt</code>).</p>
+          
+          <div class="tag-input-row">
+            <input type="text" id="blacklist-ext-input" class="form-input" placeholder="Add extension (e.g. .pdf, .docx, .png)">
+            <button id="add-blacklist-ext" class="btn btn-secondary">Add Extension</button>
+          </div>
+          <div id="blacklist-ext-tags" class="tags-container"></div>
+        </div>
+      </section>
+
+      <!-- Tab: About -->
+      <section id="tab-about" class="tab-pane">
+        <div class="pane-header">
+          <h2>About Bengal Download Manager</h2>
+          <p class="pane-desc">High-performance multi-threaded open-source download manager.</p>
+        </div>
+
+        <div class="card">
+          <div class="about-grid">
+            <div class="about-item">
+              <span class="about-label">App Version</span>
+              <span id="about-app-version" class="about-value">Loading...</span>
+            </div>
+            <div class="about-item">
+              <span class="about-label">Extension Version</span>
+              <span id="about-ext-version" class="about-value">0.2 (Manifest V3)</span>
+            </div>
+            <div class="about-item">
+              <span class="about-label">Backend Engine</span>
+              <span class="about-value">PyQt6 / Aria2 RPC</span>
+            </div>
+            <div class="about-item">
+              <span class="about-label">Repository</span>
+              <span class="about-value"><a href="https://github.com/tazihad/bengal-download-manager" target="_blank" rel="noopener">GitHub Project</a></span>
+            </div>
+            <div class="about-item">
+              <span class="about-label">Cookies Export Guide</span>
+              <span class="about-value"><a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" target="_blank" rel="noopener">Read Documentation</a></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
 </html>
