@@ -8,23 +8,24 @@ from PyQt6.QtCore import Qt, QRect, QSize
 from PyQt6.QtGui import QPainter, QColor, QFont, QLinearGradient, QBrush, QIcon
 
 
+CATEGORY_EXTENSIONS = {
+    "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".bz2", ".xz", ".tgz", ".dmg", ".zst"],
+    "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".rtf", ".odt", ".epub"],
+    "Music": [".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma", ".opus", ".m4b"],
+    "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico", ".tiff", ".tif"],
+    "Programs": [".exe", ".msi", ".deb", ".rpm", ".apk", ".appimage", ".flatpak", ".snap", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"],
+    "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".3gp"]
+}
+
+
 def _get_category_for_filename(filename: str) -> str:
-    """Infers category name from filename extension if not explicitly stored."""
+    """Infers category name from filename extension."""
     if not filename:
         return "General"
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext in ("zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso", "dmg"):
-        return "Compressed"
-    elif ext in ("exe", "msi", "deb", "rpm", "pkg", "apk", "appimage", "bin"):
-        return "Programs"
-    elif ext in ("mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v"):
-        return "Video"
-    elif ext in ("mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"):
-        return "Music"
-    elif ext in ("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico"):
-        return "Pictures"
-    elif ext in ("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "epub"):
-        return "Documents"
+    fn = filename.lower()
+    for cat, exts in CATEGORY_EXTENSIONS.items():
+        if any(fn.endswith(ext) for ext in exts):
+            return cat
     return "General"
 
 
@@ -69,8 +70,7 @@ class ModernTableDelegate(QStyledItemDelegate):
     def _paint_name_cell(self, painter: QPainter, option: QStyleOptionViewItem, index, rect: QRect, is_selected: bool):
         icon = index.data(Qt.ItemDataRole.DecorationRole)
         text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
-        stored_category = index.data(Qt.ItemDataRole.UserRole + 3)
-        category = stored_category if stored_category else _get_category_for_filename(text)
+        category = _get_category_for_filename(text)
 
         # Dynamic text colors adapting to selection and theme
         if is_selected:

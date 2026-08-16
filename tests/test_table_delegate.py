@@ -58,4 +58,12 @@ def test_modern_table_delegate_painting(qapp):
     opt_complete.rect = QRect(150, 0, 150, 50)
     delegate.paint(painter, opt_complete, table.model().index(1, 2))
 
+    # Item with numeric timestamp in UserRole+3 (date_added)
+    item_with_ts = QTableWidgetItem("archive.zip")
+    item_with_ts.setData(Qt.ItemDataRole.UserRole + 3, 1755315482.123)
+    table.setItem(1, 0, item_with_ts)
+    opt_ts = QStyleOptionViewItem()
+    opt_ts.rect = QRect(0, 0, 150, 50)
+    delegate.paint(painter, opt_ts, table.model().index(1, 0))
+
     painter.end()
