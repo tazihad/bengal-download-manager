@@ -66,7 +66,7 @@ def test_modern_table_delegate_painting(qapp):
     opt_ts.rect = QRect(0, 0, 150, 50)
     delegate.paint(painter, opt_ts, table.model().index(1, 0))
 
-    # Test status formatting for Paused download (e.g. 19% Pause)
+    # Test status formatting for Paused download (e.g. 19% Paused)
     item_paused = QTableWidgetItem("19%")
     item_paused.setData(Qt.ItemDataRole.UserRole, "19%")
     item_paused.setData(Qt.ItemDataRole.UserRole + 1, "Paused")

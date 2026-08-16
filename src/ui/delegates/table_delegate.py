@@ -141,14 +141,14 @@ class ModernTableDelegate(QStyledItemDelegate):
             except ValueError:
                 pct_str = str(progress_val)
 
-        # Determine state keyword: Pause, Downloading, Connecting, Error, etc.
+        # Determine state keyword: Paused, Downloading, Connecting, Error, etc.
         state_label = ""
         if internal_status:
             state_label = str(internal_status).replace("...", "").strip()
-            if state_label.lower() == "paused":
-                state_label = "Pause"
+            if state_label.lower() in ("pause", "paused"):
+                state_label = "Paused"
         elif "pause" in status_text.lower():
-            state_label = "Pause"
+            state_label = "Paused"
         elif pct > 0:
             state_label = "Downloading"
 
