@@ -66,3 +66,21 @@ def test_table_style_settings_persistence(qapp, tmp_path, monkeypatch):
     assert win2.table_style == "modern"
     assert win2.action_table_style_modern.isChecked()
     assert win2.download_table.verticalHeader().defaultSectionSize() == 50
+
+
+def test_twilight_theme_and_accent(qapp):
+    from main import apply_app_theme, normalize_theme_name, normalize_accent_name, ACCENT_COLORS
+    from PyQt6.QtGui import QPalette
+
+    assert "Twilight" in ACCENT_COLORS
+    assert ACCENT_COLORS["Twilight"] == "#8b5cf6"
+    assert normalize_theme_name("Twilight") == "Twilight"
+    assert normalize_theme_name("twilight dark") == "Twilight"
+    assert normalize_accent_name("twilight") == "Twilight"
+
+    apply_app_theme("Twilight", "Twilight", "BDM Auto (Default)", "App Icon (Default)", qapp)
+    pal = qapp.palette()
+    assert pal.color(QPalette.ColorRole.Highlight).name().lower() == "#8b5cf6"
+    assert pal.color(QPalette.ColorRole.Window).name().lower() == "#181424"
+    assert pal.color(QPalette.ColorRole.Base).name().lower() == "#13111c"
+

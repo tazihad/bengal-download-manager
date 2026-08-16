@@ -569,6 +569,7 @@ ACCENT_COLORS = {
     "BDM (Default)": "#3daee9",
     "BDM": "#3daee9",
     "System": None,
+    "Twilight": "#8b5cf6",
     "Breeze Blue": "#3daee9",
     "Ubuntu Orange": "#e95420",
     "Windows Blue": "#0078d4",
@@ -627,6 +628,8 @@ def normalize_theme_name(name, default="BDM Dark (Default)"):
         return "System"
     if s_lower in ("bdm light", "bdmlight", "light"):
         return "BDM Light"
+    if s_lower in ("twilight", "twilight dark"):
+        return "Twilight"
     return s
 
 
@@ -639,6 +642,8 @@ def normalize_accent_name(name, default="BDM (Default)"):
         return "BDM (Default)"
     if s_lower == "system":
         return "System"
+    if s_lower in ("twilight", "twilight violet"):
+        return "Twilight"
     return s
 
 
@@ -740,6 +745,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#002b36", "#839496", "#073642", "#002b36", "#073642", "#268bd2", "#268bd2", "#ffffff", accent=accent_name))
+    elif theme_lower in ("twilight", "twilight dark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#181424", "#f0edf8", "#13111c", "#221c33", "#2a223f", "#8b5cf6", "#8b5cf6", "#ffffff", accent=accent_name))
     elif theme_lower in ("breeze dark", "breezedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)

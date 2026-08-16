@@ -107,7 +107,7 @@ class OptionsDialog(QDialog):
             "Kirigami Light", "Material You Dark", "Material You Light",
             "Nord", "Obsidian Flow", "One Dark", 
             "Solarized Dark", "Solarized Light", 
-            "Ubuntu Dark", "Ubuntu Light"
+            "Twilight", "Ubuntu Dark", "Ubuntu Light"
         ]
         self.combo_theme.addItems(theme_options)
 
@@ -119,7 +119,7 @@ class OptionsDialog(QDialog):
             "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
-            "Obsidian Purple", "Ubuntu Orange", "Windows Blue"
+            "Obsidian Purple", "Twilight", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
