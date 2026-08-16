@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bengal Download Manager - UI Table Styles Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #13111c;
+      --bg-surface: #1a1626;
+      --bg-surface-elevated: #221c33;
+      --bg-hover: #2d2644;
+      --text-primary: #f0edf8;
+      --text-secondary: #9b94b0;
+      --text-muted: #6b6480;
+      --accent: #8b5cf6;
+      --accent-gradient: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
+      --success: #2ec27e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #2e2646;
+      --border-subtle: #241e36;
+      --header-bg: #1c172b;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --tnum: "tnum" 1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top App Bar & Menu Bar */
+    header {
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .app-branding {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .app-branding svg {
+      width: 22px;
+      height: 22px;
+      fill: var(--accent);
+    }
+
+    .menu-bar {
+      display: flex;
+      gap: 4px;
+      font-size: 13px;
+    }
+
+    .menu-item {
+      position: relative;
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .menu-item:hover, .menu-item.active {
+      background-color: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 4px;
+      background-color: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      min-width: 180px;
+      padding: 6px;
+      display: none;
+      z-index: 100;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .menu-item:hover .dropdown-menu, .dropdown-menu.show {
+      display: flex;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .dropdown-item:hover {
+      background-color: var(--accent);
+      color: #000000;
+      font-weight: 600;
+    }
+
+    .dropdown-item .check-icon {
+      font-size: 12px;
+      opacity: 0;
+    }
+
+    .dropdown-item.selected .check-icon {
+      opacity: 1;
+    }
+
+    /* Style Switcher Bar */
+    .style-banner {
+      background: linear-gradient(90deg, #2b1f4d, #1e1833);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .style-banner-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .btn-toggle-group {
+      display: inline-flex;
+      background-color: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .btn-toggle {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-toggle.active {
+      background-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    /* Main Container */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background-color: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      padding: 16px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      user-select: none;
+    }
+
+    .sidebar-group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 12px 7px 28px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .sidebar-item:hover {
+      background-color: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .sidebar-item.active {
+      background-color: var(--bg-surface-elevated);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .sidebar-badge {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Content Area */
+    .content-area {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    /* Toolbar Actions */
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--accent);
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, #7c3aed, #9333ea);
+      border-color: #a855f7;
+      color: #ffffff;
+    }
+
+    .action-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    /* ===================================================
+       TABLE STYLES: 1. CLASSIC STYLE (Preserved exact)
+       =================================================== */
+    .classic-table-container {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      display: none;
+    }
+
+    .classic-table-container.active {
+      display: block;
+    }
+
+    .classic-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .classic-table th {
+      background-color: #201a30;
+      color: var(--text-primary);
+      text-align: left;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .classic-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      border-right: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-feature-settings: var(--tnum);
+    }
+
+    .classic-table tr:hover {
+      background-color: var(--bg-hover);
+      color: #ffffff;
+    }
+
+    .classic-table tr.selected {
+      background-color: var(--accent);
+      color: #000000;
+    }
+    .classic-table tr.selected td {
+      color: #000000;
+      font-weight: 600;
+    }
+
+    /* ===================================================
+       TABLE STYLES: 2. MODERN STYLE (From Screenshot)
+       =================================================== */
+    .modern-table-container {
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .modern-table-container.active {
+      display: flex;
+    }
+
+    /* Modern Rounded Header Row */
+    .modern-header-row {
+      display: grid;
+      grid-template-columns: 44px 2.2fr 1fr 1.3fr 1fr 1fr 1.1fr;
+      align-items: center;
+      background-color: var(--header-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      user-select: none;
+    }
+
+    .header-col {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      position: relative;
+    }
+
+    .header-col:not(:first-child)::before {
+      content: "";
+      position: absolute;
+      left: -10px;
+      height: 14px;
+      width: 1px;
+      background-color: var(--border);
+    }
+
+    .sort-icon {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* Modern Rows */
+    .modern-rows-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .modern-row {
+      display: grid;
+      grid-template-columns: 44px 2.2fr 1fr 1.3fr 1fr 1fr 1.1fr;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      background-color: transparent;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+
+    .modern-row:hover {
+      background-color: var(--bg-surface);
+      border-color: var(--border);
+    }
+
+    .modern-row.selected {
+      background-color: var(--bg-surface-elevated);
+      border-color: var(--accent);
+    }
+
+    .checkbox-col {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .custom-checkbox {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+    }
+
+    .custom-checkbox.checked {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .custom-checkbox.checked::after {
+      content: "✓";
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    /* Name Column with 2 Lines */
+    .name-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .file-icon {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .file-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+
+    .file-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-category {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Numeric / Tabular Columns */
+    .tabular-cell {
+      font-feature-settings: var(--tnum);
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    /* Status with Mini Progress Bar */
+    .status-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      justify-content: center;
+    }
+
+    .status-text {
+      font-size: 13px;
+      font-weight: 600;
+      font-feature-settings: var(--tnum);
+    }
+
+    .status-text.finished {
+      color: var(--success);
+    }
+
+    .status-text.downloading {
+      color: #c084fc;
+    }
+
+    .status-text.paused {
+      color: var(--warning);
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background-color: var(--bg-surface-elevated);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    /* Bottom Status Bar */
+    footer {
+      background-color: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-feature-settings: var(--tnum);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header>
+    <div class="app-branding">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Bengal Download Manager
+    </div>
+
+    <div class="menu-bar">
+      <div class="menu-item">File</div>
+      <div class="menu-item">Tasks</div>
+      <div class="menu-item active">
+        View
+        <div class="dropdown-menu show" id="viewDropdown">
+          <div class="dropdown-item" style="font-weight: bold; color: var(--text-muted); cursor: default;">Table style ▸</div>
+          <div class="dropdown-item" id="menuOptClassic" onclick="switchStyle('classic')">
+            <span>Classic</span>
+            <span class="check-icon" id="checkClassic">✓</span>
+          </div>
+          <div class="dropdown-item selected" id="menuOptModern" onclick="switchStyle('modern')">
+            <span>Modern</span>
+            <span class="check-icon" id="checkModern">✓</span>
+          </div>
+        </div>
+      </div>
+      <div class="menu-item">Tools</div>
+      <div class="menu-item">Help</div>
+    </div>
+
+    <div style="width: 140px;"></div>
+  </header>
+
+  <!-- Interactive Style Banner for instant testing -->
+  <div class="style-banner">
+    <div class="style-banner-info">
+      <span class="badge">Live Prototype</span>
+      <span style="font-size: 13px; font-weight: 500;">
+        Toggle between <strong>Classic</strong> and <strong>Modern</strong> Table Styles (also testable via View Menu above)
+      </span>
+    </div>
+    <div class="btn-toggle-group">
+      <button class="btn-toggle" id="btnClassic" onclick="switchStyle('classic')">Classic Style</button>
+      <button class="btn-toggle active" id="btnModern" onclick="switchStyle('modern')">Modern Style</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-group-title">
+        <span>📁 All</span>
+      </div>
+      <div class="sidebar-item">
+        <span>🗜️ Compressed</span>
+        <span class="sidebar-badge">2</span>
+      </div>
+      <div class="sidebar-item active">
+        <span>📦 Programs</span>
+        <span class="sidebar-badge">1</span>
+      </div>
+      <div class="sidebar-item">
+        <span>🎬 Videos</span>
+        <span class="sidebar-badge">4</span>
+      </div>
+      <div class="sidebar-item">
+        <span>🎵 Music</span>
+        <span class="sidebar-badge">0</span>
+      </div>
+      <div class="sidebar-item">
+        <span>🖼️ Pictures</span>
+        <span class="sidebar-badge">3</span>
+      </div>
+      <div class="sidebar-item">
+        <span>📄 Documents</span>
+        <span class="sidebar-badge">5</span>
+      </div>
+
+      <div class="sidebar-group-title" style="margin-top: 10px;">
+        <span>✅ Finished</span>
+      </div>
+      <div class="sidebar-group-title">
+        <span>⏳ Unfinished</span>
+      </div>
+      <div class="sidebar-group-title">
+        <span>⏰ Queues</span>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-area">
+      <div class="toolbar-actions">
+        <button class="action-btn primary">➕ New Download</button>
+        <button class="action-btn">▶️ Resume</button>
+        <button class="action-btn">⏸️ Pause</button>
+        <button class="action-btn">🗑️ Delete</button>
+        <button class="action-btn">⚙️ Settings</button>
+      </div>
+
+      <!-- 1. CLASSIC TABLE (Original 7-column layout) -->
+      <div class="classic-table-container" id="classicContainer">
+        <table class="classic-table">
+          <thead>
+            <tr>
+              <th>File Name</th>
+              <th>Size</th>
+              <th>Status</th>
+              <th>Time left</th>
+              <th>Transfer rate</th>
+              <th>Last Try Date</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>vlc-3.0.23-win32.exe</td>
+              <td>42.50 MB</td>
+              <td>32.00%</td>
+              <td>00:00:18</td>
+              <td>1.55 MB/s</td>
+              <td>2026-08-16 09:35</td>
+              <td>VLC Media Player Windows Installer</td>
+            </tr>
+            <tr class="selected">
+              <td>bengal-download-manager-v0.1.83.tar.gz</td>
+              <td>106.56 MB</td>
+              <td>Complete</td>
+              <td>00:00:00</td>
+              <td>-</td>
+              <td>2026-08-13 14:20</td>
+              <td>Source release package</td>
+            </tr>
+            <tr>
+              <td>ubuntu-24.04-desktop-amd64.iso</td>
+              <td>4.80 GB</td>
+              <td>Paused</td>
+              <td>01:12:40</td>
+              <td>0.00 KB/s</td>
+              <td>2026-08-15 22:10</td>
+              <td>Linux Installation Image</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 2. MODERN TABLE (From Screenshot /home/zihad/Pictures/Screenshots/Screenshot_20260816_093943.png) -->
+      <div class="modern-table-container active" id="modernContainer">
+        <!-- Rounded Dark Header Row with Dividers -->
+        <div class="modern-header-row">
+          <div class="checkbox-col">
+            <div class="custom-checkbox" onclick="this.classList.toggle('checked')"></div>
+          </div>
+          <div class="header-col">
+            <span class="sort-icon">⬍</span>
+            <span>Name</span>
+          </div>
+          <div class="header-col">
+            <span class="sort-icon">⬍</span>
+            <span>Size</span>
+          </div>
+          <div class="header-col">
+            <span class="sort-icon">⬍</span>
+            <span>Status</span>
+          </div>
+          <div class="header-col">
+            <span class="sort-icon">⬍</span>
+            <span>Speed</span>
+          </div>
+          <div class="header-col">
+            <span class="sort-icon">⬍</span>
+            <span>Time Left</span>
+          </div>
+          <div class="header-col">
+            <span class="sort-icon">⬍</span>
+            <span>Date Added</span>
+          </div>
+        </div>
+
+        <!-- Modern Download Item Rows -->
+        <div class="modern-rows-list">
+          <!-- Row 1: Downloading Item -->
+          <div class="modern-row">
+            <div class="checkbox-col">
+              <div class="custom-checkbox" onclick="event.stopPropagation(); this.classList.toggle('checked')"></div>
+            </div>
+            <div class="name-cell">
+              <div class="file-icon">📦</div>
+              <div class="file-details">
+                <span class="file-title">vlc-3.0.23-win32.exe</span>
+                <span class="file-category">Programs</span>
+              </div>
+            </div>
+            <div class="tabular-cell">42.5 MiB</div>
+            <div class="status-cell">
+              <div class="status-text downloading">32% Downloading</div>
+              <div class="progress-bar-container">
+                <div class="progress-fill" style="width: 32%;"></div>
+              </div>
+            </div>
+            <div class="tabular-cell">1.55 MiB/s</div>
+            <div class="tabular-cell">18 sec left</div>
+            <div class="tabular-cell" style="color: var(--text-muted);">5 minutes ago</div>
+          </div>
+
+          <!-- Row 2: Finished Item -->
+          <div class="modern-row selected">
+            <div class="checkbox-col">
+              <div class="custom-checkbox" onclick="event.stopPropagation(); this.classList.toggle('checked')"></div>
+            </div>
+            <div class="name-cell">
+              <div class="file-icon">📄</div>
+              <div class="file-details">
+                <span class="file-title">bengal-download-manager-v0.1.83.tar.gz</span>
+                <span class="file-category">General</span>
+              </div>
+            </div>
+            <div class="tabular-cell">106.56 MiB</div>
+            <div class="status-cell">
+              <div class="status-text finished">Finished</div>
+            </div>
+            <div class="tabular-cell">-</div>
+            <div class="tabular-cell">-</div>
+            <div class="tabular-cell" style="color: var(--text-muted);">3 days ago</div>
+          </div>
+
+          <!-- Row 3: Paused / Large ISO -->
+          <div class="modern-row">
+            <div class="checkbox-col">
+              <div class="custom-checkbox" onclick="event.stopPropagation(); this.classList.toggle('checked')"></div>
+            </div>
+            <div class="name-cell">
+              <div class="file-icon">💿</div>
+              <div class="file-details">
+                <span class="file-title">ubuntu-24.04-desktop-amd64.iso</span>
+                <span class="file-category">Operating Systems</span>
+              </div>
+            </div>
+            <div class="tabular-cell">4.80 GiB</div>
+            <div class="status-cell">
+              <div class="status-text paused">Paused (65%)</div>
+              <div class="progress-bar-container">
+                <div class="progress-fill" style="width: 65%; background: var(--warning);"></div>
+              </div>
+            </div>
+            <div class="tabular-cell">0.00 KiB/s</div>
+            <div class="tabular-cell">01:12:40</div>
+            <div class="tabular-cell" style="color: var(--text-muted);">1 day ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <footer>
+    <span>📋 1 Selected</span>
+    <span>⚡ 1.55 MiB/s</span>
+  </footer>
+
+  <script>
+    function switchStyle(style) {
+      const classicContainer = document.getElementById('classicContainer');
+      const modernContainer = document.getElementById('modernContainer');
+      const btnClassic = document.getElementById('btnClassic');
+      const btnModern = document.getElementById('btnModern');
+      const menuOptClassic = document.getElementById('menuOptClassic');
+      const menuOptModern = document.getElementById('menuOptModern');
+
+      if (style === 'classic') {
+        classicContainer.classList.add('active');
+        modernContainer.classList.remove('active');
+        btnClassic.classList.add('active');
+        btnModern.classList.remove('active');
+        menuOptClassic.classList.add('selected');
+        menuOptModern.classList.remove('selected');
+      } else {
+        classicContainer.classList.remove('active');
+        modernContainer.classList.add('active');
+        btnClassic.classList.remove('active');
+        btnModern.classList.add('active');
+        menuOptClassic.classList.remove('selected');
+        menuOptModern.classList.add('selected');
+      }
+    }
+  </script>
+</body>
+</html>
