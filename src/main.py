@@ -46,7 +46,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
     QSystemTrayIcon, QRubberBand
 )
-from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent
+from PyQt6.QtGui import QAction, QActionGroup, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
@@ -1582,7 +1582,26 @@ class MainWindow(QMainWindow):
 
         # 4. View
         view_menu = menu_bar.addMenu("&View")
-        
+
+        table_style_menu = view_menu.addMenu("Table style")
+        self.table_style_group = QActionGroup(self)
+        self.table_style_group.setExclusive(True)
+
+        self.action_table_style_classic = QAction("Classic", self)
+        self.action_table_style_classic.setCheckable(True)
+        self.action_table_style_classic.setChecked(True)
+        self.action_table_style_classic.triggered.connect(lambda checked: self.set_table_style("classic") if checked else None)
+        self.table_style_group.addAction(self.action_table_style_classic)
+        table_style_menu.addAction(self.action_table_style_classic)
+
+        self.action_table_style_modern = QAction("Modern", self)
+        self.action_table_style_modern.setCheckable(True)
+        self.action_table_style_modern.triggered.connect(lambda checked: self.set_table_style("modern") if checked else None)
+        self.table_style_group.addAction(self.action_table_style_modern)
+        table_style_menu.addAction(self.action_table_style_modern)
+
+        view_menu.addSeparator()
+
         sort_menu = view_menu.addMenu("Sort by")
         sort_fields = [
             ("File Name", 0), ("Size", 1), ("Status", 2), ("Time Left", 3), 
@@ -1754,6 +1773,8 @@ class MainWindow(QMainWindow):
         self.category_tree.customContextMenuRequested.connect(self._show_sidebar_context_menu)
         
         self.download_table = QTableWidget()
+        self._default_table_delegate = self.download_table.itemDelegate()
+        self.table_style = "classic"
         self.download_table.setIconSize(QSize(16, 16))
         self.download_table.setColumnCount(7)
         self.download_table.verticalHeader().setVisible(False)
@@ -2539,7 +2560,8 @@ class MainWindow(QMainWindow):
                 "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
-                "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
+                "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
+                "table_style": getattr(self, "table_style", "classic")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2721,6 +2743,7 @@ class MainWindow(QMainWindow):
         settings["accent"] = normalize_accent_name(settings.get("accent"))
         settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
         settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
+        settings["table_style"] = settings.get("table_style", "classic")
 
         apply_app_theme(
             settings["theme"],
@@ -2728,7 +2751,39 @@ class MainWindow(QMainWindow):
             settings["icon_theme"],
             settings["tray_icon"]
         )
+
+        self.set_table_style(settings["table_style"], initial=True)
         return settings
+
+    def set_table_style(self, style_name: str, initial=False):
+        """Switches between Classic and Modern table presentation styles."""
+        style_name = (style_name or "classic").lower()
+        self.table_style = style_name
+
+        if hasattr(self, "action_table_style_classic"):
+            self.action_table_style_classic.setChecked(style_name == "classic")
+        if hasattr(self, "action_table_style_modern"):
+            self.action_table_style_modern.setChecked(style_name == "modern")
+
+        if style_name == "modern":
+            from ui.delegates import ModernTableDelegate
+            if not hasattr(self, "_modern_delegate") or self._modern_delegate is None:
+                self._modern_delegate = ModernTableDelegate(self.download_table)
+            self.download_table.setItemDelegate(self._modern_delegate)
+            self.download_table.verticalHeader().setDefaultSectionSize(50)
+            for r in range(self.download_table.rowCount()):
+                self.download_table.setRowHeight(r, 50)
+        else:
+            # Classic style - exact unmodified original
+            if hasattr(self, "_default_table_delegate") and self._default_table_delegate:
+                self.download_table.setItemDelegate(self._default_table_delegate)
+            self.download_table.verticalHeader().setDefaultSectionSize(26)
+            for r in range(self.download_table.rowCount()):
+                self.download_table.setRowHeight(r, 26)
+
+        self.download_table.viewport().update()
+        if not initial and hasattr(self, "save_settings"):
+            self.save_settings()
 
     def show_header_context_menu(self, pos):
         menu = QMenu(self)
