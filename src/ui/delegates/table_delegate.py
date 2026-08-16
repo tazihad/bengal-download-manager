@@ -131,24 +131,36 @@ class ModernTableDelegate(QStyledItemDelegate):
         if "%" in status_text:
             try:
                 pct = float(status_text.split("%")[0].strip())
-                pct_str = f"{pct:.0f}%" if pct.is_integer() else f"{pct:.2f}%"
+                pct_str = f"{pct:.2f}%"
             except ValueError:
                 pct_str = status_text
         elif progress_val and "%" in str(progress_val):
             try:
                 pct = float(str(progress_val).replace("%", "").strip())
-                pct_str = f"{pct:.0f}%" if pct.is_integer() else f"{pct:.2f}%"
+                pct_str = f"{pct:.2f}%"
             except ValueError:
                 pct_str = str(progress_val)
 
-        # Determine state keyword: Paused, Downloading, Connecting, Error, etc.
+        # Determine state keyword: Paused, Downloading, Connecting, Resuming, Error, etc.
         state_label = ""
         if internal_status:
-            state_label = str(internal_status).replace("...", "").strip()
-            if state_label.lower() in ("pause", "paused"):
+            clean_status = str(internal_status).replace("...", "").strip()
+            if clean_status.lower() in ("pause", "paused"):
                 state_label = "Paused"
+            elif clean_status.lower() in ("resume", "resuming"):
+                state_label = "Resuming"
+            elif clean_status.lower() in ("connect", "connecting"):
+                state_label = "Connecting"
+            elif clean_status.lower() in ("download", "downloading", "receiving data"):
+                state_label = "Downloading"
+            else:
+                state_label = clean_status
         elif "pause" in status_text.lower():
             state_label = "Paused"
+        elif "resum" in status_text.lower():
+            state_label = "Resuming"
+        elif "connect" in status_text.lower():
+            state_label = "Connecting"
         elif pct > 0:
             state_label = "Downloading"
 

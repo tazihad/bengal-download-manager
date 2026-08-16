@@ -2008,30 +2008,31 @@ class MainWindow(QMainWindow):
             rows = set(item.row() for item in selected_rows)
             for r in rows:
                 item = self.download_table.item(r, 0)
+                if not item:
+                    continue
                 key = id(item)
                 
                 status_item = self.download_table.item(r, 2)
                 logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else None
                 status = logic_status if logic_status else (status_item.text() if status_item else "")
                 
-                # Check for active workers
-                if key in self.active_downloads:
+                is_active = key in self.active_downloads
+                if is_active:
                     selection_has_active = True
                 
-                # Pausable statuses (currently downloading)
-                if status in ["Connecting...", "Downloading", "Resuming...", "Pending..."]:
-                    selection_has_pausable = True
-                    
-                # Resumable statuses (not active and not completed)
-                if status in ["Paused", "Cancelled", "Error"]:
-                    selection_has_resumable = True
+                is_complete = status in ["Complete", "Finished"] or (item.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
+                
+                if not is_complete:
+                    if is_active or status in ["Connecting...", "Downloading", "Resuming...", "Pending..."]:
+                        selection_has_pausable = True
+                    elif status in ["Paused", "Cancelled", "Error"] or "%" in status or not is_active:
+                        selection_has_resumable = True
         
         # STOP action is for pausing an active download
         self.action_stop.setEnabled(selection_has_pausable and not selection_has_resumable)
         self.action_stop_all.setEnabled(has_active_downloads)
         
         # RESUME action is for starting a paused/errored/cancelled download
-        # Logic fix: Allow resume even if active (window open) if the status is logically paused
         self.action_resume.setEnabled(selection_has_resumable)
         self.action_download_now.setEnabled(selection_has_resumable)
         
@@ -3379,11 +3380,14 @@ class MainWindow(QMainWindow):
 
     def resume_selected_download(self):
         selected_items = self.download_table.selectedItems()
-        if not selected_items: return
+        if not selected_items:
+            return
         
         rows = set(item.row() for item in selected_items)
         for row in rows:
             item_name = self.download_table.item(row, 0)
+            if not item_name:
+                continue
             
             # If already active, bring dialog to front or resume if paused
             if id(item_name) in self.active_downloads:
@@ -3393,7 +3397,8 @@ class MainWindow(QMainWindow):
                 
                 if logic_status in ["Paused", "Cancelled", "Error"]:
                     # Forward resume to existing worker
-                    dialog.worker.resume()
+                    if hasattr(dialog, 'worker') and dialog.worker:
+                        dialog.worker.resume()
                 
                 dialog.activateWindow()
                 dialog.raise_()
@@ -3404,49 +3409,62 @@ class MainWindow(QMainWindow):
             filename = item_name.text()
             
             if url:
-                self._set_status_text(row, "Resuming...")                
+                self._set_status_text(row, "Resuming...")
+                status_item = self.download_table.item(row, 2)
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
                 # Update last try timestamp before resuming
                 new_timestamp = str(time.time())
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                 self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                 
                 self._start_download_worker(url, item_name, resume_filename=filename)
+        
+        self.update_ui_states()
 
     def stop_selected_download(self):
-        for item in self.download_table.selectedItems():
-            if item.column() == 0:
-                key = id(item)
-                if key in self.active_downloads:
-                    dialog = self.active_downloads.pop(key, None)
-                    self._stop_worker_entry(dialog)
+        selected_items = self.download_table.selectedItems()
+        if not selected_items:
+            return
+        
+        rows = set(item.row() for item in selected_items)
+        for r in rows:
+            item = self.download_table.item(r, 0)
+            if not item:
+                continue
+            key = id(item)
+            if key in self.active_downloads:
+                dialog = self.active_downloads.pop(key, None)
+                self._stop_worker_entry(dialog)
 
-                    # Update status preserving percentage string
-                    status_item = self.download_table.item(item.row(), 2)
-                    if status_item:
-                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                        if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
-                            continue
-                    if not status_item:
-                        status_item = QTableWidgetItem()
-                        self.download_table.setItem(item.row(), 2, status_item)
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
-                    self._set_status_text(item.row(), final_display)
+                # Update status preserving percentage string
+                status_item = self.download_table.item(r, 2)
+                if status_item:
+                    current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                    if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                        continue
+                if not status_item:
+                    status_item = QTableWidgetItem()
+                    self.download_table.setItem(r, 2, status_item)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                self._set_status_text(r, final_display)
 
-                    # Reset Time Left and Rate on pause
-                    self._set_sortable_item(item.row(), 3, "", parse_time_to_sec)
-                    self._set_sortable_item(item.row(), 4, "", parse_size_to_bytes)
+                # Reset Time Left and Rate on pause
+                self._set_sortable_item(r, 3, "", parse_time_to_sec)
+                self._set_sortable_item(r, 4, "", parse_size_to_bytes)
 
-                    # Update last try timestamp on pause
-                    item_ref = self.download_table.item(item.row(), 0)
-                    new_timestamp = str(time.time())
-                    item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                    self._set_timestamp_item(item.row(), 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                # Update last try timestamp on pause
+                new_timestamp = str(time.time())
+                item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
 
-                    # Close the dialog if it's a ProgressDialog
-                    if hasattr(dialog, 'reject'):
-                        dialog.reject()
+                # Close the dialog if it's a ProgressDialog
+                if hasattr(dialog, 'reject'):
+                    dialog.reject()
+        
+        self.update_ui_states()
 
     def _stop_worker_entry(self, entry):
         """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
@@ -3464,10 +3482,24 @@ class MainWindow(QMainWindow):
                 pass
         else:
             # Legacy ProgressDialog path
-            try:
-                entry.worker.stop()
-            except Exception:
-                pass
+            if hasattr(entry, 'worker') and entry.worker:
+                try:
+                    entry.worker.main_progress_signal.disconnect()
+                except Exception:
+                    pass
+                try:
+                    entry.worker.finished_signal.disconnect()
+                except Exception:
+                    pass
+                try:
+                    entry.worker.stop()
+                except Exception:
+                    pass
+                try:
+                    entry.worker.quit()
+                    entry.worker.wait(1000)
+                except Exception:
+                    pass
             try:
                 entry.reject()
             except Exception:
@@ -3501,6 +3533,7 @@ class MainWindow(QMainWindow):
                     self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     break
         self.active_downloads.clear()
+        self.update_ui_states()
 
     def remove_from_list(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
@@ -3676,6 +3709,14 @@ class MainWindow(QMainWindow):
                 if comp_bytes >= tot_bytes or pct_val >= 99.95 or worker_status == "Complete":
                     pct_str = "Complete"
                 else:
+                    prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+                    if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
+                        try:
+                            prev_val = float(str(prev_pct_str).replace("%", "").strip())
+                            if prev_val > 0:
+                                pct_val = prev_val
+                        except ValueError:
+                            pass
                     pct_str = f"{pct_val:.2f}%"
 
             if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":

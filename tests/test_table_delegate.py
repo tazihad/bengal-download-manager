@@ -73,11 +73,18 @@ def test_modern_table_delegate_painting(qapp):
     table.setItem(0, 2, item_paused)
     delegate.paint(painter, opt2, table.model().index(0, 2))
 
-    # Test status formatting for Active download (e.g. 20% Downloading)
+    # Test status formatting for Active download (e.g. 20.00% Downloading)
     item_dl = QTableWidgetItem("20%")
     item_dl.setData(Qt.ItemDataRole.UserRole, "20%")
     item_dl.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
     table.setItem(0, 2, item_dl)
+    delegate.paint(painter, opt2, table.model().index(0, 2))
+
+    # Test status formatting for Resuming download (e.g. 20.00% Resuming)
+    item_res = QTableWidgetItem("Resuming...")
+    item_res.setData(Qt.ItemDataRole.UserRole, "20.00%")
+    item_res.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+    table.setItem(0, 2, item_res)
     delegate.paint(painter, opt2, table.model().index(0, 2))
 
     painter.end()
