@@ -658,6 +658,8 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "BDM Light"
     elif s_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
         return "Modern Color"
+    elif s_lower in ("yaru", "ubuntu yaru"):
+        return "Yaru"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -818,7 +820,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -1020,6 +1022,10 @@ def get_themed_icon(name, fallback=None):
     if icon_theme_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
         from ui.icons import get_colorful_icon
         return get_colorful_icon(name)
+
+    if icon_theme_lower in ("yaru", "ubuntu yaru"):
+        from ui.icons import get_yaru_icon
+        return get_yaru_icon(name)
 
     if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])

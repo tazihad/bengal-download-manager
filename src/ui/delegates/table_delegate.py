@@ -114,36 +114,66 @@ class ModernTableDelegate(QStyledItemDelegate):
     def _paint_status_cell(self, painter: QPainter, option: QStyleOptionViewItem, index, rect: QRect, is_selected: bool):
         status_text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
         progress_val = index.data(Qt.ItemDataRole.UserRole)
+        internal_status = index.data(Qt.ItemDataRole.UserRole + 1)
 
-        text_rect = QRect(rect.left(), rect.top() + 1, rect.width(), (rect.height() // 2))
         font = QFont(option.font)
         font.setBold(True)
         painter.setFont(font)
 
-        if status_text in ("Complete", "Finished"):
+        if status_text in ("Complete", "Finished") or internal_status in ("Complete", "Finished") or "100" in str(progress_val):
             painter.setPen(QColor("#2ec27e"))
             painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "Finished")
             return
 
+        # Extract percentage numeric value
+        pct = 0.0
+        pct_str = ""
+        if "%" in status_text:
+            try:
+                pct = float(status_text.split("%")[0].strip())
+                pct_str = f"{pct:.0f}%" if pct.is_integer() else f"{pct:.2f}%"
+            except ValueError:
+                pct_str = status_text
+        elif progress_val and "%" in str(progress_val):
+            try:
+                pct = float(str(progress_val).replace("%", "").strip())
+                pct_str = f"{pct:.0f}%" if pct.is_integer() else f"{pct:.2f}%"
+            except ValueError:
+                pct_str = str(progress_val)
+
+        # Determine state keyword: Pause, Downloading, Connecting, Error, etc.
+        state_label = ""
+        if internal_status:
+            state_label = str(internal_status).replace("...", "").strip()
+            if state_label.lower() == "paused":
+                state_label = "Pause"
+        elif "pause" in status_text.lower():
+            state_label = "Pause"
+        elif pct > 0:
+            state_label = "Downloading"
+
+        if pct_str:
+            if state_label and state_label.lower() not in pct_str.lower():
+                display_label = f"{pct_str} {state_label}"
+            else:
+                display_label = pct_str
+        else:
+            display_label = status_text if status_text else "Queued"
+
+        text_rect = QRect(rect.left(), rect.top() + 1, rect.width(), (rect.height() // 2))
+
         if is_selected:
             painter.setPen(QColor("#000000"))
         else:
-            painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText))
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, status_text)
+            if "pause" in display_label.lower():
+                painter.setPen(QColor("#f59e0b"))
+            elif "error" in display_label.lower():
+                painter.setPen(QColor("#ef4444"))
+            else:
+                painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, display_label)
 
         # Mini Progress Bar underneath percentage/download status
-        pct = 0.0
-        if progress_val:
-            try:
-                pct = float(str(progress_val).replace("%", "").strip())
-            except ValueError:
-                pct = 0.0
-        elif "%" in status_text:
-            try:
-                pct = float(status_text.split("%")[0].strip())
-            except ValueError:
-                pct = 0.0
-
         bar_rect = QRect(rect.left(), rect.top() + (rect.height() // 2) + 5, rect.width(), 4)
         painter.setBrush(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.Mid))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -153,10 +183,13 @@ class ModernTableDelegate(QStyledItemDelegate):
             fill_width = int(bar_rect.width() * (min(100.0, pct) / 100.0))
             if fill_width > 0:
                 fill_rect = QRect(bar_rect.left(), bar_rect.top(), fill_width, bar_rect.height())
-                grad = QLinearGradient(fill_rect.left(), 0, fill_rect.right(), 0)
-                grad.setColorAt(0.0, QColor("#6366f1"))
-                grad.setColorAt(1.0, QColor("#ec4899"))
-                painter.setBrush(QBrush(grad))
+                if "pause" in display_label.lower():
+                    painter.setBrush(QColor("#f59e0b"))
+                else:
+                    grad = QLinearGradient(fill_rect.left(), 0, fill_rect.right(), 0)
+                    grad.setColorAt(0.0, QColor("#6366f1"))
+                    grad.setColorAt(1.0, QColor("#ec4899"))
+                    painter.setBrush(QBrush(grad))
                 painter.drawRoundedRect(fill_rect, 2, 2)
 
     def _paint_text_cell(self, painter: QPainter, option: QStyleOptionViewItem, index, rect: QRect, is_selected: bool):

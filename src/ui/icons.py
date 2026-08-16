@@ -838,3 +838,312 @@ def get_colorful_icon(name: str, size: int = 24) -> QIcon:
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
     return icon
 
+
+def draw_yaru_icon_path(painter: QPainter, name: str, size: int):
+    """
+    Renders Ubuntu Yaru style full-color vector icons featuring authentic Aubergine,
+    Orange, Green, and Red squircle tiles with clean geometry.
+    """
+    s = float(size)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+    def _draw_squircle(bg_color: str, r_pct: float = 0.22):
+        painter.setBrush(QColor(bg_color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(QRectF(s * 0.12, s * 0.12, s * 0.76, s * 0.76), s * r_pct, s * r_pct)
+
+    if name in ("add_url", "add"):
+        # Yaru Ubuntu Orange Squircle + Crisp White Plus
+        _draw_squircle("#e95420")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.08, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        cx, cy, arm = s * 0.50, s * 0.50, s * 0.18
+        painter.drawLine(QPointF(cx - arm, cy), QPointF(cx + arm, cy))
+        painter.drawLine(QPointF(cx, cy - arm), QPointF(cx, cy + arm))
+
+    elif name == "resume":
+        # Yaru Green Squircle + Play Triangle
+        _draw_squircle("#38b44a")
+        path = QPainterPath()
+        path.moveTo(s * 0.40, s * 0.32)
+        path.lineTo(s * 0.68, s * 0.50)
+        path.lineTo(s * 0.40, s * 0.68)
+        path.closeSubpath()
+        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
+
+    elif name in ("stop", "pause"):
+        # Yaru Orange Squircle + Dual Pause Bars
+        _draw_squircle("#ef7c00")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.08, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.40, s * 0.34), QPointF(s * 0.40, s * 0.66))
+        painter.drawLine(QPointF(s * 0.60, s * 0.34), QPointF(s * 0.60, s * 0.66))
+
+    elif name == "stop_all":
+        # Yaru Red Squircle + Stop Square
+        _draw_squircle("#c7162b")
+        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(QRectF(s * 0.35, s * 0.35, s * 0.30, s * 0.30), s * 0.06, s * 0.06)
+
+    elif name in ("delete", "trash"):
+        # Yaru Red Squircle + White Trash Bin
+        _draw_squircle("#c7162b")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.drawLine(QPointF(s * 0.30, s * 0.36), QPointF(s * 0.70, s * 0.36))
+        painter.drawLine(QPointF(s * 0.44, s * 0.36), QPointF(s * 0.44, s * 0.28))
+        painter.drawLine(QPointF(s * 0.44, s * 0.28), QPointF(s * 0.56, s * 0.28))
+        painter.drawLine(QPointF(s * 0.56, s * 0.28), QPointF(s * 0.56, s * 0.36))
+        body = QPainterPath()
+        body.moveTo(s * 0.34, s * 0.36)
+        body.lineTo(s * 0.38, s * 0.72)
+        body.lineTo(s * 0.62, s * 0.72)
+        body.lineTo(s * 0.66, s * 0.36)
+        painter.drawPath(body)
+        painter.drawLine(QPointF(s * 0.46, s * 0.44), QPointF(s * 0.46, s * 0.64))
+        painter.drawLine(QPointF(s * 0.54, s * 0.44), QPointF(s * 0.54, s * 0.64))
+
+    elif name in ("clear", "clear_completed"):
+        # Yaru Green Squircle + White Checkmark
+        _draw_squircle("#38b44a")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.08, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        chk = QPainterPath()
+        chk.moveTo(s * 0.32, s * 0.52)
+        chk.lineTo(s * 0.46, s * 0.66)
+        chk.lineTo(s * 0.70, s * 0.38)
+        painter.drawPath(chk)
+
+    elif name in ("options", "settings", "configure"):
+        # Yaru Aubergine Squircle + Cog
+        _draw_squircle("#77216f")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        cx, cy, r_out, r_in = s * 0.50, s * 0.50, s * 0.22, s * 0.15
+        gear = QPainterPath()
+        teeth = 6
+        for i in range(teeth * 2):
+            angle = math.radians(i * (360 / (teeth * 2)))
+            r = r_out if i % 2 == 0 else r_in
+            x = cx + r * math.cos(angle)
+            y = cy + r * math.sin(angle)
+            if i == 0: gear.moveTo(x, y)
+            else: gear.lineTo(x, y)
+        gear.closeSubpath()
+        painter.drawPath(gear)
+        painter.drawEllipse(QRectF(cx - s * 0.07, cy - s * 0.07, s * 0.14, s * 0.14))
+
+    elif name in ("media_downloader", "media", "video"):
+        # Yaru Aubergine Squircle + Video Screen
+        _draw_squircle("#5e2750")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        rect = QRectF(s * 0.26, s * 0.28, s * 0.48, s * 0.34)
+        painter.drawRoundedRect(rect, 2, 2)
+        painter.drawLine(QPointF(s * 0.40, s * 0.70), QPointF(s * 0.60, s * 0.70))
+        painter.drawLine(QPointF(s * 0.50, s * 0.62), QPointF(s * 0.50, s * 0.70))
+        play = QPainterPath()
+        play.moveTo(s * 0.45, s * 0.38)
+        play.lineTo(s * 0.57, s * 0.45)
+        play.lineTo(s * 0.45, s * 0.52)
+        play.closeSubpath()
+        painter.setBrush(QColor("#e95420"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(play)
+
+    elif name in ("open_folder", "folder", "folder_download"):
+        # Authentic Yaru Orange Folder
+        painter.setBrush(QColor("#e95420"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        f_back = QPainterPath()
+        f_back.moveTo(s * 0.18, s * 0.30)
+        f_back.lineTo(s * 0.42, s * 0.30)
+        f_back.lineTo(s * 0.50, s * 0.38)
+        f_back.lineTo(s * 0.82, s * 0.38)
+        f_back.lineTo(s * 0.82, s * 0.74)
+        f_back.lineTo(s * 0.18, s * 0.74)
+        f_back.closeSubpath()
+        painter.drawPath(f_back)
+
+        painter.setBrush(QColor("#f07f45"))
+        f_front = QPainterPath()
+        f_front.moveTo(s * 0.18, s * 0.42)
+        f_front.lineTo(s * 0.82, s * 0.42)
+        f_front.lineTo(s * 0.78, s * 0.74)
+        f_front.lineTo(s * 0.18, s * 0.74)
+        f_front.closeSubpath()
+        painter.drawPath(f_front)
+
+    elif name == "all_downloads":
+        # Yaru Blue Squircle + Arrow Tray
+        _draw_squircle("#19b6ee")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        t = QPainterPath()
+        t.moveTo(s * 0.28, s * 0.54)
+        t.lineTo(s * 0.28, s * 0.70)
+        t.lineTo(s * 0.72, s * 0.70)
+        t.lineTo(s * 0.72, s * 0.54)
+        painter.drawPath(t)
+        painter.drawLine(QPointF(s * 0.50, s * 0.28), QPointF(s * 0.50, s * 0.54))
+        arr = QPainterPath()
+        arr.moveTo(s * 0.38, s * 0.46)
+        arr.lineTo(s * 0.50, s * 0.56)
+        arr.lineTo(s * 0.62, s * 0.46)
+        painter.drawPath(arr)
+
+    elif name == "compressed":
+        # Yaru Orange Archive Box
+        _draw_squircle("#ef7c00")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.32, s * 0.36), QPointF(s * 0.68, s * 0.36))
+        painter.drawLine(QPointF(s * 0.32, s * 0.50), QPointF(s * 0.68, s * 0.50))
+        painter.drawLine(QPointF(s * 0.32, s * 0.64), QPointF(s * 0.68, s * 0.64))
+
+    elif name == "documents":
+        # Yaru Document Page Tile
+        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(QPen(QColor("#aea79f"), 1.0))
+        doc = QPainterPath()
+        doc.moveTo(s * 0.22, s * 0.16)
+        doc.lineTo(s * 0.58, s * 0.16)
+        doc.lineTo(s * 0.78, s * 0.36)
+        doc.lineTo(s * 0.78, s * 0.84)
+        doc.lineTo(s * 0.22, s * 0.84)
+        doc.closeSubpath()
+        painter.drawPath(doc)
+
+        painter.setBrush(QColor("#e95420"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(QRectF(s * 0.22, s * 0.16, s * 0.36, s * 0.08))
+
+        painter.setPen(QPen(QColor("#77216f"), s * 0.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.34, s * 0.48), QPointF(s * 0.66, s * 0.48))
+        painter.drawLine(QPointF(s * 0.34, s * 0.60), QPointF(s * 0.66, s * 0.60))
+        painter.drawLine(QPointF(s * 0.34, s * 0.72), QPointF(s * 0.54, s * 0.72))
+
+    elif name == "music":
+        # Yaru Aubergine Squircle + Music Note
+        _draw_squircle("#77216f")
+        painter.setBrush(QColor("#e95420"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(s * 0.28, s * 0.58, s * 0.20, s * 0.16))
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.48, s * 0.66), QPointF(s * 0.48, s * 0.30))
+        painter.drawLine(QPointF(s * 0.48, s * 0.30), QPointF(s * 0.72, s * 0.38))
+        painter.drawLine(QPointF(s * 0.72, s * 0.38), QPointF(s * 0.72, s * 0.54))
+
+    elif name in ("programs", "exe", "msi", "appimage", "flatpak"):
+        # Yaru Aubergine/Orange App Squircle
+        _draw_squircle("#e95420")
+        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(s * 0.28, s * 0.28, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.45, s * 0.28, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.62, s * 0.28, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.28, s * 0.45, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.45, s * 0.45, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.62, s * 0.45, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.28, s * 0.62, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.45, s * 0.62, s * 0.09, s * 0.09))
+        painter.drawEllipse(QRectF(s * 0.62, s * 0.62, s * 0.09, s * 0.09))
+
+    elif name == "unfinished":
+        _draw_squircle("#ef7c00")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.50, s * 0.50), QPointF(s * 0.50, s * 0.30))
+        painter.drawLine(QPointF(s * 0.50, s * 0.50), QPointF(s * 0.66, s * 0.50))
+
+    elif name == "finished":
+        _draw_squircle("#38b44a")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.08, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        chk = QPainterPath()
+        chk.moveTo(s * 0.32, s * 0.50)
+        chk.lineTo(s * 0.46, s * 0.64)
+        chk.lineTo(s * 0.68, s * 0.38)
+        painter.drawPath(chk)
+
+    elif name in ("scheduler", "queues", "alarm"):
+        _draw_squircle("#77216f")
+        cx, cy, r = s * 0.50, s * 0.54, s * 0.22
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        painter.drawLine(QPointF(cx - r * 0.70, cy - r * 0.90), QPointF(cx - r * 0.30, cy - r * 1.10))
+        painter.drawLine(QPointF(cx + r * 0.70, cy - r * 0.90), QPointF(cx + r * 0.30, cy - r * 1.10))
+        painter.drawLine(QPointF(cx, cy), QPointF(cx - r * 0.40, cy - r * 0.50))
+        painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - r * 0.65))
+
+    elif name in ("exit", "quit"):
+        _draw_squircle("#c7162b")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawArc(QRectF(s * 0.28, s * 0.28, s * 0.44, s * 0.44), 45 * 16, 270 * 16)
+        painter.drawLine(QPointF(s * 0.50, s * 0.26), QPointF(s * 0.50, s * 0.48))
+
+    elif name in ("show_hide", "window_toggle"):
+        _draw_squircle("#5e2750")
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.16, s * 0.36), QPointF(s * 0.84, s * 0.36))
+
+    elif name == "github":
+        painter.setBrush(QColor("#24292e"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(s * 0.14, s * 0.14, s * 0.72, s * 0.72))
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.06, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        cat = QPainterPath()
+        cat.moveTo(s * 0.35, s * 0.45)
+        cat.lineTo(s * 0.42, s * 0.68)
+        cat.lineTo(s * 0.58, s * 0.68)
+        cat.lineTo(s * 0.65, s * 0.45)
+        painter.drawPath(cat)
+
+    elif name == "firefox":
+        _draw_squircle("#e95420")
+        painter.setBrush(QColor("#ffbd2e"))
+        painter.drawEllipse(QRectF(s * 0.24, s * 0.24, s * 0.52, s * 0.52))
+        painter.setBrush(QColor("#19b6ee"))
+        painter.drawEllipse(QRectF(s * 0.36, s * 0.36, s * 0.28, s * 0.28))
+
+    elif name == "chrome":
+        _draw_squircle("#ffffff")
+        painter.setBrush(QColor("#ea4335"))
+        painter.drawPie(QRectF(s * 0.22, s * 0.22, s * 0.56, s * 0.56), 0, 120 * 16)
+        painter.setBrush(QColor("#fbbc05"))
+        painter.drawPie(QRectF(s * 0.22, s * 0.22, s * 0.56, s * 0.56), 120 * 16, 120 * 16)
+        painter.setBrush(QColor("#34a853"))
+        painter.drawPie(QRectF(s * 0.22, s * 0.22, s * 0.56, s * 0.56), 240 * 16, 120 * 16)
+        painter.setBrush(QColor("#4285f4"))
+        painter.drawEllipse(QRectF(s * 0.36, s * 0.36, s * 0.28, s * 0.28))
+
+    else:
+        _draw_squircle("#e95420")
+        painter.setBrush(QColor("#ffffff"))
+        painter.drawEllipse(QRectF(s * 0.35, s * 0.35, s * 0.30, s * 0.30))
+
+
+def get_yaru_icon(name: str, size: int = 24) -> QIcon:
+    """
+    Renders an authentic Ubuntu Yaru style full-color vector icon for Bengal Download Manager.
+    Includes high-DPI crisp antialiasing and automatic faded disabled states.
+    """
+    pixmap = QPixmap(size * 2, size * 2)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    draw_yaru_icon_path(painter, name, size * 2)
+    painter.end()
+
+    disabled_pixmap = QPixmap(pixmap.size())
+    disabled_pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(disabled_pixmap)
+    p.setOpacity(0.35)
+    p.drawPixmap(0, 0, pixmap)
+    p.end()
+
+    icon = QIcon()
+    icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.On)
+    icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.On)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.On)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
+    return icon
+
+

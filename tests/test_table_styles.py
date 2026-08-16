@@ -110,3 +110,29 @@ def test_modern_color_icon_set(qapp):
         assert not direct_ic.isNull()
 
 
+def test_yaru_icon_set(qapp):
+    from main import get_themed_icon, normalize_icon_theme_name, apply_app_theme
+    from ui.icons import get_yaru_icon
+
+    assert normalize_icon_theme_name("Yaru") == "Yaru"
+    assert normalize_icon_theme_name("yaru") == "Yaru"
+    assert normalize_icon_theme_name("ubuntu yaru") == "Yaru"
+
+    apply_app_theme("BDM Dark (Default)", "BDM (Default)", "Yaru", "App Icon (Default)", qapp)
+
+    all_symbols = [
+        "add_url", "resume", "stop", "stop_all", "delete", "clear",
+        "options", "media_downloader", "open_folder", "all_downloads",
+        "compressed", "documents", "music", "programs", "exe", "msi",
+        "appimage", "flatpak", "unfinished", "finished", "scheduler",
+        "exit", "show_hide", "github", "firefox", "chrome"
+    ]
+
+    for sym in all_symbols:
+        ic = get_themed_icon(sym)
+        assert not ic.isNull()
+        direct_ic = get_yaru_icon(sym)
+        assert not direct_ic.isNull()
+
+
+
