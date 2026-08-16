@@ -107,21 +107,49 @@ Kirigami.Dialog {
                                 id: contextMenu
 
                                 Controls.MenuItem {
+                                    id: miStart
                                     text: "Start now"
+                                    contentItem: Controls.Label {
+                                        text: miStart.text
+                                        font: miStart.font
+                                        color: miStart.highlighted ? "#000000" : palette.text
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
                                 Controls.MenuItem {
+                                    id: miStop
                                     text: "Stop"
+                                    contentItem: Controls.Label {
+                                        text: miStop.text
+                                        font: miStop.font
+                                        color: miStop.highlighted ? "#000000" : palette.text
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
                                 Controls.MenuSeparator {}
                                 Controls.MenuItem {
+                                    id: miEdit
                                     text: "Edit queue"
+                                    contentItem: Controls.Label {
+                                        text: miEdit.text
+                                        font: miEdit.font
+                                        color: miEdit.highlighted ? "#000000" : palette.text
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                     onTriggered: {
                                         queuesDialog.selectedIndex = index
                                         queuesDialog.selectedQueue = queuesModel.get(index)
                                     }
                                 }
                                 Controls.MenuItem {
+                                    id: miSchedule
                                     text: "Schedule"
+                                    contentItem: Controls.Label {
+                                        text: miSchedule.text
+                                        font: miSchedule.font
+                                        color: miSchedule.highlighted ? "#000000" : palette.text
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                     onTriggered: {
                                         queuesDialog.selectedIndex = index
                                         queuesDialog.selectedQueue = queuesModel.get(index)
@@ -130,8 +158,16 @@ Kirigami.Dialog {
                                 }
                                 Controls.MenuSeparator {}
                                 Controls.MenuItem {
+                                    id: miDelete
                                     text: "Delete"
                                     enabled: !model.isDefault
+                                    contentItem: Controls.Label {
+                                        text: miDelete.text
+                                        font: miDelete.font
+                                        opacity: miDelete.enabled ? 1.0 : 0.5
+                                        color: !miDelete.enabled ? "#888888" : (miDelete.highlighted ? "#000000" : palette.text)
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                     onTriggered: {
                                         queuesModel.remove(index)
                                         if (queuesDialog.selectedIndex === index) {
@@ -141,7 +177,14 @@ Kirigami.Dialog {
                                     }
                                 }
                                 Controls.MenuItem {
+                                    id: miNew
                                     text: "Create new queue"
+                                    contentItem: Controls.Label {
+                                        text: miNew.text
+                                        font: miNew.font
+                                        color: miNew.highlighted ? "#000000" : palette.text
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                     onTriggered: addNewQueue()
                                 }
                             }

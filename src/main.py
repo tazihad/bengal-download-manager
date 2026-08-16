@@ -836,7 +836,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QMenuBar::item:selected, QMenuBar::item:hover {
                 background-color: palette(highlight);
-                color: palette(highlighted-text);
+                color: #000000;
+            }
+            QMenuBar::item:disabled {
+                color: #888888;
+                background-color: transparent;
             }
             QMenu {
                 background-color: palette(window);
@@ -852,7 +856,15 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QMenu::item:selected, QMenu::item:hover {
                 background-color: palette(highlight);
-                color: palette(highlighted-text);
+                color: #000000;
+            }
+            QMenu::item:disabled {
+                color: #888888;
+                background-color: transparent;
+            }
+            QMenu::item:disabled:selected, QMenu::item:disabled:hover {
+                color: #888888;
+                background-color: transparent;
             }
             QMenu::separator {
                 height: 1px;

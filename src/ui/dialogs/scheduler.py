@@ -131,6 +131,35 @@ class SchedulerDialog(QDialog):
                 background-color: palette(disabled, base);
                 border: 1px solid palette(disabled, mid);
             }
+            QMenu {
+                background-color: palette(window);
+                color: palette(window-text);
+                border: 1px solid palette(mid);
+                padding: 4px;
+            }
+            QMenu::item {
+                background-color: transparent;
+                color: palette(window-text);
+                padding: 5px 24px 5px 12px;
+                border-radius: 2px;
+            }
+            QMenu::item:selected, QMenu::item:hover {
+                background-color: palette(highlight);
+                color: #000000;
+            }
+            QMenu::item:disabled {
+                color: #888888;
+                background-color: transparent;
+            }
+            QMenu::item:disabled:selected, QMenu::item:disabled:hover {
+                color: #888888;
+                background-color: transparent;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: palette(mid);
+                margin: 4px 6px;
+            }
         """)
 
         # Queue data storage — use caller-supplied list or fall back to defaults
