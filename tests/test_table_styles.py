@@ -84,3 +84,29 @@ def test_twilight_theme_and_accent(qapp):
     assert pal.color(QPalette.ColorRole.Window).name().lower() == "#181424"
     assert pal.color(QPalette.ColorRole.Base).name().lower() == "#13111c"
 
+
+def test_modern_color_icon_set(qapp):
+    from main import get_themed_icon, normalize_icon_theme_name, apply_app_theme
+    from ui.icons import get_colorful_icon
+
+    assert normalize_icon_theme_name("Modern Color") == "Modern Color"
+    assert normalize_icon_theme_name("modern color") == "Modern Color"
+    assert normalize_icon_theme_name("prism") == "Modern Color"
+
+    apply_app_theme("BDM Dark (Default)", "BDM (Default)", "Modern Color", "App Icon (Default)", qapp)
+
+    all_symbols = [
+        "add_url", "resume", "stop", "stop_all", "delete", "clear",
+        "options", "media_downloader", "open_folder", "all_downloads",
+        "compressed", "documents", "music", "programs", "exe", "msi",
+        "appimage", "flatpak", "unfinished", "finished", "scheduler",
+        "exit", "show_hide", "github", "firefox", "chrome"
+    ]
+
+    for sym in all_symbols:
+        ic = get_themed_icon(sym)
+        assert not ic.isNull()
+        direct_ic = get_colorful_icon(sym)
+        assert not direct_ic.isNull()
+
+

@@ -656,6 +656,8 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "BDM Dark"
     elif s_lower in ("bdm light", "bdmlight"):
         return "BDM Light"
+    elif s_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
+        return "Modern Color"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -678,7 +680,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     """
     Applies application theme ('Automatic', 'BDM Light', 'BDM Dark', 'Ubuntu Light', 'Ubuntu Dark',
     'IDM Classic', 'Kirigami Light', 'Kirigami Dark', 'Breeze Light', 'Breeze Dark',
-    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark'),
+    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark', 'Twilight'),
     custom accent color, custom toolbar icon set, and custom system tray icon set.
     """
     if app is None:
@@ -816,12 +818,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
             "breeze dark": "breeze-dark",
-            "ubuntu": "ubuntu-mono-dark",
             "adwaita": "Adwaita",
             "highcolor": "hicolor"
         }
@@ -1015,6 +1016,10 @@ def get_themed_icon(name, fallback=None):
 
     icon_theme_str = str(CURRENT_ICON_THEME).strip() if CURRENT_ICON_THEME else "BDM Auto (Default)"
     icon_theme_lower = icon_theme_str.lower()
+
+    if icon_theme_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
+        from ui.icons import get_colorful_icon
+        return get_colorful_icon(name)
 
     if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])

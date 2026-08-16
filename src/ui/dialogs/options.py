@@ -127,7 +127,7 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
+        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
