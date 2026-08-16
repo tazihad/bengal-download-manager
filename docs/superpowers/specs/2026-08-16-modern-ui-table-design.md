@@ -23,7 +23,8 @@ Under the `View` menu in `MainWindow`:
   - Action 2: `Modern` (Checkable, grouped in `QActionGroup`)
 
 ### 3.2 Classic Style Layout
-- **Columns**: `["File Name", "Size", "Status", "Time left", "Transfer rate", "Last Try Date", "Description"]`
+- **Columns**: The exact 7 existing columns: `["File Name", "Size", "Status", "Time Left", "Transfer Rate", "Last Try", "Date Added"]`.
+- **Invariance**: No columns, names, widths, tooltips, or headers are modified in Classic mode.
 - **Row Height**: Default compact height (~26px).
 - **Styling**: Standard Qt grid / header styling.
 
