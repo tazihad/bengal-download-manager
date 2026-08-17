@@ -718,24 +718,34 @@ class YtDlpDownloadWorker(QThread):
                     if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
                         is_media_stream = False
 
-                    # Check size: if size > 500 KB or line has aria2c markers (SPD: / CN: / DL:), it is a media stream
-                    size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
-                    if size_match:
-                        parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                    # Check for explicit dual sizes (downloaded / total or downloaded of total)
+                    dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                    if dual_size_match:
+                        parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
+                        parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
                         if parsed_total > 500 * 1024:
                             is_media_stream = True
                             if parsed_total > total_bytes:
                                 total_bytes = parsed_total
-                    elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
-                        is_media_stream = True
+                            if parsed_downloaded > 0:
+                                downloaded_bytes = parsed_downloaded
+                    else:
+                        size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                        if size_match:
+                            parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                            if parsed_total > 500 * 1024:
+                                is_media_stream = True
+                                if parsed_total > total_bytes:
+                                    total_bytes = parsed_total
+                        elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
+                            is_media_stream = True
 
                     if is_media_stream:
-                        pct_match = re.search(r"(\d+\.?\d*)%", line_str)
+                        pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
                         if pct_match:
                             pct = float(pct_match.group(1))
-
-                        if total_bytes > 500 * 1024:
-                            downloaded_bytes = (pct / 100.0) * total_bytes
+                            if total_bytes > 500 * 1024 and (not dual_size_match or downloaded_bytes == 0):
+                                downloaded_bytes = (pct / 100.0) * total_bytes
 
                         speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
                         if not speed_match:

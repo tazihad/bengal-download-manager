@@ -269,3 +269,46 @@ def test_media_downloader_subprocess_clean_env(monkeypatch, tmp_path):
         assert "LD_LIBRARY_PATH" not in popen_env
 
 
+def test_media_downloader_fractional_percentage_progress(tmp_path):
+    """Verify that YtDlpDownloadWorker extracts fractional percentages and dual byte metrics."""
+    downloader = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=frac",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="frac.mp4"
+    )
+
+    captured_tuples = []
+    downloader.main_progress_signal.connect(lambda row, data: captured_tuples.append(data))
+
+    aria2c_line = "[#2a20b0 22.45MiB/100.00MiB(22%) CN:16 DL:5.0MiB ETA:15s]"
+    ytdlp_line = "[download]  34.56% of ~ 100.00MiB at 5.00MiB/s ETA 00:13"
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = [aria2c_line, ytdlp_line]
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        downloader.run()
+
+    # Verify aria2c fractional dual bytes parsed
+    assert len(captured_tuples) >= 2
+    aria2_tuple = captured_tuples[1]  # index 0 was connecting, 1 is aria2c line
+    assert aria2_tuple[5] == int(22.45 * 1024 * 1024)
+    assert aria2_tuple[6] == int(100.00 * 1024 * 1024)
+    # Ratio calculation yields 22.45%
+    aria2_pct = (aria2_tuple[5] / aria2_tuple[6]) * 100
+    assert f"{aria2_pct:.2f}%" == "22.45%"
+
+    # Verify yt-dlp fractional percentage parsed
+    ytdlp_tuple = captured_tuples[2]
+    ytdlp_pct = (ytdlp_tuple[5] / ytdlp_tuple[6]) * 100
+    assert f"{ytdlp_pct:.2f}%" == "34.56%"
+
+
+
