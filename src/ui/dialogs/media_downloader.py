@@ -1075,7 +1075,15 @@ class MediaDownloaderDialog(QDialog):
         for row_idx, fmt in enumerate(formats):
             self.tbl_formats.insertRow(row_idx)
             self.tbl_formats.setItem(row_idx, 0, QTableWidgetItem(str(fmt["format_id"])))
-            self.tbl_formats.setItem(row_idx, 1, QTableWidgetItem(str(fmt["res_label"])))
+            
+            fps_val = int(fmt.get("fps") or 0)
+            res_label = str(fmt.get("res_label") or "")
+            if fps_val > 0 and fmt.get("is_video"):
+                res_display = f"{res_label} ({fps_val}fps)"
+            else:
+                res_display = res_label
+            self.tbl_formats.setItem(row_idx, 1, QTableWidgetItem(res_display))
+            
             self.tbl_formats.setItem(row_idx, 2, QTableWidgetItem(str(fmt["ext"])))
             
             codec_info = fmt["vcodec"] if fmt["vcodec"] != "none" else fmt["acodec"]
@@ -1127,14 +1135,32 @@ class MediaDownloaderDialog(QDialog):
         available_heights = {fmt.get("height", 0) for fmt in formats if fmt.get("is_video") and fmt.get("height")}
         has_audio = any(fmt.get("is_audio") for fmt in formats)
 
+        def _get_max_fps(min_h, max_h=None):
+            tier_fps = [
+                int(f.get("fps") or 0)
+                for f in formats
+                if f.get("is_video") and f.get("height", 0) >= min_h and (max_h is None or f.get("height", 0) <= max_h)
+            ]
+            return max(tier_fps) if tier_fps else 0
+
+        def _fps_suffix(fps):
+            return f" ({fps}fps)" if fps > 0 else ""
+
+        fps_2160 = _get_max_fps(2160)
+        fps_1440 = _get_max_fps(1440, 2159)
+        fps_1080 = _get_max_fps(1080, 1439)
+        fps_720 = _get_max_fps(720, 1079)
+        fps_480 = _get_max_fps(480, 719)
+        fps_360 = _get_max_fps(360, 479)
+
         preset_items = [
             ("Best Quality (Video + Audio merged)", True),
-            ("4K Ultra HD (2160p)", any(h >= 2160 for h in available_heights)),
-            ("2K Quad HD (1440p)", any(h >= 1440 for h in available_heights)),
-            ("1080p Full HD", any(h >= 1080 for h in available_heights)),
-            ("720p HD", any(h >= 720 for h in available_heights)),
-            ("480p SD", any(h >= 480 for h in available_heights)),
-            ("360p Low Quality", any(h >= 360 for h in available_heights)),
+            (f"4K Ultra HD (2160p){_fps_suffix(fps_2160)}", any(h >= 2160 for h in available_heights)),
+            (f"2K Quad HD (1440p){_fps_suffix(fps_1440)}", any(h >= 1440 for h in available_heights)),
+            (f"1080p Full HD{_fps_suffix(fps_1080)}", any(h >= 1080 for h in available_heights)),
+            (f"720p HD{_fps_suffix(fps_720)}", any(h >= 720 for h in available_heights)),
+            (f"480p SD{_fps_suffix(fps_480)}", any(h >= 480 for h in available_heights)),
+            (f"360p Low Quality{_fps_suffix(fps_360)}", any(h >= 360 for h in available_heights)),
             ("Audio Only (MP3)", has_audio)
         ]
 
@@ -1328,10 +1354,20 @@ class MediaDownloaderDialog(QDialog):
 
     def _find_format_row_by_height(self, target_height: int) -> int:
         formats = self._current_video_data.get("formats", [])
+        best_row = 0
+        best_fps = -1
+        best_tbr = -1
+        found = False
         for i, fmt in enumerate(formats):
             if fmt.get("height") == target_height:
-                return i
-        return 0
+                fps = int(fmt.get("fps") or 0)
+                tbr = int(fmt.get("tbr") or 0)
+                if not found or fps > best_fps or (fps == best_fps and tbr > best_tbr):
+                    best_fps = fps
+                    best_tbr = tbr
+                    best_row = i
+                    found = True
+        return best_row
 
     def _find_audio_only_row(self) -> int:
         formats = self._current_video_data.get("formats", [])

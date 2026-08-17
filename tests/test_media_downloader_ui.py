@@ -331,3 +331,94 @@ def test_media_downloader_dialog_auto_start_browser_checkbox(qapp):
     cfg_updated2 = load_category_config()
     assert cfg_updated2.get("media_downloader_defaults", {}).get("auto_start_media") is False
     dlg.close()
+
+
+def test_media_downloader_fps_display_and_selection(qapp):
+    """Verify that FPS information is formatted in table rows and quality presets."""
+    dlg = MediaDownloaderDialog()
+    sample_data = {
+        "title": "High FPS Video Sample",
+        "duration": 180,
+        "uploader": "Test Channel",
+        "thumbnail": None,
+        "formats": [
+            {
+                "format_id": "137",
+                "ext": "mp4",
+                "vcodec": "avc1.640028",
+                "acodec": "none",
+                "height": 1080,
+                "width": 1920,
+                "fps": 60,
+                "filesize": 100 * 1024 * 1024,
+                "tbr": 8000,
+                "res_label": "1080p",
+                "is_video": True,
+                "is_audio": False
+            },
+            {
+                "format_id": "248",
+                "ext": "webm",
+                "vcodec": "vp9",
+                "acodec": "none",
+                "height": 1080,
+                "width": 1920,
+                "fps": 30,
+                "filesize": 70 * 1024 * 1024,
+                "tbr": 5000,
+                "res_label": "1080p",
+                "is_video": True,
+                "is_audio": False
+            },
+            {
+                "format_id": "136",
+                "ext": "mp4",
+                "vcodec": "avc1.4d401f",
+                "acodec": "none",
+                "height": 720,
+                "width": 1280,
+                "fps": 60,
+                "filesize": 50 * 1024 * 1024,
+                "tbr": 4000,
+                "res_label": "720p",
+                "is_video": True,
+                "is_audio": False
+            },
+            {
+                "format_id": "140",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "mp4a.40.2",
+                "height": 0,
+                "width": 0,
+                "fps": 0,
+                "filesize": 5 * 1024 * 1024,
+                "tbr": 128,
+                "res_label": "Audio Only",
+                "is_video": False,
+                "is_audio": True
+            }
+        ]
+    }
+
+    dlg._on_single_video_ready(sample_data)
+
+    # 1. Format table must display FPS in Resolution column
+    assert dlg.tbl_formats.rowCount() == 4
+    assert dlg.tbl_formats.item(0, 1).text() == "1080p (60fps)"
+    assert dlg.tbl_formats.item(1, 1).text() == "1080p (30fps)"
+    assert dlg.tbl_formats.item(2, 1).text() == "720p (60fps)"
+    assert dlg.tbl_formats.item(3, 1).text() == "Audio Only"
+
+    # 2. Preset dropdown must display max FPS available per tier
+    # 1080p has 60fps available -> "1080p Full HD (60fps)"
+    # 720p has 60fps available -> "720p HD (60fps)"
+    preset_texts = [dlg.cmb_quality_preset.itemText(i) for i in range(dlg.cmb_quality_preset.count())]
+    assert any("1080p Full HD (60fps)" in t for t in preset_texts)
+    assert any("720p HD (60fps)" in t for t in preset_texts)
+
+    # 3. Selecting 1080p preset should choose the highest FPS row (format_id 137 / 60fps)
+    best_row_1080 = dlg._find_format_row_by_height(1080)
+    assert best_row_1080 == 0  # Row 0 has 60fps vs Row 1 has 30fps
+
+    dlg.close()
