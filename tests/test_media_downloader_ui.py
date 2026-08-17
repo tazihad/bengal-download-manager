@@ -410,15 +410,36 @@ def test_media_downloader_fps_display_and_selection(qapp):
     assert dlg.tbl_formats.item(2, 1).text() == "720p (60fps)"
     assert dlg.tbl_formats.item(3, 1).text() == "Audio Only"
 
-    # 2. Preset dropdown must display max FPS available per tier
-    # 1080p has 60fps available -> "1080p Full HD (60fps)"
-    # 720p has 60fps available -> "720p HD (60fps)"
-    preset_texts = [dlg.cmb_quality_preset.itemText(i) for i in range(dlg.cmb_quality_preset.count())]
-    assert any("1080p Full HD (60fps)" in t for t in preset_texts)
-    assert any("720p HD (60fps)" in t for t in preset_texts)
+    # 2. Dedicated FPS dropdown must contain all available video stream framerates
+    assert hasattr(dlg, "cmb_fps")
+    fps_items = [dlg.cmb_fps.itemText(i) for i in range(dlg.cmb_fps.count())]
+    assert "Any FPS (Default)" in fps_items
+    assert "60 fps" in fps_items
+    assert "30 fps" in fps_items
 
-    # 3. Selecting 1080p preset should choose the highest FPS row (format_id 137 / 60fps)
-    best_row_1080 = dlg._find_format_row_by_height(1080)
-    assert best_row_1080 == 0  # Row 0 has 60fps vs Row 1 has 30fps
+    # 3. Clean quality presets are preserved
+    preset_texts = [dlg.cmb_quality_preset.itemText(i) for i in range(dlg.cmb_quality_preset.count())]
+    assert any("1080p Full HD" in t for t in preset_texts)
+    assert any("720p HD" in t for t in preset_texts)
+
+    # 4. Selecting 1080p preset + 30 fps passes [fps<=30] to yt-dlp format spec
+    dlg.cmb_quality_preset.setCurrentIndex(3)  # 1080p Full HD
+    dlg.cmb_fps.setCurrentIndex(2)             # 30 fps
+    spec, is_audio = dlg._get_single_video_format_spec()
+    assert "[fps<=30]" in spec
+    assert "height<=1080" in spec
+    assert is_audio is False
+
+    # 5. Selecting 1080p preset + 60 fps passes [fps<=60] to yt-dlp format spec
+    dlg.cmb_fps.setCurrentIndex(1)             # 60 fps
+    spec60, _ = dlg._get_single_video_format_spec()
+    assert "[fps<=60]" in spec60
+
+    # 6. Selecting target_fps=30 highlights the 30fps row
+    best_row_30 = dlg._find_format_row_by_height(1080, target_fps=30)
+    assert best_row_30 == 1  # Row 1 is 1080p 30fps
+
+    best_row_60 = dlg._find_format_row_by_height(1080, target_fps=60)
+    assert best_row_60 == 0  # Row 0 is 1080p 60fps
 
     dlg.close()

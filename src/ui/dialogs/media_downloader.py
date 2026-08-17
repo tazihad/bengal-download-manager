@@ -638,7 +638,7 @@ class MediaDownloaderDialog(QDialog):
         preset_layout = QHBoxLayout()
         preset_layout.setSpacing(8)
 
-        lbl_preset = QLabel("Quality Preset:")
+        lbl_preset = QLabel("Preset:")
         self.cmb_quality_preset = QComboBox()
         self.cmb_quality_preset.setFixedHeight(30)
         self.cmb_quality_preset.setToolTip("Select quality preset (auto-merges Video + Audio)")
@@ -653,6 +653,13 @@ class MediaDownloaderDialog(QDialog):
             "Audio Only (MP3)"
         ])
         self.cmb_quality_preset.currentIndexChanged.connect(self._on_preset_changed)
+
+        lbl_fps = QLabel("FPS:")
+        self.cmb_fps = QComboBox()
+        self.cmb_fps.setFixedHeight(30)
+        self.cmb_fps.setToolTip("Filter video framerate (e.g. 60 fps, 30 fps)")
+        self.cmb_fps.addItem("Any FPS", 0)
+        self.cmb_fps.currentIndexChanged.connect(self._on_preset_changed)
 
         lbl_vfmt = QLabel("Video:")
         self.cmb_video_format = QComboBox()
@@ -681,7 +688,9 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_audio_format.currentIndexChanged.connect(self._on_preset_changed)
 
         preset_layout.addWidget(lbl_preset)
-        preset_layout.addWidget(self.cmb_quality_preset, stretch=2)
+        preset_layout.addWidget(self.cmb_quality_preset, stretch=3)
+        preset_layout.addWidget(lbl_fps)
+        preset_layout.addWidget(self.cmb_fps, stretch=2)
         preset_layout.addWidget(lbl_vfmt)
         preset_layout.addWidget(self.cmb_video_format, stretch=2)
         preset_layout.addWidget(lbl_afmt)
@@ -1135,32 +1144,14 @@ class MediaDownloaderDialog(QDialog):
         available_heights = {fmt.get("height", 0) for fmt in formats if fmt.get("is_video") and fmt.get("height")}
         has_audio = any(fmt.get("is_audio") for fmt in formats)
 
-        def _get_max_fps(min_h, max_h=None):
-            tier_fps = [
-                int(f.get("fps") or 0)
-                for f in formats
-                if f.get("is_video") and f.get("height", 0) >= min_h and (max_h is None or f.get("height", 0) <= max_h)
-            ]
-            return max(tier_fps) if tier_fps else 0
-
-        def _fps_suffix(fps):
-            return f" ({fps}fps)" if fps > 0 else ""
-
-        fps_2160 = _get_max_fps(2160)
-        fps_1440 = _get_max_fps(1440, 2159)
-        fps_1080 = _get_max_fps(1080, 1439)
-        fps_720 = _get_max_fps(720, 1079)
-        fps_480 = _get_max_fps(480, 719)
-        fps_360 = _get_max_fps(360, 479)
-
         preset_items = [
             ("Best Quality (Video + Audio merged)", True),
-            (f"4K Ultra HD (2160p){_fps_suffix(fps_2160)}", any(h >= 2160 for h in available_heights)),
-            (f"2K Quad HD (1440p){_fps_suffix(fps_1440)}", any(h >= 1440 for h in available_heights)),
-            (f"1080p Full HD{_fps_suffix(fps_1080)}", any(h >= 1080 for h in available_heights)),
-            (f"720p HD{_fps_suffix(fps_720)}", any(h >= 720 for h in available_heights)),
-            (f"480p SD{_fps_suffix(fps_480)}", any(h >= 480 for h in available_heights)),
-            (f"360p Low Quality{_fps_suffix(fps_360)}", any(h >= 360 for h in available_heights)),
+            ("4K Ultra HD (2160p)", any(h >= 2160 for h in available_heights)),
+            ("2K Quad HD (1440p)", any(h >= 1440 for h in available_heights)),
+            ("1080p Full HD", any(h >= 1080 for h in available_heights)),
+            ("720p HD", any(h >= 720 for h in available_heights)),
+            ("480p SD", any(h >= 480 for h in available_heights)),
+            ("360p Low Quality", any(h >= 360 for h in available_heights)),
             ("Audio Only (MP3)", has_audio)
         ]
 
@@ -1183,6 +1174,22 @@ class MediaDownloaderDialog(QDialog):
 
         self.cmb_quality_preset.setCurrentIndex(valid_idx)
         self.cmb_quality_preset.blockSignals(False)
+
+        # Dynamic FPS Filter based on available video stream framerates
+        available_fps = sorted({int(f.get("fps")) for f in formats if f.get("is_video") and f.get("fps") and int(f.get("fps")) > 0}, reverse=True)
+        curr_fps = self.cmb_fps.currentData() if hasattr(self, "cmb_fps") else 0
+        self.cmb_fps.blockSignals(True)
+        self.cmb_fps.clear()
+        self.cmb_fps.addItem("Any FPS (Default)", 0)
+        fps_to_select = 0
+        for fps_val in available_fps:
+            self.cmb_fps.addItem(f"{fps_val} fps", fps_val)
+            if curr_fps == fps_val:
+                fps_to_select = self.cmb_fps.count() - 1
+
+        self.cmb_fps.setCurrentIndex(fps_to_select)
+        self.cmb_fps.setEnabled(bool(available_fps) and not self.chk_manual_selection.isChecked())
+        self.cmb_fps.blockSignals(False)
 
         # Dynamic Video & Audio Codec Filters based on analyzed video formats
         has_h264 = any("avc" in (f.get("vcodec") or "").lower() or f.get("ext") == "mp4" for f in formats if f.get("is_video"))
@@ -1239,6 +1246,12 @@ class MediaDownloaderDialog(QDialog):
 
         self.cmb_quality_preset.setCurrentIndex(min(max(0, curr_idx), len(preset_items) - 1))
         self.cmb_quality_preset.blockSignals(False)
+
+        if hasattr(self, "cmb_fps"):
+            self.cmb_fps.blockSignals(True)
+            self.cmb_fps.clear()
+            self.cmb_fps.addItem("Any FPS (Default)", 0)
+            self.cmb_fps.blockSignals(False)
 
     def _on_playlist_ready(self, data: dict):
         self._finish_loading()
@@ -1321,6 +1334,7 @@ class MediaDownloaderDialog(QDialog):
             return
 
         preset_idx = self.cmb_quality_preset.currentIndex()
+        fps_target = self.cmb_fps.currentData() if hasattr(self, "cmb_fps") else 0
         target_height = 0
         if preset_idx == 1: target_height = 2160
         elif preset_idx == 2: target_height = 1440
@@ -1333,12 +1347,14 @@ class MediaDownloaderDialog(QDialog):
         if preset_idx == 7:
             target_row = self._find_audio_only_row()
         elif target_height > 0:
-            target_row = self._find_format_row_by_height(target_height)
+            target_row = self._find_format_row_by_height(target_height, target_fps=fps_target or 0)
 
         self.tbl_formats.selectRow(target_row)
 
     def _on_manual_selection_toggled(self, checked: bool):
         self.cmb_quality_preset.setEnabled(not checked)
+        if hasattr(self, "cmb_fps"):
+            self.cmb_fps.setEnabled(not checked)
         self.cmb_video_format.setEnabled(not checked)
         self.cmb_audio_format.setEnabled(not checked)
         self.tbl_formats.setEnabled(checked)
@@ -1352,7 +1368,7 @@ class MediaDownloaderDialog(QDialog):
         if self.chk_manual_selection.isChecked():
             self._save_preferences_if_enabled()
 
-    def _find_format_row_by_height(self, target_height: int) -> int:
+    def _find_format_row_by_height(self, target_height: int, target_fps: int = 0) -> int:
         formats = self._current_video_data.get("formats", [])
         best_row = 0
         best_fps = -1
@@ -1362,11 +1378,23 @@ class MediaDownloaderDialog(QDialog):
             if fmt.get("height") == target_height:
                 fps = int(fmt.get("fps") or 0)
                 tbr = int(fmt.get("tbr") or 0)
-                if not found or fps > best_fps or (fps == best_fps and tbr > best_tbr):
-                    best_fps = fps
-                    best_tbr = tbr
-                    best_row = i
-                    found = True
+                if target_fps > 0:
+                    if fps == target_fps:
+                        if not found or tbr > best_tbr:
+                            best_fps = fps
+                            best_tbr = tbr
+                            best_row = i
+                            found = True
+                    elif not found and (fps > best_fps or (fps == best_fps and tbr > best_tbr)):
+                        best_fps = fps
+                        best_tbr = tbr
+                        best_row = i
+                else:
+                    if not found or fps > best_fps or (fps == best_fps and tbr > best_tbr):
+                        best_fps = fps
+                        best_tbr = tbr
+                        best_row = i
+                        found = True
         return best_row
 
     def _find_audio_only_row(self) -> int:
@@ -1511,7 +1539,7 @@ class MediaDownloaderDialog(QDialog):
         """
         Returns tuple (format_spec, is_audio_only).
         If Manual Selection is checked, uses selected format ID from table.
-        Otherwise builds format_spec using quality preset, video format filter, and audio format filter.
+        Otherwise builds format_spec using quality preset, video format filter, audio format filter, and FPS filter.
         """
         if self.chk_manual_selection.isChecked():
             sel_rows = self.tbl_formats.selectionModel().selectedRows()
@@ -1530,6 +1558,7 @@ class MediaDownloaderDialog(QDialog):
         preset_idx = self.cmb_quality_preset.currentIndex()
         v_key = self.cmb_video_format.currentData() or "any"
         a_key = self.cmb_audio_format.currentData() or "any"
+        fps_target = self.cmb_fps.currentData() if hasattr(self, "cmb_fps") else 0
 
         # Audio-only preset
         if preset_idx == 7:
@@ -1548,21 +1577,25 @@ class MediaDownloaderDialog(QDialog):
         elif v_key == "webm": vfilter = "[vcodec^=vp9]"
         elif v_key == "av1": vfilter = "[vcodec^=av01]"
 
+        fps_filter = f"[fps<={fps_target}]" if fps_target and fps_target > 0 else ""
+
         afilter = ""
         if a_key == "m4a": afilter = "[ext=m4a]"
         elif a_key == "opus": afilter = "[acodec^=opus]"
         elif a_key == "mp3": afilter = "[ext=mp3]"
 
         if height_limit:
-            v_spec = f"bestvideo[height<={height_limit}]{vfilter}"
+            v_spec = f"bestvideo[height<={height_limit}]{fps_filter}{vfilter}"
+            fallback_v = f"bestvideo[height<={height_limit}]"
         else:
-            v_spec = f"bestvideo{vfilter}"
+            v_spec = f"bestvideo{fps_filter}{vfilter}"
+            fallback_v = "bestvideo"
 
         if afilter:
             a_spec = f"bestaudio{afilter}"
-            format_spec = f"{v_spec}+{a_spec}/{v_spec}+bestaudio/best[height<={height_limit}]/best" if height_limit else f"{v_spec}+{a_spec}/{v_spec}+bestaudio/best"
+            format_spec = f"{v_spec}+{a_spec}/{v_spec}+bestaudio/{fallback_v}+bestaudio/best"
         else:
-            format_spec = f"{v_spec}+bestaudio/best[height<={height_limit}]/best" if height_limit else f"{v_spec}+bestaudio/best"
+            format_spec = f"{v_spec}+bestaudio/{fallback_v}+bestaudio/best"
 
         return (format_spec, False)
 
