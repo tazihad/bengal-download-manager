@@ -209,3 +209,70 @@ def test_android_progress_bar_expressive(qapp):
     bar.hide()
     assert bar._anim_timer.isActive() is False
     bar.close()
+
+
+def test_media_downloader_auto_start_pipeline(qapp, monkeypatch):
+    """Verify auto-start pipeline selects target quality preset and calls _on_download_clicked automatically."""
+    dlg = MediaDownloaderDialog()
+    
+    download_clicked = False
+    def mock_download_clicked():
+        nonlocal download_clicked
+        download_clicked = True
+
+    monkeypatch.setattr(dlg, "_on_download_clicked", mock_download_clicked)
+
+    # 1. Initialize auto-start with 1080p target preset
+    dlg.analyze_and_download("https://www.youtube.com/watch?v=sample123", auto_start=True, target_preset="1080p Full HD")
+    assert dlg._auto_start_pending is True
+    assert dlg._auto_start_preset == "1080p Full HD"
+    assert dlg.txt_url.text() == "https://www.youtube.com/watch?v=sample123"
+
+    sample_data = {
+        "title": "Sample 4K Video",
+        "uploader": "Test Channel",
+        "duration": 180,
+        "formats": [
+            {"format_id": "313", "ext": "webm", "res_label": "2160p (4K UHD)", "height": 2160, "vcodec": "vp9", "acodec": "none", "tbr": 18000, "filesize": 500000000, "is_video": True, "is_audio": False},
+            {"format_id": "137", "ext": "mp4", "res_label": "1080p (Full HD)", "height": 1080, "vcodec": "avc1", "acodec": "none", "tbr": 4500, "filesize": 120000000, "is_video": True, "is_audio": False},
+            {"format_id": "140", "ext": "m4a", "res_label": "Audio Only", "height": 0, "vcodec": "none", "acodec": "aac", "tbr": 128, "filesize": 10000000, "is_video": False, "is_audio": True}
+        ]
+    }
+
+    # Simulate analysis finish
+    dlg._on_single_video_ready(sample_data)
+
+    # Auto-start should have triggered download and reset pending flag
+    assert download_clicked is True
+    assert dlg._auto_start_pending is False
+    assert "1080p" in dlg.cmb_quality_preset.currentText()
+    dlg.close()
+
+
+def test_options_dialog_media_downloader_settings(qapp, tmp_path):
+    """Verify OptionsDialog media downloader settings persistence."""
+    from ui.dialogs.options import OptionsDialog
+    from core.config import load_category_config
+
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "chk_auto_start_media")
+    assert hasattr(dlg, "cmb_media_quality")
+
+    # Set new options
+    dlg.chk_auto_start_media.setChecked(True)
+    dlg.cmb_media_quality.setCurrentText("720p HD")
+    dlg.save_and_accept()
+
+    # Verify persisted in config
+    cfg = load_category_config()
+    media_defaults = cfg.get("media_downloader_defaults", {})
+    assert media_defaults.get("auto_start_media") is True
+    assert media_defaults.get("auto_media_quality_preset") == "720p HD"
+
+    # Reset
+    media_defaults["auto_start_media"] = False
+    media_defaults["auto_media_quality_preset"] = "Best Quality (Video + Audio merged)"
+    from core.config import save_category_config
+    cfg["media_downloader_defaults"] = media_defaults
+    save_category_config(cfg)
+    dlg.close()

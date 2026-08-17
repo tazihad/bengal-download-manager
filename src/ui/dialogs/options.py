@@ -638,6 +638,44 @@ class OptionsDialog(QDialog):
         get_ext_layout.addWidget(self.btn_ext_chrome)
         
         layout.addWidget(grp_get_ext)
+
+        # Media Downloader Auto-Start Integration Section
+        grp_media = QGroupBox("Media Downloader & Streaming Links")
+        media_layout = QVBoxLayout(grp_media)
+        media_layout.setContentsMargins(10, 15, 10, 15)
+        media_layout.setSpacing(10)
+
+        self.chk_auto_start_media = QCheckBox("Auto-start media downloads when sent from browser (yt-dlp)")
+        self.chk_auto_start_media.setToolTip("Automatically analyze and start downloading media streams sent from browser without extra confirmation")
+        media_defaults = self.config_data.get("media_downloader_defaults", {})
+        self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
+        media_layout.addWidget(self.chk_auto_start_media)
+
+        row_media_q = QHBoxLayout()
+        row_media_q.addWidget(QLabel("Preselected Quality Target:"))
+        self.cmb_media_quality = QComboBox()
+        self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
+        self.cmb_media_quality.addItems([
+            "Best Quality (Video + Audio merged)",
+            "4K Ultra HD (2160p)",
+            "2K Quad HD (1440p)",
+            "1080p Full HD",
+            "720p HD",
+            "480p SD",
+            "360p Low Quality",
+            "Audio Only (MP3)"
+        ])
+        saved_q = media_defaults.get("auto_media_quality_preset", "1080p Full HD")
+        idx_q = self.cmb_media_quality.findText(saved_q)
+        if idx_q != -1:
+            self.cmb_media_quality.setCurrentIndex(idx_q)
+        else:
+            self.cmb_media_quality.setCurrentIndex(3)  # 1080p Full HD
+        
+        row_media_q.addWidget(self.cmb_media_quality, stretch=1)
+        media_layout.addLayout(row_media_q)
+
+        layout.addWidget(grp_media)
         
         layout.addStretch()
 
@@ -732,6 +770,15 @@ class OptionsDialog(QDialog):
 
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
+
+        # Save Media Downloader defaults
+        media_defaults = self.config_data.get("media_downloader_defaults", {})
+        if hasattr(self, "chk_auto_start_media"):
+            media_defaults["auto_start_media"] = self.chk_auto_start_media.isChecked()
+        if hasattr(self, "cmb_media_quality"):
+            media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
+        self.config_data["media_downloader_defaults"] = media_defaults
+
         save_category_config(self.config_data)
         
         new_scale = self.combo_scale.currentText()

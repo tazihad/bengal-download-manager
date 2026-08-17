@@ -1217,10 +1217,36 @@ def test_add_url_dialog_button_click_icon_colors(qapp):
     dlg_light.close()
 
 
+def test_process_incoming_url_routes_media_link_to_media_downloader(qapp, monkeypatch):
+    """Verify that process_incoming_url routes media streaming links directly to open_media_downloader."""
+    from main import MainWindow
 
+    win = MainWindow(start_ipc=False)
+    win.hide()
 
+    called_url = None
+    called_auto_start = None
+    called_preset = None
 
+    def mock_open_media_downloader(url=None, auto_analyze=False, auto_start=False, target_preset=""):
+        nonlocal called_url, called_auto_start, called_preset
+        called_url = url
+        called_auto_start = auto_start
+        called_preset = target_preset
 
+    monkeypatch.setattr(win, "open_media_downloader", mock_open_media_downloader)
+
+    # 1. Standard YouTube URL
+    win.process_incoming_url("https://www.youtube.com/watch?v=sample_vid|Mozilla/5.0|cookie1=val")
+    assert called_url == "https://www.youtube.com/watch?v=sample_vid"
+    assert called_preset is not None
+
+    # 2. Vimeo URL
+    called_url = None
+    win.process_incoming_url("https://vimeo.com/76979871||")
+    assert called_url == "https://vimeo.com/76979871"
+
+    win.close()
 
 
 

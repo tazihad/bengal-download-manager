@@ -3703,6 +3703,22 @@ class MainWindow(QMainWindow):
         if not url:
             return
 
+        # 0. Check if URL is a media / video streaming link supported by yt-dlp
+        from core.utils import is_media_downloader_url
+        if is_media_downloader_url(url):
+            from core.config import load_category_config
+            cfg = load_category_config()
+            media_defaults = cfg.get("media_downloader_defaults", {})
+            auto_start = bool(media_defaults.get("auto_start_media", False))
+            target_preset = media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+            self.open_media_downloader(
+                url=url,
+                auto_analyze=True,
+                auto_start=auto_start,
+                target_preset=target_preset
+            )
+            return
+
         GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
 
         def _canonical_fn(target_url):
@@ -4540,15 +4556,18 @@ class MainWindow(QMainWindow):
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
 
-    def open_media_downloader(self, url=None, auto_analyze=False):
+    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset=""):
         from ui.dialogs import MediaDownloaderDialog
         if MemoryGuard.is_widget_alive(getattr(self, "_media_downloader_dlg", None)):
             self._media_downloader_dlg.raise_()
             self._media_downloader_dlg.activateWindow()
             if url:
-                self._media_downloader_dlg.txt_url.setText(url)
-                if auto_analyze:
-                    self._media_downloader_dlg._on_analyze_or_stop_clicked()
+                if auto_start:
+                    self._media_downloader_dlg.analyze_and_download(url, auto_start=True, target_preset=target_preset)
+                else:
+                    self._media_downloader_dlg.txt_url.setText(url)
+                    if auto_analyze:
+                        self._media_downloader_dlg._on_analyze_or_stop_clicked()
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.finished.connect(lambda: setattr(self, "_media_downloader_dlg", None))
@@ -4556,9 +4575,12 @@ class MainWindow(QMainWindow):
         self._media_downloader_dlg.raise_()
         self._media_downloader_dlg.activateWindow()
         if url:
-            self._media_downloader_dlg.txt_url.setText(url)
-            if auto_analyze:
-                self._media_downloader_dlg._on_analyze_or_stop_clicked()
+            if auto_start:
+                self._media_downloader_dlg.analyze_and_download(url, auto_start=True, target_preset=target_preset)
+            else:
+                self._media_downloader_dlg.txt_url.setText(url)
+                if auto_analyze:
+                    self._media_downloader_dlg._on_analyze_or_stop_clicked()
 
     def open_scheduler(self):
         from ui.dialogs import SchedulerDialog

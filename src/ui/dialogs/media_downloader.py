@@ -1001,6 +1001,13 @@ class MediaDownloaderDialog(QDialog):
                 return None, c_path
             return None, None
 
+    def analyze_and_download(self, url: str, auto_start: bool = False, target_preset: str = ""):
+        """Sets URL, applies auto-start flags, and initiates analysis."""
+        self._auto_start_pending = auto_start
+        self._auto_start_preset = target_preset or "Best Quality (Video + Audio merged)"
+        self.txt_url.setText(url)
+        self.start_analysis()
+
     def start_analysis(self):
         url = self.txt_url.text().strip()
         if not url:
@@ -1081,6 +1088,25 @@ class MediaDownloaderDialog(QDialog):
         self.stack.setCurrentWidget(self.page_video)
         self.btn_download.setText("Download Media")
         self.btn_download.setEnabled(True)
+
+        # Auto-start download execution if requested from browser integration
+        if getattr(self, "_auto_start_pending", False):
+            self._auto_start_pending = False
+            target_preset = getattr(self, "_auto_start_preset", "")
+            if target_preset:
+                model = self.cmb_quality_preset.model()
+                matched_idx = -1
+                for i in range(self.cmb_quality_preset.count()):
+                    item = model.item(i) if model else None
+                    if item and not item.isEnabled():
+                        continue
+                    item_text = self.cmb_quality_preset.itemText(i)
+                    if target_preset.lower() in item_text.lower():
+                        matched_idx = i
+                        break
+                if matched_idx != -1:
+                    self.cmb_quality_preset.setCurrentIndex(matched_idx)
+            self._on_download_clicked()
 
     def _on_thumbnail_loaded(self, pixmap: QPixmap):
         if hasattr(self, "lbl_thumbnail") and not pixmap.isNull():
@@ -1211,6 +1237,17 @@ class MediaDownloaderDialog(QDialog):
         self.stack.setCurrentWidget(self.page_playlist)
         self.btn_download.setEnabled(True)
 
+        if getattr(self, "_auto_start_pending", False):
+            self._auto_start_pending = False
+            target_preset = getattr(self, "_auto_start_preset", "")
+            if target_preset:
+                for i in range(self.cmb_playlist_quality.count()):
+                    if target_preset.lower() in self.cmb_playlist_quality.itemText(i).lower():
+                        self.cmb_playlist_quality.setCurrentIndex(i)
+                        break
+            self._set_all_playlist_checked(True)
+            self._on_download_clicked()
+
     def _on_url_text_changed(self, text: str):
         self._current_video_data = None
         self._current_playlist_data = None
@@ -1226,8 +1263,9 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setEnabled(False)
         self.btn_download.setText("Download")
         self.stack.setCurrentIndex(0)
-        self.lbl_status.setText("Analysis failed.")
-        QMessageBox.critical(self, "Extraction Error", f"Failed to analyze URL:\n{error_msg}")
+        self.lbl_status.setText(f"Analysis failed: {error_msg}")
+        if self.isVisible():
+            QMessageBox.critical(self, "Extraction Error", f"Failed to analyze URL:\n{error_msg}")
 
     def _finish_loading(self):
         self.btn_analyze.setText("Analyze")
