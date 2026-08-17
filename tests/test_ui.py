@@ -848,10 +848,10 @@ def test_menu_hover_and_table_selected_black(qapp):
                 has_black_pixel = True
     assert has_black_pixel is True
 
-    # Test get_themed_icon across Normal, Active, and Selected modes in dark theme: all remain pure white
+    # Test get_themed_icon Normal and Selected modes in dark theme are white, while Active mode (menu hover) is black
     from main import get_themed_icon
     icon = get_themed_icon("resume")
-    for mode in (QIcon.Mode.Normal, QIcon.Mode.Active, QIcon.Mode.Selected):
+    for mode in (QIcon.Mode.Normal, QIcon.Mode.Selected):
         norm_pixmap = icon.pixmap(24, 24, mode)
         assert not norm_pixmap.isNull()
         img_norm = norm_pixmap.toImage()
@@ -863,6 +863,19 @@ def test_menu_hover_and_table_selected_black(qapp):
                     assert pixel.red() > 200 and pixel.green() > 200 and pixel.blue() > 200, f"Mode {mode} pixel ({x},{y}) is not white"
                     has_white_pixel = True
         assert has_white_pixel is True
+
+    # Active mode (menu item hover) must be pure black (#000000)
+    act_pixmap = icon.pixmap(24, 24, QIcon.Mode.Active)
+    assert not act_pixmap.isNull()
+    img_act = act_pixmap.toImage()
+    has_black_pixel = False
+    for y in range(img_act.height()):
+        for x in range(img_act.width()):
+            pixel = img_act.pixelColor(x, y)
+            if pixel.alpha() > 100:
+                assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Active mode pixel ({x},{y}) is not black"
+                has_black_pixel = True
+    assert has_black_pixel is True
 
 
 def test_status_bar_view_toggle(qapp):
