@@ -1,21 +1,106 @@
 """
 Media Downloader Dialog for Bengal Download Manager.
 Provides link input, media link parsing, dependency status bar (yt-dlp, ffmpeg, ffprobe, deno, AtomicParsley),
-quality chooser, codec filters, format table sorting, and playlist batch selection.
+thumbnail preview, quality chooser, codec filters, format table sorting, cookie authentication vault, and playlist batch selection.
 """
 
+import os
 import sys
 import re
+import urllib.request
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QMessageBox, QApplication, QFrame, QCheckBox,
     QAbstractItemView, QToolButton, QToolTip, QFileDialog
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
-from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut, QPixmap, QPainter, QPainterPath, QColor, QPen
+from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
 from core.memory_guard import MemoryGuard
+
+
+def make_rounded_thumbnail(pixmap: QPixmap, width: int = 160, height: int = 90, radius: int = 8) -> QPixmap:
+    """Scales pixmap to aspect fill and crops into rounded rectangle with subtle contrast border."""
+    if pixmap.isNull() or width <= 0 or height <= 0:
+        return pixmap
+    scaled = pixmap.scaled(
+        width, height,
+        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+        Qt.TransformationMode.SmoothTransformation
+    )
+    x_off = max(0, (scaled.width() - width) // 2)
+    y_off = max(0, (scaled.height() - height) // 2)
+    cropped = scaled.copy(x_off, y_off, width, height)
+
+    out = QPixmap(width, height)
+    out.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(out)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    path.addRoundedRect(0, 0, width, height, radius, radius)
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, cropped)
+    painter.setClipping(False)
+
+    pen = QPen(QColor(128, 128, 128, 70), 1.0)
+    painter.setPen(pen)
+    painter.drawRoundedRect(0, 0, width - 1, height - 1, radius, radius)
+    painter.end()
+    return out
+
+
+def create_thumbnail_placeholder(width: int = 160, height: int = 90, radius: int = 8, is_playlist: bool = False) -> QPixmap:
+    """Generates a sleek placeholder for media thumbnail before loading."""
+    out = QPixmap(width, height)
+    out.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(out)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    path.addRoundedRect(0, 0, width, height, radius, radius)
+    painter.fillPath(path, QColor(32, 34, 38, 220))
+    painter.setPen(QPen(QColor(128, 128, 128, 60), 1.0))
+    painter.drawPath(path)
+
+    cx, cy = width // 2, height // 2
+    if is_playlist:
+        painter.setPen(QPen(QColor(180, 180, 180, 200), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawRoundedRect(cx - 16, cy - 14, 32, 28, 3, 3)
+        painter.drawLine(cx - 10, cy - 6, cx + 10, cy - 6)
+        painter.drawLine(cx - 10, cy, cx + 10, cy)
+        painter.drawLine(cx - 10, cy + 6, cx + 10, cy + 6)
+    else:
+        play_path = QPainterPath()
+        play_path.moveTo(cx - 7, cy - 11)
+        play_path.lineTo(cx + 11, cy)
+        play_path.lineTo(cx - 7, cy + 11)
+        play_path.closeSubpath()
+        painter.fillPath(play_path, QColor(200, 200, 200, 210))
+    painter.end()
+    return out
+
+
+class ThumbnailLoaderWorker(QThread):
+    """Asynchronously fetches video/playlist thumbnail image."""
+    thumbnail_loaded = pyqtSignal(QPixmap)
+
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+        _keep_thread_alive(self)
+
+    def run(self):
+        if not self.url:
+            return
+        try:
+            req = urllib.request.Request(self.url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0)"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = resp.read()
+                pm = QPixmap()
+                if pm.loadFromData(data) and not pm.isNull():
+                    self.thumbnail_loaded.emit(pm)
+        except Exception:
+            pass
 
 
 class MediaDownloaderDialog(QDialog):
@@ -31,14 +116,15 @@ class MediaDownloaderDialog(QDialog):
         MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
-        self.resize(820, 640)
-        self.setMinimumSize(660, 500)
+        self.resize(840, 660)
+        self.setMinimumSize(680, 520)
 
         # Standalone top-level window flag
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
 
         self._worker = None
         self._dep_worker = None
+        self._thumb_worker = None
         self._current_video_data = None
         self._current_playlist_data = None
 
@@ -68,7 +154,7 @@ class MediaDownloaderDialog(QDialog):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
 
-        # 0. Dependency Engines & Status Section (Above Enter URL)
+        # 0. Dependency Engines & Status Section
         dep_frame = QFrame()
         dep_frame.setFrameShape(QFrame.Shape.StyledPanel)
         dep_frame.setStyleSheet("""
@@ -198,7 +284,7 @@ class MediaDownloaderDialog(QDialog):
         app_font_fam = QApplication.font().family() if QApplication.instance() else "Inter"
         self.btn_prefs.setFont(QFont(app_font_fam, 14, QFont.Weight.Bold))
         self.btn_prefs.setCheckable(True)
-        self.btn_prefs.setToolTip("Browser Cookies & Authentication Preferences")
+        self.btn_prefs.setToolTip("Authentication & Cookie Vault Settings")
         self.btn_prefs.clicked.connect(self._toggle_cookies_prefs)
 
         input_layout.addWidget(self.txt_url)
@@ -207,7 +293,7 @@ class MediaDownloaderDialog(QDialog):
         input_layout.addWidget(self.btn_prefs)
         main_layout.addLayout(input_layout)
 
-        # 2b. Cookies & Authentication Preferences Panel (Toggled via 3-dot button)
+        # 2b. Cookies & Authentication Configuration Panel (Software Engineering UI Standard)
         self.frame_cookies_prefs = QFrame()
         self.frame_cookies_prefs.setObjectName("cookiesPrefsFrame")
         self.frame_cookies_prefs.setFrameShape(QFrame.Shape.NoFrame)
@@ -225,43 +311,109 @@ class MediaDownloaderDialog(QDialog):
         self.frame_cookies_prefs.hide()
 
         cookies_layout = QVBoxLayout(self.frame_cookies_prefs)
-        cookies_layout.setContentsMargins(12, 10, 12, 10)
-        cookies_layout.setSpacing(8)
+        cookies_layout.setContentsMargins(14, 12, 14, 12)
+        cookies_layout.setSpacing(10)
 
-        lbl_cookies_header = QLabel("Cookies Authentication (cookies.txt)")
+        # Header Row with Mode Selector
+        auth_header_layout = QHBoxLayout()
+        lbl_cookies_header = QLabel("Authentication & Cookie Vault")
         font_c = QFont()
         font_c.setBold(True)
         lbl_cookies_header.setFont(font_c)
-        cookies_layout.addWidget(lbl_cookies_header)
+        auth_header_layout.addWidget(lbl_cookies_header)
+        auth_header_layout.addStretch()
 
-        manual_path_layout = QHBoxLayout()
-        manual_path_layout.setSpacing(8)
-        lbl_manual_path = QLabel("cookies.txt Path:")
+        lbl_mode = QLabel("Auth Source:")
+        lbl_mode.setStyleSheet("font-weight: bold; font-size: 11px;")
+        self.cmb_cookies_mode = QComboBox()
+        self.cmb_cookies_mode.setFixedHeight(28)
+        self.cmb_cookies_mode.addItems([
+            "Netscape cookies.txt File",
+            "Auto-Extract from Browser",
+            "None (Direct Public Access)"
+        ])
+        self.cmb_cookies_mode.currentIndexChanged.connect(self._on_cookies_mode_changed)
+        auth_header_layout.addWidget(lbl_mode)
+        auth_header_layout.addWidget(self.cmb_cookies_mode)
+        cookies_layout.addLayout(auth_header_layout)
+
+        # Stack for Mode Controls
+        self.stack_cookies = QStackedWidget()
+
+        # Page 0: Netscape cookies.txt File Mode
+        page_file = QWidget()
+        page_file_layout = QVBoxLayout(page_file)
+        page_file_layout.setContentsMargins(0, 0, 0, 0)
+        page_file_layout.setSpacing(6)
+
+        file_row = QHBoxLayout()
+        file_row.setSpacing(8)
+        lbl_manual_path = QLabel("File Path:")
         self.txt_cookies_path = QLineEdit()
-        self.txt_cookies_path.setPlaceholderText("Select path to cookies.txt file...")
+        self.txt_cookies_path.setPlaceholderText("Select or paste absolute path to cookies.txt...")
         self.txt_cookies_path.setFixedHeight(28)
-        self.txt_cookies_path.textChanged.connect(self._save_cookies_path_permanently)
+        self.txt_cookies_path.textChanged.connect(self._on_cookies_text_changed)
 
         self.btn_browse_cookies = QPushButton("Browse...")
         self.btn_browse_cookies.setFixedHeight(28)
-        self.btn_browse_cookies.setToolTip("Select cookies.txt file from disk")
+        self.btn_browse_cookies.setToolTip("Select Netscape formatted cookies.txt file from disk")
         self.btn_browse_cookies.clicked.connect(self._on_browse_cookies_clicked)
 
         self.btn_clear_cookies = QPushButton("Clear")
         self.btn_clear_cookies.setFixedHeight(28)
-        self.btn_clear_cookies.setToolTip("Clear selected cookies.txt file")
+        self.btn_clear_cookies.setToolTip("Clear selected cookies configuration")
         self.btn_clear_cookies.clicked.connect(self._on_clear_cookies_clicked)
 
-        manual_path_layout.addWidget(lbl_manual_path)
-        manual_path_layout.addWidget(self.txt_cookies_path, stretch=1)
-        manual_path_layout.addWidget(self.btn_browse_cookies)
-        manual_path_layout.addWidget(self.btn_clear_cookies)
-        cookies_layout.addLayout(manual_path_layout)
+        file_row.addWidget(lbl_manual_path)
+        file_row.addWidget(self.txt_cookies_path, stretch=1)
+        file_row.addWidget(self.btn_browse_cookies)
+        file_row.addWidget(self.btn_clear_cookies)
+        page_file_layout.addLayout(file_row)
 
+        self.lbl_cookies_status = QLabel("No cookies file configured.")
+        self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: gray;")
+        page_file_layout.addWidget(self.lbl_cookies_status)
+
+        self.stack_cookies.addWidget(page_file)
+
+        # Page 1: Browser Extraction Mode
+        page_browser = QWidget()
+        page_browser_layout = QHBoxLayout(page_browser)
+        page_browser_layout.setContentsMargins(0, 0, 0, 0)
+        page_browser_layout.setSpacing(8)
+
+        lbl_browser_sel = QLabel("Installed Browser:")
+        self.cmb_cookies_browser = QComboBox()
+        self.cmb_cookies_browser.setFixedHeight(28)
+        self.cmb_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera", "Safari"])
+        self.cmb_cookies_browser.currentIndexChanged.connect(self._save_cookies_path_permanently)
+
+        lbl_browser_hint = QLabel("• Auto-loads session auth cookies via yt-dlp native extraction.")
+        lbl_browser_hint.setStyleSheet("font-size: 11px; color: gray;")
+
+        page_browser_layout.addWidget(lbl_browser_sel)
+        page_browser_layout.addWidget(self.cmb_cookies_browser)
+        page_browser_layout.addWidget(lbl_browser_hint, stretch=1)
+
+        self.stack_cookies.addWidget(page_browser)
+
+        # Page 2: None / Anonymous Mode
+        page_none = QWidget()
+        page_none_layout = QHBoxLayout(page_none)
+        page_none_layout.setContentsMargins(0, 0, 0, 0)
+        lbl_none_hint = QLabel("Anonymous access active. Standard public streams will be fetched without cookies.")
+        lbl_none_hint.setStyleSheet("font-size: 11px; color: gray; font-style: italic;")
+        page_none_layout.addWidget(lbl_none_hint)
+
+        self.stack_cookies.addWidget(page_none)
+
+        cookies_layout.addWidget(self.stack_cookies)
+
+        # Information & Security note
         self.lbl_cookies_info = QLabel(
-            '🔒 Cookies are read locally, never shared. • <a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: palette(highlight); text-decoration: underline;">How to export cookies.txt guide</a>'
+            '🔒 <b>Local Execution:</b> Cookies are read strictly locally, never shared. • <a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: palette(highlight); text-decoration: underline;">How to export cookies.txt guide</a>'
         )
-        self.lbl_cookies_info.setStyleSheet("font-size: 11px;")
+        self.lbl_cookies_info.setStyleSheet("font-size: 11px; color: palette(window-text); opacity: 0.85;")
         self.lbl_cookies_info.setTextFormat(Qt.TextFormat.RichText)
         self.lbl_cookies_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.lbl_cookies_info.setOpenExternalLinks(True)
@@ -333,17 +485,55 @@ class MediaDownloaderDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
+        # 1. Hero Card: Thumbnail + Title + Metadata Badges
+        hero_card = QFrame()
+        hero_card.setObjectName("mediaHeroCard")
+        hero_card.setStyleSheet("""
+            QFrame#mediaHeroCard {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 8px;
+            }
+            QFrame#mediaHeroCard QLabel {
+                background: transparent;
+                border: none;
+            }
+        """)
+        hero_layout = QHBoxLayout(hero_card)
+        hero_layout.setContentsMargins(10, 10, 10, 10)
+        hero_layout.setSpacing(14)
+
+        self.lbl_thumbnail = QLabel()
+        self.lbl_thumbnail.setFixedSize(160, 90)
+        self.lbl_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8))
+        self.lbl_thumbnail.setStyleSheet("border-radius: 8px;")
+        hero_layout.addWidget(self.lbl_thumbnail)
+
+        meta_layout = QVBoxLayout()
+        meta_layout.setSpacing(6)
+        meta_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
         self.lbl_video_title = QLabel("Video Title")
         font_title = QFont()
         font_title.setPointSize(11)
         font_title.setBold(True)
         self.lbl_video_title.setFont(font_title)
         self.lbl_video_title.setWordWrap(True)
-        layout.addWidget(self.lbl_video_title)
+        self.lbl_video_title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        meta_layout.addWidget(self.lbl_video_title)
+
+        chips_layout = QHBoxLayout()
+        chips_layout.setSpacing(8)
 
         self.lbl_video_meta = QLabel("Uploader: Unknown | Duration: 0s")
-        self.lbl_video_meta.setStyleSheet("color: gray;")
-        layout.addWidget(self.lbl_video_meta)
+        self.lbl_video_meta.setStyleSheet("color: palette(window-text); opacity: 0.85; font-size: 11px;")
+        chips_layout.addWidget(self.lbl_video_meta)
+        chips_layout.addStretch()
+        meta_layout.addLayout(chips_layout)
+
+        hero_layout.addLayout(meta_layout, stretch=1)
+        layout.addWidget(hero_card)
 
         # Row 1: Media Quality Preset + Video Format Dropdown + Audio Format Dropdown
         preset_layout = QHBoxLayout()
@@ -455,14 +645,47 @@ class MediaDownloaderDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
+        # Playlist Hero Card
+        pl_hero_card = QFrame()
+        pl_hero_card.setObjectName("playlistHeroCard")
+        pl_hero_card.setStyleSheet("""
+            QFrame#playlistHeroCard {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 8px;
+            }
+            QFrame#playlistHeroCard QLabel {
+                background: transparent;
+                border: none;
+            }
+        """)
+        pl_hero_layout = QHBoxLayout(pl_hero_card)
+        pl_hero_layout.setContentsMargins(10, 10, 10, 10)
+        pl_hero_layout.setSpacing(14)
+
+        self.lbl_playlist_thumbnail = QLabel()
+        self.lbl_playlist_thumbnail.setFixedSize(160, 90)
+        self.lbl_playlist_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_playlist_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8, is_playlist=True))
+        self.lbl_playlist_thumbnail.setStyleSheet("border-radius: 8px;")
+        pl_hero_layout.addWidget(self.lbl_playlist_thumbnail)
+
+        pl_meta_layout = QVBoxLayout()
+        pl_meta_layout.setSpacing(6)
+        pl_meta_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
         self.lbl_playlist_title = QLabel("Playlist Title")
         font_pl = QFont()
         font_pl.setPointSize(11)
         font_pl.setBold(True)
         self.lbl_playlist_title.setFont(font_pl)
-        layout.addWidget(self.lbl_playlist_title)
+        self.lbl_playlist_title.setWordWrap(True)
+        self.lbl_playlist_title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        pl_meta_layout.addWidget(self.lbl_playlist_title)
 
         ctrl_layout = QHBoxLayout()
+        ctrl_layout.setSpacing(8)
+
         self.btn_select_all = QPushButton("Select All")
         self.btn_select_all.setFixedWidth(90)
         self.btn_select_all.clicked.connect(lambda: self._set_all_playlist_checked(True))
@@ -472,14 +695,16 @@ class MediaDownloaderDialog(QDialog):
         self.btn_deselect_all.clicked.connect(lambda: self._set_all_playlist_checked(False))
 
         self.lbl_select_count = QLabel("0 of 0 items selected")
-        self.lbl_select_count.setStyleSheet("font-weight: bold;")
+        self.lbl_select_count.setStyleSheet("font-weight: bold; color: palette(window-text);")
 
         ctrl_layout.addWidget(self.btn_select_all)
         ctrl_layout.addWidget(self.btn_deselect_all)
         ctrl_layout.addWidget(self.lbl_select_count)
         ctrl_layout.addStretch()
 
-        layout.addLayout(ctrl_layout)
+        pl_meta_layout.addLayout(ctrl_layout)
+        pl_hero_layout.addLayout(pl_meta_layout, stretch=1)
+        layout.addWidget(pl_hero_card)
 
         pl_preset_layout = QHBoxLayout()
         pl_preset_layout.addWidget(QLabel("Global Quality Target:"))
@@ -605,8 +830,37 @@ class MediaDownloaderDialog(QDialog):
     def _toggle_cookies_prefs(self):
         self.frame_cookies_prefs.setVisible(self.btn_prefs.isChecked())
 
+    def _on_cookies_mode_changed(self, idx: int):
+        if hasattr(self, "stack_cookies"):
+            self.stack_cookies.setCurrentIndex(idx)
+        self._save_cookies_path_permanently()
+
+    def _on_cookies_text_changed(self, text: str):
+        self._update_cookies_status_indicator()
+        self._save_cookies_path_permanently()
+
+    def _update_cookies_status_indicator(self):
+        if not hasattr(self, "lbl_cookies_status") or not hasattr(self, "txt_cookies_path"):
+            return
+        c_path = self.txt_cookies_path.text().strip()
+        if not c_path:
+            self.lbl_cookies_status.setText("No cookies file configured.")
+            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: gray;")
+            return
+        if not os.path.exists(c_path):
+            self.lbl_cookies_status.setText(f"⚠️ File does not exist: {c_path}")
+            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
+            return
+        try:
+            sz = os.path.getsize(c_path)
+            sz_str = f"{sz / 1024:.1f} KB" if sz >= 1024 else f"{sz} B"
+            self.lbl_cookies_status.setText(f"✓ Valid Netscape Cookie file ({sz_str}) • Ready for yt-dlp authentication")
+            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #2ec27e; font-weight: bold;")
+        except Exception as e:
+            self.lbl_cookies_status.setText(f"⚠️ Error accessing file: {e}")
+            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
+
     def _on_browse_cookies_clicked(self):
-        import os
         from core.utils import choose_portal_open_file_path
 
         file_path = choose_portal_open_file_path(title="Select Cookies File", folder=os.path.expanduser("~"))
@@ -619,18 +873,26 @@ class MediaDownloaderDialog(QDialog):
             )
         if file_path:
             self.txt_cookies_path.setText(file_path)
+            self._update_cookies_status_indicator()
             self._save_cookies_path_permanently()
 
     def _on_clear_cookies_clicked(self):
         self.txt_cookies_path.clear()
+        self._update_cookies_status_indicator()
         self._save_cookies_path_permanently()
 
     def _get_cookies_args(self):
-        import os
-        c_path = self.txt_cookies_path.text().strip()
-        if c_path and os.path.exists(c_path):
-            return None, c_path
-        return None, None
+        mode_idx = self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0
+        if mode_idx == 1:  # Browser Auto-Extract
+            browser = self.cmb_cookies_browser.currentText().lower() if hasattr(self, "cmb_cookies_browser") else None
+            return browser, None
+        elif mode_idx == 2:  # None
+            return None, None
+        else:  # Netscape File Mode (Index 0 / Default)
+            c_path = self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else ""
+            if c_path and os.path.exists(c_path):
+                return None, c_path
+            return None, None
 
     def start_analysis(self):
         url = self.txt_url.text().strip()
@@ -665,7 +927,23 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_video_title.setText(data.get("title", "Untitled Media"))
         dur_sec = int(data.get("duration") or 0)
         dur_str = f"{dur_sec // 60}m {dur_sec % 60:02d}s" if dur_sec else "Unknown"
-        self.lbl_video_meta.setText(f"Uploader: {data.get('uploader')} | Duration: {dur_str}")
+        uploader = data.get("uploader") or "Unknown"
+        self.lbl_video_meta.setText(f"👤 {uploader}  •  ⏱️ {dur_str}")
+
+        # Async Thumbnail Acquisition
+        if hasattr(self, "lbl_thumbnail"):
+            self.lbl_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8))
+            thumb_url = data.get("thumbnail")
+            if thumb_url:
+                if hasattr(self, "_thumb_worker") and self._thumb_worker and self._thumb_worker.isRunning():
+                    try:
+                        self._thumb_worker.terminate()
+                        self._thumb_worker.wait(100)
+                    except Exception:
+                        pass
+                self._thumb_worker = ThumbnailLoaderWorker(thumb_url)
+                self._thumb_worker.thumbnail_loaded.connect(self._on_thumbnail_loaded)
+                self._thumb_worker.start()
 
         formats = data.get("formats", [])
         self.tbl_formats.setRowCount(0)
@@ -696,6 +974,10 @@ class MediaDownloaderDialog(QDialog):
         self.stack.setCurrentWidget(self.page_video)
         self.btn_download.setText("Download Media")
         self.btn_download.setEnabled(True)
+
+    def _on_thumbnail_loaded(self, pixmap: QPixmap):
+        if hasattr(self, "lbl_thumbnail") and not pixmap.isNull():
+            self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pixmap, 160, 90, radius=8))
 
     def _update_preset_availability(self, data: dict):
         formats = data.get("formats", [])
@@ -957,10 +1239,25 @@ class MediaDownloaderDialog(QDialog):
         if not use_manual:
             self.tbl_formats.clearSelection()
 
+        mode_idx = prefs.get("cookies_mode_idx", 0)
+        if hasattr(self, "cmb_cookies_mode"):
+            self.cmb_cookies_mode.blockSignals(True)
+            self.cmb_cookies_mode.setCurrentIndex(min(max(0, mode_idx), self.cmb_cookies_mode.count() - 1))
+            self.cmb_cookies_mode.blockSignals(False)
+            if hasattr(self, "stack_cookies"):
+                self.stack_cookies.setCurrentIndex(self.cmb_cookies_mode.currentIndex())
+
+        browser_name = config.get("media_downloader_cookies_browser", prefs.get("cookies_browser", "Chrome"))
+        if hasattr(self, "cmb_cookies_browser"):
+            idx_b = self.cmb_cookies_browser.findText(browser_name, Qt.MatchFlag.MatchFixedString)
+            if idx_b >= 0:
+                self.cmb_cookies_browser.setCurrentIndex(idx_b)
+
         c_path = config.get("media_downloader_cookies_path", prefs.get("cookies_path", ""))
         self.txt_cookies_path.blockSignals(True)
         self.txt_cookies_path.setText(c_path)
         self.txt_cookies_path.blockSignals(False)
+        self._update_cookies_status_indicator()
 
         self.cmb_quality_preset.blockSignals(False)
         self.cmb_video_format.blockSignals(False)
@@ -969,16 +1266,22 @@ class MediaDownloaderDialog(QDialog):
         self.chk_save_defaults.blockSignals(False)
 
     def _save_cookies_path_permanently(self):
-        """Always save the cookies_path persistently across app restarts."""
-        if hasattr(self, "txt_cookies_path"):
-            from core.config import load_category_config, save_category_config
-            config = load_category_config()
-            path = self.txt_cookies_path.text().strip()
-            config["media_downloader_cookies_path"] = path
-            defaults = config.get("media_downloader_defaults", {})
-            defaults["cookies_path"] = path
-            config["media_downloader_defaults"] = defaults
-            save_category_config(config)
+        """Always save cookies configurations persistently across app restarts."""
+        from core.config import load_category_config, save_category_config
+        config = load_category_config()
+        path = self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else ""
+        config["media_downloader_cookies_path"] = path
+        
+        mode_idx = self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0
+        browser_name = self.cmb_cookies_browser.currentText() if hasattr(self, "cmb_cookies_browser") else "Chrome"
+        config["media_downloader_cookies_browser"] = browser_name
+
+        defaults = config.get("media_downloader_defaults", {})
+        defaults["cookies_path"] = path
+        defaults["cookies_mode_idx"] = mode_idx
+        defaults["cookies_browser"] = browser_name
+        config["media_downloader_defaults"] = defaults
+        save_category_config(config)
 
     def _save_preferences_if_enabled(self):
         if hasattr(self, "chk_save_defaults") and self.chk_save_defaults.isChecked():
@@ -990,7 +1293,9 @@ class MediaDownloaderDialog(QDialog):
                 "audio_format_idx": self.cmb_audio_format.currentIndex(),
                 "use_manual_selection": self.chk_manual_selection.isChecked(),
                 "save_defaults": True,
-                "cookies_path": self.txt_cookies_path.text().strip()
+                "cookies_path": self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else "",
+                "cookies_mode_idx": self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0,
+                "cookies_browser": self.cmb_cookies_browser.currentText() if hasattr(self, "cmb_cookies_browser") else "Chrome"
             }
             save_category_config(config)
 

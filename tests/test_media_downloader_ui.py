@@ -112,3 +112,63 @@ def test_media_downloader_cookies_prefs_panel(qapp, tmp_path):
     assert dlg2.txt_cookies_path.text() == ""
     assert dlg2._get_cookies_args() == (None, None)
     dlg2.close()
+
+
+def test_media_downloader_thumbnail_support(qapp):
+    """Verify thumbnail placeholder and rounded thumbnail rendering."""
+    from PyQt6.QtGui import QPixmap, QColor
+    from ui.dialogs.media_downloader import make_rounded_thumbnail, create_thumbnail_placeholder
+
+    # 1. Placeholder generator
+    ph = create_thumbnail_placeholder(160, 90, radius=8, is_playlist=False)
+    assert not ph.isNull()
+    assert ph.width() == 160
+    assert ph.height() == 90
+
+    # 2. Rounded thumbnail cropping & border
+    raw_pm = QPixmap(300, 200)
+    raw_pm.fill(QColor("red"))
+    rounded = make_rounded_thumbnail(raw_pm, 160, 90, radius=8)
+    assert not rounded.isNull()
+    assert rounded.width() == 160
+    assert rounded.height() == 90
+
+    # 3. Dialog thumbnail label hookup
+    dlg = MediaDownloaderDialog()
+    assert hasattr(dlg, "lbl_thumbnail")
+    assert not dlg.lbl_thumbnail.pixmap().isNull()
+
+    dlg._on_thumbnail_loaded(raw_pm)
+    assert dlg.lbl_thumbnail.pixmap().width() == 160
+    dlg.close()
+
+
+def test_media_downloader_cookies_mode_switch_and_validation(qapp, tmp_path):
+    """Verify switching between File, Browser, and None cookie modes with live validation."""
+    dlg = MediaDownloaderDialog()
+    assert dlg.cmb_cookies_mode.count() == 3
+
+    # Mode 0: File Mode
+    dlg.cmb_cookies_mode.setCurrentIndex(0)
+    assert dlg.stack_cookies.currentIndex() == 0
+
+    valid_file = str(tmp_path / "valid_cookies.txt")
+    with open(valid_file, "w") as f:
+        f.write("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1700000000\tSID\t12345\n")
+
+    dlg.txt_cookies_path.setText(valid_file)
+    assert "✓ Valid Netscape" in dlg.lbl_cookies_status.text()
+    assert dlg._get_cookies_args() == (None, valid_file)
+
+    # Mode 1: Browser Auto-Extract Mode
+    dlg.cmb_cookies_mode.setCurrentIndex(1)
+    assert dlg.stack_cookies.currentIndex() == 1
+    dlg.cmb_cookies_browser.setCurrentText("Firefox")
+    assert dlg._get_cookies_args() == ("firefox", None)
+
+    # Mode 2: None / Anonymous Mode
+    dlg.cmb_cookies_mode.setCurrentIndex(2)
+    assert dlg.stack_cookies.currentIndex() == 2
+    assert dlg._get_cookies_args() == (None, None)
+
+    dlg.close()
