@@ -651,8 +651,8 @@ class OptionsDialog(QDialog):
 
         media_defaults = self.config_data.get("media_downloader_defaults", {})
 
-        # 1. Browser & Auto-Start Integration
-        grp_browser = QGroupBox("Browser Integration & Auto-Start")
+        # 1. Browser Integration and Auto-Start
+        grp_browser = QGroupBox("Browser Integration and Auto-Start")
         vbox_browser = QVBoxLayout(grp_browser)
         vbox_browser.setContentsMargins(10, 15, 10, 15)
         vbox_browser.setSpacing(10)
@@ -687,8 +687,8 @@ class OptionsDialog(QDialog):
         vbox_browser.addLayout(row_media_q)
         layout.addWidget(grp_browser)
 
-        # 2. Authentication & Cookie Vault Defaults
-        grp_cookies = QGroupBox("Authentication & Cookie Vault Defaults")
+        # 2. Authentication and Cookie Vault Defaults
+        grp_cookies = QGroupBox("Authentication and Cookie Vault Defaults")
         vbox_cookies = QVBoxLayout(grp_cookies)
         vbox_cookies.setContentsMargins(10, 15, 10, 15)
         vbox_cookies.setSpacing(10)
@@ -717,23 +717,30 @@ class OptionsDialog(QDialog):
         row_cbrowser.addWidget(self.cmb_opt_cookies_browser, stretch=1)
         vbox_cookies.addLayout(row_cbrowser)
 
-        row_cfile = QHBoxLayout()
-        row_cfile.addWidget(QLabel("Netscape cookies.txt Path:"))
+        # Full-width cookies path input with Browse / Clear buttons below
+        lbl_cpath = QLabel("Netscape cookies.txt Path:")
+        vbox_cookies.addWidget(lbl_cpath)
+
         self.txt_opt_cookies_path = QLineEdit()
         self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
         saved_cpath = self.config_data.get("media_downloader_cookies_path", media_defaults.get("cookies_path", ""))
         self.txt_opt_cookies_path.setText(saved_cpath)
-        row_cfile.addWidget(self.txt_opt_cookies_path, stretch=1)
+        vbox_cookies.addWidget(self.txt_opt_cookies_path)
+
+        row_cbuttons = QHBoxLayout()
+        row_cbuttons.addStretch()
 
         btn_browse_c = QPushButton("Browse...")
+        btn_browse_c.setFixedWidth(90)
         btn_browse_c.clicked.connect(self._browse_opt_cookies_file)
-        row_cfile.addWidget(btn_browse_c)
+        row_cbuttons.addWidget(btn_browse_c)
 
         btn_clear_c = QPushButton("Clear")
+        btn_clear_c.setFixedWidth(80)
         btn_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
-        row_cfile.addWidget(btn_clear_c)
+        row_cbuttons.addWidget(btn_clear_c)
 
-        vbox_cookies.addLayout(row_cfile)
+        vbox_cookies.addLayout(row_cbuttons)
         layout.addWidget(grp_cookies)
 
         layout.addStretch()
