@@ -657,7 +657,7 @@ class OptionsDialog(QDialog):
         vbox_browser.setContentsMargins(10, 15, 10, 15)
         vbox_browser.setSpacing(10)
 
-        self.chk_auto_start_media = QCheckBox("Auto-start media downloads when sent from browser (yt-dlp)")
+        self.chk_auto_start_media = QCheckBox("Auto-start media downloads when sent from browser")
         self.chk_auto_start_media.setToolTip("Automatically analyze and start downloading media streams sent from browser without extra confirmation")
         self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
         vbox_browser.addWidget(self.chk_auto_start_media)
