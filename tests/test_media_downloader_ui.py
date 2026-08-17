@@ -250,17 +250,24 @@ def test_media_downloader_auto_start_pipeline(qapp, monkeypatch):
 
 
 def test_options_dialog_media_downloader_settings(qapp, tmp_path):
-    """Verify OptionsDialog media downloader settings persistence."""
+    """Verify OptionsDialog media downloader settings and dedicated Media tab persistence."""
     from ui.dialogs.options import OptionsDialog
     from core.config import load_category_config
 
     dlg = OptionsDialog()
+    assert hasattr(dlg, "media_tab")
     assert hasattr(dlg, "chk_auto_start_media")
     assert hasattr(dlg, "cmb_media_quality")
+    assert hasattr(dlg, "cmb_opt_cookies_mode")
+    assert hasattr(dlg, "cmb_opt_cookies_browser")
+    assert hasattr(dlg, "txt_opt_cookies_path")
 
-    # Set new options
+    # Set new options in Media tab
     dlg.chk_auto_start_media.setChecked(True)
     dlg.cmb_media_quality.setCurrentText("720p HD")
+    dlg.cmb_opt_cookies_browser.setCurrentText("Firefox")
+    test_cookie_file = str(tmp_path / "test_cookies.txt")
+    dlg.txt_opt_cookies_path.setText(test_cookie_file)
     dlg.save_and_accept()
 
     # Verify persisted in config
@@ -268,11 +275,17 @@ def test_options_dialog_media_downloader_settings(qapp, tmp_path):
     media_defaults = cfg.get("media_downloader_defaults", {})
     assert media_defaults.get("auto_start_media") is True
     assert media_defaults.get("auto_media_quality_preset") == "720p HD"
+    assert media_defaults.get("cookies_browser") == "Firefox"
+    assert media_defaults.get("cookies_path") == test_cookie_file
 
     # Reset
     media_defaults["auto_start_media"] = False
     media_defaults["auto_media_quality_preset"] = "Best Quality (Video + Audio merged)"
+    media_defaults["cookies_browser"] = "Chrome"
+    media_defaults["cookies_path"] = ""
     from core.config import save_category_config
     cfg["media_downloader_defaults"] = media_defaults
+    cfg["media_downloader_cookies_browser"] = "Chrome"
+    cfg["media_downloader_cookies_path"] = ""
     save_category_config(cfg)
     dlg.close()

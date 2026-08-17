@@ -61,6 +61,10 @@ class OptionsDialog(QDialog):
         self.extension_tab = QWidget()
         self.setup_extension_tab()
         self.tabs.addTab(self.extension_tab, "Extensions")
+
+        self.media_tab = QWidget()
+        self.setup_media_tab()
+        self.tabs.addTab(self.media_tab, "Media")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -638,18 +642,25 @@ class OptionsDialog(QDialog):
         get_ext_layout.addWidget(self.btn_ext_chrome)
         
         layout.addWidget(grp_get_ext)
+        layout.addStretch()
 
-        # Media Downloader Auto-Start Integration Section
-        grp_media = QGroupBox("Media Downloader & Streaming Links")
-        media_layout = QVBoxLayout(grp_media)
-        media_layout.setContentsMargins(10, 15, 10, 15)
-        media_layout.setSpacing(10)
+    def setup_media_tab(self):
+        layout = QVBoxLayout(self.media_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+
+        media_defaults = self.config_data.get("media_downloader_defaults", {})
+
+        # 1. Browser & Auto-Start Integration
+        grp_browser = QGroupBox("Browser Integration & Auto-Start")
+        vbox_browser = QVBoxLayout(grp_browser)
+        vbox_browser.setContentsMargins(10, 15, 10, 15)
+        vbox_browser.setSpacing(10)
 
         self.chk_auto_start_media = QCheckBox("Auto-start media downloads when sent from browser (yt-dlp)")
         self.chk_auto_start_media.setToolTip("Automatically analyze and start downloading media streams sent from browser without extra confirmation")
-        media_defaults = self.config_data.get("media_downloader_defaults", {})
         self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
-        media_layout.addWidget(self.chk_auto_start_media)
+        vbox_browser.addWidget(self.chk_auto_start_media)
 
         row_media_q = QHBoxLayout()
         row_media_q.addWidget(QLabel("Preselected Quality Target:"))
@@ -673,11 +684,70 @@ class OptionsDialog(QDialog):
             self.cmb_media_quality.setCurrentIndex(3)  # 1080p Full HD
         
         row_media_q.addWidget(self.cmb_media_quality, stretch=1)
-        media_layout.addLayout(row_media_q)
+        vbox_browser.addLayout(row_media_q)
+        layout.addWidget(grp_browser)
 
-        layout.addWidget(grp_media)
-        
+        # 2. Authentication & Cookie Vault Defaults
+        grp_cookies = QGroupBox("Authentication & Cookie Vault Defaults")
+        vbox_cookies = QVBoxLayout(grp_cookies)
+        vbox_cookies.setContentsMargins(10, 15, 10, 15)
+        vbox_cookies.setSpacing(10)
+
+        row_cmode = QHBoxLayout()
+        row_cmode.addWidget(QLabel("Default Cookie Source:"))
+        self.cmb_opt_cookies_mode = QComboBox()
+        self.cmb_opt_cookies_mode.addItems([
+            "Netscape File (cookies.txt)",
+            "Browser Auto-Extraction",
+            "None (Anonymous / Public)"
+        ])
+        saved_cmode = media_defaults.get("cookies_mode_idx", 0)
+        self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 2))
+        row_cmode.addWidget(self.cmb_opt_cookies_mode, stretch=1)
+        vbox_cookies.addLayout(row_cmode)
+
+        row_cbrowser = QHBoxLayout()
+        row_cbrowser.addWidget(QLabel("Default Browser:"))
+        self.cmb_opt_cookies_browser = QComboBox()
+        self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
+        saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
+        idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
+        if idx_cb != -1:
+            self.cmb_opt_cookies_browser.setCurrentIndex(idx_cb)
+        row_cbrowser.addWidget(self.cmb_opt_cookies_browser, stretch=1)
+        vbox_cookies.addLayout(row_cbrowser)
+
+        row_cfile = QHBoxLayout()
+        row_cfile.addWidget(QLabel("Netscape cookies.txt Path:"))
+        self.txt_opt_cookies_path = QLineEdit()
+        self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
+        saved_cpath = self.config_data.get("media_downloader_cookies_path", media_defaults.get("cookies_path", ""))
+        self.txt_opt_cookies_path.setText(saved_cpath)
+        row_cfile.addWidget(self.txt_opt_cookies_path, stretch=1)
+
+        btn_browse_c = QPushButton("Browse...")
+        btn_browse_c.clicked.connect(self._browse_opt_cookies_file)
+        row_cfile.addWidget(btn_browse_c)
+
+        btn_clear_c = QPushButton("Clear")
+        btn_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
+        row_cfile.addWidget(btn_clear_c)
+
+        vbox_cookies.addLayout(row_cfile)
+        layout.addWidget(grp_cookies)
+
         layout.addStretch()
+
+    def _browse_opt_cookies_file(self):
+        from PyQt6.QtWidgets import QFileDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Netscape Cookies File",
+            "",
+            "Text Files (*.txt);;All Files (*)"
+        )
+        if file_path:
+            self.txt_opt_cookies_path.setText(file_path)
 
     def on_toggle_show_token(self, checked):
         """Toggles the echo mode of the token field."""
@@ -777,6 +847,16 @@ class OptionsDialog(QDialog):
             media_defaults["auto_start_media"] = self.chk_auto_start_media.isChecked()
         if hasattr(self, "cmb_media_quality"):
             media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
+        if hasattr(self, "cmb_opt_cookies_mode"):
+            media_defaults["cookies_mode_idx"] = self.cmb_opt_cookies_mode.currentIndex()
+        if hasattr(self, "cmb_opt_cookies_browser"):
+            b_name = self.cmb_opt_cookies_browser.currentText()
+            media_defaults["cookies_browser"] = b_name
+            self.config_data["media_downloader_cookies_browser"] = b_name
+        if hasattr(self, "txt_opt_cookies_path"):
+            c_path = self.txt_opt_cookies_path.text().strip()
+            media_defaults["cookies_path"] = c_path
+            self.config_data["media_downloader_cookies_path"] = c_path
         self.config_data["media_downloader_defaults"] = media_defaults
 
         save_category_config(self.config_data)
