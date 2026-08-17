@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    find_aria2, choose_portal_save_path, choose_portal_folder_path,
+    find_aria2, choose_portal_save_path, choose_portal_folder_path, choose_portal_open_file_path,
     is_autostart_enabled, set_autostart_enabled
 )
 from core.config import load_category_config, save_category_config
@@ -746,13 +746,17 @@ class OptionsDialog(QDialog):
         layout.addStretch()
 
     def _browse_opt_cookies_file(self):
-        from PyQt6.QtWidgets import QFileDialog
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Netscape Cookies File",
-            "",
-            "Text Files (*.txt);;All Files (*)"
-        )
+        current_path = self.txt_opt_cookies_path.text().strip()
+        folder = os.path.dirname(current_path) if (current_path and os.path.exists(current_path)) else os.path.expanduser("~")
+        file_path = choose_portal_open_file_path(title="Select Netscape Cookies File", folder=folder)
+        if file_path is None:
+            from PyQt6.QtWidgets import QFileDialog
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select Netscape Cookies File",
+                folder,
+                "Text Files (*.txt);;All Files (*)"
+            )
         if file_path:
             self.txt_opt_cookies_path.setText(file_path)
 
