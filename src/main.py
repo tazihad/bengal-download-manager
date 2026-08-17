@@ -938,10 +938,8 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 opacity: 1.0;
             }
             QToolBar QToolButton:pressed {
-                color: palette(window-text);
                 background-color: palette(highlight);
-                border: 1px solid palette(highlight);
-                font-weight: bold;
+                color: #000000;
             }
             QToolBar QToolButton:disabled {
                 opacity: 0.30;
@@ -1107,9 +1105,9 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
     from PyQt6.QtGui import QColor
 
     if icon_theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark"):
-        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"), glow=glow)
+        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), glow=glow)
     elif icon_theme_lower in ("bdm light", "bdmlight"):
-        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"), glow=glow)
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), glow=glow)
     else:
         app = QApplication.instance()
         is_dark = False
@@ -1120,9 +1118,9 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
             if bg_val < 128 or fg_val > 128:
                 is_dark = True
         if is_dark:
-            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"), glow=glow)
+            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), glow=glow)
         else:
-            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"), glow=glow)
+            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), glow=glow)
 
     if not icon.isNull():
         return icon
@@ -1399,7 +1397,12 @@ class SidebarItemDelegate(QStyledItemDelegate):
                             c = img.pixelColor(x, y)
                             if c.alpha() > 0:
                                 img.setPixelColor(x, y, QColor(0, 0, 0, c.alpha()))
-                    opt.icon = QIcon(QPixmap.fromImage(img))
+                    black_pm = QPixmap.fromImage(img)
+                    black_ic = QIcon()
+                    black_ic.addPixmap(black_pm, QIcon.Mode.Normal)
+                    black_ic.addPixmap(black_pm, QIcon.Mode.Selected)
+                    black_ic.addPixmap(black_pm, QIcon.Mode.Active)
+                    opt.icon = black_ic
 
             opt.palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
             opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
@@ -1942,10 +1945,8 @@ class MainWindow(QMainWindow):
                 opacity: 1.0;
             }
             QToolButton:pressed {
-                color: palette(window-text);
                 background-color: palette(highlight);
-                border: 1px solid palette(highlight);
-                font-weight: bold;
+                color: #000000;
             }
             QToolButton:disabled {
                 opacity: 0.30;

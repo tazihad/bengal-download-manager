@@ -316,7 +316,7 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
         color = app.palette().color(QPalette.ColorRole.WindowText) if app else QColor("#333333")
 
     if selected_color is None:
-        selected_color = color
+        selected_color = QColor("#000000")
 
     if active_color is None:
         active_color = QColor("#000000")

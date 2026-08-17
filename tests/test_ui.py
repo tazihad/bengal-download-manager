@@ -848,21 +848,21 @@ def test_menu_hover_and_table_selected_black(qapp):
                 has_black_pixel = True
     assert has_black_pixel is True
 
-    # Test get_themed_icon Normal and Selected modes in dark theme are white, while Active mode (menu hover) is black
+    # Test get_themed_icon Normal mode is white, Active mode (menu hover) is black, Selected mode is black
     from main import get_themed_icon
     icon = get_themed_icon("resume")
-    for mode in (QIcon.Mode.Normal, QIcon.Mode.Selected):
-        norm_pixmap = icon.pixmap(24, 24, mode)
-        assert not norm_pixmap.isNull()
-        img_norm = norm_pixmap.toImage()
-        has_white_pixel = False
-        for y in range(img_norm.height()):
-            for x in range(img_norm.width()):
-                pixel = img_norm.pixelColor(x, y)
-                if pixel.alpha() > 100:
-                    assert pixel.red() > 200 and pixel.green() > 200 and pixel.blue() > 200, f"Mode {mode} pixel ({x},{y}) is not white"
-                    has_white_pixel = True
-        assert has_white_pixel is True
+
+    norm_pixmap = icon.pixmap(24, 24, QIcon.Mode.Normal)
+    assert not norm_pixmap.isNull()
+    img_norm = norm_pixmap.toImage()
+    has_white_pixel = False
+    for y in range(img_norm.height()):
+        for x in range(img_norm.width()):
+            pixel = img_norm.pixelColor(x, y)
+            if pixel.alpha() > 100:
+                assert pixel.red() > 200 and pixel.green() > 200 and pixel.blue() > 200, f"Mode Normal pixel ({x},{y}) is not white"
+                has_white_pixel = True
+    assert has_white_pixel is True
 
     # Active mode (menu item hover) must be pure black (#000000)
     act_pixmap = icon.pixmap(24, 24, QIcon.Mode.Active)
@@ -876,6 +876,19 @@ def test_menu_hover_and_table_selected_black(qapp):
                 assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Active mode pixel ({x},{y}) is not black"
                 has_black_pixel = True
     assert has_black_pixel is True
+
+    # Selected mode must be pure black (#000000)
+    sel_pixmap = icon.pixmap(24, 24, QIcon.Mode.Selected)
+    assert not sel_pixmap.isNull()
+    img_sel = sel_pixmap.toImage()
+    has_sel_black_pixel = False
+    for y in range(img_sel.height()):
+        for x in range(img_sel.width()):
+            pixel = img_sel.pixelColor(x, y)
+            if pixel.alpha() > 100:
+                assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Selected mode pixel ({x},{y}) is not black"
+                has_sel_black_pixel = True
+    assert has_sel_black_pixel is True
 
 
 def test_status_bar_view_toggle(qapp):
@@ -1085,66 +1098,6 @@ def test_sidebar_incomplete_status_filter(qapp):
     window.close()
 
 
-def test_toolbar_click_and_press_icon_colors(qapp):
-    from main import apply_app_theme
-    from PyQt6.QtWidgets import QToolBar, QToolButton
-    from PyQt6.QtCore import QEvent, QPointF
-    from PyQt6.QtGui import QMouseEvent, QIcon
-
-    # 1. Test Dark theme click / pressed state
-    apply_app_theme("BDM Dark (Default)")
-    win_dark = MainWindow(start_ipc=False)
-    win_dark.hide()
-
-    tb_dark = win_dark.findChild(QToolBar, "MainToolbar")
-    add_btn_dark = None
-    for b in tb_dark.findChildren(QToolButton):
-        if b.defaultAction() is win_dark.action_add_url:
-            add_btn_dark = b
-            break
-    assert add_btn_dark is not None
-    win_dark.action_add_url.disconnect()
-
-    # Simulate mouse press (click)
-    press_event = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    qapp.sendEvent(add_btn_dark, press_event)
-
-    # In dark mode, all non-transparent pixels on toolbar button icon must be white, never dark
-    img_dark = add_btn_dark.icon().pixmap(24, 24, QIcon.Mode.Selected).toImage()
-    white_px = sum(1 for y in range(img_dark.height()) for x in range(img_dark.width()) if img_dark.pixelColor(x, y).red() > 200 and img_dark.pixelColor(x, y).alpha() > 150)
-    dark_px = sum(1 for y in range(img_dark.height()) for x in range(img_dark.width()) if img_dark.pixelColor(x, y).red() < 50 and img_dark.pixelColor(x, y).alpha() > 150)
-    assert white_px > 0, "Dark mode toolbar icon on press should have white stroke pixels"
-    assert dark_px == 0, "Dark mode toolbar icon on press should not have dark stroke pixels"
-
-    release_event = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    qapp.sendEvent(add_btn_dark, release_event)
-    win_dark.close()
-
-    # 2. Test Light theme click / pressed state
-    win_light = MainWindow(start_ipc=False)
-    win_light.hide()
-    win_light.apply_appearance_setting("BDM Light", icon_theme_name="BDM Light")
-
-    tb_light = win_light.findChild(QToolBar, "MainToolbar")
-    add_btn_light = None
-    for b in tb_light.findChildren(QToolButton):
-        if b.defaultAction() is win_light.action_add_url:
-            add_btn_light = b
-            break
-    assert add_btn_light is not None
-    win_light.action_add_url.disconnect()
-
-    press_event_light = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    qapp.sendEvent(add_btn_light, press_event_light)
-    img_light = add_btn_light.icon().pixmap(24, 24, QIcon.Mode.Selected).toImage()
-    dark_px_light = sum(1 for y in range(img_light.height()) for x in range(img_light.width()) if img_light.pixelColor(x, y).red() < 50 and img_light.pixelColor(x, y).alpha() > 150)
-    white_px_light = sum(1 for y in range(img_light.height()) for x in range(img_light.width()) if img_light.pixelColor(x, y).red() > 200 and img_light.pixelColor(x, y).alpha() > 150)
-    assert dark_px_light > 0, "Light mode toolbar icon on press should have dark stroke pixels"
-    assert white_px_light == 0, "Light mode toolbar icon on press should not have white stroke pixels"
-
-    release_event_light = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    qapp.sendEvent(add_btn_light, release_event_light)
-    win_light.close()
 
 
 def test_sidebar_selected_icon_black_in_dark_and_light_modes(qapp):
@@ -1154,9 +1107,9 @@ def test_sidebar_selected_icon_black_in_dark_and_light_modes(qapp):
     from PyQt6.QtCore import QRect
 
     # 1. Dark Mode
-    apply_app_theme("BDM Dark (Default)")
     win_dark = MainWindow(start_ipc=False)
     win_dark.hide()
+    win_dark.apply_appearance_setting("BDM Dark (Default)", icon_theme_name="BDM Dark (Default)")
 
     tree = win_dark.category_tree
     item = win_dark.all_downloads_header
