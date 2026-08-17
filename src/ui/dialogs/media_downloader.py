@@ -279,12 +279,11 @@ class MediaDownloaderDialog(QDialog):
         self.btn_analyze.setToolTip("Parse media formats or playlist items using yt-dlp")
         self.btn_analyze.clicked.connect(self._on_analyze_or_stop_clicked)
 
-        self.btn_prefs = QPushButton("⋮")
-        self.btn_prefs.setFixedSize(34, 34)
-        app_font_fam = QApplication.font().family() if QApplication.instance() else "Inter"
-        self.btn_prefs.setFont(QFont(app_font_fam, 14, QFont.Weight.Bold))
+        self.btn_prefs = QPushButton("🍪 Cookies ▾")
+        self.btn_prefs.setFixedHeight(34)
+        self.btn_prefs.setFixedWidth(130)
         self.btn_prefs.setCheckable(True)
-        self.btn_prefs.setToolTip("Authentication & Cookie Vault Settings")
+        self.btn_prefs.setToolTip("Configure Browser Cookies & Authentication (cookies.txt / Auto-Extract)")
         self.btn_prefs.clicked.connect(self._toggle_cookies_prefs)
 
         input_layout.addWidget(self.txt_url)
@@ -828,7 +827,9 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_status.setText("Analysis cancelled.")
 
     def _toggle_cookies_prefs(self):
-        self.frame_cookies_prefs.setVisible(self.btn_prefs.isChecked())
+        is_open = self.btn_prefs.isChecked()
+        self.frame_cookies_prefs.setVisible(is_open)
+        self.btn_prefs.setText("🍪 Cookies ▴" if is_open else "🍪 Cookies ▾")
 
     def _on_cookies_mode_changed(self, idx: int):
         if hasattr(self, "stack_cookies"):
@@ -846,16 +847,22 @@ class MediaDownloaderDialog(QDialog):
         if not c_path:
             self.lbl_cookies_status.setText("No cookies file configured.")
             self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: gray;")
+            if hasattr(self, "btn_prefs"):
+                self.btn_prefs.setToolTip("Configure Browser Cookies & Authentication (cookies.txt / Auto-Extract)")
             return
         if not os.path.exists(c_path):
             self.lbl_cookies_status.setText(f"⚠️ File does not exist: {c_path}")
             self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
+            if hasattr(self, "btn_prefs"):
+                self.btn_prefs.setToolTip(f"Cookies: ⚠️ File not found ({c_path})")
             return
         try:
             sz = os.path.getsize(c_path)
             sz_str = f"{sz / 1024:.1f} KB" if sz >= 1024 else f"{sz} B"
             self.lbl_cookies_status.setText(f"✓ Valid Netscape Cookie file ({sz_str}) • Ready for yt-dlp authentication")
             self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #2ec27e; font-weight: bold;")
+            if hasattr(self, "btn_prefs"):
+                self.btn_prefs.setToolTip(f"Cookies Active: Netscape ({sz_str})")
         except Exception as e:
             self.lbl_cookies_status.setText(f"⚠️ Error accessing file: {e}")
             self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
