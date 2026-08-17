@@ -278,6 +278,22 @@ def test_options_dialog_media_downloader_settings(qapp, tmp_path):
     assert media_defaults.get("cookies_browser") == "Firefox"
     assert media_defaults.get("cookies_path") == test_cookie_file
 
+    # Test dynamic enabling/disabling
+    dlg.cmb_opt_cookies_mode.setCurrentIndex(0)  # File mode
+    assert dlg.cmb_opt_cookies_browser.isEnabled() is False
+    assert dlg.txt_opt_cookies_path.isEnabled() is True
+    assert dlg.btn_opt_browse_c.isEnabled() is True
+
+    dlg.cmb_opt_cookies_mode.setCurrentIndex(1)  # Browser mode
+    assert dlg.cmb_opt_cookies_browser.isEnabled() is True
+    assert dlg.txt_opt_cookies_path.isEnabled() is False
+    assert dlg.btn_opt_browse_c.isEnabled() is False
+
+    dlg.cmb_opt_cookies_mode.setCurrentIndex(2)  # None
+    assert dlg.cmb_opt_cookies_browser.isEnabled() is False
+    assert dlg.txt_opt_cookies_path.isEnabled() is False
+    assert dlg.btn_opt_browse_c.isEnabled() is False
+
     # Reset
     media_defaults["auto_start_media"] = False
     media_defaults["auto_media_quality_preset"] = "Best Quality (Video + Audio merged)"

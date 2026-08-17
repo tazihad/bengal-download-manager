@@ -707,7 +707,8 @@ class OptionsDialog(QDialog):
         vbox_cookies.addLayout(row_cmode)
 
         row_cbrowser = QHBoxLayout()
-        row_cbrowser.addWidget(QLabel("Default Browser:"))
+        self.lbl_opt_cookies_browser = QLabel("Default Browser:")
+        row_cbrowser.addWidget(self.lbl_opt_cookies_browser)
         self.cmb_opt_cookies_browser = QComboBox()
         self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
         saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
@@ -718,8 +719,8 @@ class OptionsDialog(QDialog):
         vbox_cookies.addLayout(row_cbrowser)
 
         # Full-width cookies path input with Browse / Clear buttons below
-        lbl_cpath = QLabel("Netscape cookies.txt Path:")
-        vbox_cookies.addWidget(lbl_cpath)
+        self.lbl_opt_cookies_path = QLabel("Netscape cookies.txt Path:")
+        vbox_cookies.addWidget(self.lbl_opt_cookies_path)
 
         self.txt_opt_cookies_path = QLineEdit()
         self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
@@ -730,20 +731,44 @@ class OptionsDialog(QDialog):
         row_cbuttons = QHBoxLayout()
         row_cbuttons.addStretch()
 
-        btn_browse_c = QPushButton("Browse...")
-        btn_browse_c.setFixedWidth(90)
-        btn_browse_c.clicked.connect(self._browse_opt_cookies_file)
-        row_cbuttons.addWidget(btn_browse_c)
+        self.btn_opt_browse_c = QPushButton("Browse...")
+        self.btn_opt_browse_c.setFixedWidth(90)
+        self.btn_opt_browse_c.clicked.connect(self._browse_opt_cookies_file)
+        row_cbuttons.addWidget(self.btn_opt_browse_c)
 
-        btn_clear_c = QPushButton("Clear")
-        btn_clear_c.setFixedWidth(80)
-        btn_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
-        row_cbuttons.addWidget(btn_clear_c)
+        self.btn_opt_clear_c = QPushButton("Clear")
+        self.btn_opt_clear_c.setFixedWidth(80)
+        self.btn_opt_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
+        row_cbuttons.addWidget(self.btn_opt_clear_c)
 
         vbox_cookies.addLayout(row_cbuttons)
+
+        self.cmb_opt_cookies_mode.currentIndexChanged.connect(self._update_opt_cookies_ui)
+        self._update_opt_cookies_ui()
+
         layout.addWidget(grp_cookies)
 
         layout.addStretch()
+
+    def _update_opt_cookies_ui(self):
+        mode_idx = self.cmb_opt_cookies_mode.currentIndex() if hasattr(self, "cmb_opt_cookies_mode") else 0
+        # 0 = Netscape File, 1 = Browser Auto-Extraction, 2 = None
+        is_file_mode = (mode_idx == 0)
+        is_browser_mode = (mode_idx == 1)
+
+        if hasattr(self, "lbl_opt_cookies_browser"):
+            self.lbl_opt_cookies_browser.setEnabled(is_browser_mode)
+        if hasattr(self, "cmb_opt_cookies_browser"):
+            self.cmb_opt_cookies_browser.setEnabled(is_browser_mode)
+
+        if hasattr(self, "lbl_opt_cookies_path"):
+            self.lbl_opt_cookies_path.setEnabled(is_file_mode)
+        if hasattr(self, "txt_opt_cookies_path"):
+            self.txt_opt_cookies_path.setEnabled(is_file_mode)
+        if hasattr(self, "btn_opt_browse_c"):
+            self.btn_opt_browse_c.setEnabled(is_file_mode)
+        if hasattr(self, "btn_opt_clear_c"):
+            self.btn_opt_clear_c.setEnabled(is_file_mode)
 
     def _browse_opt_cookies_file(self):
         current_path = self.txt_opt_cookies_path.text().strip()
