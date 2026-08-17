@@ -621,11 +621,10 @@ class YtDlpDownloadWorker(QThread):
             bin_dir = str(BIN_DIR)
 
             os.makedirs(self.save_dir, exist_ok=True)
-            raw_base = os.path.splitext(self.filename)[0]
+            from core.utils import sanitize_media_filename
+            sanitized_name = sanitize_media_filename(self.filename)
+            raw_base = os.path.splitext(sanitized_name)[0]
             clean_base = re.sub(r'[\\/*?:"<>|]', "_", raw_base).strip()
-            # Truncate clean_base to 100 bytes max to prevent Errno 36 (File name too long)
-            if len(clean_base.encode("utf-8")) > 100:
-                clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").strip()
             output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
 
             cmd = [
@@ -634,7 +633,6 @@ class YtDlpDownloadWorker(QThread):
                 "--no-warnings",
                 "--progress-delta", "0.1",
                 "--remote-components", "ejs:github",
-                "--trim-filenames", "100",
                 "--ffmpeg-location", bin_dir,
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",

@@ -1255,6 +1255,66 @@ def sanitize_media_url(data: str) -> str:
     return raw_url
 
 
+def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) -> str:
+    """
+    Sanitize and truncate media title to avoid filesystem errors (e.g. Errno 36 File name too long)
+    and ensure consistent filename resolution across the app while preserving counter suffixes.
+    """
+    if not title:
+        title = "media"
+    clean_base = re.sub(r'[\\/*?:"<>|]', "_", str(title)).strip()
+    if not clean_base:
+        clean_base = "media"
+
+    # Extract any existing duplicate counter suffix like " (1)", " (2)"
+    m = re.search(r'^(.*?)(\s*\(\d+\))$', clean_base)
+    if m:
+        main_part, suffix = m.group(1), m.group(2)
+        eff_limit = max(10, max_len - len(suffix.encode("utf-8")))
+        while len(main_part.encode("utf-8")) > eff_limit:
+            main_part = main_part.encode("utf-8")[:eff_limit].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+            if not main_part:
+                main_part = "media"
+                break
+        clean_base = f"{main_part}{suffix}"
+    else:
+        while len(clean_base.encode("utf-8")) > max_len:
+            clean_base = clean_base.encode("utf-8")[:max_len].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+            if not clean_base:
+                clean_base = "media"
+                break
+
+    if not ext.startswith("."):
+        ext = f".{ext}"
+    return f"{clean_base}{ext}"
+
+
+def get_unique_media_filepath(save_dir: str, filename: str) -> str:
+    """
+    Ensures a unique filepath for media downloads. Checks across all potential
+    media extensions (.mp4, .mkv, .webm, .mp3, .m4a, .flv, .avi) to prevent
+    yt-dlp from skipping downloads when re-downloading different qualities of the same media.
+    """
+    base_name, ext = os.path.splitext(filename)
+    if not ext:
+        ext = ".mp4"
+
+    media_exts = [ext, ".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"]
+
+    def _exists(stem):
+        return any(os.path.exists(os.path.join(save_dir, f"{stem}{e}")) for e in media_exts)
+
+    cand_path = os.path.join(save_dir, f"{base_name}{ext}")
+    counter = 1
+    current_stem = base_name
+    while _exists(current_stem):
+        current_stem = f"{base_name} ({counter})"
+        cand_path = os.path.join(save_dir, f"{current_stem}{ext}")
+        counter += 1
+
+    return cand_path
+
+
 def advance_semantic_version(x: int, y: int, z: int) -> tuple[int, int, str]:
     """
     Advances the patch version. When patch version reaches or exceeds 99,

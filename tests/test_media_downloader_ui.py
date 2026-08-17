@@ -450,30 +450,46 @@ def test_media_downloader_fps_display_and_selection(qapp):
 def test_start_media_download_unique_naming_when_file_exists(qapp, tmp_path):
     """
     Verify that downloading the same media with an existing file on disk
-    (e.g., first in 720p, then in 1080p) generates unique filenames and target paths.
+    (e.g., first in 720p, then in 1080p, including long titles) generates unique filenames and target paths.
     """
     from main import MainWindow
+    from core.utils import sanitize_media_filename
     from unittest.mock import patch, MagicMock
 
     mw = MainWindow(start_ipc=False)
     save_dir = str(tmp_path)
 
-    # Simulate existing 720p file on disk
+    # 1. Standard filename collision
     existing_video = tmp_path / "My_Video.mp4"
     existing_video.write_bytes(b"dummy 720p video content")
 
     with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_start:
-        # Download same video in 1080p
         item_ref = mw.start_media_download(
             url="https://youtube.com/watch?v=sample",
             filename="My_Video.mp4",
             format_spec="bestvideo[height<=1080][fps<=60]+bestaudio/best",
             custom_save_dir=save_dir
         )
-
-        # Name must be unique so yt-dlp does not skip the download or point to old file
         assert item_ref.text() == "My_Video (1).mp4"
         assert item_ref.data(Qt.ItemDataRole.UserRole + 1) == str(tmp_path / "My_Video (1).mp4")
         assert mock_start.called
+
+    # 2. Long title filename collision (e.g. YouTube radio mix / complex metadata)
+    long_title = "Manike (8k-60fps) : Thank God Nora, Sidharth| Tanishk,Yohani,Jubin,Surya R |Rashmi Virag|Bhushan K"
+    sanitized_first = sanitize_media_filename(long_title, ext=".mp4")
+    first_file = tmp_path / sanitized_first
+    first_file.write_bytes(b"first 720p download")
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_start2:
+        item_ref2 = mw.start_media_download(
+            url="https://www.youtube.com/watch?v=WIs2K6nBD8A",
+            filename=sanitized_first,
+            format_spec="bestvideo[height<=1080][fps<=60]+bestaudio/best",
+            custom_save_dir=save_dir
+        )
+        # Suffix (1) must be preserved despite length
+        assert item_ref2.text().endswith(" (1).mp4")
+        assert item_ref2.data(Qt.ItemDataRole.UserRole + 1).endswith(" (1).mp4")
+        assert mock_start2.called
 
     mw.close()

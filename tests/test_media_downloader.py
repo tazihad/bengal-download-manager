@@ -182,9 +182,7 @@ def test_yt_dlp_long_filename_truncation(tmp_path):
 
         # Check command args sent to subprocess.Popen
         cmd = mock_popen.call_args[0][0]
-        assert "--trim-filenames" in cmd
-        assert "100" in cmd
-        # Output template file path should be truncated under 100 bytes
+        # Output template file path should be truncated under 150 bytes
         out_tmpl = cmd[cmd.index("-o") + 1]
         base_tmpl = os.path.basename(out_tmpl)
         assert len(base_tmpl.encode("utf-8")) < 150

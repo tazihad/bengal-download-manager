@@ -1633,9 +1633,9 @@ class MediaDownloaderDialog(QDialog):
             webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
             format_spec, is_audio_only = self._get_single_video_format_spec()
 
-            clean_title = re.sub(r'[\\/*?:"<>|]', "_", title)
+            from core.utils import sanitize_media_filename
             ext = ".mp3" if is_audio_only else ".mp4"
-            filename = f"{clean_title}{ext}"
+            filename = sanitize_media_filename(title, ext=ext)
 
             total_size_bytes = 0
             for fmt in self._current_video_data.get("formats", []):
@@ -1665,6 +1665,7 @@ class MediaDownloaderDialog(QDialog):
         elif self.stack.currentWidget() == self.page_playlist and self._current_playlist_data:
             entries = self._current_playlist_data.get("entries", [])
             format_spec, is_audio_only = self._get_playlist_format_spec()
+            from core.utils import sanitize_media_filename
             enqueued = 0
 
             for r in range(self.tbl_playlist.rowCount()):
@@ -1673,9 +1674,8 @@ class MediaDownloaderDialog(QDialog):
                     entry = entries[r]
                     item_url = entry["url"]
                     item_title = entry.get("title", f"video_{r+1}")
-                    clean_title = re.sub(r'[\\/*?:"<>|]', "_", item_title)
                     ext = ".mp3" if is_audio_only else ".mp4"
-                    filename = f"{clean_title}{ext}"
+                    filename = sanitize_media_filename(item_title, ext=ext)
 
                     if hasattr(mw, "start_media_download"):
                         mw.start_media_download(

@@ -4616,14 +4616,10 @@ class MainWindow(QMainWindow):
             except Exception:
                 save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
 
-        # Ensure unique target path so yt-dlp does not skip downloads when the same video was previously downloaded in a different quality or format
+        from core.utils import sanitize_media_filename, get_unique_media_filepath
         base_name, ext = os.path.splitext(filename)
-        cand_path = os.path.join(save_dir, filename)
-        counter = 1
-        while any(os.path.exists(os.path.join(save_dir, f"{base_name if counter == 1 else f'{base_name} ({counter - 1})'}{cand_ext}")) for cand_ext in [ext, ".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"]):
-            cand_path = os.path.join(save_dir, f"{base_name} ({counter}){ext}")
-            counter += 1
-        target_path = cand_path
+        sanitized_filename = sanitize_media_filename(base_name, ext=ext)
+        target_path = get_unique_media_filepath(save_dir, sanitized_filename)
         filename = os.path.basename(target_path)
 
         self.download_table.setSortingEnabled(False)
