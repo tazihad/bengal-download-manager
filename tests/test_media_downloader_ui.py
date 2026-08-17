@@ -289,3 +289,29 @@ def test_options_dialog_media_downloader_settings(qapp, tmp_path):
     cfg["media_downloader_cookies_path"] = ""
     save_category_config(cfg)
     dlg.close()
+
+
+def test_media_downloader_dialog_auto_start_browser_checkbox(qapp):
+    """Verify MediaDownloaderDialog auto-start checkbox reflects and updates config."""
+    from core.config import load_category_config, save_category_config
+
+    cfg = load_category_config()
+    defaults = cfg.get("media_downloader_defaults", {})
+    defaults["auto_start_media"] = False
+    cfg["media_downloader_defaults"] = defaults
+    save_category_config(cfg)
+
+    dlg = MediaDownloaderDialog()
+    assert hasattr(dlg, "chk_auto_start_browser")
+    assert dlg.chk_auto_start_browser.isChecked() is False
+
+    # Toggle checkbox
+    dlg.chk_auto_start_browser.setChecked(True)
+    cfg_updated = load_category_config()
+    assert cfg_updated.get("media_downloader_defaults", {}).get("auto_start_media") is True
+
+    # Toggle back
+    dlg.chk_auto_start_browser.setChecked(False)
+    cfg_updated2 = load_category_config()
+    assert cfg_updated2.get("media_downloader_defaults", {}).get("auto_start_media") is False
+    dlg.close()

@@ -696,11 +696,16 @@ class MediaDownloaderDialog(QDialog):
         self.chk_manual_selection.setToolTip("Enable to manually select a specific video/audio format row from the table below")
         self.chk_manual_selection.toggled.connect(self._on_manual_selection_toggled)
 
+        self.chk_auto_start_browser = QCheckBox("Auto-start from extension")
+        self.chk_auto_start_browser.setToolTip("Automatically start downloading media links sent from the browser extension using preselected quality")
+        self.chk_auto_start_browser.toggled.connect(self._on_auto_start_browser_toggled)
+
         self.chk_save_defaults = QCheckBox("Remember")
         self.chk_save_defaults.setToolTip("Save current quality preset, format choices, and selection mode for future downloads")
         self.chk_save_defaults.toggled.connect(self._save_preferences_if_enabled)
 
         chk_layout.addWidget(self.chk_manual_selection)
+        chk_layout.addWidget(self.chk_auto_start_browser)
         chk_layout.addWidget(self.chk_save_defaults)
         chk_layout.addStretch()
         layout.addLayout(chk_layout)
@@ -1378,9 +1383,14 @@ class MediaDownloaderDialog(QDialog):
 
         use_manual = bool(prefs.get("use_manual_selection", False))
         save_defaults = bool(prefs.get("save_defaults", False))
+        auto_start = bool(prefs.get("auto_start_media", False))
 
         self.chk_manual_selection.setChecked(use_manual)
         self.chk_save_defaults.setChecked(save_defaults)
+        if hasattr(self, "chk_auto_start_browser"):
+            self.chk_auto_start_browser.blockSignals(True)
+            self.chk_auto_start_browser.setChecked(auto_start)
+            self.chk_auto_start_browser.blockSignals(False)
 
         self.cmb_quality_preset.setEnabled(not use_manual)
         self.cmb_video_format.setEnabled(not use_manual)
@@ -1415,6 +1425,15 @@ class MediaDownloaderDialog(QDialog):
         self.chk_manual_selection.blockSignals(False)
         self.chk_save_defaults.blockSignals(False)
 
+    def _on_auto_start_browser_toggled(self, checked: bool):
+        """Immediately update persistent auto-start setting matching the Options Media tab."""
+        from core.config import load_category_config, save_category_config
+        config = load_category_config()
+        defaults = config.get("media_downloader_defaults", {})
+        defaults["auto_start_media"] = checked
+        config["media_downloader_defaults"] = defaults
+        save_category_config(config)
+
     def _save_cookies_path_permanently(self):
         """Always save cookies configurations persistently across app restarts."""
         from core.config import load_category_config, save_category_config
@@ -1437,7 +1456,8 @@ class MediaDownloaderDialog(QDialog):
         if hasattr(self, "chk_save_defaults") and self.chk_save_defaults.isChecked():
             from core.config import load_category_config, save_category_config
             config = load_category_config()
-            config["media_downloader_defaults"] = {
+            defaults = config.get("media_downloader_defaults", {})
+            defaults.update({
                 "preset_idx": self.cmb_quality_preset.currentIndex(),
                 "video_format_idx": self.cmb_video_format.currentIndex(),
                 "audio_format_idx": self.cmb_audio_format.currentIndex(),
@@ -1445,8 +1465,10 @@ class MediaDownloaderDialog(QDialog):
                 "save_defaults": True,
                 "cookies_path": self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else "",
                 "cookies_mode_idx": self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0,
-                "cookies_browser": self.cmb_cookies_browser.currentText() if hasattr(self, "cmb_cookies_browser") else "Chrome"
-            }
+                "cookies_browser": self.cmb_cookies_browser.currentText() if hasattr(self, "cmb_cookies_browser") else "Chrome",
+                "auto_start_media": self.chk_auto_start_browser.isChecked() if hasattr(self, "chk_auto_start_browser") else defaults.get("auto_start_media", False)
+            })
+            config["media_downloader_defaults"] = defaults
             save_category_config(config)
 
     def _get_single_video_format_spec(self) -> tuple[str, bool]:
