@@ -1471,15 +1471,7 @@ class ToolbarHoverFilter(QObject):
     def get_glow_icon(self, icon_name: str) -> QIcon:
         if icon_name not in self._glow_icons:
             from ui.icons import get_monochrome_icon
-            app = QApplication.instance()
-            is_dark = True
-            if app:
-                pal = app.palette()
-                bg_val = pal.color(QPalette.ColorRole.Window).value()
-                fg_val = pal.color(QPalette.ColorRole.WindowText).value()
-                if bg_val >= 128 and fg_val <= 128:
-                    is_dark = False
-
+            is_dark = self.main_window.is_dark_theme() if hasattr(self.main_window, "is_dark_theme") else True
             stroke_color = QColor("#ffffff") if is_dark else QColor("#232629")
             self._glow_icons[icon_name] = get_monochrome_icon(
                 icon_name,
@@ -1925,6 +1917,57 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
+    def is_dark_theme(self) -> bool:
+        theme = getattr(self, "settings", {}).get("theme", "BDM Dark (Default)")
+        theme_lower = str(theme).lower()
+        if "light" in theme_lower:
+            return False
+        if any(d in theme_lower for d in ("dark", "dracula", "nord", "obsidian")):
+            return True
+        app = QApplication.instance()
+        if app:
+            pal = app.palette()
+            return pal.color(QPalette.ColorRole.Window).value() < 128
+        return True
+
+    def get_toolbar_stylesheet(self) -> str:
+        glow_text_color = "#ffffff" if self.is_dark_theme() else "#000000"
+        return f"""
+            QToolBar {{
+                background-color: palette(window);
+                border: none;
+                spacing: 3px;
+                padding: 2px 4px;
+            }}
+            QToolButton {{
+                color: palette(window-text);
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 5px;
+                padding: 4px 6px;
+                font-weight: normal;
+                opacity: 1.0;
+            }}
+            QToolButton:hover {{
+                color: {glow_text_color};
+                background-color: palette(midlight);
+                border: 1px solid palette(highlight);
+                font-weight: bold;
+                opacity: 1.0;
+            }}
+            QToolButton:pressed {{
+                background-color: palette(highlight);
+                color: {glow_text_color};
+                border: 1px solid palette(highlight);
+                font-weight: bold;
+            }}
+            QToolButton:disabled {{
+                opacity: 0.30;
+                background-color: transparent;
+                border: 1px solid transparent;
+            }}
+        """
+
     def setup_toolbar(self):
         toolbar = self.findChild(QToolBar, "MainToolbar")
         if toolbar is None:
@@ -1939,39 +1982,7 @@ class MainWindow(QMainWindow):
         toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QSize(24, 24))
-        toolbar.setStyleSheet("""
-            QToolBar {
-                background-color: palette(window);
-                border: none;
-                spacing: 3px;
-                padding: 2px 4px;
-            }
-            QToolButton {
-                color: palette(window-text);
-                background-color: transparent;
-                border: 1px solid transparent;
-                border-radius: 5px;
-                padding: 4px 6px;
-                font-weight: normal;
-                opacity: 1.0;
-            }
-            QToolButton:hover {
-                color: palette(window-text);
-                background-color: palette(midlight);
-                border: 1px solid palette(highlight);
-                font-weight: bold;
-                opacity: 1.0;
-            }
-            QToolButton:pressed {
-                background-color: palette(highlight);
-                color: #000000;
-            }
-            QToolButton:disabled {
-                opacity: 0.30;
-                background-color: transparent;
-                border: 1px solid transparent;
-            }
-        """)
+        toolbar.setStyleSheet(self.get_toolbar_stylesheet())
 
         toolbar.addAction(self.action_add_url)
         toolbar.addAction(self.action_resume)
@@ -3282,6 +3293,10 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "toolbar_hover_filter") and self.toolbar_hover_filter:
             self.toolbar_hover_filter.clear_cache()
+
+        toolbar = self.findChild(QToolBar, "MainToolbar")
+        if toolbar and hasattr(self, "get_toolbar_stylesheet"):
+            toolbar.setStyleSheet(self.get_toolbar_stylesheet())
 
         app = QApplication.instance()
         if app:
