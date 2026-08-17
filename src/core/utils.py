@@ -54,6 +54,56 @@ def format_bytes(size: float, precision: int = 2) -> str:
     return f"{s:.{precision}f} {units[idx]}"
 
 
+def get_process_memory() -> int:
+    """
+    Returns current process resident set size (RSS) memory in bytes.
+    Cross-platform support (Linux /proc/self/status or resource, Windows psapi, macOS resource).
+    """
+    system = platform.system()
+    if system == "Linux":
+        try:
+            if os.path.exists("/proc/self/status"):
+                with open("/proc/self/status", "r") as f:
+                    for line in f:
+                        if line.startswith("VmRSS:"):
+                            return int(line.split()[1]) * 1024
+        except Exception:
+            pass
+    elif system == "Windows":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                _fields_ = [
+                    ('cb', wintypes.DWORD),
+                    ('PageFaultCount', wintypes.DWORD),
+                    ('PeakWorkingSetSize', ctypes.c_size_t),
+                    ('WorkingSetSize', ctypes.c_size_t),
+                    ('QuotaPeakPagedPoolUsage', ctypes.c_size_t),
+                    ('QuotaPagedPoolUsage', ctypes.c_size_t),
+                    ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+                    ('QuotaNonPagedPoolUsage', ctypes.c_size_t),
+                    ('PagefileUsage', ctypes.c_size_t),
+                    ('PeakPagefileUsage', ctypes.c_size_t)
+                ]
+            counters = PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
+            handle = ctypes.windll.kernel32.GetCurrentProcess()
+            if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+                return int(counters.WorkingSetSize)
+        except Exception:
+            pass
+
+    try:
+        import resource
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if system == "Darwin":
+            return int(usage)
+        return int(usage) * 1024
+    except Exception:
+        return 0
+
+
 def resolve_filename(url, headers):
     """
     JDownloader-style robust filename resolution:

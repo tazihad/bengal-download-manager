@@ -4,13 +4,17 @@ from PyQt6.QtWidgets import (
     QApplication
 )
 from PyQt6.QtCore import Qt
+from core.memory_guard import MemoryGuard
 
 class ColumnDialog(QDialog):
     def __init__(self, columns_data, parent=None):
         super().__init__(parent)
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Columns")
         self.setWindowIcon(QApplication.windowIcon())
-        self.setFixedWidth(400)
+        self.setFixedWidth(420)
+        self.setMinimumHeight(400)
+        self.resize(420, 400)
         self.columns = columns_data # List of dicts: {"name": str, "visible": bool, "width": int, "logical_index": int}
         
         layout = QVBoxLayout(self)
@@ -19,6 +23,8 @@ class ColumnDialog(QDialog):
         
         # List widget for columns
         self.list_widget = QTableWidget(len(self.columns), 1)
+        self.list_widget.setMinimumHeight(240)
+        self.list_widget.verticalHeader().setDefaultSectionSize(30)
         self.list_widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.list_widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)

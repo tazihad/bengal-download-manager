@@ -22,3 +22,7 @@ def test_download_bridge_slots(qapp):
     assert signal_received
     assert len(bridge.downloads) == initial_count + 1
     assert bridge.downloads[0]["filename"] == "file.zip"
+    assert "B" in bridge.memoryUsage
+    assert isinstance(bridge.aria2Running, bool)
+    assert "B/s" in bridge.totalSpeed
+    assert bridge.itemCount == initial_count + 1

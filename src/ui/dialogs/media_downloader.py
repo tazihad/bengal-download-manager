@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut
 from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker
+from core.memory_guard import MemoryGuard
 
 
 class MediaDownloaderDialog(QDialog):
@@ -27,6 +28,7 @@ class MediaDownloaderDialog(QDialog):
     def __init__(self, main_window=None, parent=None):
         super().__init__(None)
         self._main_window = main_window or parent
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
         self.resize(820, 640)
@@ -193,7 +195,8 @@ class MediaDownloaderDialog(QDialog):
 
         self.btn_prefs = QPushButton("⋮")
         self.btn_prefs.setFixedSize(34, 34)
-        self.btn_prefs.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        app_font_fam = QApplication.font().family() if QApplication.instance() else "Inter"
+        self.btn_prefs.setFont(QFont(app_font_fam, 14, QFont.Weight.Bold))
         self.btn_prefs.setCheckable(True)
         self.btn_prefs.setToolTip("Browser Cookies & Authentication Preferences")
         self.btn_prefs.clicked.connect(self._toggle_cookies_prefs)

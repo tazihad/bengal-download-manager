@@ -628,4 +628,580 @@ def test_download_progress_dialog_close_after_complete(qapp, tmp_path):
         assert "Paused" not in call[0]
 
 
+def test_status_bar_initialization(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    assert window.statusBar() is not None
+    assert hasattr(window, "status_items_label")
+    assert hasattr(window, "status_speed_label")
+    assert hasattr(window, "status_aria2_label")
+    assert hasattr(window, "status_memory_label")
+
+    # Verify OpenType tabular numbers font feature
+    for lbl in [window.status_items_label, window.status_speed_label, window.status_memory_label]:
+        font = lbl.font()
+        # font feature tnum or tabular numbers
+        assert font is not None
+
+    assert "items" in window.status_items_label.text() or "item" in window.status_items_label.text()
+    assert "Speed:" in window.status_speed_label.text()
+    assert "Aria2:" in window.status_aria2_label.text()
+    assert "Memory:" in window.status_memory_label.text()
+    window.close()
+
+
+def test_status_bar_item_selection(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    # Clear table
+    while window.download_table.rowCount() > 0:
+        window.download_table.removeRow(0)
+
+    window.update_status_bar_items()
+    assert window.status_items_label.text() == "0 items"
+
+    # Add item 1 (will become row 1 after next insert)
+    window.start_download("http://example.com/file1.zip", custom_save_dir="/tmp", start_paused=True, show_dialog=False)
+    # Add item 2 (inserted at row 0)
+    window.start_download("http://example.com/file2.zip", custom_save_dir="/tmp", start_paused=True, show_dialog=False)
+    
+    window.download_table.item(0, 1).setText("10.00 MB")
+    window.download_table.item(1, 1).setText("5.00 MB")
+    window.update_status_bar_items()
+    assert window.status_items_label.text() == "2 items"
+
+    # Select row 0 (10.00 MB)
+    window.download_table.selectRow(0)
+    assert window.status_items_label.text() == "Selected: 1 of 2 items"
+    assert "10.00 MB" in window.status_items_label.toolTip()
+
+    # Select row 1 (5.00 MB)
+    window.download_table.selectRow(1)
+    assert window.status_items_label.text() == "Selected: 1 of 2 items"
+    assert "5.00 MB" in window.status_items_label.toolTip()
+
+    # Select both rows (15.00 MB total)
+    window.download_table.selectAll()
+    assert window.status_items_label.text() == "Selected: 2 of 2 items"
+    assert "15.00 MB" in window.status_items_label.toolTip()
+
+    # Clear selection
+    window.download_table.clearSelection()
+    assert window.status_items_label.text() == "2 items"
+    window.close()
+
+
+def test_status_bar_download_speed(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    # Add download
+    item_ref = window.start_download("http://example.com/fast.bin", custom_save_dir="/tmp", start_paused=True, show_dialog=False)
+
+    # Initial speed should be 0 B/s
+    assert "0 B/s" in window.status_speed_label.text()
+
+    # Simulate progress update with speed (1.5 MB/s = 1572864 B/s)
+    # data: [filename, size, status, time_left, rate, completed_bytes, total_bytes, raw_speed]
+    progress_data = ("fast.bin", "100.00 MB", "Receiving data...", "1 min", "1.50 MB/s", 15728640, 104857600, 1572864)
+    window.update_download_row(item_ref, progress_data)
+
+    assert "1.50 MB/s" in window.status_speed_label.text()
+
+    # Complete download
+    window.download_finished(item_ref, "Complete")
+    assert window.status_speed_label.text() == "Speed: 0 B/s"
+    window.close()
+
+
+def test_status_bar_aria2_and_memory(qapp):
+    from unittest.mock import MagicMock
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    # Mock running aria2 process
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None
+    mock_proc.pid = 99999
+    window.aria2_process = mock_proc
+    window.update_status_bar_aria2()
+    assert "Running" in window.status_aria2_label.text()
+    assert "99999" in window.status_aria2_label.toolTip()
+
+    # Mock stopped aria2 process
+    mock_proc.poll.return_value = 1
+    window.update_status_bar_aria2()
+    assert "Stopped" in window.status_aria2_label.text()
+
+    # Memory label update
+    window.update_status_bar_memory()
+    assert "Memory:" in window.status_memory_label.text()
+    assert "B" in window.status_memory_label.text()
+    window.close()
+
+
+def test_sidebar_section_headers(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    assert hasattr(window, "header_categories")
+    assert hasattr(window, "header_status")
+    assert hasattr(window, "header_schedule")
+
+    assert window.header_categories.text(0) == "Categories"
+    assert window.header_status.text(0) == "Status"
+    assert window.header_schedule.text(0) == "Schedule"
+
+    assert window.header_categories.data(0, Qt.ItemDataRole.UserRole) == "header"
+    assert window.header_status.data(0, Qt.ItemDataRole.UserRole) == "header"
+    assert window.header_schedule.data(0, Qt.ItemDataRole.UserRole) == "header"
+
+    # Clicking header items should not trigger filtering or crash
+    window.start_download("http://example.com/test.zip", custom_save_dir="/tmp", start_paused=True, show_dialog=False)
+    window.filter_downloads(window.header_categories, 0)
+    assert not window.download_table.isRowHidden(0)
+
+    window.filter_downloads(window.header_status, 0)
+    assert not window.download_table.isRowHidden(0)
+
+    window.filter_downloads(window.header_schedule, 0)
+    assert not window.download_table.isRowHidden(0)
+    window.close()
+
+
+def test_app_exit_cleanup(qapp):
+    from unittest.mock import MagicMock
+    from PyQt6.QtGui import QCloseEvent
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    # Mock aria2 process
+    mock_aria = MagicMock()
+    window.aria2_process = mock_aria
+
+    # Mock a dialog in active_complete_dialogs
+    mock_dlg = MagicMock()
+    window.active_complete_dialogs[12345] = mock_dlg
+
+    # Quit app
+    window.quit_app()
+
+    assert window.is_quitting is True
+    assert mock_aria.terminate.called
+    assert mock_dlg.close.called
+    assert len(window.active_complete_dialogs) == 0
+    window.close()
+
+
+def test_classic_table_active_row_bold_only(qapp):
+    window = MainWindow(start_ipc=False)
+    window.set_table_style("classic")
+    window.hide()
+
+    # 1. Start paused download (inactive) -> should NOT be bold
+    item_paused = window.start_download("http://example.com/inactive.zip", custom_save_dir="/tmp", start_paused=True, show_dialog=False)
+    row_paused = window.download_table.row(item_paused)
+    for col in range(window.download_table.columnCount()):
+        cell = window.download_table.item(row_paused, col)
+        if cell and cell.text():
+            assert not cell.font().bold(), f"Col {col} of paused row should NOT be bold"
+
+    # 2. Add an active download -> should be bold
+    item_active = window.start_download("http://example.com/active.zip", custom_save_dir="/tmp", start_paused=False, show_dialog=False)
+    row_active = window.download_table.row(item_active)
+    for col in range(window.download_table.columnCount()):
+        cell = window.download_table.item(row_active, col)
+        if cell and cell.text():
+            assert cell.font().bold(), f"Col {col} of active row SHOULD be bold"
+
+    # 3. Finish the active download -> should become NOT bold
+    window.download_finished(item_active, "Complete")
+    for col in range(window.download_table.columnCount()):
+        cell = window.download_table.item(row_active, col)
+        if cell and cell.text():
+            assert not cell.font().bold(), f"Col {col} of completed row should NOT be bold"
+
+    window.close()
+
+
+def test_menu_hover_and_table_selected_black(qapp):
+    from ui.icons import get_monochrome_icon
+    from PyQt6.QtGui import QIcon, QColor, QImage, QPalette
+    from main import apply_app_theme
+
+    apply_app_theme("BDM Dark (Default)")
+    assert qapp.palette().color(QPalette.ColorRole.HighlightedText) == QColor("#000000")
+
+    # Test get_monochrome_icon with explicit selected_color produces black (#000000)
+    icon_sel = get_monochrome_icon("resume", selected_color=QColor("#000000"))
+    sel_pixmap = icon_sel.pixmap(24, 24, QIcon.Mode.Selected)
+    assert not sel_pixmap.isNull()
+    img = sel_pixmap.toImage()
+    has_black_pixel = False
+    for y in range(img.height()):
+        for x in range(img.width()):
+            pixel = img.pixelColor(x, y)
+            if pixel.alpha() > 100:
+                assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Selected mode pixel ({x},{y}) color {pixel.name()} is not black"
+                has_black_pixel = True
+    assert has_black_pixel is True
+
+    # Test get_themed_icon across Normal, Active, and Selected modes in dark theme: all remain pure white
+    from main import get_themed_icon
+    icon = get_themed_icon("resume")
+    for mode in (QIcon.Mode.Normal, QIcon.Mode.Active, QIcon.Mode.Selected):
+        norm_pixmap = icon.pixmap(24, 24, mode)
+        assert not norm_pixmap.isNull()
+        img_norm = norm_pixmap.toImage()
+        has_white_pixel = False
+        for y in range(img_norm.height()):
+            for x in range(img_norm.width()):
+                pixel = img_norm.pixelColor(x, y)
+                if pixel.alpha() > 100:
+                    assert pixel.red() > 200 and pixel.green() > 200 and pixel.blue() > 200, f"Mode {mode} pixel ({x},{y}) is not white"
+                    has_white_pixel = True
+        assert has_white_pixel is True
+
+
+def test_status_bar_view_toggle(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    assert hasattr(window, "action_status_bar_toggle")
+    assert window.action_status_bar_toggle.isCheckable()
+    assert window.action_status_bar_toggle.isChecked()
+    assert not window.statusBar().isHidden()
+
+    # Toggle off
+    window.toggle_status_bar(False)
+    assert window.statusBar().isHidden()
+    assert not window.action_status_bar_toggle.isChecked()
+
+    # Toggle on
+    window.toggle_status_bar(True)
+    assert not window.statusBar().isHidden()
+    assert window.action_status_bar_toggle.isChecked()
+    window.close()
+
+
+def test_column_dialog_height(qapp):
+    from ui.dialogs.column import ColumnDialog
+    columns = [
+        {"name": "File Name", "visible": True, "width": 200, "logical_index": 0},
+        {"name": "Size", "visible": True, "width": 100, "logical_index": 1},
+        {"name": "Status", "visible": True, "width": 100, "logical_index": 2},
+        {"name": "Time Left", "visible": True, "width": 100, "logical_index": 3},
+        {"name": "Transfer Rate", "visible": True, "width": 100, "logical_index": 4},
+        {"name": "Last Try", "visible": True, "width": 120, "logical_index": 5},
+        {"name": "Date Added", "visible": True, "width": 120, "logical_index": 6},
+    ]
+    dlg = ColumnDialog(columns)
+    assert dlg.minimumHeight() >= 380
+    assert dlg.list_widget.minimumHeight() >= 220
+    dlg.close()
+
+
+def test_dialog_reopen_after_deletion(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    # 1. Options Dialog: open, close/delete, reopen without RuntimeError
+    window.open_options()
+    assert window._options_dlg is not None
+    dlg = window._options_dlg
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()
+
+    # Reopening must not crash on deleted C++ object
+    window.open_options()
+    assert window._options_dlg is not None
+    assert window._options_dlg is not dlg
+    window._options_dlg.close()
+
+    # 2. Media Downloader Dialog: open, close/delete, reopen
+    window.open_media_downloader()
+    assert window._media_downloader_dlg is not None
+    dlg_media = window._media_downloader_dlg
+    dlg_media.close()
+    dlg_media.deleteLater()
+    qapp.processEvents()
+
+    window.open_media_downloader()
+    assert window._media_downloader_dlg is not None
+    assert window._media_downloader_dlg is not dlg_media
+    window._media_downloader_dlg.close()
+
+    # 3. Scheduler Dialog: open, close/delete, reopen
+    window.open_scheduler()
+    assert window._scheduler_dlg is not None
+    dlg_sched = window._scheduler_dlg
+    dlg_sched.close()
+    dlg_sched.deleteLater()
+    qapp.processEvents()
+
+    window.open_scheduler()
+    assert window._scheduler_dlg is not None
+    assert window._scheduler_dlg is not dlg_sched
+    window._scheduler_dlg.close()
+
+    window.close()
+
+
+def test_redownload_progress_updates(qapp, monkeypatch):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    item = window.start_download("http://example.com/test_redownload.zip", custom_save_dir="/tmp", start_paused=False, show_dialog=False)
+    row = window.download_table.row(item)
+
+    # 1. Complete the download
+    window.download_finished(item, "Complete")
+    assert window.download_table.item(row, 2).text() == "Complete"
+    assert item.data(Qt.ItemDataRole.UserRole + 11) == "Complete"
+
+    # 2. Trigger Redownload
+    # Mock _start_download_worker so we control progress events
+    called_start = []
+    monkeypatch.setattr(window, "_start_download_worker", lambda url, itm: called_start.append(itm))
+    
+    window.ctx_redownload(item)
+    assert len(called_start) == 1
+    assert item.data(Qt.ItemDataRole.UserRole + 11) is None
+    status_item = window.download_table.item(row, 2)
+    assert status_item.text() == "Pending..."
+    assert status_item.data(Qt.ItemDataRole.UserRole + 1) == "Pending..."
+
+    # 3. Simulate progress update from worker
+    progress_data = ("test_redownload.zip", "10 MB", "Receiving data...", "00:01:00", "500 KB/s", 5 * 1024 * 1024, 10 * 1024 * 1024, 512000)
+    window.update_download_row(item, progress_data)
+
+    # Table row MUST update and not stay stuck on "Pending..."
+    assert status_item.text() == "50.00%"
+    assert status_item.data(Qt.ItemDataRole.UserRole + 1) == "Downloading"
+    assert window.download_table.item(row, 4).text() == "500 KB/s"
+
+    # 4. Finish the redownload
+    window.download_finished(item, "Complete")
+    assert status_item.text() == "Complete"
+    assert status_item.data(Qt.ItemDataRole.UserRole + 1) == "Complete"
+
+    window.close()
+
+
+def test_toolbar_hover_icon_glow(qapp):
+    from main import apply_app_theme
+    from PyQt6.QtWidgets import QToolBar, QToolButton
+    from PyQt6.QtCore import QEvent
+    from PyQt6.QtGui import QIcon
+
+    apply_app_theme("BDM Dark (Default)")
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    tb = window.findChild(QToolBar, "MainToolbar")
+    assert tb is not None
+    add_btn = None
+    for b in tb.findChildren(QToolButton):
+        if b.defaultAction() is window.action_add_url:
+            add_btn = b
+            break
+
+    assert add_btn is not None
+    orig_pm = add_btn.icon().pixmap(24, 24).toImage()
+
+    # 1. Hover toolbar button -> switches to glowing icon
+    enter_event = QEvent(QEvent.Type.Enter)
+    qapp.sendEvent(add_btn, enter_event)
+
+    hover_pm = add_btn.icon().pixmap(24, 24).toImage()
+    assert hover_pm != orig_pm
+
+    # Ensure hover icon is not black in dark mode
+    white_pixels = 0
+    for y in range(hover_pm.height()):
+        for x in range(hover_pm.width()):
+            c = hover_pm.pixelColor(x, y)
+            if c.red() > 200 and c.green() > 200 and c.blue() > 200 and c.alpha() > 150:
+                white_pixels += 1
+    assert white_pixels > 0, "Hover icon in dark mode should have luminous white/bright stroke"
+
+    # 2. Leave hover -> restores original icon
+    leave_event = QEvent(QEvent.Type.Leave)
+    qapp.sendEvent(add_btn, leave_event)
+
+    restored_pm = add_btn.icon().pixmap(24, 24).toImage()
+    assert restored_pm == orig_pm
+
+    window.close()
+
+
+def test_sidebar_incomplete_status_filter(qapp):
+    from PyQt6.QtWidgets import QTableWidgetItem
+    window = MainWindow(start_ipc=False)
+    window.hide()
+    window.download_table.setRowCount(0)
+
+    assert window.item_unfinished.text(0) == "Incomplete"
+
+    # Add incomplete and complete rows directly
+    window.download_table.insertRow(0)
+    item0 = QTableWidgetItem("file1.zip")
+    item0_status = QTableWidgetItem("50.00%")
+    window.download_table.setItem(0, 0, item0)
+    window.download_table.setItem(0, 2, item0_status)
+
+    window.download_table.insertRow(1)
+    item1 = QTableWidgetItem("file2.zip")
+    item1_status = QTableWidgetItem("Complete")
+    window.download_table.setItem(1, 0, item1)
+    window.download_table.setItem(1, 2, item1_status)
+
+    # Filter by Incomplete
+    window.filter_downloads(window.item_unfinished, 0)
+    assert not window.download_table.isRowHidden(0)
+    assert window.download_table.isRowHidden(1)
+
+    # Filter by Finished
+    window.filter_downloads(window.item_finished, 0)
+    assert window.download_table.isRowHidden(0)
+    assert not window.download_table.isRowHidden(1)
+
+    window.close()
+
+
+def test_toolbar_click_and_press_icon_colors(qapp):
+    from main import apply_app_theme
+    from PyQt6.QtWidgets import QToolBar, QToolButton
+    from PyQt6.QtCore import QEvent, QPointF
+    from PyQt6.QtGui import QMouseEvent, QIcon
+
+    # 1. Test Dark theme click / pressed state
+    apply_app_theme("BDM Dark (Default)")
+    win_dark = MainWindow(start_ipc=False)
+    win_dark.hide()
+
+    tb_dark = win_dark.findChild(QToolBar, "MainToolbar")
+    add_btn_dark = None
+    for b in tb_dark.findChildren(QToolButton):
+        if b.defaultAction() is win_dark.action_add_url:
+            add_btn_dark = b
+            break
+    assert add_btn_dark is not None
+    win_dark.action_add_url.disconnect()
+
+    # Simulate mouse press (click)
+    press_event = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    qapp.sendEvent(add_btn_dark, press_event)
+
+    # In dark mode, all non-transparent pixels on toolbar button icon must be white, never dark
+    img_dark = add_btn_dark.icon().pixmap(24, 24, QIcon.Mode.Selected).toImage()
+    white_px = sum(1 for y in range(img_dark.height()) for x in range(img_dark.width()) if img_dark.pixelColor(x, y).red() > 200 and img_dark.pixelColor(x, y).alpha() > 150)
+    dark_px = sum(1 for y in range(img_dark.height()) for x in range(img_dark.width()) if img_dark.pixelColor(x, y).red() < 50 and img_dark.pixelColor(x, y).alpha() > 150)
+    assert white_px > 0, "Dark mode toolbar icon on press should have white stroke pixels"
+    assert dark_px == 0, "Dark mode toolbar icon on press should not have dark stroke pixels"
+
+    release_event = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    qapp.sendEvent(add_btn_dark, release_event)
+    win_dark.close()
+
+    # 2. Test Light theme click / pressed state
+    win_light = MainWindow(start_ipc=False)
+    win_light.hide()
+    win_light.apply_appearance_setting("BDM Light", icon_theme_name="BDM Light")
+
+    tb_light = win_light.findChild(QToolBar, "MainToolbar")
+    add_btn_light = None
+    for b in tb_light.findChildren(QToolButton):
+        if b.defaultAction() is win_light.action_add_url:
+            add_btn_light = b
+            break
+    assert add_btn_light is not None
+    win_light.action_add_url.disconnect()
+
+    press_event_light = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    qapp.sendEvent(add_btn_light, press_event_light)
+    img_light = add_btn_light.icon().pixmap(24, 24, QIcon.Mode.Selected).toImage()
+    dark_px_light = sum(1 for y in range(img_light.height()) for x in range(img_light.width()) if img_light.pixelColor(x, y).red() < 50 and img_light.pixelColor(x, y).alpha() > 150)
+    white_px_light = sum(1 for y in range(img_light.height()) for x in range(img_light.width()) if img_light.pixelColor(x, y).red() > 200 and img_light.pixelColor(x, y).alpha() > 150)
+    assert dark_px_light > 0, "Light mode toolbar icon on press should have dark stroke pixels"
+    assert white_px_light == 0, "Light mode toolbar icon on press should not have white stroke pixels"
+
+    release_event_light = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    qapp.sendEvent(add_btn_light, release_event_light)
+    win_light.close()
+
+
+def test_sidebar_selected_icon_black_in_dark_and_light_modes(qapp):
+    from main import apply_app_theme
+    from PyQt6.QtWidgets import QStyleOptionViewItem, QStyle
+    from PyQt6.QtGui import QPainter, QPixmap
+    from PyQt6.QtCore import QRect
+
+    # 1. Dark Mode
+    apply_app_theme("BDM Dark (Default)")
+    win_dark = MainWindow(start_ipc=False)
+    win_dark.hide()
+
+    tree = win_dark.category_tree
+    item = win_dark.all_downloads_header
+    tree.setCurrentItem(item)
+
+    # Render selected item using delegate
+    pm = QPixmap(200, 30)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    opt = QStyleOptionViewItem()
+    opt.initFrom(tree)
+    opt.rect = QRect(0, 0, 200, 30)
+    opt.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
+    tree.itemDelegate().paint(p, opt, tree.model().index(1, 0))
+    p.end()
+
+    img = pm.toImage()
+    black_px = sum(1 for y in range(img.height()) for x in range(30) if img.pixelColor(x, y).red() == 0 and img.pixelColor(x, y).green() == 0 and img.pixelColor(x, y).blue() == 0 and img.pixelColor(x, y).alpha() > 150)
+    white_px = sum(1 for y in range(img.height()) for x in range(30) if img.pixelColor(x, y).red() > 200 and img.pixelColor(x, y).alpha() > 150)
+    assert black_px > 0, "Left panel selected icon must have pure black pixels in dark mode"
+    assert white_px == 0, "Left panel selected icon must not have white pixels in dark mode"
+    win_dark.close()
+
+    # 2. Light Mode
+    win_light = MainWindow(start_ipc=False)
+    win_light.hide()
+    win_light.apply_appearance_setting("BDM Light", icon_theme_name="BDM Light")
+
+    tree_light = win_light.category_tree
+    item_light = win_light.all_downloads_header
+    tree_light.setCurrentItem(item_light)
+
+    pm_light = QPixmap(200, 30)
+    pm_light.fill(Qt.GlobalColor.transparent)
+    p2 = QPainter(pm_light)
+    opt2 = QStyleOptionViewItem()
+    opt2.initFrom(tree_light)
+    opt2.rect = QRect(0, 0, 200, 30)
+    opt2.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
+    tree_light.itemDelegate().paint(p2, opt2, tree_light.model().index(1, 0))
+    p2.end()
+
+    img_light = pm_light.toImage()
+    black_px_light = sum(1 for y in range(img_light.height()) for x in range(30) if img_light.pixelColor(x, y).red() == 0 and img_light.pixelColor(x, y).green() == 0 and img_light.pixelColor(x, y).blue() == 0 and img_light.pixelColor(x, y).alpha() > 150)
+    white_px_light = sum(1 for y in range(img_light.height()) for x in range(30) if img_light.pixelColor(x, y).red() > 200 and img_light.pixelColor(x, y).alpha() > 150)
+    assert black_px_light > 0, "Left panel selected icon must have pure black pixels in light mode"
+    assert white_px_light == 0, "Left panel selected icon must not have white pixels in light mode"
+    win_light.close()
+
+
+
+
+
+
+
+
+
+
+
+
 

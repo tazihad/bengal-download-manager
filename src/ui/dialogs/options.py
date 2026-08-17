@@ -15,12 +15,14 @@ from core.utils import (
     is_autostart_enabled, set_autostart_enabled
 )
 from core.config import load_category_config, save_category_config
+from core.memory_guard import MemoryGuard
 
 class OptionsDialog(QDialog):
     def __init__(self, main_window=None, parent=None):
         # Pass parent=None to QDialog superclass so it is initialized as an independent top-level window in taskbar panels while sharing WM_CLASS
         super().__init__(None)
         self._main_window = main_window or parent
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Options")
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedSize(500, 520)

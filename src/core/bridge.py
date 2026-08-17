@@ -23,6 +23,30 @@ class DownloadBridge(QObject):
     def statusMessage(self):
         return self._status_message
 
+    @pyqtProperty(str, notify=downloadsChanged)
+    def memoryUsage(self):
+        from core.utils import get_process_memory, format_bytes
+        return format_bytes(get_process_memory())
+
+    @pyqtProperty(bool, notify=downloadsChanged)
+    def aria2Running(self):
+        if self._main_window and hasattr(self._main_window, 'aria2_process') and self._main_window.aria2_process:
+            return self._main_window.aria2_process.poll() is None
+        return False
+
+    @pyqtProperty(str, notify=downloadsChanged)
+    def totalSpeed(self):
+        if self._main_window and hasattr(self._main_window, 'active_speeds') and self._main_window.active_speeds:
+            from core.utils import format_bytes
+            return f"{format_bytes(sum(self._main_window.active_speeds.values()))}/s"
+        return "0 B/s"
+
+    @pyqtProperty(int, notify=downloadsChanged)
+    def itemCount(self):
+        if self._main_window and hasattr(self._main_window, 'download_table'):
+            return self._main_window.download_table.rowCount()
+        return len(self._downloads_data)
+
     @pyqtSlot(str, str, str)
     def addDownload(self, url, category="General", save_path=""):
         if self._main_window:

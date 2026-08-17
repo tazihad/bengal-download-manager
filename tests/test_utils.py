@@ -224,5 +224,14 @@ def test_determine_next_release_tag():
     assert ver == "0.3.5"
 
 
+def test_get_process_memory():
+    from core.utils import get_process_memory, format_bytes
+    mem = get_process_memory()
+    assert isinstance(mem, int)
+    assert mem > 0
+    formatted = format_bytes(mem)
+    assert "B" in formatted
+
+
 
 

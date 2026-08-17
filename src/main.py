@@ -39,8 +39,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.request
 from urllib.parse import urlparse, unquote
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QToolBar, QStatusBar, QStyle, QStyledItemDelegate,
-    QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
+    QApplication, QMainWindow, QToolBar, QToolButton, QStatusBar, QStyle, QStyledItemDelegate,
+    QStyleOptionViewItem, QSplitter, QTreeWidget, QTreeWidgetItem, QTableWidget, 
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QDialog, 
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
@@ -62,8 +62,9 @@ from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
-    is_media_downloader_url, setup_logging, format_bytes, get_clean_env
+    is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory
 )
+from core.memory_guard import MemoryGuard
 
 # Default TCP port for extension communication
 DM_CONNECTOR_PORT = 9000 
@@ -603,9 +604,11 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     pal.setColor(QPalette.ColorRole.Button, QColor(btn))
     pal.setColor(QPalette.ColorRole.ButtonText, QColor(text))
     pal.setColor(QPalette.ColorRole.BrightText, QColor("#ff5555"))
-    pal.setColor(QPalette.ColorRole.Link, QColor(link))
     pal.setColor(QPalette.ColorRole.Highlight, QColor(hl))
-    pal.setColor(QPalette.ColorRole.HighlightedText, QColor(hl_text))
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, QColor("#000000"))
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor("#000000"))
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor("#000000"))
 
     dis_text = QColor(text)
     dis_text.setAlpha(90)
@@ -676,6 +679,35 @@ def normalize_tray_icon_name(name, default="App Icon (Default)"):
 
 
 CURRENT_TRAY_ICON = "App Icon (Default)"
+
+
+def init_app_font() -> QFont:
+    """
+    Initializes the primary application font.
+    Loads the bundled modern Inter font family from assets/fonts if available,
+    with robust fallback to system UI fonts (Inter -> Segoe UI -> Noto Sans -> Ubuntu -> Cantarell -> DejaVu Sans).
+    Enforces OpenType tabular figures (tnum) for smooth numeric alignment across the entire UI.
+    """
+    from PyQt6.QtGui import QFontDatabase
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    fonts_dir = os.path.join(base_dir, "assets", "fonts")
+    if os.path.isdir(fonts_dir):
+        for font_file in sorted(os.listdir(fonts_dir)):
+            if font_file.endswith((".ttf", ".otf")):
+                QFontDatabase.addApplicationFont(os.path.join(fonts_dir, font_file))
+
+    available = set(QFontDatabase.families())
+    candidates = ["Inter", "Segoe UI", "Noto Sans", "Ubuntu", "Cantarell", "Liberation Sans", "DejaVu Sans"]
+    chosen_family = "Inter"
+    for candidate in candidates:
+        if candidate in available:
+            chosen_family = candidate
+            break
+
+    app_font = QFont(chosen_family, 9)
+    app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
+    app_font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+    return app_font
 
 
 def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None):
@@ -889,12 +921,48 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 border: 1px solid palette(disabled, mid);
                 opacity: 0.5;
             }
-            QToolBar QToolButton, QToolBar QToolButton:hover {
-                color: palette(button-text);
+            QToolBar QToolButton {
+                color: palette(window-text);
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 5px;
+                padding: 4px 6px;
+                font-weight: normal;
                 opacity: 1.0;
+            }
+            QToolBar QToolButton:hover {
+                color: palette(window-text);
+                background-color: palette(midlight);
+                border: 1px solid palette(highlight);
+                font-weight: bold;
+                opacity: 1.0;
+            }
+            QToolBar QToolButton:pressed {
+                color: palette(window-text);
+                background-color: palette(highlight);
+                border: 1px solid palette(highlight);
+                font-weight: bold;
             }
             QToolBar QToolButton:disabled {
                 opacity: 0.30;
+                background-color: transparent;
+                border: 1px solid transparent;
+            }
+            QTableWidget {
+                selection-color: #000000;
+                selection-background-color: palette(highlight);
+            }
+            QTableWidget::item:selected, QTableWidget::item:selected:active, QTableWidget::item:selected:!active {
+                color: #000000;
+                background-color: palette(highlight);
+            }
+            QTreeWidget {
+                selection-color: #000000;
+                selection-background-color: palette(highlight);
+            }
+            QTreeWidget::item:selected, QTreeWidget::item:selected:active, QTreeWidget::item:selected:!active {
+                color: #000000;
+                background-color: palette(highlight);
             }
         """)
 
@@ -1007,19 +1075,17 @@ FREEDESKTOP_MAP = {
 }
 
 
-def get_themed_icon(name, fallback=None):
+def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
     """
-    Returns an icon for the given symbol name.
-    If a custom system icon theme is active (e.g. Breeze, Ubuntu, Adwaita), resolves from system icons.
-    Otherwise, returns the clean minimal vector stroke monochrome icon from ui/icons.py.
-    Supports BDM Auto (adaptive), BDM Dark, and BDM Light icon options.
+    Returns a QIcon for the given name, respecting the user-configured icon theme.
+    Falls back gracefully if the requested theme is unavailable or incomplete.
+    If glow=True, returns a bold luminous glow icon for toolbar hover.
     """
     global CURRENT_ICON_THEME
+    icon_theme = CURRENT_ICON_THEME if CURRENT_ICON_THEME else "BDM Auto (Default)"
+    icon_theme_lower = str(icon_theme).strip().lower()
 
-    icon_theme_str = str(CURRENT_ICON_THEME).strip() if CURRENT_ICON_THEME else "BDM Auto (Default)"
-    icon_theme_lower = icon_theme_str.lower()
-
-    if icon_theme_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
+    if icon_theme_lower in ("colorful", "bdm colorful"):
         from ui.icons import get_colorful_icon
         return get_colorful_icon(name)
 
@@ -1041,9 +1107,9 @@ def get_themed_icon(name, fallback=None):
     from PyQt6.QtGui import QColor
 
     if icon_theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark"):
-        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#111111"))
+        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"), glow=glow)
     elif icon_theme_lower in ("bdm light", "bdmlight"):
-        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#111111"))
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"), glow=glow)
     else:
         app = QApplication.instance()
         is_dark = False
@@ -1054,9 +1120,9 @@ def get_themed_icon(name, fallback=None):
             if bg_val < 128 or fg_val > 128:
                 is_dark = True
         if is_dark:
-            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#111111"))
+            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#ffffff"), glow=glow)
         else:
-            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#111111"))
+            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#232629"), glow=glow)
 
     if not icon.isNull():
         return icon
@@ -1285,14 +1351,65 @@ def get_app_icon():
 
 class SidebarItemDelegate(QStyledItemDelegate):
     """
-    Delegate for the left panel category tree that enforces option.iconMode = QIcon.Mode.Selected
-    when items are hovered or selected, matching icon color with hovered/selected text color.
+    Delegate for the left panel category tree that guarantees the selected and hovered item's
+    icon and text render in pure black (#000000) over the accent highlight in both light and dark modes.
+    Formats non-selectable section headers with small font and muted text color.
     """
     def initStyleOption(self, option, index):
         super().initStyleOption(option, index)
-        if (option.state & QStyle.StateFlag.State_MouseOver) or (option.state & QStyle.StateFlag.State_Selected):
-            option.iconMode = QIcon.Mode.Selected
-            option.state |= QStyle.StateFlag.State_Selected
+        if index.data(Qt.ItemDataRole.UserRole) == "header":
+            option.state &= ~QStyle.StateFlag.State_MouseOver
+            option.state &= ~QStyle.StateFlag.State_Selected
+            option.font.setPointSize(8)
+            option.font.setBold(True)
+            app = QApplication.instance()
+            if app:
+                pal = app.palette()
+                placeholder_color = pal.color(QPalette.ColorRole.PlaceholderText)
+                option.palette.setColor(QPalette.ColorRole.Text, placeholder_color)
+                option.palette.setColor(QPalette.ColorRole.WindowText, placeholder_color)
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        if index.data(Qt.ItemDataRole.UserRole) == "header":
+            return QSize(size.width(), 20)
+        return QSize(size.width(), 26)
+
+    def paint(self, painter, option, index):
+        if index.data(Qt.ItemDataRole.UserRole) == "header":
+            super().paint(painter, option, index)
+            return
+
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+
+        if is_selected or is_hovered:
+            opt = QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+
+            # Left panel selected/hovered icon MUST be pure black in both dark mode and light mode
+            icon = index.data(Qt.ItemDataRole.DecorationRole)
+            if isinstance(icon, QIcon) and not icon.isNull():
+                dec_size = opt.decorationSize if opt.decorationSize.isValid() and not opt.decorationSize.isEmpty() else QSize(18, 18)
+                src_pm = icon.pixmap(dec_size, QIcon.Mode.Normal)
+                if not src_pm.isNull() and src_pm.width() > 0 and src_pm.height() > 0:
+                    img = src_pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+                    for y in range(img.height()):
+                        for x in range(img.width()):
+                            c = img.pixelColor(x, y)
+                            if c.alpha() > 0:
+                                img.setPixelColor(x, y, QColor(0, 0, 0, c.alpha()))
+                    opt.icon = QIcon(QPixmap.fromImage(img))
+
+            opt.palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
+            opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
+            opt.palette.setColor(QPalette.ColorRole.WindowText, QColor("#000000"))
+
+            widget = option.widget
+            style = widget.style() if widget else QApplication.style()
+            style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+        else:
+            super().paint(painter, option, index)
 
 
 def get_monochrome_app_icon(color=None, size=24):
@@ -1327,6 +1444,50 @@ def get_monochrome_app_icon(color=None, size=24):
     ic.addPixmap(mono_pm)
     return ic
 
+class ToolbarHoverFilter(QObject):
+    """
+    Event filter applied to toolbar buttons to provide bold icon glow
+    and distinct hover styling in both light and dark themes.
+    """
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.main_window = main_window
+        self._action_icon_map = {
+            "action_add_url": "add_url",
+            "action_resume": "resume",
+            "action_stop": "stop",
+            "action_stop_all": "stop_all",
+            "action_delete": "delete",
+            "action_clear": "clear_completed",
+            "action_scheduler": "scheduler",
+            "action_options": "options",
+            "action_media_downloader": "media_downloader",
+        }
+        self._glow_icons = {}
+
+    def get_glow_icon(self, icon_name: str) -> QIcon:
+        if icon_name not in self._glow_icons:
+            self._glow_icons[icon_name] = get_themed_icon(icon_name, glow=True)
+        return self._glow_icons[icon_name]
+
+    def clear_cache(self):
+        self._glow_icons.clear()
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QToolButton) and obj.isEnabled():
+            if event.type() == QEvent.Type.Enter:
+                action = obj.defaultAction()
+                if action:
+                    for attr, icon_name in self._action_icon_map.items():
+                        if getattr(self.main_window, attr, None) is action:
+                            obj.setIcon(self.get_glow_icon(icon_name))
+                            break
+            elif event.type() == QEvent.Type.Leave:
+                action = obj.defaultAction()
+                if action:
+                    obj.setIcon(action.icon())
+        return super().eventFilter(obj, event)
+
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
     def __init__(self, start_ipc=True):
@@ -1344,6 +1505,7 @@ class MainWindow(QMainWindow):
         self.setup_toolbar()
         self.setup_tray_icon()
         self.setup_central_widget()
+        self.setup_status_bar()
         
         self.settings = self.load_settings()
         
@@ -1355,6 +1517,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self.update_tray_action)
         
         self.active_downloads = {}
+        self.active_speeds = {}
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
@@ -1364,7 +1527,15 @@ class MainWindow(QMainWindow):
         self.timestamp_timer = QTimer(self)
         self.timestamp_timer.timeout.connect(self.update_timestamp_display)
         self.timestamp_timer.start(10000) # Update every 10 seconds
+
+        # FEATURE: Timer for real-time status bar updates (Run every second)
+        self.status_bar_timer = QTimer(self)
+        self.status_bar_timer.timeout.connect(self.update_periodic_status)
+        self.status_bar_timer.start(1000)
         
+        # FEATURE: Periodic memory compaction and leak protection (Run every 45 seconds)
+        self.memory_guard_timer = MemoryGuard.start_periodic_trim(self, interval_ms=45000)
+
         # Enable Drag-and-Drop
         self.setAcceptDrops(True)
 
@@ -1405,6 +1576,7 @@ class MainWindow(QMainWindow):
                 except: self.aria2_process.kill()
             except: pass
         self.aria2_process = self.start_aria2_daemon()
+        self.update_status_bar_aria2()
 
     def start_aria2_daemon(self):
         try:
@@ -1461,34 +1633,115 @@ class MainWindow(QMainWindow):
             self.update_tray_action()
             return
 
-        # Stop IPC Listener Thread before closing
-        self.listener_thread.stop()
-        self.listener_thread.wait()
+        # 1. Hide tray icon immediately to prevent ghost tray icons in taskbars
+        if hasattr(self, "tray_icon") and self.tray_icon:
+            try:
+                self.tray_icon.hide()
+            except Exception:
+                pass
+
+        # 2. Stop IPC Listener Thread and Single Instance Server
+        if hasattr(self, "listener_thread") and self.listener_thread:
+            try:
+                self.listener_thread.stop()
+                self.listener_thread.wait(1000)
+            except Exception:
+                pass
         
         if hasattr(self, 'single_instance_server') and self.single_instance_server:
-            self.single_instance_server.stop()
-
-        
-        self.stop_all_downloads()
-        # Stop the timer before closing
-        self.timestamp_timer.stop() 
-        
-        # Kill the aria2 daemon cleanly on exit
-        if hasattr(self, 'aria2_process') and self.aria2_process:
-            self.aria2_process.terminate()
             try:
-                self.aria2_process.wait(timeout=2)
-            except:
-                self.aria2_process.kill()
+                self.single_instance_server.stop()
+            except Exception:
+                pass
+
+        # 3. Stop all download workers & segment threads
+        self.stop_all_downloads()
+
+        # 4. Stop all active fetcher threads
+        if hasattr(self, "active_fetchers"):
+            for fetcher in list(self.active_fetchers):
+                try:
+                    if hasattr(fetcher, "requestInterruption"):
+                        fetcher.requestInterruption()
+                    if hasattr(fetcher, "quit"):
+                        fetcher.quit()
+                    if hasattr(fetcher, "wait"):
+                        fetcher.wait(500)
+                except Exception:
+                    pass
+            self.active_fetchers.clear()
+
+        # 5. Close all active dialog windows
+        if hasattr(self, "active_file_info_dialogs"):
+            for dlg in list(self.active_file_info_dialogs.values()):
+                try:
+                    dlg.close()
+                    dlg.deleteLater()
+                except Exception:
+                    pass
+            self.active_file_info_dialogs.clear()
+
+        if hasattr(self, "active_complete_dialogs"):
+            for dlg in list(self.active_complete_dialogs.values()):
+                try:
+                    dlg.close()
+                    dlg.deleteLater()
+                except Exception:
+                    pass
+            self.active_complete_dialogs.clear()
+
+        for dlg_attr in ("_options_dlg", "_media_downloader_dlg", "_scheduler_dlg"):
+            dlg = getattr(self, dlg_attr, None)
+            if dlg:
+                try:
+                    dlg.close()
+                    dlg.deleteLater()
+                except Exception:
+                    pass
+                setattr(self, dlg_attr, None)
+
+        # Close all top-level Qt windows
+        try:
+            QApplication.closeAllWindows()
+        except Exception:
+            pass
+
+        # 6. Stop all timers before closing
+        if hasattr(self, "timestamp_timer") and self.timestamp_timer:
+            self.timestamp_timer.stop() 
+        if hasattr(self, 'status_bar_timer') and self.status_bar_timer:
+            self.status_bar_timer.stop()
+        if hasattr(self, 'memory_guard_timer') and self.memory_guard_timer:
+            self.memory_guard_timer.stop()
+        
+        # 7. Kill the aria2 daemon cleanly on exit
+        if hasattr(self, 'aria2_process') and self.aria2_process:
+            try:
+                self.aria2_process.terminate()
+                try:
+                    self.aria2_process.wait(timeout=1.5)
+                except Exception:
+                    self.aria2_process.kill()
+            except Exception:
+                pass
                 
+        # 8. Save application state
         self.save_data()
         self.save_settings()
+
+        # 9. Clean memory & accept close
+        MemoryGuard.clean_and_trim()
         event.accept()
         QApplication.quit()
 
     def quit_app(self):
         self.is_quitting = True
         self.close()
+        try:
+            QApplication.closeAllWindows()
+            QApplication.quit()
+        except Exception:
+            pass
 
 
 
@@ -1633,11 +1886,17 @@ class MainWindow(QMainWindow):
             sort_menu.addAction(action)
 
         view_menu.addSeparator()
-        toolbar_toggle = QAction("&Toolbar", self)
-        toolbar_toggle.setCheckable(True)
-        toolbar_toggle.setChecked(True)
-        toolbar_toggle.triggered.connect(lambda checked: self.findChild(QToolBar, "MainToolbar").setVisible(checked))
-        view_menu.addAction(toolbar_toggle)
+        self.action_toolbar_toggle = QAction("&Toolbar", self)
+        self.action_toolbar_toggle.setCheckable(True)
+        self.action_toolbar_toggle.setChecked(True)
+        self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
+        view_menu.addAction(self.action_toolbar_toggle)
+
+        self.action_status_bar_toggle = QAction("&Status Bar", self)
+        self.action_status_bar_toggle.setCheckable(True)
+        self.action_status_bar_toggle.setChecked(True)
+        self.action_status_bar_toggle.triggered.connect(self.toggle_status_bar)
+        view_menu.addAction(self.action_status_bar_toggle)
 
         # 5. Help
         help_menu = menu_bar.addMenu("&Help")
@@ -1660,12 +1919,38 @@ class MainWindow(QMainWindow):
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QSize(24, 24))
         toolbar.setStyleSheet("""
-            QToolButton, QToolButton:hover {
+            QToolBar {
+                background-color: palette(window);
+                border: none;
+                spacing: 3px;
+                padding: 2px 4px;
+            }
+            QToolButton {
                 color: palette(window-text);
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 5px;
+                padding: 4px 6px;
+                font-weight: normal;
                 opacity: 1.0;
+            }
+            QToolButton:hover {
+                color: palette(window-text);
+                background-color: palette(midlight);
+                border: 1px solid palette(highlight);
+                font-weight: bold;
+                opacity: 1.0;
+            }
+            QToolButton:pressed {
+                color: palette(window-text);
+                background-color: palette(highlight);
+                border: 1px solid palette(highlight);
+                font-weight: bold;
             }
             QToolButton:disabled {
                 opacity: 0.30;
+                background-color: transparent;
+                border: 1px solid transparent;
             }
         """)
 
@@ -1678,6 +1963,10 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_scheduler)
         toolbar.addAction(self.action_options)
         toolbar.addAction(self.action_media_downloader)
+
+        self.toolbar_hover_filter = ToolbarHoverFilter(self)
+        for child in toolbar.findChildren(QToolButton):
+            child.installEventFilter(self.toolbar_hover_filter)
 
     def setup_central_widget(self):
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1725,6 +2014,11 @@ class MainWindow(QMainWindow):
                 color: #111111;
                 font-weight: 600;
             }
+            QTreeWidget::item:disabled {
+                background: transparent;
+                background-color: transparent;
+                color: palette(placeholder-text);
+            }
             QTreeWidget::branch {
                 background: transparent;
                 background-color: transparent;
@@ -1739,6 +2033,21 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
             }
         """)
+
+        def make_section_header(title: str, tooltip: str = ""):
+            header_item = QTreeWidgetItem(self.category_tree, [title])
+            header_item.setFlags(Qt.ItemFlag.NoItemFlags)  # Non-selectable, non-interactive
+            header_item.setData(0, Qt.ItemDataRole.UserRole, "header")
+            header_font = QFont(self.font())
+            header_font.setPointSize(8)
+            header_font.setBold(True)
+            header_item.setFont(0, header_font)
+            if tooltip:
+                header_item.setToolTip(0, tooltip)
+            return header_item
+
+        # 1. Categories Section Header
+        self.header_categories = make_section_header("Categories", "Download categories")
 
         self.all_downloads_header = QTreeWidgetItem(self.category_tree, ["All Downloads"])
         all_downloads = self.all_downloads_header
@@ -1759,15 +2068,22 @@ class MainWindow(QMainWindow):
             child.setIcon(0, cat_icon)
             child.setToolTip(0, f"Filter downloads in {cat_name} category")
 
-        item_unfinished = QTreeWidgetItem(self.category_tree, ["Unfinished"])
+        # 2. Status Section Header
+        self.header_status = make_section_header("Status", "Filter by download status")
+
+        self.item_unfinished = QTreeWidgetItem(self.category_tree, ["Incomplete"])
+        item_unfinished = self.item_unfinished
         item_unfinished.setIcon(0, get_themed_icon("unfinished"))
         item_unfinished.setToolTip(0, "Show active, paused, or pending downloads")
 
-        item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
+        self.item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
+        item_finished = self.item_finished
         item_finished.setIcon(0, get_themed_icon("finished"))
         item_finished.setToolTip(0, "Show completed downloads")
 
-        # Queues section
+        # 3. Schedule Section Header
+        self.header_schedule = make_section_header("Schedule", "Download scheduler and queues")
+
         self.queues_header = QTreeWidgetItem(self.category_tree, ["Queues"])
         self.queues_header.setIcon(0, get_themed_icon("scheduler"))
         self.queues_header.setToolTip(0, "Download queues and scheduler")
@@ -1812,6 +2128,14 @@ class MainWindow(QMainWindow):
         # FIX: Remove blue cell highlight (focus rectangle) on selection
 
         self.download_table.setStyleSheet("""
+            QTableWidget {
+                selection-color: #000000;
+                selection-background-color: palette(highlight);
+            }
+            QTableWidget::item:selected, QTableWidget::item:selected:active, QTableWidget::item:selected:!active {
+                color: #000000;
+                background-color: palette(highlight);
+            }
             QTableWidget::item:focus { 
                 border: none; 
                 outline: 0; 
@@ -1860,6 +2184,181 @@ class MainWindow(QMainWindow):
         splitter.setSizes([230, 770])
         splitter.setCollapsible(0, False)
         self.setCentralWidget(splitter)
+
+    def setup_status_bar(self):
+        status_bar = self.statusBar()
+        status_bar.setSizeGripEnabled(False)
+        status_bar.setStyleSheet("""
+            QStatusBar {
+                background-color: palette(window);
+                color: palette(window-text);
+                border-top: 1px solid palette(mid);
+                min-height: 26px;
+                max-height: 26px;
+                font-size: 11px;
+                padding: 0px 6px;
+            }
+            QStatusBar::item {
+                border: none;
+            }
+        """)
+
+        tnum_font = QFont(self.font())
+        tnum_font.setPointSize(9)
+        tnum_font.setFeature(QFont.Tag.fromString('tnum'), 1)
+
+        # 1. Item Selection Status (Left, stretchable)
+        self.status_items_label = QLabel("0 items", self)
+        self.status_items_label.setFont(tnum_font)
+        self.status_items_label.setStyleSheet("color: palette(window-text); padding: 0px 4px;")
+        status_bar.addWidget(self.status_items_label, 1)
+
+        # Helper to create separator
+        def create_sep():
+            sep = QLabel("│", self)
+            sep.setStyleSheet("color: palette(mid); padding: 0px 2px;")
+            return sep
+
+        # 2. Download Speed Status (Permanent widget on right)
+        self.status_speed_label = QLabel("Speed: 0 B/s", self)
+        self.status_speed_label.setFont(tnum_font)
+        self.status_speed_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_speed_label.setToolTip("Total Download Speed: 0 B/s")
+        status_bar.addPermanentWidget(self.status_speed_label)
+
+        status_bar.addPermanentWidget(create_sep())
+
+        # 3. Aria2 Status (Permanent widget on right)
+        self.status_aria2_label = QLabel("● Aria2: Ready", self)
+        self.status_aria2_label.setFont(tnum_font)
+        self.status_aria2_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_aria2_label.setToolTip("Aria2 RPC Status")
+        status_bar.addPermanentWidget(self.status_aria2_label)
+
+        status_bar.addPermanentWidget(create_sep())
+
+        # 4. Memory Status (Permanent widget on right)
+        self.status_memory_label = QLabel("Memory: 0 B", self)
+        self.status_memory_label.setFont(tnum_font)
+        self.status_memory_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_memory_label.setToolTip("Application Memory Usage (Resident Set Size)")
+        status_bar.addPermanentWidget(self.status_memory_label)
+
+        self.update_status_bar()
+
+    def update_status_bar_items(self):
+        if not hasattr(self, "status_items_label") or not hasattr(self, "download_table"):
+            return
+        total_rows = self.download_table.rowCount()
+        selected_rows = set(item.row() for item in self.download_table.selectedItems())
+        sel_count = len(selected_rows)
+
+        visible_rows = 0
+        for r in range(total_rows):
+            if not self.download_table.isRowHidden(r):
+                visible_rows += 1
+
+        if total_rows == 0:
+            self.status_items_label.setText("0 items")
+            self.status_items_label.setToolTip("No downloads in list")
+        elif sel_count == 0:
+            unit = "item" if total_rows == 1 else "items"
+            if visible_rows < total_rows:
+                self.status_items_label.setText(f"{visible_rows} of {total_rows} {unit}")
+                self.status_items_label.setToolTip(f"{visible_rows} visible ({total_rows} total downloads)")
+            else:
+                self.status_items_label.setText(f"{total_rows} {unit}")
+                self.status_items_label.setToolTip(f"{total_rows} total downloads")
+        else:
+            unit = "item" if total_rows == 1 else "items"
+            self.status_items_label.setText(f"Selected: {sel_count} of {total_rows} {unit}")
+            tot_bytes = 0
+            for r in selected_rows:
+                size_item = self.download_table.item(r, 1)
+                if size_item:
+                    tot_bytes += parse_size_to_bytes(size_item.text())
+            size_str = f" — Total size: {format_bytes(tot_bytes)}" if tot_bytes > 0 else ""
+            self.status_items_label.setToolTip(f"{sel_count} of {total_rows} {unit} selected{size_str}")
+
+    def update_status_bar_speed(self):
+        if not hasattr(self, "status_speed_label"):
+            return
+        if not hasattr(self, "active_speeds"):
+            self.active_speeds = {}
+        if not hasattr(self, "active_downloads"):
+            self.active_downloads = {}
+
+        total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
+        if total_speed <= 0:
+            self.status_speed_label.setText("Speed: 0 B/s")
+            self.status_speed_label.setToolTip("Total Download Speed: 0 B/s (0 active downloads)")
+            return
+
+        active_count = len(self.active_downloads) or len(self.active_speeds)
+        speed_str = f"Speed: {format_bytes(total_speed)}/s"
+        self.status_speed_label.setText(speed_str)
+        self.status_speed_label.setToolTip(f"Total Download Speed: {format_bytes(total_speed)}/s ({active_count} active downloads)")
+
+    def update_status_bar_aria2(self):
+        if not hasattr(self, "status_aria2_label"):
+            return
+        is_running = False
+        if hasattr(self, "aria2_process") and self.aria2_process:
+            if self.aria2_process.poll() is None:
+                is_running = True
+
+        try:
+            ext_data = load_extension_config()
+            port = ext_data.get("port", 56800)
+        except Exception:
+            port = 56800
+
+        if is_running:
+            pid = getattr(self.aria2_process, "pid", "N/A")
+            self.status_aria2_label.setText("● Aria2: Running")
+            self.status_aria2_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 6px;")
+            self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Running (Port {port}, PID {pid})")
+        else:
+            self.status_aria2_label.setText("● Aria2: Stopped")
+            self.status_aria2_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")
+            self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Stopped (Port {port})")
+
+    def update_status_bar_memory(self):
+        if not hasattr(self, "status_memory_label"):
+            return
+        mem_bytes = get_process_memory()
+        self.status_memory_label.setText(f"Memory: {format_bytes(mem_bytes)}")
+        self.status_memory_label.setToolTip(f"Application Memory Usage (RSS): {format_bytes(mem_bytes)}")
+
+    def update_periodic_status(self):
+        self.update_status_bar_memory()
+        self.update_status_bar_aria2()
+        self.update_status_bar_speed()
+
+    def update_status_bar(self):
+        self.update_status_bar_items()
+        self.update_status_bar_speed()
+        self.update_status_bar_aria2()
+        self.update_status_bar_memory()
+
+    def _on_toolbar_toggled(self, checked: bool, save: bool = True):
+        tb = self.findChild(QToolBar, "MainToolbar")
+        if tb:
+            tb.setVisible(checked)
+        if hasattr(self, "action_toolbar_toggle") and self.action_toolbar_toggle:
+            self.action_toolbar_toggle.setChecked(checked)
+        if save and hasattr(self, "save_settings"):
+            self.save_settings()
+
+    def toggle_status_bar(self, visible: bool, save: bool = True):
+        """Shows or hides the bottom status bar."""
+        sb = self.statusBar()
+        if sb:
+            sb.setVisible(visible)
+        if hasattr(self, "action_status_bar_toggle") and self.action_status_bar_toggle:
+            self.action_status_bar_toggle.setChecked(visible)
+        if save and hasattr(self, "save_settings"):
+            self.save_settings()
 
     def setup_tray_icon(self):
         """Sets up the system tray icon and its context menu safely."""
@@ -1988,7 +2487,7 @@ class MainWindow(QMainWindow):
 
     def _notify_views_changed(self):
         """Notifies QML bridge and scheduler dialog of download list/progress changes."""
-        if hasattr(self, '_scheduler_dlg') and self._scheduler_dlg and self._scheduler_dlg.isVisible():
+        if MemoryGuard.is_widget_alive(getattr(self, '_scheduler_dlg', None)):
             if hasattr(self._scheduler_dlg, 'tabs') and self._scheduler_dlg.tabs.currentIndex() == 1:
                 self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
         if hasattr(self, 'bridge') and self.bridge:
@@ -2038,6 +2537,9 @@ class MainWindow(QMainWindow):
         
         self.action_delete.setEnabled(has_selection)
         self.action_redownload.setEnabled(has_selection)
+        self.update_status_bar_items()
+        for r in range(self.download_table.rowCount()):
+            self._set_row_bold(r, self._is_row_active(r))
         
     def refresh_toolbar_state_on_dialog_close(self):
         """
@@ -2054,6 +2556,9 @@ class MainWindow(QMainWindow):
             self.ctx_redownload(item)
 
     def filter_downloads(self, item, column):
+        if item.data(0, Qt.ItemDataRole.UserRole) == "header":
+            return
+
         category = item.text(0)
         ext_map = CATEGORY_EXTENSIONS
 
@@ -2071,6 +2576,7 @@ class MainWindow(QMainWindow):
                 if row_queue is None:
                     row_queue = "Main download queue"
                 self.download_table.setRowHidden(row, row_queue != queue_name)
+            self.update_status_bar_items()
             return
 
         for row in range(self.download_table.rowCount()):
@@ -2081,10 +2587,10 @@ class MainWindow(QMainWindow):
             
             if category == "All Downloads":
                 should_hide = False
-            elif category == "Unfinished":
-                if status == "Complete": should_hide = True
-            elif category == "Finished":
-                if status != "Complete": should_hide = True
+            elif category in ("Incomplete", "Unfinished"):
+                if status in ("Complete", "Finished"): should_hide = True
+            elif category in ("Finished", "Complete", "Completed"):
+                if status not in ("Complete", "Finished"): should_hide = True
             elif category in ext_map:
                 extensions = ext_map[category]
                 if not any(filename.endswith(ext) for ext in extensions):
@@ -2093,12 +2599,16 @@ class MainWindow(QMainWindow):
             if should_hide:
                 self.download_table.setRowHidden(row, True)
 
+        self.update_status_bar_items()
+
     def _sidebar_item_double_clicked(self, item, column):
         """Handles double-click on sidebar tree items.
 
         - All Downloads header: toggle expand/collapse.
         - Queues header: toggle expand/collapse.
         """
+        if item.data(0, Qt.ItemDataRole.UserRole) == "header":
+            return
         if item is getattr(self, "all_downloads_header", None):
             item.setExpanded(not item.isExpanded())
             return
@@ -2156,7 +2666,7 @@ class MainWindow(QMainWindow):
     def _open_scheduler_for_queue(self, queue_name):
         """Opens the scheduler dialog and selects the given queue."""
         self.open_scheduler()
-        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
+        if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
             # Find and select the queue by name
             for i, q in enumerate(self._scheduler_dlg.queues):
                 if q["name"] == queue_name:
@@ -2188,7 +2698,7 @@ class MainWindow(QMainWindow):
         self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
 
         # Also remove from scheduler if it's open
-        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
+        if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
             for i, q in enumerate(self._scheduler_dlg.queues):
                 if q["name"] == queue_name:
                     self._scheduler_dlg._selected_index = -1
@@ -2218,7 +2728,7 @@ class MainWindow(QMainWindow):
         self._sidebar_queue_names.append(name)
 
         # Reflect in scheduler dialog if it's open
-        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg:
+        if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
             self._scheduler_dlg.queues.append(dict(new_q))
             self._scheduler_dlg.queues[-1]["daily_days"] = list(new_q["daily_days"])
             from PyQt6.QtWidgets import QListWidgetItem as QLWI
@@ -2230,7 +2740,7 @@ class MainWindow(QMainWindow):
 
     def _sync_sidebar_queues(self):
         """Synchronizes the sidebar queue list with the scheduler dialog's queue list."""
-        if not hasattr(self, "_scheduler_dlg") or not self._scheduler_dlg:
+        if not MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
             return
 
         # Save the dialog's current queue state back into the persistent store
@@ -2423,8 +2933,10 @@ class MainWindow(QMainWindow):
                 # Display formatted timestamps (Last Try uses 5 min/300s threshold, Date Added uses 30s)
                 self._set_timestamp_item(row, 5, format_timestamp_relative(last_try_ts, max_relative_seconds=300))
                 self._set_timestamp_item(row, 6, format_timestamp_relative(date_added_ts, max_relative_seconds=30))
+                self._set_row_bold(row, self._is_row_active(row))
 
             self.download_table.setSortingEnabled(True)
+            self.update_status_bar_items()
             
         except Exception:
             pass
@@ -2444,16 +2956,57 @@ class MainWindow(QMainWindow):
         if col in col_names:
             item.setToolTip(f"{col_names[col]}: {text}" if text else f"{col_names[col]}: N/A")
 
-        # Apply font/styling only if needed or newly created
-        if col in [1, 2, 3, 4, 5, 6]:
-            # Use UserRole+10 as a flag to avoid redundant font applications
-            if created or not item.data(Qt.ItemDataRole.UserRole + 10):
-                font = QFont(QApplication.font())
-                font.setFeature(QFont.Tag.fromString('tnum'), 1)
-                if col in [1, 2, 3, 4]:
-                    font.setBold(True)
-                item.setFont(font)
-                item.setData(Qt.ItemDataRole.UserRole + 10, True)
+    def _is_row_active(self, row: int) -> bool:
+        """Determines if a table row represents an actively running download."""
+        if row < 0 or row >= self.download_table.rowCount():
+            return False
+        item_0 = self.download_table.item(row, 0)
+        if not item_0:
+            return False
+        key = id(item_0)
+        if hasattr(self, "active_downloads") and key in self.active_downloads:
+            return True
+        status_item = self.download_table.item(row, 2)
+        if status_item:
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+            status_text = logic_status if logic_status else status_item.text()
+            if status_text in ["Connecting...", "Downloading", "Resuming...", "Pending...", "Receiving data..."]:
+                return True
+        return False
+
+    def _set_row_bold(self, row: int, is_bold: bool):
+        """Sets bold/normal font weight for all items in a table row based on active state."""
+        if row < 0 or row >= self.download_table.rowCount():
+            return
+        for col in range(self.download_table.columnCount()):
+            item = self.download_table.item(row, col)
+            if item:
+                font = item.font()
+                if font.bold() != is_bold:
+                    font.setBold(is_bold)
+                    font.setFeature(QFont.Tag.fromString('tnum'), 1)
+                    item.setFont(font)
+
+    def _set_sortable_item(self, row, col, text, parser_func):
+        item = self.download_table.item(row, col)
+        created = False
+        if not item:
+            item = SortableTableWidgetItem(text)
+            self.download_table.setItem(row, col, item)
+            created = True
+        elif item.text() != text:
+            item.setText(text)
+            
+        # Set descriptive tooltips based on column
+        col_names = {1: "Size", 3: "Time Left", 4: "Transfer Rate"}
+        if col in col_names:
+            item.setToolTip(f"{col_names[col]}: {text}" if text else f"{col_names[col]}: N/A")
+
+        is_active = self._is_row_active(row)
+        font = QFont(QApplication.font())
+        font.setFeature(QFont.Tag.fromString('tnum'), 1)
+        font.setBold(is_active)
+        item.setFont(font)
             
         raw_val = parser_func(text)
         if item.data(Qt.ItemDataRole.UserRole) != raw_val:
@@ -2470,14 +3023,13 @@ class MainWindow(QMainWindow):
             item.setText(text)
             
         item.setToolTip(f"Status: {text}" if text else "Status: N/A")
+        item.setData(Qt.ItemDataRole.UserRole + 1, text)
 
-        # Apply bold font with tabular figures only if needed
-        if created or not item.data(Qt.ItemDataRole.UserRole + 10):
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(True)
-            item.setFont(font)
-            item.setData(Qt.ItemDataRole.UserRole + 10, True)
+        is_active = self._is_row_active(row) or text in ["Connecting...", "Downloading", "Resuming...", "Pending...", "Receiving data..."]
+        font = QFont(QApplication.font())
+        font.setFeature(QFont.Tag.fromString('tnum'), 1)
+        font.setBold(is_active)
+        item.setFont(font)
 
     def _set_timestamp_item(self, row, col, text):
         item = self.download_table.item(row, col)
@@ -2490,11 +3042,11 @@ class MainWindow(QMainWindow):
         col_name = "Last Attempt" if col == 5 else "Date Added"
         item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
 
-        if not item.data(Qt.ItemDataRole.UserRole + 10):
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            item.setFont(font)
-            item.setData(Qt.ItemDataRole.UserRole + 10, True)
+        is_active = self._is_row_active(row)
+        font = QFont(QApplication.font())
+        font.setFeature(QFont.Tag.fromString('tnum'), 1)
+        font.setBold(is_active)
+        item.setFont(font)
         return item
 
     def add_new_download(self, url, category="General", save_path=""):
@@ -2582,7 +3134,9 @@ class MainWindow(QMainWindow):
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
-                "table_style": getattr(self, "table_style", "classic")
+                "table_style": getattr(self, "table_style", "classic"),
+                "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
+                "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2618,6 +3172,9 @@ class MainWindow(QMainWindow):
 
     def changeEvent(self, event):
         super().changeEvent(event)
+        if event and event.type() == QEvent.Type.WindowStateChange:
+            if self.isMinimized():
+                MemoryGuard.clean_and_trim()
 
     def on_system_theme_changed(self, *args):
         if getattr(self, "_is_applying_theme", False):
@@ -2642,9 +3199,8 @@ class MainWindow(QMainWindow):
             self.style().unpolish(self.category_tree)
             self.style().polish(self.category_tree)
             self.category_tree.update()
-            root = self.category_tree.topLevelItem(0)
-            if root:
-                root.setIcon(0, get_themed_icon("all_downloads"))
+            if hasattr(self, "all_downloads_header") and self.all_downloads_header:
+                self.all_downloads_header.setIcon(0, get_themed_icon("all_downloads"))
                 cat_icons = {
                     "Compressed": get_themed_icon("compressed"),
                     "Documents": get_themed_icon("documents"),
@@ -2652,17 +3208,15 @@ class MainWindow(QMainWindow):
                     "Programs": get_themed_icon("programs"),
                     "Video": get_themed_icon("video")
                 }
-                for i in range(root.childCount()):
-                    child = root.child(i)
+                for i in range(self.all_downloads_header.childCount()):
+                    child = self.all_downloads_header.child(i)
                     if child and child.text(0) in cat_icons:
                         child.setIcon(0, cat_icons[child.text(0)])
 
-            item_unfin = self.category_tree.topLevelItem(1)
-            if item_unfin:
-                item_unfin.setIcon(0, get_themed_icon("unfinished"))
-            item_fin = self.category_tree.topLevelItem(2)
-            if item_fin:
-                item_fin.setIcon(0, get_themed_icon("finished"))
+            if hasattr(self, "item_unfinished") and self.item_unfinished:
+                self.item_unfinished.setIcon(0, get_themed_icon("unfinished"))
+            if hasattr(self, "item_finished") and self.item_finished:
+                self.item_finished.setIcon(0, get_themed_icon("finished"))
 
             # Refresh Queues section icons
             if hasattr(self, "queues_header") and self.queues_header:
@@ -2707,6 +3261,9 @@ class MainWindow(QMainWindow):
             if not tray_ic.isNull():
                 self.tray_icon.setIcon(tray_ic)
 
+        if hasattr(self, "toolbar_hover_filter") and self.toolbar_hover_filter:
+            self.toolbar_hover_filter.clear_cache()
+
         app = QApplication.instance()
         if app:
             self.setPalette(app.palette())
@@ -2723,6 +3280,14 @@ class MainWindow(QMainWindow):
                 app.style().polish(m)
                 m.update()
 
+        sb = self.statusBar()
+        if sb and app:
+            sb.setPalette(app.palette())
+            app.style().unpolish(sb)
+            app.style().polish(sb)
+            sb.update()
+
+        self.update_status_bar()
         self.update()
         self.repaint()
 
@@ -2774,6 +3339,12 @@ class MainWindow(QMainWindow):
         )
 
         self.set_table_style(settings["table_style"], initial=True)
+
+        show_status_bar = settings.get("show_status_bar", True)
+        self.toggle_status_bar(show_status_bar, save=False)
+
+        show_toolbar = settings.get("show_toolbar", True)
+        self._on_toolbar_toggled(show_toolbar, save=False)
         return settings
 
     def set_table_style(self, style_name: str, initial=False):
@@ -3020,11 +3591,21 @@ class MainWindow(QMainWindow):
         if path and os.path.exists(path + ".tmpbdm"):
             try: os.remove(path + ".tmpbdm")
             except: pass
-        if path and os.path.exists(path + ".tmpbdm.bdmx"):
-            try: os.remove(path + ".tmpbdm.bdmx")
+        if path and os.path.exists(path + ".aria2"):
+            try: os.remove(path + ".aria2")
             except: pass
         
+        # Clear completed flag & reset status metadata
+        item_0.setData(Qt.ItemDataRole.UserRole + 11, None)
         self._set_status_text(row, "Pending...")
+        status_item = self.download_table.item(row, 2)
+        if status_item:
+            status_item.setData(Qt.ItemDataRole.UserRole, None)
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Pending...")
+        
+        self._set_sortable_item(row, 3, "...", parse_time_to_sec)
+        self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
+        self._set_row_bold(row, True)
         
         # Update last try timestamp immediately before restarting
         new_timestamp = str(time.time())
@@ -3278,6 +3859,7 @@ class MainWindow(QMainWindow):
         # Display formatted timestamp
         self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
         self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
+        self._set_row_bold(row, not start_paused)
 
         self.download_table.setSortingEnabled(sorting_was_enabled)
         
@@ -3533,6 +4115,9 @@ class MainWindow(QMainWindow):
                     self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     break
         self.active_downloads.clear()
+        if hasattr(self, "active_speeds"):
+            self.active_speeds.clear()
+        self.update_status_bar_speed()
         self.update_ui_states()
 
     def remove_from_list(self):
@@ -3541,13 +4126,23 @@ class MainWindow(QMainWindow):
         
         for row in rows:
             item_name = self.download_table.item(row, 0)
-            key = id(item_name)
-            if key in self.active_downloads:
-                dialog = self.active_downloads[key]
-                self._stop_worker_entry(dialog)
+            if item_name:
+                key = id(item_name)
+                if key in self.active_downloads:
+                    dialog = self.active_downloads.pop(key, None)
+                    self._stop_worker_entry(dialog)
+                if hasattr(self, "active_speeds"):
+                    self.active_speeds.pop(key, None)
+                if hasattr(self, "active_file_info_dialogs"):
+                    self.active_file_info_dialogs.pop(key, None)
+                if hasattr(self, "active_complete_dialogs"):
+                    self.active_complete_dialogs.pop(key, None)
             self.download_table.removeRow(row)
         self.save_data()
         self.update_ui_states()
+        self.update_status_bar_items()
+        self.update_status_bar_speed()
+        MemoryGuard.clean_and_trim()
 
     def delete_selected_download(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
@@ -3561,23 +4156,34 @@ class MainWindow(QMainWindow):
             config = load_category_config()
             for row in rows:
                 item_name = self.download_table.item(row, 0)
-                key = id(item_name)
-                if key in self.active_downloads:
-                    dlg = self.active_downloads[key]
-                    self._stop_worker_entry(dlg)
+                if item_name:
+                    key = id(item_name)
+                    if key in self.active_downloads:
+                        dlg = self.active_downloads.pop(key, None)
+                        self._stop_worker_entry(dlg)
+                    if hasattr(self, "active_speeds"):
+                        self.active_speeds.pop(key, None)
+                    if hasattr(self, "active_file_info_dialogs"):
+                        self.active_file_info_dialogs.pop(key, None)
+                    if hasattr(self, "active_complete_dialogs"):
+                        self.active_complete_dialogs.pop(key, None)
                 
-                if delete_disk:
+                if delete_disk and item_name:
                     path = item_name.data(Qt.ItemDataRole.UserRole + 1)
                     if path and os.path.exists(path):
                         try: os.remove(path)
                         except: pass
 
                 # --- ALWAYS CLEAR CACHE/TEMP FILES ---
-                self._clear_cache_files(item_name, config)
+                if item_name:
+                    self._clear_cache_files(item_name, config)
 
                 self.download_table.removeRow(row)
             self.save_data()
             self.update_ui_states()
+            self.update_status_bar_items()
+            self.update_status_bar_speed()
+            MemoryGuard.clean_and_trim()
 
     def _clear_cache_files(self, item_name, config):
         """Helper to remove temporary/cache files associated with a download item."""
@@ -3632,8 +4238,14 @@ class MainWindow(QMainWindow):
             if item_name:
                 key = id(item_name)
                 if key in self.active_downloads:
-                    dlg = self.active_downloads[key]
+                    dlg = self.active_downloads.pop(key, None)
                     self._stop_worker_entry(dlg)
+                if hasattr(self, "active_speeds"):
+                    self.active_speeds.pop(key, None)
+                if hasattr(self, "active_file_info_dialogs"):
+                    self.active_file_info_dialogs.pop(key, None)
+                if hasattr(self, "active_complete_dialogs"):
+                    self.active_complete_dialogs.pop(key, None)
                 
                 # Clear cache files for finished items too
                 self._clear_cache_files(item_name, config)
@@ -3642,6 +4254,9 @@ class MainWindow(QMainWindow):
 
         self.save_data()
         self.update_ui_states()
+        self.update_status_bar_items()
+        self.update_status_bar_speed()
+        MemoryGuard.clean_and_trim()
     def update_download_row(self, item_ref, data):
         try:
             row = self.download_table.row(item_ref)
@@ -3654,8 +4269,8 @@ class MainWindow(QMainWindow):
         old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
 
         # --- PROTECTION GUARD ---
-        # If the row is already marked as Complete, ignore any late progress signals
-        if old_logic_status == "Complete":
+        # If the row is already marked as Complete, ignore any late progress signals unless actively downloading (e.g. redownload)
+        if old_logic_status == "Complete" and id(item_ref) not in getattr(self, "active_downloads", {}):
             return
         
         # --- FIX: Block signals and disable sorting during update to prevent flickering ---
@@ -3745,11 +4360,20 @@ class MainWindow(QMainWindow):
             if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                if hasattr(self, "active_speeds"):
+                    self.active_speeds.pop(id(item_ref), None)
             else:
                 time_val = data[3] if len(data) > 3 else ""
                 rate_val = data[4] if len(data) > 4 else ""
                 self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
                 self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+                if hasattr(self, "active_speeds"):
+                    raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
+                    if raw_speed is not None:
+                        self.active_speeds[id(item_ref)] = float(raw_speed)
+                    elif rate_val:
+                        self.active_speeds[id(item_ref)] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
+            self.update_status_bar_speed()
             
             # Col 5: Last Try
             formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
@@ -3759,6 +4383,9 @@ class MainWindow(QMainWindow):
             elif last_try_item.text() != formatted_last_try:
                 last_try_item.setText(formatted_last_try)
             
+            is_active = (display_status not in ["Complete", "Error", "Paused", "Cancelled", "Queued"])
+            self._set_row_bold(row, is_active)
+            
         finally:
             self.download_table.blockSignals(False)
             if sorting_was_enabled:
@@ -3766,6 +4393,10 @@ class MainWindow(QMainWindow):
             self._notify_views_changed()
 
     def download_finished(self, item_ref, status_text):
+        if hasattr(self, "active_speeds"):
+            self.active_speeds.pop(id(item_ref), None)
+        self.update_status_bar_speed()
+
         # Ignore spurious Paused/Cancelled signals if already Complete
         if item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete" and status_text in ["Paused", "Cancelled"]:
             return
@@ -3824,6 +4455,7 @@ class MainWindow(QMainWindow):
             final_timestamp = str(time.time())
             item_ref.setData(Qt.ItemDataRole.UserRole + 2, final_timestamp)
             self._set_timestamp_item(row, 5, format_timestamp_relative(final_timestamp, max_relative_seconds=300))
+            self._set_row_bold(row, False)
 
         # Handle UI Popups / Dialogs
         key = id(item_ref)
@@ -3831,6 +4463,9 @@ class MainWindow(QMainWindow):
             dlg = self.active_downloads.pop(key, None)
             if hasattr(dlg, 'close'):
                 dlg.close()
+            MemoryGuard.safe_delete_later(dlg)
+        if hasattr(self, "active_speeds"):
+            self.active_speeds.pop(key, None)
 
         if display_status == "Complete":
             # If File Info dialog is still open, return and wait for confirmed action
@@ -3849,27 +4484,31 @@ class MainWindow(QMainWindow):
             dialog.finished.connect(lambda: self.active_complete_dialogs.pop(key, None))
             dialog.show()
             
+        self.update_status_bar_speed()
+        self.update_status_bar_items()
         self.update_ui_states()
         self.save_data()
+        MemoryGuard.clean_and_trim()
         # Explicit repaint
         self.download_table.viewport().update()
     
     def open_options(self):
         from ui.dialogs import OptionsDialog
-        if hasattr(self, "_options_dlg") and self._options_dlg and self._options_dlg.isVisible():
+        if MemoryGuard.is_widget_alive(getattr(self, "_options_dlg", None)):
             self._options_dlg.raise_()
             self._options_dlg.activateWindow()
             return
         # Top-level window (parent=None) sharing app WM_CLASS so it appears as a separate icon in taskbar panel
         self._options_dlg = OptionsDialog(main_window=self)
         self._options_dlg.accepted.connect(self._handle_options_accepted)
+        self._options_dlg.finished.connect(lambda: setattr(self, "_options_dlg", None))
         self._options_dlg.show()
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
 
     def open_media_downloader(self, url=None, auto_analyze=False):
         from ui.dialogs import MediaDownloaderDialog
-        if hasattr(self, "_media_downloader_dlg") and self._media_downloader_dlg and self._media_downloader_dlg.isVisible():
+        if MemoryGuard.is_widget_alive(getattr(self, "_media_downloader_dlg", None)):
             self._media_downloader_dlg.raise_()
             self._media_downloader_dlg.activateWindow()
             if url:
@@ -3878,6 +4517,7 @@ class MainWindow(QMainWindow):
                     self._media_downloader_dlg._on_analyze_or_stop_clicked()
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
+        self._media_downloader_dlg.finished.connect(lambda: setattr(self, "_media_downloader_dlg", None))
         self._media_downloader_dlg.show()
         self._media_downloader_dlg.raise_()
         self._media_downloader_dlg.activateWindow()
@@ -3888,13 +4528,14 @@ class MainWindow(QMainWindow):
 
     def open_scheduler(self):
         from ui.dialogs import SchedulerDialog
-        if hasattr(self, "_scheduler_dlg") and self._scheduler_dlg and self._scheduler_dlg.isVisible():
+        if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
             self._scheduler_dlg.raise_()
             self._scheduler_dlg.activateWindow()
             return
         # Pass the persistent queue list so reopening the dialog preserves all queues
         self._scheduler_dlg = SchedulerDialog(main_window=self, initial_queues=self._queues_data)
         self._scheduler_dlg.finished.connect(self._sync_sidebar_queues)
+        self._scheduler_dlg.finished.connect(lambda: setattr(self, "_scheduler_dlg", None))
         self._scheduler_dlg.show()
         self._scheduler_dlg.raise_()
         self._scheduler_dlg.activateWindow()
@@ -3946,12 +4587,16 @@ class MainWindow(QMainWindow):
         self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
         self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
 
+        is_active = len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS
+        self._set_row_bold(row, is_active)
+
         # Respect concurrent download cap
-        if len(self.active_downloads) >= self.MAX_CONCURRENT_DOWNLOADS:
+        if not is_active:
             # Mark as queued; _try_start_queued will start it when a slot opens
             self._set_status_text(row, "Queued")
             self._set_sortable_item(row, 3, "", parse_time_to_sec)
             self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            self._set_row_bold(row, False)
             self.download_table.setSortingEnabled(True)
             self.save_data()
             return item_name
@@ -3981,6 +4626,9 @@ class MainWindow(QMainWindow):
     def _on_media_download_finished(self, key, item_ref, path):
         if key in self.active_downloads:
             self.active_downloads.pop(key, None)
+        if hasattr(self, "active_speeds"):
+            self.active_speeds.pop(key, None)
+        self.update_status_bar_speed()
         try:
             row = self.download_table.row(item_ref)
         except RuntimeError:
@@ -4004,9 +4652,11 @@ class MainWindow(QMainWindow):
                 if status_item:
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Error")
                 self._set_status_text(row, "Error")
+            self._set_row_bold(row, False)
 
         self.update_ui_states()
         self.save_data()
+        MemoryGuard.clean_and_trim()
         self._try_start_queued()
 
     def _try_start_queued(self, *_):
@@ -4179,9 +4829,7 @@ if __name__ == "__main__":
 
     apply_app_theme(_saved_theme, _saved_accent, _saved_icon_theme, _saved_tray_icon, app)
 
-    app_font = QFont("Segoe UI", 9)
-    app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
-    app.setFont(app_font)
+    app.setFont(init_app_font())
     
     # Initialize and set global application icon
     app_icon = get_app_icon()
