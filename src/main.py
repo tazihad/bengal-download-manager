@@ -4661,6 +4661,8 @@ class MainWindow(QMainWindow):
             self._set_sortable_item(row, 4, "", parse_size_to_bytes)
             self._set_row_bold(row, False)
             self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
             self.save_data()
             return item_name
 
@@ -4683,6 +4685,8 @@ class MainWindow(QMainWindow):
 
         worker.start()
         self.download_table.setSortingEnabled(True)
+        self.update_ui_states()
+        self._sync_sidebar_queues()
         self.save_data()
         return item_name
 

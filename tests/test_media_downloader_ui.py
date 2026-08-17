@@ -493,3 +493,36 @@ def test_start_media_download_unique_naming_when_file_exists(qapp, tmp_path):
         assert mock_start2.called
 
     mw.close()
+
+
+def test_playlist_download_enqueues_to_main_queue(qapp, tmp_path):
+    """Verify that clicking download on a playlist enqueues all items into Main download queue."""
+    from main import MainWindow
+    from unittest.mock import patch
+
+    mw = MainWindow(start_ipc=False)
+    dlg = MediaDownloaderDialog(main_window=mw)
+
+    sample_playlist = {
+        "title": "My Test Playlist",
+        "total_items": 3,
+        "entries": [
+            {"index": 1, "title": "Track 1", "duration": 60, "url": "https://example.com/track1"},
+            {"index": 2, "title": "Track 2", "duration": 120, "url": "https://example.com/track2"},
+            {"index": 3, "title": "Track 3", "duration": 180, "url": "https://example.com/track3"}
+        ]
+    }
+    dlg._on_playlist_ready(sample_playlist)
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start"):
+        dlg._on_download_clicked()
+
+    # Verify rows in main download table have queue set to "Main download queue"
+    assert mw.download_table.rowCount() >= 3
+    for r in range(3):
+        item = mw.download_table.item(r, 0)
+        assert item is not None
+        assert item.data(Qt.ItemDataRole.UserRole + 8) == "Main download queue"
+
+    mw.close()
+    dlg.close()
