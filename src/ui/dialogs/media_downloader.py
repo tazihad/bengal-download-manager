@@ -14,8 +14,8 @@ from PyQt6.QtWidgets import (
     QHeaderView, QProgressBar, QMessageBox, QApplication, QFrame, QCheckBox,
     QAbstractItemView, QToolButton, QToolTip, QFileDialog
 )
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut, QPixmap, QPainter, QPainterPath, QColor, QPen
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut, QPixmap, QPainter, QPainterPath, QColor, QPen, QLinearGradient, QPalette
 from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
 from core.memory_guard import MemoryGuard
 
@@ -64,34 +64,31 @@ def create_thumbnail_placeholder(width: int = 160, height: int = 90, radius: int
 
     cx, cy = width // 2, height // 2
     if is_playlist:
-        painter.setPen(QPen(QColor(180, 180, 180, 200), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        painter.drawRoundedRect(cx - 16, cy - 14, 32, 28, 3, 3)
-        painter.drawLine(cx - 10, cy - 6, cx + 10, cy - 6)
-        painter.drawLine(cx - 10, cy, cx + 10, cy)
-        painter.drawLine(cx - 10, cy + 6, cx + 10, cy + 6)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(255, 255, 255, 180))
+        painter.drawRoundedRect(cx - 18, cy - 12, 36, 4, 2, 2)
+        painter.drawRoundedRect(cx - 18, cy - 4, 36, 4, 2, 2)
+        painter.drawRoundedRect(cx - 18, cy + 4, 36, 4, 2, 2)
     else:
-        play_path = QPainterPath()
-        play_path.moveTo(cx - 7, cy - 11)
-        play_path.lineTo(cx + 11, cy)
-        play_path.lineTo(cx - 7, cy + 11)
-        play_path.closeSubpath()
-        painter.fillPath(play_path, QColor(200, 200, 200, 210))
+        triangle = QPainterPath()
+        triangle.moveTo(cx - 10, cy - 14)
+        triangle.lineTo(cx + 14, cy)
+        triangle.lineTo(cx - 10, cy + 14)
+        triangle.closeSubpath()
+        painter.fillPath(triangle, QColor(255, 255, 255, 190))
     painter.end()
     return out
 
 
 class ThumbnailLoaderWorker(QThread):
-    """Asynchronously fetches video/playlist thumbnail image."""
+    """Background worker to fetch thumbnail bytes without freezing Qt GUI."""
     thumbnail_loaded = pyqtSignal(QPixmap)
 
     def __init__(self, url: str):
         super().__init__()
         self.url = url
-        _keep_thread_alive(self)
 
     def run(self):
-        if not self.url:
-            return
         try:
             req = urllib.request.Request(self.url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0)"})
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -101,6 +98,110 @@ class ThumbnailLoaderWorker(QThread):
                     self.thumbnail_loaded.emit(pm)
         except Exception:
             pass
+
+
+class AndroidProgressBar(QProgressBar):
+    """
+    Android 17 / Material 3 Expressive Linear Progress Indicator:
+    - Ultra-sleek pill geometry (5px height) with subtle ambient track.
+    - Dual organic flowing capsules with vibrant Cyan-to-Neon-Violet gradient.
+    - Automatic 60fps frame-paced animation when visible, zero CPU when hidden.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(5)
+        self.setTextVisible(False)
+        self._anim_pos = 0.0
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(16)
+        self._anim_timer.timeout.connect(self._on_tick)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.minimum() == 0 and self.maximum() == 0:
+            self._anim_timer.start()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._anim_timer.stop()
+
+    def setRange(self, minimum: int, maximum: int):
+        super().setRange(minimum, maximum)
+        if minimum == 0 and maximum == 0 and self.isVisible():
+            self._anim_timer.start()
+        else:
+            self._anim_timer.stop()
+            self.update()
+
+    def _on_tick(self):
+        if not self.isVisible():
+            self._anim_timer.stop()
+            return
+        self._anim_pos = (self._anim_pos + 0.015) % 1.0
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        radius = h / 2.0
+
+        # Track background
+        track_path = QPainterPath()
+        track_path.addRoundedRect(0, 0, w, h, radius, radius)
+        
+        is_dark = self.palette().color(QPalette.ColorRole.Window).value() < 128
+        track_color = QColor(255, 255, 255, 25) if is_dark else QColor(0, 0, 0, 20)
+        painter.fillPath(track_path, track_color)
+
+        if self.minimum() == 0 and self.maximum() == 0:
+            p = self._anim_pos
+            x1 = w * (p * 1.4 - 0.4)
+            width1 = max(w * 0.35 * (1.0 - 0.4 * abs(p - 0.5)), 40.0)
+            
+            p2 = (p + 0.4) % 1.0
+            x2 = w * (p2 * 1.4 - 0.4)
+            width2 = max(w * 0.18, 20.0)
+
+            grad1 = QLinearGradient(x1, 0, x1 + width1, 0)
+            if is_dark:
+                grad1.setColorAt(0.0, QColor("#38bdf8"))
+                grad1.setColorAt(0.5, QColor("#6366f1"))
+                grad1.setColorAt(1.0, QColor("#a855f7"))
+            else:
+                grad1.setColorAt(0.0, QColor("#0284c7"))
+                grad1.setColorAt(0.5, QColor("#4f46e5"))
+                grad1.setColorAt(1.0, QColor("#7c3aed"))
+
+            painter.save()
+            painter.setClipPath(track_path)
+
+            sec_path = QPainterPath()
+            sec_path.addRoundedRect(x2, 0, width2, h, radius, radius)
+            sec_color = QColor("#38bdf8" if is_dark else "#0284c7")
+            sec_color.setAlpha(140)
+            painter.fillPath(sec_path, sec_color)
+
+            prim_path = QPainterPath()
+            prim_path.addRoundedRect(x1, 0, width1, h, radius, radius)
+            painter.fillPath(prim_path, grad1)
+
+            painter.restore()
+        else:
+            total = max(1, self.maximum() - self.minimum())
+            val = max(0, min(self.value() - self.minimum(), total))
+            fill_w = w * (val / total)
+            if fill_w > 0:
+                fill_path = QPainterPath()
+                fill_path.addRoundedRect(0, 0, max(fill_w, radius * 2), h, radius, radius)
+                grad = QLinearGradient(0, 0, fill_w, 0)
+                grad.setColorAt(0.0, QColor("#38bdf8" if is_dark else "#0284c7"))
+                grad.setColorAt(1.0, QColor("#6366f1" if is_dark else "#4f46e5"))
+                painter.fillPath(fill_path, grad)
+
+        painter.end()
 
 
 class MediaDownloaderDialog(QDialog):
@@ -425,9 +526,8 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_status.setStyleSheet("color: gray;")
         main_layout.addWidget(self.lbl_status)
 
-        self.progress_bar = QProgressBar()
+        self.progress_bar = AndroidProgressBar()
         self.progress_bar.setRange(0, 0)
-        self.progress_bar.setFixedHeight(6)
         self.progress_bar.setVisible(False)
         main_layout.addWidget(self.progress_bar)
 

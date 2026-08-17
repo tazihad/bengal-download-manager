@@ -172,3 +172,40 @@ def test_media_downloader_cookies_mode_switch_and_validation(qapp, tmp_path):
     assert dlg._get_cookies_args() == (None, None)
 
     dlg.close()
+
+
+def test_android_progress_bar_expressive(qapp):
+    """Verify Android 17 Material 3 Expressive linear progress bar rendering and animation timer."""
+    from ui.dialogs.media_downloader import AndroidProgressBar
+    from PyQt6.QtGui import QPixmap, QPainter
+
+    bar = AndroidProgressBar()
+    assert bar.height() == 5
+    assert bar._anim_timer.isActive() is False
+
+    # Indeterminate mode
+    bar.setRange(0, 0)
+    bar.resize(400, 5)
+    bar.show()
+    assert bar._anim_timer.isActive() is True
+
+    # Render indeterminate state
+    pm = QPixmap(400, 5)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    bar.paintEvent(None)
+    p.end()
+
+    # Step animation
+    old_pos = bar._anim_pos
+    bar._on_tick()
+    assert bar._anim_pos != old_pos
+
+    # Determinate mode
+    bar.setRange(0, 100)
+    bar.setValue(50)
+    assert bar._anim_timer.isActive() is False
+
+    bar.hide()
+    assert bar._anim_timer.isActive() is False
+    bar.close()
