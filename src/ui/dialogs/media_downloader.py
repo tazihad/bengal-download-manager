@@ -217,7 +217,7 @@ class MediaDownloaderDialog(QDialog):
         MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
-        self.resize(840, 660)
+        self.resize(1000, 600)
         self.setMinimumSize(680, 520)
 
         # Standalone top-level window flag

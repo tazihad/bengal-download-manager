@@ -12,6 +12,8 @@ def test_media_downloader_dialog_init(qapp):
     dlg = MediaDownloaderDialog()
     assert dlg.windowTitle() == "Media Downloader"
     assert bool(dlg.windowFlags() & Qt.WindowType.Window) is True
+    assert dlg.width() == 1000
+    assert dlg.height() == 600
     assert dlg.txt_url is not None
     assert dlg.btn_analyze is not None
     assert dlg.btn_download is not None
