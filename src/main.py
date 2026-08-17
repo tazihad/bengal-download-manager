@@ -46,7 +46,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
     QSystemTrayIcon, QRubberBand
 )
-from PyQt6.QtGui import QAction, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent
+from PyQt6.QtGui import QAction, QActionGroup, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
@@ -569,6 +569,7 @@ ACCENT_COLORS = {
     "BDM (Default)": "#3daee9",
     "BDM": "#3daee9",
     "System": None,
+    "Twilight": "#8b5cf6",
     "Breeze Blue": "#3daee9",
     "Ubuntu Orange": "#e95420",
     "Windows Blue": "#0078d4",
@@ -627,6 +628,8 @@ def normalize_theme_name(name, default="BDM Dark (Default)"):
         return "System"
     if s_lower in ("bdm light", "bdmlight", "light"):
         return "BDM Light"
+    if s_lower in ("twilight", "twilight dark"):
+        return "Twilight"
     return s
 
 
@@ -639,6 +642,8 @@ def normalize_accent_name(name, default="BDM (Default)"):
         return "BDM (Default)"
     if s_lower == "system":
         return "System"
+    if s_lower in ("twilight", "twilight violet"):
+        return "Twilight"
     return s
 
 
@@ -651,6 +656,10 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "BDM Dark"
     elif s_lower in ("bdm light", "bdmlight"):
         return "BDM Light"
+    elif s_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
+        return "Modern Color"
+    elif s_lower in ("yaru", "ubuntu yaru"):
+        return "Yaru"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -673,7 +682,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     """
     Applies application theme ('Automatic', 'BDM Light', 'BDM Dark', 'Ubuntu Light', 'Ubuntu Dark',
     'IDM Classic', 'Kirigami Light', 'Kirigami Dark', 'Breeze Light', 'Breeze Dark',
-    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark'),
+    'Dracula', 'Nord', 'One Dark', 'Catppuccin', 'Solarized Light', 'Solarized Dark', 'Twilight'),
     custom accent color, custom toolbar icon set, and custom system tray icon set.
     """
     if app is None:
@@ -740,6 +749,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#002b36", "#839496", "#073642", "#002b36", "#073642", "#268bd2", "#268bd2", "#ffffff", accent=accent_name))
+    elif theme_lower in ("twilight", "twilight dark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#181424", "#f0edf8", "#13111c", "#221c33", "#2a223f", "#8b5cf6", "#8b5cf6", "#ffffff", accent=accent_name))
     elif theme_lower in ("breeze dark", "breezedark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
@@ -807,12 +820,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
             "breeze dark": "breeze-dark",
-            "ubuntu": "ubuntu-mono-dark",
             "adwaita": "Adwaita",
             "highcolor": "hicolor"
         }
@@ -1006,6 +1018,14 @@ def get_themed_icon(name, fallback=None):
 
     icon_theme_str = str(CURRENT_ICON_THEME).strip() if CURRENT_ICON_THEME else "BDM Auto (Default)"
     icon_theme_lower = icon_theme_str.lower()
+
+    if icon_theme_lower in ("modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
+        from ui.icons import get_colorful_icon
+        return get_colorful_icon(name)
+
+    if icon_theme_lower in ("yaru", "ubuntu yaru"):
+        from ui.icons import get_yaru_icon
+        return get_yaru_icon(name)
 
     if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
@@ -1582,7 +1602,26 @@ class MainWindow(QMainWindow):
 
         # 4. View
         view_menu = menu_bar.addMenu("&View")
-        
+
+        table_style_menu = view_menu.addMenu("Table style")
+        self.table_style_group = QActionGroup(self)
+        self.table_style_group.setExclusive(True)
+
+        self.action_table_style_classic = QAction("Classic", self)
+        self.action_table_style_classic.setCheckable(True)
+        self.action_table_style_classic.setChecked(True)
+        self.action_table_style_classic.triggered.connect(lambda checked: self.set_table_style("classic") if checked else None)
+        self.table_style_group.addAction(self.action_table_style_classic)
+        table_style_menu.addAction(self.action_table_style_classic)
+
+        self.action_table_style_modern = QAction("Modern", self)
+        self.action_table_style_modern.setCheckable(True)
+        self.action_table_style_modern.triggered.connect(lambda checked: self.set_table_style("modern") if checked else None)
+        self.table_style_group.addAction(self.action_table_style_modern)
+        table_style_menu.addAction(self.action_table_style_modern)
+
+        view_menu.addSeparator()
+
         sort_menu = view_menu.addMenu("Sort by")
         sort_fields = [
             ("File Name", 0), ("Size", 1), ("Status", 2), ("Time Left", 3), 
@@ -1754,6 +1793,8 @@ class MainWindow(QMainWindow):
         self.category_tree.customContextMenuRequested.connect(self._show_sidebar_context_menu)
         
         self.download_table = QTableWidget()
+        self._default_table_delegate = self.download_table.itemDelegate()
+        self.table_style = "classic"
         self.download_table.setIconSize(QSize(16, 16))
         self.download_table.setColumnCount(7)
         self.download_table.verticalHeader().setVisible(False)
@@ -1967,30 +2008,31 @@ class MainWindow(QMainWindow):
             rows = set(item.row() for item in selected_rows)
             for r in rows:
                 item = self.download_table.item(r, 0)
+                if not item:
+                    continue
                 key = id(item)
                 
                 status_item = self.download_table.item(r, 2)
                 logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else None
                 status = logic_status if logic_status else (status_item.text() if status_item else "")
                 
-                # Check for active workers
-                if key in self.active_downloads:
+                is_active = key in self.active_downloads
+                if is_active:
                     selection_has_active = True
                 
-                # Pausable statuses (currently downloading)
-                if status in ["Connecting...", "Downloading", "Resuming...", "Pending..."]:
-                    selection_has_pausable = True
-                    
-                # Resumable statuses (not active and not completed)
-                if status in ["Paused", "Cancelled", "Error"]:
-                    selection_has_resumable = True
+                is_complete = status in ["Complete", "Finished"] or (item.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
+                
+                if not is_complete:
+                    if is_active or status in ["Connecting...", "Downloading", "Resuming...", "Pending..."]:
+                        selection_has_pausable = True
+                    elif status in ["Paused", "Cancelled", "Error"] or "%" in status or not is_active:
+                        selection_has_resumable = True
         
         # STOP action is for pausing an active download
         self.action_stop.setEnabled(selection_has_pausable and not selection_has_resumable)
         self.action_stop_all.setEnabled(has_active_downloads)
         
         # RESUME action is for starting a paused/errored/cancelled download
-        # Logic fix: Allow resume even if active (window open) if the status is logically paused
         self.action_resume.setEnabled(selection_has_resumable)
         self.action_download_now.setEnabled(selection_has_resumable)
         
@@ -2539,7 +2581,8 @@ class MainWindow(QMainWindow):
                 "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
-                "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
+                "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
+                "table_style": getattr(self, "table_style", "classic")
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2721,6 +2764,7 @@ class MainWindow(QMainWindow):
         settings["accent"] = normalize_accent_name(settings.get("accent"))
         settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
         settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
+        settings["table_style"] = settings.get("table_style", "classic")
 
         apply_app_theme(
             settings["theme"],
@@ -2728,7 +2772,39 @@ class MainWindow(QMainWindow):
             settings["icon_theme"],
             settings["tray_icon"]
         )
+
+        self.set_table_style(settings["table_style"], initial=True)
         return settings
+
+    def set_table_style(self, style_name: str, initial=False):
+        """Switches between Classic and Modern table presentation styles."""
+        style_name = (style_name or "classic").lower()
+        self.table_style = style_name
+
+        if hasattr(self, "action_table_style_classic"):
+            self.action_table_style_classic.setChecked(style_name == "classic")
+        if hasattr(self, "action_table_style_modern"):
+            self.action_table_style_modern.setChecked(style_name == "modern")
+
+        if style_name == "modern":
+            from ui.delegates import ModernTableDelegate
+            if not hasattr(self, "_modern_delegate") or self._modern_delegate is None:
+                self._modern_delegate = ModernTableDelegate(self.download_table)
+            self.download_table.setItemDelegate(self._modern_delegate)
+            self.download_table.verticalHeader().setDefaultSectionSize(50)
+            for r in range(self.download_table.rowCount()):
+                self.download_table.setRowHeight(r, 50)
+        else:
+            # Classic style - exact unmodified original
+            if hasattr(self, "_default_table_delegate") and self._default_table_delegate:
+                self.download_table.setItemDelegate(self._default_table_delegate)
+            self.download_table.verticalHeader().setDefaultSectionSize(26)
+            for r in range(self.download_table.rowCount()):
+                self.download_table.setRowHeight(r, 26)
+
+        self.download_table.viewport().update()
+        if not initial and hasattr(self, "save_settings"):
+            self.save_settings()
 
     def show_header_context_menu(self, pos):
         menu = QMenu(self)
@@ -3304,11 +3380,14 @@ class MainWindow(QMainWindow):
 
     def resume_selected_download(self):
         selected_items = self.download_table.selectedItems()
-        if not selected_items: return
+        if not selected_items:
+            return
         
         rows = set(item.row() for item in selected_items)
         for row in rows:
             item_name = self.download_table.item(row, 0)
+            if not item_name:
+                continue
             
             # If already active, bring dialog to front or resume if paused
             if id(item_name) in self.active_downloads:
@@ -3318,7 +3397,8 @@ class MainWindow(QMainWindow):
                 
                 if logic_status in ["Paused", "Cancelled", "Error"]:
                     # Forward resume to existing worker
-                    dialog.worker.resume()
+                    if hasattr(dialog, 'worker') and dialog.worker:
+                        dialog.worker.resume()
                 
                 dialog.activateWindow()
                 dialog.raise_()
@@ -3329,49 +3409,62 @@ class MainWindow(QMainWindow):
             filename = item_name.text()
             
             if url:
-                self._set_status_text(row, "Resuming...")                
+                self._set_status_text(row, "Resuming...")
+                status_item = self.download_table.item(row, 2)
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
                 # Update last try timestamp before resuming
                 new_timestamp = str(time.time())
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                 self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                 
                 self._start_download_worker(url, item_name, resume_filename=filename)
+        
+        self.update_ui_states()
 
     def stop_selected_download(self):
-        for item in self.download_table.selectedItems():
-            if item.column() == 0:
-                key = id(item)
-                if key in self.active_downloads:
-                    dialog = self.active_downloads.pop(key, None)
-                    self._stop_worker_entry(dialog)
+        selected_items = self.download_table.selectedItems()
+        if not selected_items:
+            return
+        
+        rows = set(item.row() for item in selected_items)
+        for r in rows:
+            item = self.download_table.item(r, 0)
+            if not item:
+                continue
+            key = id(item)
+            if key in self.active_downloads:
+                dialog = self.active_downloads.pop(key, None)
+                self._stop_worker_entry(dialog)
 
-                    # Update status preserving percentage string
-                    status_item = self.download_table.item(item.row(), 2)
-                    if status_item:
-                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                        if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
-                            continue
-                    if not status_item:
-                        status_item = QTableWidgetItem()
-                        self.download_table.setItem(item.row(), 2, status_item)
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
-                    self._set_status_text(item.row(), final_display)
+                # Update status preserving percentage string
+                status_item = self.download_table.item(r, 2)
+                if status_item:
+                    current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                    if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                        continue
+                if not status_item:
+                    status_item = QTableWidgetItem()
+                    self.download_table.setItem(r, 2, status_item)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                self._set_status_text(r, final_display)
 
-                    # Reset Time Left and Rate on pause
-                    self._set_sortable_item(item.row(), 3, "", parse_time_to_sec)
-                    self._set_sortable_item(item.row(), 4, "", parse_size_to_bytes)
+                # Reset Time Left and Rate on pause
+                self._set_sortable_item(r, 3, "", parse_time_to_sec)
+                self._set_sortable_item(r, 4, "", parse_size_to_bytes)
 
-                    # Update last try timestamp on pause
-                    item_ref = self.download_table.item(item.row(), 0)
-                    new_timestamp = str(time.time())
-                    item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                    self._set_timestamp_item(item.row(), 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                # Update last try timestamp on pause
+                new_timestamp = str(time.time())
+                item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
 
-                    # Close the dialog if it's a ProgressDialog
-                    if hasattr(dialog, 'reject'):
-                        dialog.reject()
+                # Close the dialog if it's a ProgressDialog
+                if hasattr(dialog, 'reject'):
+                    dialog.reject()
+        
+        self.update_ui_states()
 
     def _stop_worker_entry(self, entry):
         """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
@@ -3389,10 +3482,24 @@ class MainWindow(QMainWindow):
                 pass
         else:
             # Legacy ProgressDialog path
-            try:
-                entry.worker.stop()
-            except Exception:
-                pass
+            if hasattr(entry, 'worker') and entry.worker:
+                try:
+                    entry.worker.main_progress_signal.disconnect()
+                except Exception:
+                    pass
+                try:
+                    entry.worker.finished_signal.disconnect()
+                except Exception:
+                    pass
+                try:
+                    entry.worker.stop()
+                except Exception:
+                    pass
+                try:
+                    entry.worker.quit()
+                    entry.worker.wait(1000)
+                except Exception:
+                    pass
             try:
                 entry.reject()
             except Exception:
@@ -3426,6 +3533,7 @@ class MainWindow(QMainWindow):
                     self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     break
         self.active_downloads.clear()
+        self.update_ui_states()
 
     def remove_from_list(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
@@ -3601,6 +3709,14 @@ class MainWindow(QMainWindow):
                 if comp_bytes >= tot_bytes or pct_val >= 99.95 or worker_status == "Complete":
                     pct_str = "Complete"
                 else:
+                    prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+                    if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
+                        try:
+                            prev_val = float(str(prev_pct_str).replace("%", "").strip())
+                            if prev_val > 0:
+                                pct_val = prev_val
+                        except ValueError:
+                            pass
                     pct_str = f"{pct_val:.2f}%"
 
             if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":

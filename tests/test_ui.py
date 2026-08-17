@@ -357,7 +357,7 @@ def test_options_dialog_theme_selection(qapp):
         "Kirigami Light", "Material You Dark", "Material You Light",
         "Nord", "Obsidian Flow", "One Dark", 
         "Solarized Dark", "Solarized Light", 
-        "Ubuntu Dark", "Ubuntu Light"
+        "Twilight", "Ubuntu Dark", "Ubuntu Light"
     ]
     items = [opt_dlg.combo_theme.itemText(i) for i in range(opt_dlg.combo_theme.count())]
     assert items == expected_themes

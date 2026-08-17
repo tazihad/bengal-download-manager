@@ -107,7 +107,7 @@ class OptionsDialog(QDialog):
             "Kirigami Light", "Material You Dark", "Material You Light",
             "Nord", "Obsidian Flow", "One Dark", 
             "Solarized Dark", "Solarized Light", 
-            "Ubuntu Dark", "Ubuntu Light"
+            "Twilight", "Ubuntu Dark", "Ubuntu Light"
         ]
         self.combo_theme.addItems(theme_options)
 
@@ -119,7 +119,7 @@ class OptionsDialog(QDialog):
             "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
-            "Obsidian Purple", "Ubuntu Orange", "Windows Blue"
+            "Obsidian Purple", "Twilight", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
@@ -127,7 +127,7 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Ubuntu"]
+        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Yaru"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
