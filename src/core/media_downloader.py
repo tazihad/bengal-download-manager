@@ -373,7 +373,8 @@ class MediaExtractorWorker(QThread):
 
     def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None):
         super().__init__()
-        self.url = url
+        from core.utils import sanitize_media_url
+        self.url = sanitize_media_url(url)
         self.cookies_browser = cookies_browser
         self.cookies_file = cookies_file
         self.process = None
@@ -401,6 +402,7 @@ class MediaExtractorWorker(QThread):
                 yt_dlp_bin,
                 "-J",
                 "--flat-playlist",
+                "--playlist-end", "100",
                 "--no-warnings",
                 "--remote-components", "ejs:github",
                 "--ffmpeg-location", bin_dir,
@@ -432,6 +434,7 @@ class MediaExtractorWorker(QThread):
                         yt_dlp_bin,
                         "-J",
                         "--flat-playlist",
+                        "--playlist-end", "100",
                         "--no-warnings",
                         "--remote-components", "ejs:github",
                         "--ffmpeg-location", bin_dir,

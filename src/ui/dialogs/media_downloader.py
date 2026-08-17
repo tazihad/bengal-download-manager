@@ -901,7 +901,8 @@ class MediaDownloaderDialog(QDialog):
         clipboard = QApplication.clipboard()
         text = clipboard.text().strip()
         if text:
-            self.txt_url.setText(text)
+            from core.utils import sanitize_media_url
+            self.txt_url.setText(sanitize_media_url(text))
             self.start_analysis()
 
     def _on_analyze_or_stop_clicked(self):
@@ -1003,17 +1004,21 @@ class MediaDownloaderDialog(QDialog):
 
     def analyze_and_download(self, url: str, auto_start: bool = False, target_preset: str = ""):
         """Sets URL, applies auto-start flags, and initiates analysis."""
+        from core.utils import sanitize_media_url
+        clean_url = sanitize_media_url(url)
         self._auto_start_pending = auto_start
         self._auto_start_preset = target_preset or "Best Quality (Video + Audio merged)"
-        self.txt_url.setText(url)
+        self.txt_url.setText(clean_url)
         self.start_analysis()
 
     def start_analysis(self):
-        url = self.txt_url.text().strip()
+        from core.utils import sanitize_media_url
+        url = sanitize_media_url(self.txt_url.text().strip())
         if not url:
             QMessageBox.warning(self, "No URL", "Please enter or paste a media link.")
             return
 
+        self.txt_url.setText(url)
         self.txt_url.setEnabled(False)
         self.btn_paste.setEnabled(False)
         self.btn_download.setEnabled(False)
