@@ -1450,7 +1450,7 @@ def get_monochrome_app_icon(color=None, size=24):
 class ToolbarHoverFilter(QObject):
     """
     Event filter applied to toolbar buttons to provide bold icon glow
-    and distinct hover styling in both light and dark themes.
+    and distinct hover/selection styling in both light and dark themes.
     """
     def __init__(self, main_window):
         super().__init__(main_window)
@@ -1470,7 +1470,24 @@ class ToolbarHoverFilter(QObject):
 
     def get_glow_icon(self, icon_name: str) -> QIcon:
         if icon_name not in self._glow_icons:
-            self._glow_icons[icon_name] = get_themed_icon(icon_name, glow=True)
+            from ui.icons import get_monochrome_icon
+            app = QApplication.instance()
+            is_dark = True
+            if app:
+                pal = app.palette()
+                bg_val = pal.color(QPalette.ColorRole.Window).value()
+                fg_val = pal.color(QPalette.ColorRole.WindowText).value()
+                if bg_val >= 128 and fg_val <= 128:
+                    is_dark = False
+
+            stroke_color = QColor("#ffffff") if is_dark else QColor("#232629")
+            self._glow_icons[icon_name] = get_monochrome_icon(
+                icon_name,
+                color=stroke_color,
+                selected_color=stroke_color,
+                active_color=stroke_color,
+                glow=True
+            )
         return self._glow_icons[icon_name]
 
     def clear_cache(self):
@@ -1478,17 +1495,18 @@ class ToolbarHoverFilter(QObject):
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QToolButton) and obj.isEnabled():
-            if event.type() == QEvent.Type.Enter:
+            if event.type() in (QEvent.Type.Enter, QEvent.Type.MouseButtonPress):
                 action = obj.defaultAction()
                 if action:
                     for attr, icon_name in self._action_icon_map.items():
                         if getattr(self.main_window, attr, None) is action:
                             obj.setIcon(self.get_glow_icon(icon_name))
                             break
-            elif event.type() == QEvent.Type.Leave:
-                action = obj.defaultAction()
-                if action:
-                    obj.setIcon(action.icon())
+            elif event.type() in (QEvent.Type.Leave, QEvent.Type.MouseButtonRelease):
+                if not obj.isDown() and not obj.underMouse():
+                    action = obj.defaultAction()
+                    if action:
+                        obj.setIcon(action.icon())
         return super().eventFilter(obj, event)
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---

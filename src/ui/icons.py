@@ -351,8 +351,8 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
         return pixmap
 
     normal_pixmap = _render_pixmap(color, is_glow=glow)
-    active_pixmap = _render_pixmap(active_color, is_glow=False)
-    selected_pixmap = _render_pixmap(selected_color, is_glow=False)
+    active_pixmap = _render_pixmap(active_color, is_glow=glow if active_color == color else False)
+    selected_pixmap = _render_pixmap(selected_color, is_glow=glow if selected_color == color else False)
 
     if disabled_color is not None:
         disabled_pixmap = _render_pixmap(disabled_color, is_glow=False)

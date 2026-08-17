@@ -1060,8 +1060,26 @@ def test_toolbar_hover_icon_glow(qapp):
 
     restored_pm = add_btn.icon().pixmap(24, 24).toImage()
     assert restored_pm == orig_pm
-
     window.close()
+
+    # 3. Light Mode toolbar hover -> glowing dark icon
+    win_light = MainWindow(start_ipc=False)
+    win_light.hide()
+    win_light.apply_appearance_setting("BDM Light", icon_theme_name="BDM Light")
+
+    tb_light = win_light.findChild(QToolBar, "MainToolbar")
+    add_btn_light = None
+    for b in tb_light.findChildren(QToolButton):
+        if b.defaultAction() is win_light.action_add_url:
+            add_btn_light = b
+            break
+    assert add_btn_light is not None
+
+    qapp.sendEvent(add_btn_light, enter_event)
+    hover_light_pm = add_btn_light.icon().pixmap(24, 24).toImage()
+    dark_pixels = sum(1 for y in range(hover_light_pm.height()) for x in range(hover_light_pm.width()) if hover_light_pm.pixelColor(x, y).red() < 50 and hover_light_pm.pixelColor(x, y).alpha() > 150)
+    assert dark_pixels > 0, "Hover icon in light mode should have dark stroke pixels"
+    win_light.close()
 
 
 def test_sidebar_incomplete_status_filter(qapp):
