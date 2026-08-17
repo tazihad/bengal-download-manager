@@ -640,14 +640,6 @@ class YtDlpDownloadWorker(QThread):
                 "-o", output_tmpl
             ]
 
-            from core.utils import ensure_aria2
-            aria2_bin = ensure_aria2()
-            if aria2_bin and os.path.exists(aria2_bin):
-                cmd.extend([
-                    "--downloader", aria2_bin,
-                    "--downloader-args", "aria2c:-x 16 -k 1M --summary-interval=1"
-                ])
-
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
             elif self.cookies_file and os.path.exists(self.cookies_file):
