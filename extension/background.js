@@ -542,6 +542,25 @@ if (chrome.downloads && chrome.downloads.onCreated) {
   });
 }
 
+// --- POPULAR STREAMING MEDIA DOMAINS (yt-dlp supported) ---
+const POPULAR_MEDIA_DOMAINS = [
+  "youtube.com", "youtu.be", "vimeo.com", "tiktok.com", "instagram.com",
+  "twitter.com", "x.com", "facebook.com", "fb.watch", "reddit.com",
+  "twitch.tv", "bilibili.com", "soundcloud.com", "rumble.com",
+  "kick.com", "dailymotion.com", "streamable.com", "pinterest.com"
+];
+
+function isMediaUrl(url) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    return POPULAR_MEDIA_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
+  } catch (e) {
+    return false;
+  }
+}
+
 // --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get(['port', 'enableInterception', 'theme'], (items) => {
@@ -560,7 +579,7 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
       id: "download-with-bengal",
       title: "Download with Bengal DM",
-      contexts: ["link", "image", "video", "audio", "selection"]
+      contexts: ["link", "image", "video", "audio", "selection", "page"]
     });
   });
 });
@@ -570,6 +589,24 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
     if (targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
       const cookieString = await getCookiesForUrl(targetUrl, tab ? tab.cookieStoreId : undefined);
+
+      // Media streams (YouTube, Vimeo, TikTok, etc.) are streaming sites and should be sent directly to Bengal DM!
+      if (isMediaUrl(targetUrl)) {
+        markRecentlySent(targetUrl);
+        const success = await sendToBengalDM({
+          url: targetUrl,
+          userAgent: navigator.userAgent,
+          cookies: cookieString,
+          referrer: (tab && tab.url) ? tab.url : targetUrl
+        });
+
+        if (success) {
+          notifyUser("Bengal DM", "Media link sent to Bengal DM!");
+        } else {
+          notifyUser("Bengal DM Error", "Could not send to Bengal DM. Is the application running?");
+        }
+        return;
+      }
 
       const resolved = await resolveDownloadTarget(targetUrl, navigator.userAgent, cookieString);
       if (resolved.isHtmlLanding) {
@@ -604,6 +641,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       if (isRecentlySent(request.url)) {
         sendResponse({ success: true, duplicate: true });
+        return;
+      }
+
+      if (isMediaUrl(request.url)) {
+        markRecentlySent(request.url);
+        const success = await sendToBengalDM({
+          url: request.url,
+          userAgent: navigator.userAgent,
+          cookies: cookieString,
+          referrer: request.url
+        });
+        sendResponse({ success, resolvedUrl: request.url });
         return;
       }
 
