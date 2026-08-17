@@ -445,3 +445,35 @@ def test_media_downloader_fps_display_and_selection(qapp):
     assert best_row_60 == 0  # Row 0 is 1080p 60fps
 
     dlg.close()
+
+
+def test_start_media_download_unique_naming_when_file_exists(qapp, tmp_path):
+    """
+    Verify that downloading the same media with an existing file on disk
+    (e.g., first in 720p, then in 1080p) generates unique filenames and target paths.
+    """
+    from main import MainWindow
+    from unittest.mock import patch, MagicMock
+
+    mw = MainWindow(start_ipc=False)
+    save_dir = str(tmp_path)
+
+    # Simulate existing 720p file on disk
+    existing_video = tmp_path / "My_Video.mp4"
+    existing_video.write_bytes(b"dummy 720p video content")
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_start:
+        # Download same video in 1080p
+        item_ref = mw.start_media_download(
+            url="https://youtube.com/watch?v=sample",
+            filename="My_Video.mp4",
+            format_spec="bestvideo[height<=1080][fps<=60]+bestaudio/best",
+            custom_save_dir=save_dir
+        )
+
+        # Name must be unique so yt-dlp does not skip the download or point to old file
+        assert item_ref.text() == "My_Video (1).mp4"
+        assert item_ref.data(Qt.ItemDataRole.UserRole + 1) == str(tmp_path / "My_Video (1).mp4")
+        assert mock_start.called
+
+    mw.close()
