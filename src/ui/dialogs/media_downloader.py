@@ -1593,9 +1593,9 @@ class MediaDownloaderDialog(QDialog):
 
         if afilter:
             a_spec = f"bestaudio{afilter}"
-            format_spec = f"{v_spec}+{a_spec}/{v_spec}+bestaudio/{fallback_v}+bestaudio/best"
+            format_spec = f"{v_spec}+{a_spec}/{v_spec}+bestaudio[ext=m4a]/{v_spec}+bestaudio/{fallback_v}+bestaudio/best"
         else:
-            format_spec = f"{v_spec}+bestaudio/{fallback_v}+bestaudio/best"
+            format_spec = f"{v_spec}+bestaudio[ext=m4a]/{v_spec}+bestaudio/{fallback_v}+bestaudio[ext=m4a]/{fallback_v}+bestaudio/best"
 
         return (format_spec, False)
 
@@ -1603,21 +1603,21 @@ class MediaDownloaderDialog(QDialog):
         """Returns format spec for playlist items based on global playlist quality dropdown."""
         idx = self.cmb_playlist_quality.currentIndex()
         if idx == 0:
-            return ("bestvideo+bestaudio/best", False)
+            return ("bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best", False)
         elif idx == 1:
-            return ("bestvideo[height<=2160]+bestaudio/best[height<=2160]/best", False)
+            return ("bestvideo[height<=2160]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best", False)
         elif idx == 2:
-            return ("bestvideo[height<=1440]+bestaudio/best[height<=1440]/best", False)
+            return ("bestvideo[height<=1440]+bestaudio[ext=m4a]/bestvideo[height<=1440]+bestaudio/best", False)
         elif idx == 3:
-            return ("bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", False)
+            return ("bestvideo[height<=1080]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best", False)
         elif idx == 4:
-            return ("bestvideo[height<=720]+bestaudio/best[height<=720]/best", False)
+            return ("bestvideo[height<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best", False)
         elif idx == 5:
-            return ("bestvideo[height<=480]+bestaudio/best[height<=480]/best", False)
+            return ("bestvideo[height<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best", False)
         elif idx == 6:
             return ("bestaudio/best", True)
 
-        return ("bestvideo+bestaudio/best", False)
+        return ("bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best", False)
 
     def _on_download_clicked(self):
         self._save_preferences_if_enabled()
