@@ -64,7 +64,7 @@ def test_media_downloader_manual_selection_toggle(qapp):
     """Verify checking/unchecking manual stream selection enables/disables format table."""
     dlg = MediaDownloaderDialog()
     assert dlg.chk_manual_selection.text() == "Enable Manual Stream Selection"
-    assert dlg.chk_save_defaults.text() == "Remember"
+    assert dlg.chk_save_defaults.text() == "Remember Preset"
 
     # Default is unchecked -> table disabled & unselected
     assert dlg.chk_manual_selection.isChecked() is False

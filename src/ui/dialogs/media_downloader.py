@@ -700,7 +700,7 @@ class MediaDownloaderDialog(QDialog):
         self.chk_auto_start_browser.setToolTip("Automatically start downloading media links sent from the browser extension using preselected quality")
         self.chk_auto_start_browser.toggled.connect(self._on_auto_start_browser_toggled)
 
-        self.chk_save_defaults = QCheckBox("Remember")
+        self.chk_save_defaults = QCheckBox("Remember Preset")
         self.chk_save_defaults.setToolTip("Save current quality preset, format choices, and selection mode for future downloads")
         self.chk_save_defaults.toggled.connect(self._save_preferences_if_enabled)
 
