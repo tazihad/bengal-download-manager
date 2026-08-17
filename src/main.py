@@ -4559,8 +4559,10 @@ class MainWindow(QMainWindow):
     def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset=""):
         from ui.dialogs import MediaDownloaderDialog
         if MemoryGuard.is_widget_alive(getattr(self, "_media_downloader_dlg", None)):
-            self._media_downloader_dlg.raise_()
-            self._media_downloader_dlg.activateWindow()
+            if not auto_start:
+                self._media_downloader_dlg.show()
+                self._media_downloader_dlg.raise_()
+                self._media_downloader_dlg.activateWindow()
             if url:
                 if auto_start:
                     self._media_downloader_dlg.analyze_and_download(url, auto_start=True, target_preset=target_preset)
@@ -4571,9 +4573,10 @@ class MainWindow(QMainWindow):
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.finished.connect(lambda: setattr(self, "_media_downloader_dlg", None))
-        self._media_downloader_dlg.show()
-        self._media_downloader_dlg.raise_()
-        self._media_downloader_dlg.activateWindow()
+        if not auto_start:
+            self._media_downloader_dlg.show()
+            self._media_downloader_dlg.raise_()
+            self._media_downloader_dlg.activateWindow()
         if url:
             if auto_start:
                 self._media_downloader_dlg.analyze_and_download(url, auto_start=True, target_preset=target_preset)

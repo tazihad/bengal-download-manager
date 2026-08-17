@@ -1249,6 +1249,40 @@ def test_process_incoming_url_routes_media_link_to_media_downloader(qapp, monkey
     win.close()
 
 
+def test_open_media_downloader_auto_start_remains_hidden(qapp, monkeypatch):
+    """Verify that open_media_downloader keeps the dialog hidden when auto_start is True."""
+    from main import MainWindow
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # Mock analyze_and_download so no real yt-dlp process is spawned
+    analyzed_calls = []
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+    monkeypatch.setattr(
+        MediaDownloaderDialog,
+        "analyze_and_download",
+        lambda self, url, auto_start=False, target_preset="": analyzed_calls.append((url, auto_start, target_preset))
+    )
+
+    # 1. auto_start=True -> dialog must NOT be visible
+    win.open_media_downloader(url="https://youtube.com/watch?v=123", auto_start=True, target_preset="1080p Full HD")
+    assert win._media_downloader_dlg is not None
+    assert win._media_downloader_dlg.isVisible() is False
+    assert len(analyzed_calls) == 1
+    assert analyzed_calls[0] == ("https://youtube.com/watch?v=123", True, "1080p Full HD")
+
+    if win._media_downloader_dlg:
+        win._media_downloader_dlg.close()
+
+    # 2. auto_start=False -> dialog IS visible
+    win.open_media_downloader(url="https://youtube.com/watch?v=456", auto_start=False)
+    assert win._media_downloader_dlg is not None
+    assert win._media_downloader_dlg.isVisible() is True
+    win._media_downloader_dlg.close()
+    win.close()
+
+
 
 
 
