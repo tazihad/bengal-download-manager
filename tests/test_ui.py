@@ -1178,6 +1178,46 @@ def test_sidebar_selected_icon_black_in_dark_and_light_modes(qapp):
     win_light.close()
 
 
+def test_add_url_dialog_button_click_icon_colors(qapp):
+    """Verify that in AddUrlDialog, clicking Paste or Download Media uses dark icon in dark mode and white icon in light mode."""
+    from main import apply_app_theme
+    from ui.dialogs.add_url import AddUrlDialog
+    from PyQt6.QtGui import QMouseEvent
+    from PyQt6.QtCore import QEvent, QPointF
+
+    press_event = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    release_event = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+
+    # 1. Dark Mode
+    apply_app_theme("BDM Dark (Default)")
+    dlg_dark = AddUrlDialog()
+    dlg_dark.hide()
+
+    qapp.sendEvent(dlg_dark.btn_paste, press_event)
+    pm_press_dark = dlg_dark.btn_paste.icon().pixmap(16, 16).toImage()
+    dark_px_dark = sum(1 for y in range(pm_press_dark.height()) for x in range(pm_press_dark.width()) if pm_press_dark.pixelColor(x, y).red() < 50 and pm_press_dark.pixelColor(x, y).alpha() > 150)
+    white_px_dark = sum(1 for y in range(pm_press_dark.height()) for x in range(pm_press_dark.width()) if pm_press_dark.pixelColor(x, y).red() > 200 and pm_press_dark.pixelColor(x, y).alpha() > 150)
+    assert dark_px_dark > 0, "Dark mode AddUrlDialog paste button on click must have dark icon pixels"
+    assert white_px_dark == 0, "Dark mode AddUrlDialog paste button on click must not have white icon pixels"
+    qapp.sendEvent(dlg_dark.btn_paste, release_event)
+    dlg_dark.close()
+
+    # 2. Light Mode
+    apply_app_theme("BDM Light")
+    dlg_light = AddUrlDialog()
+    dlg_light.hide()
+
+    qapp.sendEvent(dlg_light.btn_paste, press_event)
+    pm_press_light = dlg_light.btn_paste.icon().pixmap(16, 16).toImage()
+    white_px_light = sum(1 for y in range(pm_press_light.height()) for x in range(pm_press_light.width()) if pm_press_light.pixelColor(x, y).red() > 200 and pm_press_light.pixelColor(x, y).alpha() > 150)
+    dark_px_light = sum(1 for y in range(pm_press_light.height()) for x in range(pm_press_light.width()) if pm_press_light.pixelColor(x, y).red() < 50 and pm_press_light.pixelColor(x, y).alpha() > 150)
+    assert white_px_light > 0, "Light mode AddUrlDialog paste button on click must have white icon pixels"
+    assert dark_px_light == 0, "Light mode AddUrlDialog paste button on click must not have dark icon pixels"
+    qapp.sendEvent(dlg_light.btn_paste, release_event)
+    dlg_light.close()
+
+
+
 
 
 

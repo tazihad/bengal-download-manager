@@ -1,6 +1,69 @@
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
 )
+from PyQt6.QtGui import QIcon, QColor, QPalette
+from PyQt6.QtCore import Qt, QEvent, QObject
+from ui.icons import get_monochrome_icon
+
+
+def get_add_url_button_icon(icon_name: str, size: int = 16) -> QIcon:
+    """
+    Creates an icon specifically for AddUrlDialog buttons where:
+    - In Dark Mode: Normal is white, pressed/clicked is dark (#000000).
+    - In Light Mode: Normal is dark, pressed/clicked is white (#ffffff).
+    """
+    app = QApplication.instance()
+    is_dark = True
+    if app:
+        pal = app.palette()
+        bg_val = pal.color(QPalette.ColorRole.Window).value()
+        fg_val = pal.color(QPalette.ColorRole.WindowText).value()
+        if bg_val >= 128 and fg_val <= 128:
+            is_dark = False
+
+    normal_color = QColor("#ffffff") if is_dark else QColor("#232629")
+    pressed_color = QColor("#000000") if is_dark else QColor("#ffffff")
+
+    return get_monochrome_icon(
+        icon_name,
+        color=normal_color,
+        selected_color=pressed_color,
+        active_color=pressed_color,
+        size=size
+    )
+
+
+class AddUrlButtonPressFilter(QObject):
+    """
+    Event filter for buttons in AddUrlDialog to swap icon on mouse click/press:
+    - Dark mode: click -> dark icon (#000000)
+    - Light mode: click -> white icon (#ffffff)
+    """
+    def __init__(self, icon_name: str, size: int = 16, parent=None):
+        super().__init__(parent)
+        self.icon_name = icon_name
+        self.size = size
+
+    def _get_is_dark(self) -> bool:
+        app = QApplication.instance()
+        if app:
+            pal = app.palette()
+            bg_val = pal.color(QPalette.ColorRole.Window).value()
+            fg_val = pal.color(QPalette.ColorRole.WindowText).value()
+            if bg_val >= 128 and fg_val <= 128:
+                return False
+        return True
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QPushButton) and obj.isEnabled():
+            if event.type() == QEvent.Type.MouseButtonPress:
+                is_dark = self._get_is_dark()
+                click_color = QColor("#000000") if is_dark else QColor("#ffffff")
+                obj.setIcon(get_monochrome_icon(self.icon_name, color=click_color, selected_color=click_color, active_color=click_color, size=self.size))
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                obj.setIcon(get_add_url_button_icon(self.icon_name, size=self.size))
+        return super().eventFilter(obj, event)
+
 
 class AddUrlDialog(QDialog):
     def __init__(self, parent=None, paste_clipboard=False):
@@ -21,9 +84,10 @@ class AddUrlDialog(QDialog):
         input_layout = QHBoxLayout()
         input_layout.setSpacing(8)
 
-        from ui.icons import get_monochrome_icon
         self.btn_paste = QPushButton("Paste")
-        self.btn_paste.setIcon(get_monochrome_icon("documents", size=16))
+        self.btn_paste.setIcon(get_add_url_button_icon("documents", size=16))
+        self._paste_filter = AddUrlButtonPressFilter("documents", size=16, parent=self)
+        self.btn_paste.installEventFilter(self._paste_filter)
         self.btn_paste.setFixedWidth(80)
         self.btn_paste.setFixedHeight(28)
         self.btn_paste.setToolTip("Paste from clipboard")
@@ -50,8 +114,9 @@ class AddUrlDialog(QDialog):
         self.btn_send_media = QPushButton("Download Media")
         self.btn_send_media.setFixedHeight(30)
         self.btn_send_media.setToolTip("Open link in Media Downloader to extract video/audio formats")
-        from ui.icons import get_monochrome_icon
-        self.btn_send_media.setIcon(get_monochrome_icon("media_downloader", size=16))
+        self.btn_send_media.setIcon(get_add_url_button_icon("media_downloader", size=16))
+        self._media_filter = AddUrlButtonPressFilter("media_downloader", size=16, parent=self)
+        self.btn_send_media.installEventFilter(self._media_filter)
         self.btn_send_media.clicked.connect(self._on_send_media_clicked)
         self.btn_send_media.hide()
 
