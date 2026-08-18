@@ -2419,8 +2419,22 @@ class MainWindow(QMainWindow):
             else:
                 self.process_incoming_url(url)
 
+    def _bring_window_to_front(self):
+        """Brings the main download manager window to the front safely with debouncing."""
+        now = time.time()
+        if hasattr(self, '_last_window_focus_time') and now - self._last_window_focus_time < 0.5:
+            return
+        self._last_window_focus_time = now
+
+        if self.isHidden():
+            self.show()
+        if self.isMinimized():
+            self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+        self.raise_()
+        self.activateWindow()
+
     def process_incoming_url(self, data):
-        """Fetches file info and shows the popup without stealing focus for main window"""
+        """Processes an incoming download URL from browser extension or IPC."""
         parts = data.split("|", 2)
         url = parts[0]
         user_agent = parts[1] if len(parts) > 1 else ""
@@ -2461,12 +2475,79 @@ class MainWindow(QMainWindow):
 
         canon_name = _canonical_fn(url)
 
-        # 1. Check if a fetcher worker is already actively fetching info for this URL / filename
+        # 1. Check if download already exists in the download table
+        for row in range(self.download_table.rowCount()):
+            item = self.download_table.item(row, 0)
+            if item:
+                existing_url = item.data(Qt.ItemDataRole.UserRole)
+                if existing_url == url or (_canonical_fn(existing_url) == canon_name and canon_name):
+                    status_item = self.download_table.item(row, 2)
+                    logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                    status_text = status_item.text() if status_item else ""
+                    is_completed = logic_status == "Complete" or status_text == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete"
+                    is_active = id(item) in getattr(self, "active_downloads", {})
+
+                    if is_completed:
+                        # Scenario A: Download complete -> Bring window to front and highlight the completed download
+                        self._bring_window_to_front()
+                        self.download_table.selectRow(row)
+                        self.download_table.scrollToItem(item)
+                        return
+
+                    elif is_active:
+                        # Scenario B: Download ongoing -> Bring window and progress dialog to front
+                        self._bring_window_to_front()
+                        self.download_table.selectRow(row)
+                        self.download_table.scrollToItem(item)
+                        active_entry = self.active_downloads.get(id(item))
+                        if active_entry:
+                            if hasattr(active_entry, 'show'):
+                                active_entry.show()
+                            if hasattr(active_entry, 'raise_'):
+                                active_entry.raise_()
+                            if hasattr(active_entry, 'activateWindow'):
+                                active_entry.activateWindow()
+                        return
+
+                    else:
+                        # Scenario C: Download is paused/cancelled/error -> Restart download with updated link & credentials
+                        item.setData(Qt.ItemDataRole.UserRole, url)
+                        if user_agent:
+                            item.setData(Qt.ItemDataRole.UserRole + 4, user_agent)
+                        if cookies:
+                            item.setData(Qt.ItemDataRole.UserRole + 5, cookies)
+
+                        filename = item.text()
+                        save_path = item.data(Qt.ItemDataRole.UserRole + 1)
+                        save_dir = os.path.dirname(save_path) if save_path else None
+
+                        self._bring_window_to_front()
+                        self.download_table.selectRow(row)
+                        self.download_table.scrollToItem(item)
+
+                        self._set_status_text(row, "Resuming...")
+                        if status_item:
+                            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                        new_timestamp = str(time.time())
+                        item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                        self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+
+                        self._start_download_worker(
+                            url, item,
+                            resume_filename=filename,
+                            custom_save_dir=save_dir,
+                            user_agent=user_agent,
+                            cookies=cookies
+                        )
+                        self.update_ui_states()
+                        return
+
+        # 2. Check if a fetcher worker is already actively fetching info for this URL / filename
         for fetcher in getattr(self, 'active_fetchers', []):
             if hasattr(fetcher, 'url') and (fetcher.url == url or (_canonical_fn(fetcher.url) == canon_name and canon_name)):
                 return
 
-        # 2. Check if a popup dialog is ALREADY open for this URL / filename
+        # 3. Check if a popup dialog is ALREADY open for this URL / filename
         for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
             if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
                 existing_d_url = dialog.file_info.get("url")
@@ -2474,14 +2555,6 @@ class MainWindow(QMainWindow):
                     dialog.show()
                     dialog.raise_()
                     dialog.activateWindow()
-                    return
-
-        # 3. Check if download already exists in main download table for this URL / filename
-        for row in range(self.download_table.rowCount()):
-            item = self.download_table.item(row, 0)
-            if item:
-                existing_url = item.data(Qt.ItemDataRole.UserRole)
-                if existing_url == url or (_canonical_fn(existing_url) == canon_name and canon_name):
                     return
 
         # 4. Start the fetcher
@@ -2514,9 +2587,68 @@ class MainWindow(QMainWindow):
                 last = seg[-2].lower()
             return last
 
-        # Deduplicate: if a popup dialog for this URL or canonical filename is ALREADY open, bring it to front
         target_url = file_info.get("url") if isinstance(file_info, dict) else None
+        target_filename = file_info.get("filename") if isinstance(file_info, dict) else ""
         canon_name = _canonical_fn(target_url) if target_url else ""
+
+        # Check if resolved file matches an existing table row
+        if target_url or target_filename:
+            for row in range(self.download_table.rowCount()):
+                item = self.download_table.item(row, 0)
+                if item:
+                    existing_url = item.data(Qt.ItemDataRole.UserRole)
+                    existing_fn = item.text()
+                    is_match = (existing_url == target_url) or (existing_fn and existing_fn == target_filename) or (_canonical_fn(existing_url) == canon_name and canon_name)
+                    if is_match:
+                        status_item = self.download_table.item(row, 2)
+                        logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                        status_text = status_item.text() if status_item else ""
+                        is_completed = logic_status == "Complete" or status_text == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete"
+                        is_active = id(item) in getattr(self, "active_downloads", {})
+
+                        if is_completed:
+                            self._bring_window_to_front()
+                            self.download_table.selectRow(row)
+                            self.download_table.scrollToItem(item)
+                            return
+                        elif is_active:
+                            self._bring_window_to_front()
+                            self.download_table.selectRow(row)
+                            self.download_table.scrollToItem(item)
+                            return
+                        else:
+                            # Paused -> resume with resolved URL
+                            item.setData(Qt.ItemDataRole.UserRole, target_url)
+                            if file_info.get("user_agent"):
+                                item.setData(Qt.ItemDataRole.UserRole + 4, file_info.get("user_agent"))
+                            if file_info.get("cookies"):
+                                item.setData(Qt.ItemDataRole.UserRole + 5, file_info.get("cookies"))
+
+                            save_path = item.data(Qt.ItemDataRole.UserRole + 1)
+                            save_dir = os.path.dirname(save_path) if save_path else None
+
+                            self._bring_window_to_front()
+                            self.download_table.selectRow(row)
+                            self.download_table.scrollToItem(item)
+
+                            self._set_status_text(row, "Resuming...")
+                            if status_item:
+                                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                            new_timestamp = str(time.time())
+                            item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                            self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+
+                            self._start_download_worker(
+                                target_url, item,
+                                resume_filename=existing_fn,
+                                custom_save_dir=save_dir,
+                                user_agent=file_info.get("user_agent"),
+                                cookies=file_info.get("cookies")
+                            )
+                            self.update_ui_states()
+                            return
+
+        # Deduplicate: if a popup dialog for this URL or canonical filename is ALREADY open, bring it to front
         if target_url:
             for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
                 if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
