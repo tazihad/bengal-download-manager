@@ -68,6 +68,8 @@ class FileInfoFetcherWorker(QThread):
             current_url = self.url
             max_redirects = 10
             
+            import re
+            
             for _ in range(max_redirects):
                 req = urllib.request.Request(current_url, headers=headers)
                 with opener.open(req, timeout=15) as resp:
@@ -75,12 +77,42 @@ class FileInfoFetcherWorker(QThread):
                     final_headers = resp.headers
                     content_type = final_headers.get("Content-Type", "").lower()
                     
-                    # If we hit an HTML page with no attachment header, it's NOT the file.
+                    # If we hit an HTML page with no attachment header, inspect snippet for meta-refresh / mirror links
                     if "text/html" in content_type and not final_headers.get("Content-Disposition"):
+                        html_chunk = resp.read(8192).decode("utf-8", errors="ignore")
+                        
+                        # 1. Check for Meta Refresh tag (e.g. VideoLAN mirror redirect)
+                        meta_m = re.search(r'content=["\']?\d+;\s*url=[\'"]?([^\'"]+)', html_chunk, re.I) \
+                              or re.search(r'url=[\'"]?([^\'"]+)[\'"]?[^>]*http-equiv', html_chunk, re.I)
+                        if meta_m:
+                            target_ref = meta_m.group(1).strip().strip("'\"")
+                            from urllib.parse import urljoin
+                            next_url = urljoin(final_url, target_ref)
+                            if next_url != current_url:
+                                current_url = next_url
+                                continue
+                        
+                        # 2. Check for direct binary mirror links in HTML (e.g. "Click here if not redirected")
+                        mirror_m = re.search(r'href=[\'"](https?://[^\'\" >]+\.(?:exe|zip|7z|tar|gz|iso|dmg|pkg|apk|msi|deb|rpm)[^\'\" >]*)[\'"]', html_chunk, re.I)
+                        if mirror_m:
+                            next_url = mirror_m.group(1).strip()
+                            if next_url != current_url:
+                                current_url = next_url
+                                continue
+
                         if final_url != current_url:
                             current_url = final_url
                             continue
                         
+                        # If the initial filename indicates a recognized download extension, proceed
+                        ext = (initial_filename.split(".")[-1].lower() if "." in initial_filename else "")
+                        if ext and ext in ["exe", "zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "iso", "dmg", "apk", "deb", "rpm", "bin", "appimage", "pkg"]:
+                            result["url"] = final_url
+                            result["filename"] = initial_filename
+                            resp.close()
+                            self.finished_signal.emit(result)
+                            return
+
                         result["error"] = "Target is a webpage, not a file. Redirected to landing page."
                         self.finished_signal.emit(result)
                         return

@@ -37,9 +37,13 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
                     if target == "chrome":
                         if "background" in manifest and "scripts" in manifest["background"]:
                             manifest["background"].pop("scripts", None)
+                        if "permissions" in manifest and "webRequestBlocking" in manifest["permissions"]:
+                            manifest["permissions"].remove("webRequestBlocking")
                     elif target == "firefox":
                         if "background" in manifest and "service_worker" in manifest["background"]:
                             manifest["background"].pop("service_worker", None)
+                        if "permissions" in manifest and "webRequestBlocking" not in manifest["permissions"]:
+                            manifest["permissions"].append("webRequestBlocking")
                         if "browser_specific_settings" not in manifest:
                             manifest["browser_specific_settings"] = {}
                         if "gecko" not in manifest["browser_specific_settings"]:

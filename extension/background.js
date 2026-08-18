@@ -23,6 +23,30 @@ function getFileExtension(urlOrFilename) {
   return subParts.length > 1 ? subParts.pop().toLowerCase() : "";
 }
 
+// --- IN-MEMORY CACHE FOR ZERO-LATENCY SYNCHRONOUS CHECKS ---
+let cachedRules = {
+  whitelistUrls: [],
+  whitelistExts: [],
+  blacklistUrls: [],
+  blacklistExts: []
+};
+
+function refreshCachedRules() {
+  chrome.storage.local.get({
+    whitelistUrls: [],
+    whitelistExts: [],
+    blacklistUrls: [],
+    blacklistExts: []
+  }, (items) => {
+    cachedRules = items;
+  });
+}
+
+chrome.storage.onChanged.addListener(() => {
+  refreshCachedRules();
+});
+refreshCachedRules();
+
 // --- WHITELIST & BLACKLIST FILTER RULES ---
 async function getFilterRules() {
   return new Promise((resolve) => {
@@ -60,6 +84,39 @@ function matchesExtension(extOrFilename, extList) {
     if (cleanItem && ext === cleanItem) return true;
   }
   return false;
+}
+
+function shouldInterceptDownloadSync(url, filename) {
+  if (!url || isIgnoredServiceUrl(url)) return false;
+
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.startsWith('blob:') || lowerUrl.startsWith('filesystem:') || lowerUrl.startsWith('data:')) {
+    return false;
+  }
+
+  const ext = getFileExtension(filename || url);
+
+  // 1. Blacklist check - if matched, do NOT intercept (leave to browser)
+  if (matchesUrlOrDomain(url, cachedRules.blacklistUrls) || matchesExtension(ext || filename, cachedRules.blacklistExts)) {
+    return false;
+  }
+
+  // 2. Whitelisted extension - always intercept
+  if (matchesExtension(ext || filename, cachedRules.whitelistExts)) {
+    return true;
+  }
+
+  // 3. Ignored web asset extensions (manifest.json, html, js, css, images) MUST NEVER be intercepted as downloads
+  if (ext && DEFAULT_IGNORED_EXTS.includes(ext)) {
+    return false;
+  }
+
+  // 4. Whitelisted URL/domain - intercept downloadable files on this domain
+  if (matchesUrlOrDomain(url, cachedRules.whitelistUrls)) {
+    return true;
+  }
+
+  return true;
 }
 
 async function shouldInterceptDownload(url, filename) {
@@ -239,32 +296,40 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
   }
 }
 
-// --- CHECK BENGAL DM APP CONNECTION ---
+// --- CHECK BENGAL DM APP CONNECTION (with in-memory heartbeat) ---
+let isBengalDMConnected = false;
+
 async function isBengalDMOnline() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
     const response = await fetch("http://127.0.0.1:9000/", {
       method: 'GET',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
+    isBengalDMConnected = response.ok;
     return response.ok;
   } catch {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
       const response = await fetch("http://localhost:9000/", {
         method: 'GET',
         signal: controller.signal
       });
       clearTimeout(timeoutId);
+      isBengalDMConnected = response.ok;
       return response.ok;
     } catch {
+      isBengalDMConnected = false;
       return false;
     }
   }
 }
+
+setInterval(isBengalDMOnline, 3000);
+isBengalDMOnline();
 
 // --- SEND DOWNLOAD TO BENGAL DM ---
 async function sendToBengalDM(downloadData) {
@@ -389,6 +454,7 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
         let filenameFromHeader = "";
         let hasContentDispositionAttachment = false;
         let isBinaryContentType = false;
+        let isHtmlContentType = false;
 
         for (const h of headers) {
           const name = (h.name || '').toLowerCase();
@@ -401,6 +467,9 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
           }
 
           if (name === 'content-type') {
+            if (value.includes('text/html') || value.includes('application/xhtml+xml')) {
+              isHtmlContentType = true;
+            }
             if (value.includes('application/x-msdownload') || 
                 value.includes('application/x-7z-compressed') || 
                 value.includes('application/x-rar-compressed') || 
@@ -410,6 +479,12 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
               isBinaryContentType = true;
             }
           }
+        }
+
+        // If it's an HTML webpage with no explicit attachment header (e.g. VideoLAN / SourceForge landing pages),
+        // do not intercept or block here. Allow the browser tab to render the countdown page naturally.
+        if (isHtmlContentType && !hasContentDispositionAttachment) {
+          return;
         }
 
         const ext = getFileExtension(filenameFromHeader || details.url);
@@ -433,13 +508,12 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
 
           // Only intercept if there is a real download intent
           if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt || isGoogleDriveExport) {
-            const isOnline = await isBengalDMOnline();
+            const isOnline = isBengalDMConnected;
             if (!isOnline) return;
 
             if (isRecentlySent(details.url, filenameFromHeader)) return;
 
             const cookieString = await getCookiesForUrl(details.url, details.storeId);
-
             const resolved = await resolveDownloadTarget(details.url, navigator.userAgent, cookieString);
             if (resolved.isHtmlLanding) {
               return;
@@ -460,8 +534,12 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
           }
         })();
 
-        if (extraSpec.includes("blocking")) {
-          // If blocking is supported, we check synchronicity if available
+        // For Firefox (where webRequestBlocking is available), abort real binary downloads at the HTTP layer so Firefox creates 0 history entries
+        if (extraSpec.includes("blocking") && isBengalDMConnected) {
+          const isDownloadIntent = hasContentDispositionAttachment || isBinaryContentType || (ext && RECOGNIZED_DOWNLOAD_EXTS.includes(ext));
+          if (isDownloadIntent && shouldInterceptDownloadSync(details.url, filenameFromHeader)) {
+            return details.method === "POST" ? { redirectUrl: "javascript:" } : { cancel: true };
+          }
         }
       },
       { urls: ["<all_urls>"], types: ["main_frame", "sub_frame", "other"] },
@@ -476,60 +554,88 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
   setupListener(extraSpec);
 }
 
-// --- BROWSER DOWNLOAD CANCELLER & TAKEOVER (Guarantees zero browser downloads when Bengal DM is running) ---
-if (chrome.downloads && chrome.downloads.onCreated) {
+// --- ZERO-UI DOWNLOAD INTERCEPTOR (Prevents browser popup / shelf / bubble UI and history entry) ---
+if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
+  chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+    if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) {
+      return false;
+    }
+
+    const downloadUrl = downloadItem.finalUrl || downloadItem.url;
+
+    // Check synchronous filter rules and connection
+    if (!isBengalDMConnected || !shouldInterceptDownloadSync(downloadUrl, downloadItem.filename)) {
+      return false;
+    }
+
+    // 1. Immediately cancel and erase before browser renders shelf/bubble UI or logs to history
+    chrome.downloads.cancel(downloadItem.id, () => {
+      try {
+        chrome.downloads.erase({ id: downloadItem.id });
+      } catch (e) {}
+    });
+
+    // 2. Asynchronously extract cookies, resolve landing target, and dispatch to Bengal DM
+    (async () => {
+      if (isRecentlySent(downloadUrl, downloadItem.filename)) return;
+
+      const cookieString = await getCookiesForUrl(downloadUrl, downloadItem.storeId);
+      const resolved = await resolveDownloadTarget(downloadUrl, navigator.userAgent, cookieString);
+
+      const isCloudOrBrowserFile = downloadUrl.includes("google.com") || 
+                                   downloadUrl.includes("googleusercontent.com") || 
+                                   downloadUrl.includes("export=download") || 
+                                   (downloadItem.filename && downloadItem.filename.length > 0);
+
+      if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
+        return;
+      }
+
+      const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadUrl : resolved.url;
+
+      if (isRecentlySent(targetUrl, downloadItem.filename)) return;
+
+      markRecentlySent(downloadUrl, downloadItem.filename);
+      markRecentlySent(targetUrl, downloadItem.filename);
+
+      await sendToBengalDM({
+        url: targetUrl,
+        userAgent: navigator.userAgent,
+        cookies: cookieString,
+        filename: downloadItem.filename || "",
+        referrer: downloadItem.referrer || ""
+      });
+    })();
+
+    return true;
+  });
+}
+
+// Fallback for browser environments where onDeterminingFilename is not available
+if (chrome.downloads && !chrome.downloads.onDeterminingFilename && chrome.downloads.onCreated) {
   chrome.downloads.onCreated.addListener(async (downloadItem) => {
     if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
 
-    // Check Whitelist & Blacklist rules
-    const shouldIntercept = await shouldInterceptDownload(downloadItem.url, downloadItem.filename);
-    if (!shouldIntercept) {
-      return; // Leave download to native browser
-    }
-
-    // 1. Verify if Bengal DM application is online
-    const isOnline = await isBengalDMOnline();
-    if (!isOnline) {
+    const downloadUrl = downloadItem.finalUrl || downloadItem.url;
+    if (!isBengalDMConnected || !shouldInterceptDownloadSync(downloadUrl, downloadItem.filename)) {
       return;
     }
 
-    // 2. Bengal DM is active: cancel and erase browser native download immediately on 0th byte
     try {
       chrome.downloads.cancel(downloadItem.id, () => {
         try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
       });
-      setTimeout(() => {
-        try {
-          chrome.downloads.cancel(downloadItem.id, () => {
-            try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
-          });
-        } catch (e) {}
-      }, 50);
-    } catch (e) {
-      try { chrome.downloads.erase({ id: downloadItem.id }); } catch (err) {}
-    }
+    } catch (e) {}
 
-    // 3. Deduplicate if already processed by content script or webRequest
-    if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
+    if (isRecentlySent(downloadUrl, downloadItem.filename)) return;
 
-    const cookieString = await getCookiesForUrl(downloadItem.url, downloadItem.storeId);
-
-    const resolved = await resolveDownloadTarget(downloadItem.url, navigator.userAgent, cookieString);
-
-    const isCloudOrBrowserFile = downloadItem.url.includes("google.com") || 
-                                 downloadItem.url.includes("googleusercontent.com") || 
-                                 downloadItem.url.includes("export=download") || 
-                                 (downloadItem.filename && downloadItem.filename.length > 0);
-
-    if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
-      return;
-    }
-
-    const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadItem.url : resolved.url;
+    const cookieString = await getCookiesForUrl(downloadUrl, downloadItem.storeId);
+    const resolved = await resolveDownloadTarget(downloadUrl, navigator.userAgent, cookieString);
+    const targetUrl = resolved.isHtmlLanding ? downloadUrl : resolved.url;
 
     if (isRecentlySent(targetUrl, downloadItem.filename)) return;
 
-    markRecentlySent(downloadItem.url, downloadItem.filename);
+    markRecentlySent(downloadUrl, downloadItem.filename);
     markRecentlySent(targetUrl, downloadItem.filename);
 
     await sendToBengalDM({
