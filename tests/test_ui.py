@@ -1284,32 +1284,32 @@ def test_open_media_downloader_auto_start_remains_hidden(qapp, monkeypatch):
 
 
 def test_options_dialog_media_tab_youtube_client(qapp, monkeypatch):
-    """Verify that OptionsDialog includes YouTube Player Client dropdown and saves choice."""
+    """Verify that OptionsDialog includes writable YouTube Player Client input and reset button."""
     from ui.dialogs.options import OptionsDialog
 
     saved_configs = []
     monkeypatch.setattr("ui.dialogs.options.save_category_config", lambda cfg: saved_configs.append(cfg))
 
     dlg = OptionsDialog(main_window=None)
-    assert hasattr(dlg, "cmb_opt_youtube_client")
-    
-    # Check options present
-    items = [dlg.cmb_opt_youtube_client.itemData(i) for i in range(dlg.cmb_opt_youtube_client.count())]
-    assert "android" in items
-    assert "web" in items
-    assert "ios" in items
-    assert "tv" in items
+    assert hasattr(dlg, "txt_opt_youtube_client")
+    assert hasattr(dlg, "btn_opt_reset_youtube_client")
 
-    # Select iOS and save
-    ios_idx = dlg.cmb_opt_youtube_client.findData("ios")
-    assert ios_idx >= 0
-    dlg.cmb_opt_youtube_client.setCurrentIndex(ios_idx)
-
+    # Set custom client string (e.g. android,web)
+    dlg.txt_opt_youtube_client.setText("android,web")
     dlg.save_and_accept()
+
     assert len(saved_configs) == 1
     media_defs = saved_configs[0].get("media_downloader_defaults", {})
-    assert media_defs.get("youtube_player_client") == "ios"
+    assert media_defs.get("youtube_player_client") == "android,web"
+
+    # Test Reset button restores default "android"
+    dlg2 = OptionsDialog(main_window=None)
+    dlg2.txt_opt_youtube_client.setText("ios")
+    dlg2.btn_opt_reset_youtube_client.click()
+    assert dlg2.txt_opt_youtube_client.text() == "android"
+
     dlg.close()
+    dlg2.close()
 
 
 def test_options_dialog_height_matches_main_window(qapp):

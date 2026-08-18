@@ -763,30 +763,19 @@ class OptionsDialog(QDialog):
 
         row_client = QHBoxLayout()
         row_client.addWidget(QLabel("YouTube Player Client:"))
-        self.cmb_opt_youtube_client = QComboBox()
-        self.cmb_opt_youtube_client.setToolTip("Select YouTube player client used by yt-dlp to query formats and download streams (--extractor-args youtube:player_client=...)")
-        
-        client_options = [
-            ("Android (Default - Fast & Reliable)", "android"),
-            ("Android VR (Android VR Client)", "android_vr"),
-            ("Desktop Web (web)", "web"),
-            ("Mobile Web (mweb)", "mweb"),
-            ("iOS (Apple Mobile Client)", "ios"),
-            ("Smart TV (tv)", "tv"),
-            ("YouTube Studio (web_creator)", "web_creator"),
-            ("All / Automatic (yt-dlp default)", "all"),
-        ]
-        for label, val in client_options:
-            self.cmb_opt_youtube_client.addItem(label, val)
-
+        self.txt_opt_youtube_client = QLineEdit()
+        self.txt_opt_youtube_client.setPlaceholderText("e.g. android, web, ios, tv, android_vr, mweb...")
+        self.txt_opt_youtube_client.setToolTip("YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\nDefault is 'android'. Multiple clients can be comma-separated (e.g. 'android,web').")
         saved_client = media_defaults.get("youtube_player_client", "android")
-        idx_c = self.cmb_opt_youtube_client.findData(saved_client)
-        if idx_c != -1:
-            self.cmb_opt_youtube_client.setCurrentIndex(idx_c)
-        else:
-            self.cmb_opt_youtube_client.setCurrentIndex(0)
+        self.txt_opt_youtube_client.setText(saved_client)
+        row_client.addWidget(self.txt_opt_youtube_client, stretch=1)
 
-        row_client.addWidget(self.cmb_opt_youtube_client, stretch=1)
+        self.btn_opt_reset_youtube_client = QPushButton("Reset")
+        self.btn_opt_reset_youtube_client.setFixedWidth(80)
+        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to default ('android')")
+        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("android"))
+        row_client.addWidget(self.btn_opt_reset_youtube_client)
+
         vbox_extractor.addLayout(row_client)
         layout.addWidget(grp_extractor)
 
@@ -935,8 +924,8 @@ class OptionsDialog(QDialog):
             c_path = self.txt_opt_cookies_path.text().strip()
             media_defaults["cookies_path"] = c_path
             self.config_data["media_downloader_cookies_path"] = c_path
-        if hasattr(self, "cmb_opt_youtube_client"):
-            media_defaults["youtube_player_client"] = self.cmb_opt_youtube_client.currentData() or "android"
+        if hasattr(self, "txt_opt_youtube_client"):
+            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "android"
         self.config_data["media_downloader_defaults"] = media_defaults
 
         save_category_config(self.config_data)
