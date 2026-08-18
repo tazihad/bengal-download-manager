@@ -4969,6 +4969,9 @@ if __name__ == "__main__":
             QtMsgType.QtFatalMsg: "FATAL",
         }
         level = mode_names.get(mode, "QT")
+        # Ignore benign development-mode portal registration warning when running unpackaged
+        if "Failed to register with host portal" in message and "App info not found" in message:
+            return
         if is_debug or mode in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
             ctx_str = f" [{context.file}:{context.line}]" if context and context.file else ""
             logger.warning("[QT %s]%s %s", level, ctx_str, message)
