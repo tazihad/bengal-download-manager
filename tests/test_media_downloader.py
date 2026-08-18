@@ -151,7 +151,9 @@ def test_yt_dlp_download_worker_status_format(tmp_path):
     worker.main_progress_signal.connect(lambda idx, data: emitted.append(data))
 
     # Mock subprocess stdout parsing block
-    with patch("subprocess.Popen") as mock_popen:
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
         mock_proc = MagicMock()
         mock_proc.stdout = ["[download]  29.4% of 100.00MiB at 2.50MiB/s ETA 00:30\n"]
         mock_proc.poll.side_effect = [None, 0]
@@ -177,7 +179,9 @@ def test_yt_dlp_long_filename_truncation(tmp_path):
         filename=long_filename
     )
 
-    with patch("subprocess.Popen") as mock_popen:
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
         mock_proc = MagicMock()
         mock_proc.stdout = []
         mock_proc.poll.return_value = 0
@@ -357,7 +361,7 @@ def test_yt_dlp_extractor_args_youtube_player_client(tmp_path):
 
     custom_cfg = {
         "media_downloader_defaults": {
-            "youtube_player_client": "android"
+            "youtube_player_client": "web,ios"
         }
     }
 
@@ -377,7 +381,32 @@ def test_yt_dlp_extractor_args_youtube_player_client(tmp_path):
         cmd = mock_popen.call_args[0][0]
         assert "--extractor-args" in cmd
         ext_idx = cmd.index("--extractor-args")
-        assert cmd[ext_idx + 1] == "youtube:player_client=android"
+        assert cmd[ext_idx + 1] == "youtube:player_client=web,ios"
+
+    # Test default fallback when not configured
+    downloader_def = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=default_test",
+        row_index=1,
+        save_dir=str(tmp_path),
+        filename="default.mp4"
+    )
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={}), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = ["[download] Destination: /tmp/default.mp4"]
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        downloader_def.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        assert "--extractor-args" in cmd
+        ext_idx = cmd.index("--extractor-args")
+        assert cmd[ext_idx + 1] == "youtube:player_client=default"
 
 
 

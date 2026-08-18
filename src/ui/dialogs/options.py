@@ -765,16 +765,16 @@ class OptionsDialog(QDialog):
         row_client = QHBoxLayout()
         row_client.addWidget(QLabel("YouTube Player Client:"))
         self.txt_opt_youtube_client = QLineEdit()
-        self.txt_opt_youtube_client.setPlaceholderText("e.g. android, web, ios, tv, android_vr, mweb...")
-        self.txt_opt_youtube_client.setToolTip("YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\nDefault is 'android'. Multiple clients can be comma-separated (e.g. 'android,web').")
-        saved_client = media_defaults.get("youtube_player_client", "android")
+        self.txt_opt_youtube_client.setPlaceholderText("e.g. default, android, web, ios, tv, android_vr, mweb...")
+        self.txt_opt_youtube_client.setToolTip("YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\nDefault is 'default'. Multiple clients can be comma-separated (e.g. 'default', 'android', 'web').")
+        saved_client = media_defaults.get("youtube_player_client", "default")
         self.txt_opt_youtube_client.setText(saved_client)
         row_client.addWidget(self.txt_opt_youtube_client, stretch=1)
 
         self.btn_opt_reset_youtube_client = QPushButton("Reset")
         self.btn_opt_reset_youtube_client.setFixedWidth(80)
-        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to default ('android')")
-        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("android"))
+        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to default ('default')")
+        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("default"))
         row_client.addWidget(self.btn_opt_reset_youtube_client)
 
         vbox_extractor.addLayout(row_client)
@@ -926,7 +926,7 @@ class OptionsDialog(QDialog):
             media_defaults["cookies_path"] = c_path
             self.config_data["media_downloader_cookies_path"] = c_path
         if hasattr(self, "txt_opt_youtube_client"):
-            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "android"
+            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "default"
         self.config_data["media_downloader_defaults"] = media_defaults
 
         save_category_config(self.config_data)

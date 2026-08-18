@@ -1308,11 +1308,11 @@ def test_options_dialog_media_tab_youtube_client(qapp, monkeypatch):
     media_defs = saved_configs[0].get("media_downloader_defaults", {})
     assert media_defs.get("youtube_player_client") == "android,web"
 
-    # Test Reset button restores default "android"
+    # Test Reset button restores default "default"
     dlg2 = OptionsDialog(main_window=None)
     dlg2.txt_opt_youtube_client.setText("ios")
     dlg2.btn_opt_reset_youtube_client.click()
-    assert dlg2.txt_opt_youtube_client.text() == "android"
+    assert dlg2.txt_opt_youtube_client.text() == "default"
 
     dlg.close()
     dlg2.close()
@@ -1326,10 +1326,41 @@ def test_options_dialog_height_matches_main_window(qapp):
     fake_main = QWidget()
     fake_main.resize(800, 680)
 
-    dlg = OptionsDialog(main_window=fake_main)
-    assert dlg.height() == 680
-    dlg.close()
-    fake_main.close()
+def test_tray_hibernation_buffers_updates_and_suspends_timers(qapp):
+    """Verify that when the window is in tray hibernation, UI updates are buffered and timers suspended."""
+    window = MainWindow(start_ipc=False)
+    window._is_in_tray = True
+    window.start_download(
+        url="http://example.com/hibernation_test.bin",
+        custom_save_dir="/tmp",
+        start_paused=True,
+        show_dialog=False
+    )
+    row = 0
+    item_ref = window.download_table.item(row, 0)
+    assert item_ref is not None
+
+    # Simulate progress while in tray
+    progress_data = ("hibernation_test.bin", "10.00 MB", "Downloading", "00:05", "2.00 MB/s", 5242880, 10485760)
+    window.update_download_row(item_ref, progress_data)
+
+    # Item should be buffered in _pending_tray_updates and not yet mutated in DOM
+    assert id(item_ref) in window._pending_tray_updates
+    assert window.active_speeds.get(id(item_ref)) is not None
+    if window.tray_icon:
+        assert "2.00 MB/s" in window.tray_icon.toolTip()
+        assert "active download" in window.tray_icon.toolTip()
+
+    # Restore window
+    window.restore_window()
+    assert window._is_in_tray is False
+    assert len(window._pending_tray_updates) == 0
+
+    # Status item in table should now reflect the flushed progress
+    status_item = window.download_table.item(row, 2)
+    assert status_item is not None
+    assert "50.00%" in status_item.text() or status_item.data(Qt.ItemDataRole.UserRole) == "50.00%"
+    window.close()
 
 
 

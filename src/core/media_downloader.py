@@ -410,9 +410,9 @@ class MediaExtractorWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "android") or "android"
+                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
-                yt_client = "android"
+                yt_client = "default"
 
             cmd = [
                 yt_dlp_bin,
@@ -655,9 +655,9 @@ class YtDlpDownloadWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "android") or "android"
+                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
-                yt_client = "android"
+                yt_client = "default"
 
             cmd = [
                 bin_path,
