@@ -1347,6 +1347,9 @@ def test_tray_hibernation_buffers_updates_and_suspends_timers(qapp):
     # Item should be buffered in _pending_tray_updates and not yet mutated in DOM
     assert id(item_ref) in window._pending_tray_updates
     assert window.active_speeds.get(id(item_ref)) is not None
+    if window.tray_icon:
+        assert "2.00 MB/s" in window.tray_icon.toolTip()
+        assert "active download" in window.tray_icon.toolTip()
 
     # Restore window
     window.restore_window()

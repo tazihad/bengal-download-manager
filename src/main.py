@@ -2326,23 +2326,37 @@ class MainWindow(QMainWindow):
             self.status_items_label.setToolTip(f"{sel_count} of {total_rows} {unit} selected{size_str}")
 
     def update_status_bar_speed(self):
-        if not hasattr(self, "status_speed_label"):
-            return
         if not hasattr(self, "active_speeds"):
             self.active_speeds = {}
         if not hasattr(self, "active_downloads"):
             self.active_downloads = {}
 
         total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
-        if total_speed <= 0:
-            self.status_speed_label.setText("Speed: 0 B/s")
-            self.status_speed_label.setToolTip("Total Download Speed: 0 B/s (0 active downloads)")
-            return
-
         active_count = len(self.active_downloads) or len(self.active_speeds)
-        speed_str = f"Speed: {format_bytes(total_speed)}/s"
-        self.status_speed_label.setText(speed_str)
-        self.status_speed_label.setToolTip(f"Total Download Speed: {format_bytes(total_speed)}/s ({active_count} active downloads)")
+
+        # 1. Update Status Bar Label
+        if hasattr(self, "status_speed_label") and self.status_speed_label:
+            if total_speed <= 0:
+                self.status_speed_label.setText("Speed: 0 B/s")
+                self.status_speed_label.setToolTip("Total Download Speed: 0 B/s (0 active downloads)")
+            else:
+                speed_str = f"Speed: {format_bytes(total_speed)}/s"
+                self.status_speed_label.setText(speed_str)
+                self.status_speed_label.setToolTip(f"Total Download Speed: {format_bytes(total_speed)}/s ({active_count} active downloads)")
+
+        # 2. Update Tray Icon ToolTip
+        if hasattr(self, "tray_icon") and self.tray_icon:
+            try:
+                if total_speed > 0:
+                    plural = "downloads" if active_count != 1 else "download"
+                    self.tray_icon.setToolTip(f"Bengal Download Manager\n{format_bytes(total_speed)}/s — {active_count} active {plural}")
+                elif active_count > 0:
+                    plural = "downloads" if active_count != 1 else "download"
+                    self.tray_icon.setToolTip(f"Bengal Download Manager\nConnecting... ({active_count} active {plural})")
+                else:
+                    self.tray_icon.setToolTip("Bengal Download Manager")
+            except Exception:
+                pass
 
     def update_status_bar_aria2(self):
         if not hasattr(self, "status_aria2_label"):
@@ -2436,6 +2450,7 @@ class MainWindow(QMainWindow):
             tray_menu.addAction(self.action_exit)
             
             self.tray_icon.setContextMenu(tray_menu)
+            self.tray_icon.setToolTip("Bengal Download Manager")
             self.tray_icon.show()
             
             # Double click to show/hide
@@ -4397,6 +4412,7 @@ class MainWindow(QMainWindow):
                         self.active_speeds[id(item_ref)] = float(raw_speed)
                     elif len(data) > 4 and data[4]:
                         self.active_speeds[id(item_ref)] = parse_size_to_bytes(str(data[4]).replace("/s", "").strip())
+            self.update_status_bar_speed()
             return
 
         sorting_was_enabled = self.download_table.isSortingEnabled()
