@@ -4703,6 +4703,9 @@ class MainWindow(QMainWindow):
 
         if row != -1:
             if path and os.path.exists(path):
+                filename = os.path.basename(path)
+                item_ref.setText(filename)
+                item_ref.setToolTip(filename)
                 item_ref.setData(Qt.ItemDataRole.UserRole + 1, path)
                 item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
                 actual_size = os.path.getsize(path)

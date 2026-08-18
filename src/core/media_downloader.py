@@ -620,12 +620,7 @@ class YtDlpDownloadWorker(QThread):
             bin_path = YtDlpManager.ensure_binary()
             bin_dir = str(BIN_DIR)
 
-            os.makedirs(self.save_dir, exist_ok=True)
-            from core.utils import sanitize_media_filename
-            sanitized_name = sanitize_media_filename(self.filename)
-            raw_base = os.path.splitext(sanitized_name)[0]
-            clean_base = re.sub(r'[\\/*?:"<>|]', "_", raw_base).strip()
-            output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+            output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
 
             cmd = [
                 bin_path,
@@ -636,6 +631,7 @@ class YtDlpDownloadWorker(QThread):
                 "--ffmpeg-location", bin_dir,
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",
+                "--restrict-filenames",
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
