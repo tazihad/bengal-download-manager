@@ -98,8 +98,8 @@ class ModernTableDelegate(QStyledItemDelegate):
 
         title_rect = QRect(x_offset, rect.top() + 1, rect.right() - x_offset, (rect.height() // 2))
         metrics = painter.fontMetrics()
-        elided_title = metrics.elidedText(text, Qt.TextElideMode.ElideMiddle, title_rect.width())
-        painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided_title)
+        elided_title = metrics.elidedText(text, Qt.TextElideMode.ElideRight, title_rect.width())
+        painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextSingleLine, elided_title)
 
         # Line 2: Category subtitle
         font_sub = QFont(option.font)
@@ -109,7 +109,7 @@ class ModernTableDelegate(QStyledItemDelegate):
         painter.setPen(sub_color)
 
         cat_rect = QRect(x_offset, rect.top() + (rect.height() // 2), rect.right() - x_offset, (rect.height() // 2) - 1)
-        painter.drawText(cat_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, category)
+        painter.drawText(cat_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextSingleLine, category)
 
     def _paint_status_cell(self, painter: QPainter, option: QStyleOptionViewItem, index, rect: QRect, is_selected: bool):
         status_text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
@@ -122,7 +122,7 @@ class ModernTableDelegate(QStyledItemDelegate):
 
         if status_text in ("Complete", "Finished") or internal_status in ("Complete", "Finished") or "100" in str(progress_val):
             painter.setPen(QColor("#2ec27e"))
-            painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "Finished")
+            painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextSingleLine, "Finished")
             return
 
         # Extract percentage numeric value
@@ -183,7 +183,9 @@ class ModernTableDelegate(QStyledItemDelegate):
                 painter.setPen(QColor("#ef4444"))
             else:
                 painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText))
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, display_label)
+        metrics = painter.fontMetrics()
+        elided_status = metrics.elidedText(display_label, Qt.TextElideMode.ElideRight, text_rect.width())
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextSingleLine, elided_status)
 
         # Mini Progress Bar underneath percentage/download status
         bar_rect = QRect(rect.left(), rect.top() + (rect.height() // 2) + 5, rect.width(), 4)
@@ -212,4 +214,6 @@ class ModernTableDelegate(QStyledItemDelegate):
             painter.setPen(QColor("#000000"))
         else:
             painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText))
-        painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+        metrics = painter.fontMetrics()
+        elided_text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, rect.width())
+        painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextSingleLine, elided_text)

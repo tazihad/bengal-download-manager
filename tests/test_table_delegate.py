@@ -80,11 +80,20 @@ def test_modern_table_delegate_painting(qapp):
     table.setItem(0, 2, item_dl)
     delegate.paint(painter, opt2, table.model().index(0, 2))
 
-    # Test status formatting for Resuming download (e.g. 20.00% Resuming)
-    item_res = QTableWidgetItem("Resuming...")
-    item_res.setData(Qt.ItemDataRole.UserRole, "20.00%")
-    item_res.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
-    table.setItem(0, 2, item_res)
-    delegate.paint(painter, opt2, table.model().index(0, 2))
+    # Test painting hyphenated filename (should not crash or drop whole hyphen-separated words)
+    item_hyphen = QTableWidgetItem("my-super-long-hyphenated-file-name-v1.0.tar.gz")
+    table.setItem(0, 0, item_hyphen)
+    opt_narrow = QStyleOptionViewItem()
+    opt_narrow.rect = QRect(0, 0, 80, 50)
+    delegate.paint(painter, opt_narrow, table.model().index(0, 0))
 
     painter.end()
+
+
+def test_table_word_wrap_and_elide_mode(qapp):
+    from ui.main_window import MainWindow
+    window = MainWindow()
+    assert window.download_table.wordWrap() is False
+    assert window.download_table.textElideMode() == Qt.TextElideMode.ElideRight
+    window.close()
+
