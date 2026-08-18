@@ -185,31 +185,65 @@ jobs:
           path: release_dist
 
       - name: Generate Checksums & Release Notes Body
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
         run: |
+          export BASE_URL="${SERVER_URL}/${REPOSITORY}/releases/download/${TAG}"
           cd release_dist
           sha256sum * > SHA256SUMS.txt 2>/dev/null || true
-          cat << 'EOF' > ../release_body.md
-          ### 📦 Release Assets & Distribution
 
-          | Platform / Format | Package File |
-          |---|---|
-          | 🐧 **Linux AppImage (x86_64)** | `bengal-download-manager-*-x86_64.AppImage` |
-          | 🐧 **Linux AppImage (aarch64)** | `bengal-download-manager-*-aarch64.AppImage` |
-          | 📦 **Flatpak Bundle** | `bengal-download-manager-*.flatpak` |
-          | ⚙️ **Standalone Binary** | `bengal-download-manager-*-{x86_64,aarch64}` |
-          | 🌐 **Browser Extensions** | Chrome (`.crx`), Firefox (`.xpi`) |
+          python3 - << 'EOF'
+          import os
 
-          ---
+          tag = os.environ.get("TAG", "")
+          base_url = os.environ.get("BASE_URL", "")
+          version = os.environ.get("VERSION", "")
 
-          ### 🔒 Checksums (SHA-256)
-          ```text
+          files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in ("SHA256SUMS.txt",)]
+
+          def categorize(filename):
+              if filename.endswith(".AppImage"):
+                  arch = "ARM64" if "aarch64" in filename else "x86_64"
+                  return (1, f"🐧 **Linux AppImage ({arch})**", filename)
+              elif filename.endswith(".flatpak"):
+                  arch = "ARM64" if "aarch64" in filename else "x86_64"
+                  return (2, f"📦 **Flatpak Bundle ({arch})**", filename)
+              elif filename.endswith(".crx"):
+                  return (3, "🌐 **Chrome / Chromium Extension**", filename)
+              elif filename.endswith(".xpi"):
+                  return (4, "🌐 **Firefox Extension**", filename)
+              elif filename.endswith(".zsync"):
+                  return (6, "🔄 **AppImage ZSync Delta**", filename)
+              else:
+                  arch = "ARM64" if "aarch64" in filename else "x86_64"
+                  return (5, f"⚙️ **Standalone Binary ({arch})**", filename)
+
+          categorized = [categorize(f) for f in files]
+          categorized.sort(key=lambda x: (x[0], x[2]))
+
+          lines = []
+          lines.append("### 📦 Packages & Direct Downloads\n")
+          lines.append("| Platform / Format | Download Link |")
+          lines.append("|---|---|")
+          for _, label, fname in categorized:
+              url = f"{base_url}/{fname}"
+              lines.append(f"| {label} | [{fname}]({url}) |")
+          lines.append(f"| 📄 **SHA-256 Checksums** | [SHA256SUMS.txt]({base_url}/SHA256SUMS.txt) |")
+          lines.append("\n---\n")
+          lines.append("### 🔒 Checksums (SHA-256)\n```text")
+          
+          if os.path.exists("SHA256SUMS.txt"):
+              with open("SHA256SUMS.txt", "r") as f:
+                  lines.append(f.read().strip())
+          lines.append("```\n\n---\n")
+
+          with open("../release_body.md", "w") as f:
+              f.write("\n".join(lines))
           EOF
-          cat SHA256SUMS.txt >> ../release_body.md
-          cat << 'EOF' >> ../release_body.md
-          ```
 
-          ---
-          EOF
           cd ..
 
       - name: Create GitHub Release
