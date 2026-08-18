@@ -1834,6 +1834,7 @@ class MainWindow(QMainWindow):
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
                 "table_style": getattr(self, "table_style", "classic"),
+                "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
                 "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
                 "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True
             }
@@ -2083,6 +2084,8 @@ class MainWindow(QMainWindow):
         settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
         settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
         settings["table_style"] = settings.get("table_style", "classic")
+        self.system_notifications = settings.get("system_notifications", False)
+        settings["system_notifications"] = self.system_notifications
 
         apply_app_theme(
             settings["theme"],
@@ -3263,6 +3266,25 @@ class MainWindow(QMainWindow):
             self.active_speeds.pop(key, None)
 
         if display_status == "Complete":
+            # Dispatch XDG system notification if enabled
+            if getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)):
+                try:
+                    from core.notifications import send_system_notification
+                    filename = item_ref.text() if item_ref else "File"
+                    size_str = self.download_table.item(row, 1).text() if (row != -1 and self.download_table.item(row, 1)) else ""
+                    save_path = item_ref.data(Qt.ItemDataRole.UserRole + 1) if item_ref else ""
+                    body = f"{filename} ({size_str})" if size_str and size_str != "?" else filename
+                    send_system_notification(
+                        title="Download Complete",
+                        message=body,
+                        app_name="Bengal Download Manager",
+                        icon_name="io.github.tazihad.bengal-download-manager",
+                        file_path=save_path,
+                        tray_icon=getattr(self, "tray_icon", None)
+                    )
+                except Exception:
+                    pass
+
             # If File Info dialog is still open, return and wait for confirmed action
             if key in self.active_file_info_dialogs:
                 return
