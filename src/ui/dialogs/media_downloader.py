@@ -650,7 +650,7 @@ class MediaDownloaderDialog(QDialog):
             "720p HD",
             "480p SD",
             "360p Low Quality",
-            "Audio Only (MP3)"
+            "Audio Only (Opus)"
         ])
         self.cmb_quality_preset.currentIndexChanged.connect(self._on_preset_changed)
 
@@ -830,7 +830,7 @@ class MediaDownloaderDialog(QDialog):
             "1080p Full HD",
             "720p HD",
             "480p SD",
-            "Audio Only (MP3)"
+            "Audio Only (Opus)"
         ])
         pl_preset_layout.addWidget(self.cmb_playlist_quality, stretch=1)
         layout.addLayout(pl_preset_layout)
@@ -1156,7 +1156,7 @@ class MediaDownloaderDialog(QDialog):
             ("720p HD", any(h >= 720 for h in available_heights)),
             ("480p SD", any(h >= 480 for h in available_heights)),
             ("360p Low Quality", any(h >= 360 for h in available_heights)),
-            ("Audio Only (MP3)", has_audio)
+            ("Audio Only (Opus)", has_audio)
         ]
 
         curr_idx = self.cmb_quality_preset.currentIndex()
@@ -1262,7 +1262,7 @@ class MediaDownloaderDialog(QDialog):
             "720p HD",
             "480p SD",
             "360p Low Quality",
-            "Audio Only (MP3)"
+            "Audio Only (Opus)"
         ]
         curr_idx = self.cmb_quality_preset.currentIndex()
         self.cmb_quality_preset.blockSignals(True)
@@ -1703,7 +1703,7 @@ class MediaDownloaderDialog(QDialog):
             format_spec, is_audio_only = self._get_single_video_format_spec()
 
             from core.utils import sanitize_media_filename
-            ext = ".mp3" if is_audio_only else ".mp4"
+            ext = ".opus" if is_audio_only else ".mkv"
             filename = sanitize_media_filename(title, ext=ext)
 
             total_size_bytes = 0
@@ -1743,7 +1743,7 @@ class MediaDownloaderDialog(QDialog):
                     entry = entries[r]
                     item_url = entry["url"]
                     item_title = entry.get("title", f"video_{r+1}")
-                    ext = ".mp3" if is_audio_only else ".mp4"
+                    ext = ".opus" if is_audio_only else ".mkv"
                     filename = sanitize_media_filename(item_title, ext=ext)
 
                     if hasattr(mw, "start_media_download"):

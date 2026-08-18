@@ -642,9 +642,9 @@ class YtDlpDownloadWorker(QThread):
                 cmd.extend(["--cookies", self.cookies_file])
 
             if self.is_audio_only:
-                cmd.extend(["-x", "--audio-format", "mp3"])
+                cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
             else:
-                cmd.extend(["--merge-output-format", "mp4"])
+                cmd.extend(["--merge-output-format", "mkv"])
 
             cmd.append(self.url)
 
