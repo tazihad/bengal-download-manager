@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTime, QDate
 from PyQt6.QtGui import QFont, QAction
+from core.memory_guard import MemoryGuard
 
 
 # Default queue definitions
@@ -110,6 +111,7 @@ class SchedulerDialog(QDialog):
     def __init__(self, main_window=None, parent=None, initial_queues=None):
         super().__init__(None)
         self._main_window = main_window or parent
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Scheduler")
         self.setWindowIcon(QApplication.windowIcon())
         self.setMinimumSize(750, 530)

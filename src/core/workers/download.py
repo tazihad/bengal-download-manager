@@ -5,6 +5,7 @@ from urllib.parse import urlparse, unquote
 import urllib.request
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
 from core.utils import get_unique_filepath, resolve_filename
+from core.memory_guard import MemoryGuard
 
 class SegmentWorker(QThread):
     progress_signal = pyqtSignal(int, object, object, float, str)
@@ -358,6 +359,16 @@ class DownloadWorker(QThread):
         except Exception as e:
             self.log_signal.emit(f"Critical Error: {str(e)}")
             self.finished_signal.emit(self.row_index, "Error")
+        finally:
+            for w in self.workers:
+                try:
+                    w.stop()
+                    w.quit()
+                    w.wait(500)
+                except Exception:
+                    pass
+            self.workers.clear()
+            MemoryGuard.clean_and_trim()
 
     def save_state(self, total_size):
         try:

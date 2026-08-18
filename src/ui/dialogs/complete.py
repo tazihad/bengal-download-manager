@@ -8,10 +8,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtCore import Qt, QUrl
 from core.utils import show_in_folder, open_with, open_file_generic
+from core.memory_guard import MemoryGuard
 
 class DownloadCompleteDialog(QDialog):
     def __init__(self, file_data, parent=None):
         super().__init__(parent)
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Download complete")
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)

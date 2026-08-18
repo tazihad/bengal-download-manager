@@ -304,35 +304,58 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))
 
 
-def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24, disabled_color: QColor = None) -> QIcon:
+def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24, disabled_color: QColor = None, glow: bool = False, glow_color: QColor = None, active_color: QColor = None) -> QIcon:
     """
     Renders a clean, high-DPI vector stroke icon for the given symbol name.
-    Dynamically renders Normal state using WindowText color, Selected state using HighlightedText color,
-    and Disabled state using a low-opacity faded pixmap to adapt across Light and Dark system themes.
+    Dynamically renders Normal state using WindowText color, Active state (used for menu item hover)
+    using pure black (#000000), Selected state using theme color, and Disabled state using a low-opacity faded pixmap.
+    If glow=True, renders a luminous bold glow halo around the vector icon for toolbar hover.
     """
     app = QApplication.instance()
     if color is None:
         color = app.palette().color(QPalette.ColorRole.WindowText) if app else QColor("#333333")
 
     if selected_color is None:
-        selected_color = color
+        selected_color = QColor("#000000")
 
-    def _render_pixmap(c: QColor) -> QPixmap:
+    if active_color is None:
+        active_color = QColor("#000000")
+
+    if glow_color is None:
+        if app:
+            glow_color = app.palette().color(QPalette.ColorRole.Highlight)
+        else:
+            glow_color = QColor("#3daee9")
+
+    def _render_pixmap(c: QColor, is_glow: bool = False) -> QPixmap:
         pixmap = QPixmap(size * 2, size * 2)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        pen = QPen(c, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(pen)
-        draw_icon_path(painter, name, size * 2)
+        if is_glow:
+            # 1. Subtle accent glow halo pass
+            gc = QColor(glow_color)
+            gc.setAlpha(110)
+            glow_pen = QPen(gc, 4.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(glow_pen)
+            draw_icon_path(painter, name, size * 2)
+            # 2. Main bold stroke pass
+            pen = QPen(c, 2.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            draw_icon_path(painter, name, size * 2)
+        else:
+            pen = QPen(c, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            draw_icon_path(painter, name, size * 2)
         painter.end()
         return pixmap
 
-    normal_pixmap = _render_pixmap(color)
-    selected_pixmap = _render_pixmap(selected_color)
+    normal_pixmap = _render_pixmap(color, is_glow=glow)
+    active_pixmap = _render_pixmap(active_color, is_glow=glow if active_color == color else False)
+    selected_pixmap = _render_pixmap(selected_color, is_glow=glow if selected_color == color else False)
 
     if disabled_color is not None:
-        disabled_pixmap = _render_pixmap(disabled_color)
+        disabled_pixmap = _render_pixmap(disabled_color, is_glow=False)
     else:
         disabled_pixmap = QPixmap(normal_pixmap.size())
         disabled_pixmap.fill(Qt.GlobalColor.transparent)
@@ -344,8 +367,8 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
     icon = QIcon()
     icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.Off)
     icon.addPixmap(normal_pixmap, QIcon.Mode.Normal, QIcon.State.On)
-    icon.addPixmap(normal_pixmap, QIcon.Mode.Active, QIcon.State.Off)
-    icon.addPixmap(normal_pixmap, QIcon.Mode.Active, QIcon.State.On)
+    icon.addPixmap(active_pixmap, QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(active_pixmap, QIcon.Mode.Active, QIcon.State.On)
     icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.Off)
     icon.addPixmap(selected_pixmap, QIcon.Mode.Selected, QIcon.State.On)
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)

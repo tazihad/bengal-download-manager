@@ -542,6 +542,57 @@ if (chrome.downloads && chrome.downloads.onCreated) {
   });
 }
 
+// --- POPULAR STREAMING MEDIA DOMAINS (yt-dlp supported) ---
+const POPULAR_MEDIA_DOMAINS = [
+  "youtube.com", "youtu.be", "vimeo.com", "tiktok.com", "instagram.com",
+  "twitter.com", "x.com", "facebook.com", "fb.watch", "reddit.com",
+  "twitch.tv", "bilibili.com", "soundcloud.com", "rumble.com",
+  "kick.com", "dailymotion.com", "streamable.com", "pinterest.com"
+];
+
+function isMediaUrl(url) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    return POPULAR_MEDIA_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
+  } catch (e) {
+    return false;
+  }
+}
+
+function sanitizeMediaUrl(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) {
+      if (parsed.searchParams.has("v") || parsed.pathname.includes("/shorts/")) {
+        const listVal = parsed.searchParams.get("list");
+        if (listVal && (listVal.startsWith("RD") || listVal.startsWith("UL") || listVal.startsWith("PU") || listVal === "WL")) {
+          parsed.searchParams.delete("list");
+        }
+        parsed.searchParams.delete("start_radio");
+        parsed.searchParams.delete("pp");
+        parsed.searchParams.delete("si");
+        parsed.searchParams.delete("feature");
+        parsed.searchParams.delete("index");
+        return parsed.toString();
+      } else if (hostname.includes("youtu.be")) {
+        parsed.searchParams.delete("si");
+        parsed.searchParams.delete("feature");
+        return parsed.toString();
+      }
+    } else if (hostname.includes("tiktok.com")) {
+      for (const k of ["is_from_webapp", "sender_device", "share_app_id", "share_item_id", "share_link_id"]) {
+        parsed.searchParams.delete(k);
+      }
+      return parsed.toString();
+    }
+  } catch (e) {}
+  return url;
+}
+
 // --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get(['port', 'enableInterception', 'theme'], (items) => {
@@ -560,7 +611,7 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
       id: "download-with-bengal",
       title: "Download with Bengal DM",
-      contexts: ["link", "image", "video", "audio", "selection"]
+      contexts: ["link", "image", "video", "audio", "selection", "page"]
     });
   });
 });
@@ -570,6 +621,25 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
     if (targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
       const cookieString = await getCookiesForUrl(targetUrl, tab ? tab.cookieStoreId : undefined);
+
+      // Media streams (YouTube, Vimeo, TikTok, etc.) are streaming sites and should be sent directly to Bengal DM!
+      if (isMediaUrl(targetUrl)) {
+        const cleanTargetUrl = sanitizeMediaUrl(targetUrl);
+        markRecentlySent(cleanTargetUrl);
+        const success = await sendToBengalDM({
+          url: cleanTargetUrl,
+          userAgent: navigator.userAgent,
+          cookies: cookieString,
+          referrer: (tab && tab.url) ? tab.url : cleanTargetUrl
+        });
+
+        if (success) {
+          notifyUser("Bengal DM", "Media link sent to Bengal DM!");
+        } else {
+          notifyUser("Bengal DM Error", "Could not send to Bengal DM. Is the application running?");
+        }
+        return;
+      }
 
       const resolved = await resolveDownloadTarget(targetUrl, navigator.userAgent, cookieString);
       if (resolved.isHtmlLanding) {
@@ -604,6 +674,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       if (isRecentlySent(request.url)) {
         sendResponse({ success: true, duplicate: true });
+        return;
+      }
+
+      if (isMediaUrl(request.url)) {
+        const cleanUrl = sanitizeMediaUrl(request.url);
+        markRecentlySent(cleanUrl);
+        const success = await sendToBengalDM({
+          url: cleanUrl,
+          userAgent: navigator.userAgent,
+          cookies: cookieString,
+          referrer: request.url
+        });
+        sendResponse({ success, resolvedUrl: cleanUrl });
         return;
       }
 

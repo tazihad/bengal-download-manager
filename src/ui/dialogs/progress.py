@@ -7,11 +7,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from core.utils import show_in_folder
+from core.memory_guard import MemoryGuard
 
 class DownloadProgressDialog(QDialog):
     def __init__(self, worker, parent=None):
         super().__init__(parent)
         self.worker = worker
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle(f"{self.worker.filename}")
         self.setWindowIcon(QApplication.windowIcon())
         

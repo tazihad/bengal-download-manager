@@ -9,13 +9,17 @@ import sys
 import re
 import json
 import shutil
+import logging
 import tarfile
 import zipfile
 import urllib.request
 import subprocess
 from pathlib import Path
 from .utils import get_cache_dir, get_data_dir, get_clean_env
+from .config import load_category_config
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
+
+logger = logging.getLogger("bengal.media_downloader")
 
 APP_DATA_DIR = Path(get_data_dir())
 BIN_DIR = APP_DATA_DIR / "bin"
@@ -30,7 +34,11 @@ DEPENDENCY_TOOLS = {
     "yt-dlp": {
         "binary_name": "yt-dlp",
         "version_cmd": ["--version"],
-        "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp",
+        "url": (
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64"
+            if IS_ARM else
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+        ),
         "type": "direct"
     },
     "ffmpeg": {
@@ -373,7 +381,8 @@ class MediaExtractorWorker(QThread):
 
     def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None):
         super().__init__()
-        self.url = url
+        from core.utils import sanitize_media_url
+        self.url = sanitize_media_url(url)
         self.cookies_browser = cookies_browser
         self.cookies_file = cookies_file
         self.process = None
@@ -396,14 +405,24 @@ class MediaExtractorWorker(QThread):
             
             bin_dir = str(BIN_DIR)
             clean_env = get_clean_env(bin_dir)
+            is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
+
+            try:
+                cfg = load_category_config()
+                media_defaults = cfg.get("media_downloader_defaults", {})
+                yt_client = media_defaults.get("youtube_player_client", "android") or "android"
+            except Exception:
+                yt_client = "android"
 
             cmd = [
                 yt_dlp_bin,
                 "-J",
                 "--flat-playlist",
-                "--no-warnings",
+                "--playlist-end", "100",
+                "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
                 "--ffmpeg-location", bin_dir,
+                "--extractor-args", f"youtube:player_client={yt_client}",
             ]
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
@@ -412,6 +431,9 @@ class MediaExtractorWorker(QThread):
                 cmd.extend(["--cookies", self.cookies_file])
 
             cmd.append(self.url)
+
+            if is_debug:
+                logger.debug("[MediaExtractor] Running command: %s", " ".join(cmd))
 
             self.process = subprocess.Popen(
                 cmd,
@@ -432,11 +454,15 @@ class MediaExtractorWorker(QThread):
                         yt_dlp_bin,
                         "-J",
                         "--flat-playlist",
-                        "--no-warnings",
+                        "--playlist-end", "100",
+                        "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
                         "--ffmpeg-location", bin_dir,
+                        "--extractor-args", f"youtube:player_client={yt_client}",
                         self.url
                     ]
+                    if is_debug:
+                        logger.debug("[MediaExtractor] Retrying clean command: %s", " ".join(clean_cmd))
                     self.process = subprocess.Popen(
                         clean_cmd,
                         env=clean_env,
@@ -449,12 +475,18 @@ class MediaExtractorWorker(QThread):
 
             if self.process.returncode != 0:
                 err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {self.process.returncode}"
+                logger.error("[MediaExtractor] yt-dlp metadata extraction failed: %s", err_msg)
+                if is_debug and stderr:
+                    logger.debug("[MediaExtractor] stderr output:\n%s", stderr)
                 self.analysis_failed.emit(err_msg)
                 return
 
             try:
                 data = json.loads(stdout)
             except json.JSONDecodeError as json_err:
+                logger.error("[MediaExtractor] Failed to parse yt-dlp metadata JSON: %s", json_err)
+                if is_debug and stdout:
+                    logger.debug("[MediaExtractor] Raw stdout:\n%s", stdout[:1000])
                 self.analysis_failed.emit(f"Failed to parse yt-dlp metadata JSON: {json_err}")
                 return
 
@@ -617,35 +649,30 @@ class YtDlpDownloadWorker(QThread):
             bin_path = YtDlpManager.ensure_binary()
             bin_dir = str(BIN_DIR)
 
-            os.makedirs(self.save_dir, exist_ok=True)
-            raw_base = os.path.splitext(self.filename)[0]
-            clean_base = re.sub(r'[\\/*?:"<>|]', "_", raw_base).strip()
-            # Truncate clean_base to 100 bytes max to prevent Errno 36 (File name too long)
-            if len(clean_base.encode("utf-8")) > 100:
-                clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").strip()
-            output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+            is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
+            output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
+
+            try:
+                cfg = load_category_config()
+                media_defaults = cfg.get("media_downloader_defaults", {})
+                yt_client = media_defaults.get("youtube_player_client", "android") or "android"
+            except Exception:
+                yt_client = "android"
 
             cmd = [
                 bin_path,
                 "--newline",
-                "--no-warnings",
+                "--verbose" if is_debug else "--no-warnings",
                 "--progress-delta", "0.1",
                 "--remote-components", "ejs:github",
-                "--trim-filenames", "100",
                 "--ffmpeg-location", bin_dir,
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",
+                "--restrict-filenames",
+                "--extractor-args", f"youtube:player_client={yt_client}",
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
-
-            from core.utils import ensure_aria2
-            aria2_bin = ensure_aria2()
-            if aria2_bin and os.path.exists(aria2_bin):
-                cmd.extend([
-                    "--downloader", aria2_bin,
-                    "--downloader-args", "aria2c:-x 16 -k 1M --summary-interval=1"
-                ])
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
@@ -653,15 +680,17 @@ class YtDlpDownloadWorker(QThread):
                 cmd.extend(["--cookies", self.cookies_file])
 
             if self.is_audio_only:
-                cmd.extend(["-x", "--audio-format", "mp3"])
+                cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
             else:
-                cmd.extend(["--merge-output-format", "mp4"])
+                cmd.extend(["--merge-output-format", "mkv"])
 
             cmd.append(self.url)
 
             clean_env = get_clean_env(bin_dir)
 
             self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
+            if is_debug:
+                logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
             self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
 
             self.process = subprocess.Popen(
@@ -691,6 +720,12 @@ class YtDlpDownloadWorker(QThread):
                     continue
 
                 self.log_signal.emit(line_str)
+                if "ERROR:" in line_str or "error:" in line_str.lower():
+                    logger.error("[YtDlpDownload] %s", line_str)
+                elif "WARNING:" in line_str or "warning:" in line_str.lower():
+                    logger.warning("[YtDlpDownload] %s", line_str)
+                elif is_debug:
+                    logger.debug("[YtDlpDownload] %s", line_str)
 
                 # Track destination file type to filter out subtitles/thumbnails
                 dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
@@ -717,24 +752,34 @@ class YtDlpDownloadWorker(QThread):
                     if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
                         is_media_stream = False
 
-                    # Check size: if size > 500 KB or line has aria2c markers (SPD: / CN: / DL:), it is a media stream
-                    size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
-                    if size_match:
-                        parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                    # Check for explicit dual sizes (downloaded / total or downloaded of total)
+                    dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                    if dual_size_match:
+                        parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
+                        parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
                         if parsed_total > 500 * 1024:
                             is_media_stream = True
                             if parsed_total > total_bytes:
                                 total_bytes = parsed_total
-                    elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
-                        is_media_stream = True
+                            if parsed_downloaded > 0:
+                                downloaded_bytes = parsed_downloaded
+                    else:
+                        size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                        if size_match:
+                            parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                            if parsed_total > 500 * 1024:
+                                is_media_stream = True
+                                if parsed_total > total_bytes:
+                                    total_bytes = parsed_total
+                        elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
+                            is_media_stream = True
 
                     if is_media_stream:
-                        pct_match = re.search(r"(\d+\.?\d*)%", line_str)
+                        pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
                         if pct_match:
                             pct = float(pct_match.group(1))
-
-                        if total_bytes > 500 * 1024:
-                            downloaded_bytes = (pct / 100.0) * total_bytes
+                            if total_bytes > 500 * 1024 and (not dual_size_match or downloaded_bytes == 0):
+                                downloaded_bytes = (pct / 100.0) * total_bytes
 
                         speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
                         if not speed_match:
@@ -805,11 +850,13 @@ class YtDlpDownloadWorker(QThread):
                 self.main_progress_signal.emit(self.row_index, data_tuple)
                 self.finished_signal.emit(self.row_index, final_path or "")
             else:
+                logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
                 data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
                 self.main_progress_signal.emit(self.row_index, data_tuple)
                 self.finished_signal.emit(self.row_index, "")
 
         except Exception as e:
+            logger.exception("[YtDlpDownload] Download Worker Exception: %s", e)
             self.log_signal.emit(f"Download Worker Exception: {e}")
             data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
             self.main_progress_signal.emit(self.row_index, data_tuple)

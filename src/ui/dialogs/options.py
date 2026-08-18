@@ -11,19 +11,28 @@ from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
     load_proxy_config, save_proxy_config, 
     load_extension_config, save_extension_config, call_aria2_rpc,
-    find_aria2, choose_portal_save_path, choose_portal_folder_path,
+    find_aria2, choose_portal_save_path, choose_portal_folder_path, choose_portal_open_file_path,
     is_autostart_enabled, set_autostart_enabled
 )
 from core.config import load_category_config, save_category_config
+from core.memory_guard import MemoryGuard
 
 class OptionsDialog(QDialog):
     def __init__(self, main_window=None, parent=None):
         # Pass parent=None to QDialog superclass so it is initialized as an independent top-level window in taskbar panels while sharing WM_CLASS
         super().__init__(None)
         self._main_window = main_window or parent
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Options")
         self.setWindowIcon(QApplication.windowIcon())
-        self.setFixedSize(500, 520)
+        
+        target_height = 520
+        if self._main_window and hasattr(self._main_window, "height"):
+            main_h = self._main_window.height()
+            if main_h > 200:
+                target_height = main_h
+        self.setFixedWidth(520)
+        self.setFixedHeight(target_height)
         
         # Set window flags so Options dialog appears as an independent top-level window in taskbar panels
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
@@ -59,6 +68,10 @@ class OptionsDialog(QDialog):
         self.extension_tab = QWidget()
         self.setup_extension_tab()
         self.tabs.addTab(self.extension_tab, "Extensions")
+
+        self.media_tab = QWidget()
+        self.setup_media_tab()
+        self.tabs.addTab(self.media_tab, "Media")
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -636,8 +649,172 @@ class OptionsDialog(QDialog):
         get_ext_layout.addWidget(self.btn_ext_chrome)
         
         layout.addWidget(grp_get_ext)
-        
         layout.addStretch()
+
+    def setup_media_tab(self):
+        layout = QVBoxLayout(self.media_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+
+        media_defaults = self.config_data.get("media_downloader_defaults", {})
+
+        # 1. Browser Integration and Auto-Start
+        grp_browser = QGroupBox("Browser Integration and Auto-Start")
+        vbox_browser = QVBoxLayout(grp_browser)
+        vbox_browser.setContentsMargins(10, 15, 10, 15)
+        vbox_browser.setSpacing(10)
+
+        self.chk_auto_start_media = QCheckBox("Auto-start media downloads when sent from browser")
+        self.chk_auto_start_media.setToolTip("Automatically analyze and start downloading media streams sent from browser without extra confirmation")
+        self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
+        vbox_browser.addWidget(self.chk_auto_start_media)
+
+        row_media_q = QHBoxLayout()
+        row_media_q.addWidget(QLabel("Preselected Quality Target:"))
+        self.cmb_media_quality = QComboBox()
+        self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
+        self.cmb_media_quality.addItems([
+            "Best Quality (Video + Audio merged)",
+            "4K Ultra HD (2160p)",
+            "2K Quad HD (1440p)",
+            "1080p Full HD",
+            "720p HD",
+            "480p SD",
+            "360p Low Quality",
+            "Audio Only (MP3)"
+        ])
+        saved_q = media_defaults.get("auto_media_quality_preset", "1080p Full HD")
+        idx_q = self.cmb_media_quality.findText(saved_q)
+        if idx_q != -1:
+            self.cmb_media_quality.setCurrentIndex(idx_q)
+        else:
+            self.cmb_media_quality.setCurrentIndex(3)  # 1080p Full HD
+        
+        row_media_q.addWidget(self.cmb_media_quality, stretch=1)
+        vbox_browser.addLayout(row_media_q)
+        layout.addWidget(grp_browser)
+
+        # 2. Authentication and Cookie Vault Defaults
+        grp_cookies = QGroupBox("Authentication and Cookie Vault Defaults")
+        vbox_cookies = QVBoxLayout(grp_cookies)
+        vbox_cookies.setContentsMargins(10, 15, 10, 15)
+        vbox_cookies.setSpacing(10)
+
+        row_cmode = QHBoxLayout()
+        row_cmode.addWidget(QLabel("Default Cookie Source:"))
+        self.cmb_opt_cookies_mode = QComboBox()
+        self.cmb_opt_cookies_mode.addItems([
+            "Netscape File (cookies.txt)",
+            "Browser Auto-Extraction",
+            "None (Anonymous / Public)"
+        ])
+        saved_cmode = media_defaults.get("cookies_mode_idx", 0)
+        self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 2))
+        row_cmode.addWidget(self.cmb_opt_cookies_mode, stretch=1)
+        vbox_cookies.addLayout(row_cmode)
+
+        row_cbrowser = QHBoxLayout()
+        self.lbl_opt_cookies_browser = QLabel("Default Browser:")
+        row_cbrowser.addWidget(self.lbl_opt_cookies_browser)
+        self.cmb_opt_cookies_browser = QComboBox()
+        self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
+        saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
+        idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
+        if idx_cb != -1:
+            self.cmb_opt_cookies_browser.setCurrentIndex(idx_cb)
+        row_cbrowser.addWidget(self.cmb_opt_cookies_browser, stretch=1)
+        vbox_cookies.addLayout(row_cbrowser)
+
+        # Full-width cookies path input with Browse / Clear buttons below
+        self.lbl_opt_cookies_path = QLabel("Netscape cookies.txt Path:")
+        vbox_cookies.addWidget(self.lbl_opt_cookies_path)
+
+        self.txt_opt_cookies_path = QLineEdit()
+        self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
+        saved_cpath = self.config_data.get("media_downloader_cookies_path", media_defaults.get("cookies_path", ""))
+        self.txt_opt_cookies_path.setText(saved_cpath)
+        vbox_cookies.addWidget(self.txt_opt_cookies_path)
+
+        row_cbuttons = QHBoxLayout()
+        row_cbuttons.addStretch()
+
+        self.btn_opt_browse_c = QPushButton("Browse...")
+        self.btn_opt_browse_c.setFixedWidth(90)
+        self.btn_opt_browse_c.clicked.connect(self._browse_opt_cookies_file)
+        row_cbuttons.addWidget(self.btn_opt_browse_c)
+
+        self.btn_opt_clear_c = QPushButton("Clear")
+        self.btn_opt_clear_c.setFixedWidth(80)
+        self.btn_opt_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
+        row_cbuttons.addWidget(self.btn_opt_clear_c)
+
+        vbox_cookies.addLayout(row_cbuttons)
+
+        self.cmb_opt_cookies_mode.currentIndexChanged.connect(self._update_opt_cookies_ui)
+        self._update_opt_cookies_ui()
+
+        layout.addWidget(grp_cookies)
+
+        # 3. YouTube Extractor & Player Client Settings
+        grp_extractor = QGroupBox("YouTube Extractor Engine Settings")
+        vbox_extractor = QVBoxLayout(grp_extractor)
+        vbox_extractor.setContentsMargins(10, 15, 10, 15)
+        vbox_extractor.setSpacing(10)
+
+        row_client = QHBoxLayout()
+        row_client.addWidget(QLabel("YouTube Player Client:"))
+        self.txt_opt_youtube_client = QLineEdit()
+        self.txt_opt_youtube_client.setPlaceholderText("e.g. android, web, ios, tv, android_vr, mweb...")
+        self.txt_opt_youtube_client.setToolTip("YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\nDefault is 'android'. Multiple clients can be comma-separated (e.g. 'android,web').")
+        saved_client = media_defaults.get("youtube_player_client", "android")
+        self.txt_opt_youtube_client.setText(saved_client)
+        row_client.addWidget(self.txt_opt_youtube_client, stretch=1)
+
+        self.btn_opt_reset_youtube_client = QPushButton("Reset")
+        self.btn_opt_reset_youtube_client.setFixedWidth(80)
+        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to default ('android')")
+        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("android"))
+        row_client.addWidget(self.btn_opt_reset_youtube_client)
+
+        vbox_extractor.addLayout(row_client)
+        layout.addWidget(grp_extractor)
+
+        layout.addStretch()
+
+    def _update_opt_cookies_ui(self):
+        mode_idx = self.cmb_opt_cookies_mode.currentIndex() if hasattr(self, "cmb_opt_cookies_mode") else 0
+        # 0 = Netscape File, 1 = Browser Auto-Extraction, 2 = None
+        is_file_mode = (mode_idx == 0)
+        is_browser_mode = (mode_idx == 1)
+
+        if hasattr(self, "lbl_opt_cookies_browser"):
+            self.lbl_opt_cookies_browser.setEnabled(is_browser_mode)
+        if hasattr(self, "cmb_opt_cookies_browser"):
+            self.cmb_opt_cookies_browser.setEnabled(is_browser_mode)
+
+        if hasattr(self, "lbl_opt_cookies_path"):
+            self.lbl_opt_cookies_path.setEnabled(is_file_mode)
+        if hasattr(self, "txt_opt_cookies_path"):
+            self.txt_opt_cookies_path.setEnabled(is_file_mode)
+        if hasattr(self, "btn_opt_browse_c"):
+            self.btn_opt_browse_c.setEnabled(is_file_mode)
+        if hasattr(self, "btn_opt_clear_c"):
+            self.btn_opt_clear_c.setEnabled(is_file_mode)
+
+    def _browse_opt_cookies_file(self):
+        current_path = self.txt_opt_cookies_path.text().strip()
+        folder = os.path.dirname(current_path) if (current_path and os.path.exists(current_path)) else os.path.expanduser("~")
+        file_path = choose_portal_open_file_path(title="Select Netscape Cookies File", folder=folder)
+        if file_path is None:
+            from PyQt6.QtWidgets import QFileDialog
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select Netscape Cookies File",
+                folder,
+                "Text Files (*.txt);;All Files (*)"
+            )
+        if file_path:
+            self.txt_opt_cookies_path.setText(file_path)
 
     def on_toggle_show_token(self, checked):
         """Toggles the echo mode of the token field."""
@@ -730,6 +907,27 @@ class OptionsDialog(QDialog):
 
     def save_and_accept(self):
         self.config_data["temp_dir"] = self.txt_temp_path.text()
+
+        # Save Media Downloader defaults
+        media_defaults = self.config_data.get("media_downloader_defaults", {})
+        if hasattr(self, "chk_auto_start_media"):
+            media_defaults["auto_start_media"] = self.chk_auto_start_media.isChecked()
+        if hasattr(self, "cmb_media_quality"):
+            media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
+        if hasattr(self, "cmb_opt_cookies_mode"):
+            media_defaults["cookies_mode_idx"] = self.cmb_opt_cookies_mode.currentIndex()
+        if hasattr(self, "cmb_opt_cookies_browser"):
+            b_name = self.cmb_opt_cookies_browser.currentText()
+            media_defaults["cookies_browser"] = b_name
+            self.config_data["media_downloader_cookies_browser"] = b_name
+        if hasattr(self, "txt_opt_cookies_path"):
+            c_path = self.txt_opt_cookies_path.text().strip()
+            media_defaults["cookies_path"] = c_path
+            self.config_data["media_downloader_cookies_path"] = c_path
+        if hasattr(self, "txt_opt_youtube_client"):
+            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "android"
+        self.config_data["media_downloader_defaults"] = media_defaults
+
         save_category_config(self.config_data)
         
         new_scale = self.combo_scale.currentText()

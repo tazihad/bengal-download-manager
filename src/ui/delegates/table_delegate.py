@@ -75,7 +75,7 @@ class ModernTableDelegate(QStyledItemDelegate):
         # Dynamic text colors adapting to selection and theme
         if is_selected:
             primary_color = QColor("#000000")
-            sub_color = QColor("#333333")
+            sub_color = QColor("#000000")
         else:
             primary_color = option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText)
             sub_color = option.palette.color(option.palette.ColorGroup.Disabled, option.palette.ColorRole.WindowText)
@@ -86,7 +86,7 @@ class ModernTableDelegate(QStyledItemDelegate):
         if icon:
             icon_rect = QRect(x_offset, rect.top() + (rect.height() - 24) // 2, 24, 24)
             if isinstance(icon, QIcon):
-                icon.paint(painter, icon_rect)
+                icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter, QIcon.Mode.Selected if is_selected else QIcon.Mode.Normal)
             x_offset += 30
 
         # Line 1: Primary Filename (Bold)

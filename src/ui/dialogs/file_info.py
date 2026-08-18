@@ -7,10 +7,12 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 from core.utils import get_unique_filepath, choose_portal_save_path
 from core.config import load_category_config
+from core.memory_guard import MemoryGuard
 
 class DownloadFileInfoDialog(QDialog):
     def __init__(self, file_info, parent=None):
         super().__init__(parent)
+        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Download File Info")
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(520)

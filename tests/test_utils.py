@@ -224,5 +224,42 @@ def test_determine_next_release_tag():
     assert ver == "0.3.5"
 
 
+def test_get_process_memory():
+    from core.utils import get_process_memory, format_bytes
+    mem = get_process_memory()
+    assert isinstance(mem, int)
+    assert mem > 0
+    formatted = format_bytes(mem)
+    assert "B" in formatted
+
+
+def test_sanitize_media_url():
+    from core.utils import sanitize_media_url
+
+    # 1. YouTube Mix / Radio link from search results (must strip list=RD... & start_radio=1 & pp=...)
+    mix_url = "https://www.youtube.com/watch?v=obBcRhl57Zg&list=RDobBcRhl57Zg&start_radio=1&pp=ygUGamFobnZpoAcB"
+    assert sanitize_media_url(mix_url) == "https://www.youtube.com/watch?v=obBcRhl57Zg"
+
+    # 2. Genuine YouTube Playlist (must be preserved)
+    real_playlist = "https://www.youtube.com/playlist?list=PL1234567890abcdef"
+    assert sanitize_media_url(real_playlist) == "https://www.youtube.com/playlist?list=PL1234567890abcdef"
+
+    # 3. YouTube Shorts & Tracking parameters
+    short_url = "https://www.youtube.com/shorts/abcdef12345?si=sample_si_param&feature=share"
+    assert sanitize_media_url(short_url) == "https://www.youtube.com/shorts/abcdef12345"
+
+    # 4. Youtu.be short URL
+    short_yt = "https://youtu.be/obBcRhl57Zg?si=track123&feature=shared"
+    assert sanitize_media_url(short_yt) == "https://youtu.be/obBcRhl57Zg"
+
+    # 5. TikTok tracking parameters
+    tiktok_url = "https://www.tiktok.com/@creator/video/71234567890?is_from_webapp=1&sender_device=pc"
+    assert sanitize_media_url(tiktok_url) == "https://www.tiktok.com/@creator/video/71234567890"
+
+    # 6. Plain URL without tracking
+    plain_url = "https://vimeo.com/76979871"
+    assert sanitize_media_url(plain_url) == "https://vimeo.com/76979871"
+
+
 
 
