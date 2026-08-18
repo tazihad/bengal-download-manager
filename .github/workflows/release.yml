@@ -184,14 +184,44 @@ jobs:
           merge-multiple: true
           path: release_dist
 
+      - name: Generate Checksums & Release Notes Body
+        run: |
+          cd release_dist
+          sha256sum * > SHA256SUMS.txt 2>/dev/null || true
+          cat << 'EOF' > ../release_body.md
+          ### 📦 Release Assets & Distribution
+
+          | Platform / Format | Package File |
+          |---|---|
+          | 🐧 **Linux AppImage (x86_64)** | `bengal-download-manager-*-x86_64.AppImage` |
+          | 🐧 **Linux AppImage (aarch64)** | `bengal-download-manager-*-aarch64.AppImage` |
+          | 📦 **Flatpak Bundle** | `bengal-download-manager-*.flatpak` |
+          | ⚙️ **Standalone Binary** | `bengal-download-manager-*-{x86_64,aarch64}` |
+          | 🌐 **Browser Extensions** | Chrome (`.crx`), Firefox (`.xpi`) |
+
+          ---
+
+          ### 🔒 Checksums (SHA-256)
+          ```text
+          EOF
+          cat SHA256SUMS.txt >> ../release_body.md
+          cat << 'EOF' >> ../release_body.md
+          ```
+
+          ---
+          EOF
+          cd ..
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: Release ${{ needs.prepare.outputs.tag }}
+          body_path: release_body.md
           files: release_dist/*
           draft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           generate_release_notes: true
+          append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

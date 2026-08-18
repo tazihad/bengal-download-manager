@@ -1,0 +1,48 @@
+changelog:
+  categories:
+    - title: "🚀 New Features & Enhancements"
+      labels:
+        - "feat"
+        - "feature"
+        - "enhancement"
+      collapse_after: 5
+    - title: "⚡ Performance & Optimizations"
+      labels:
+        - "perf"
+        - "performance"
+        - "optimization"
+      collapse_after: 5
+    - title: "🐛 Bug Fixes"
+      labels:
+        - "fix"
+        - "bug"
+        - "hotfix"
+      collapse_after: 5
+    - title: "🛠️ Architecture & Refactoring"
+      labels:
+        - "refactor"
+        - "chore"
+        - "core"
+      collapse_after: 5
+    - title: "🧪 Testing & CI/CD"
+      labels:
+        - "ci"
+        - "test"
+        - "tests"
+      collapse_after: 5
+    - title: "📖 Documentation"
+      labels:
+        - "docs"
+        - "documentation"
+      collapse_after: 5
+    - title: "📦 Dependency Updates"
+      labels:
+        - "dependencies"
+      collapse_after: 5
+    - title: "Other Changes"
+      labels:
+        - "*"
+  exclude:
+    labels:
+      - "ignore-for-release"
+      - "skip-changelog"
