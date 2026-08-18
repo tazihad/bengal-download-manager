@@ -318,4 +318,33 @@ def test_media_downloader_fractional_percentage_progress(tmp_path):
     assert f"{ytdlp_pct:.2f}%" == "34.56%"
 
 
+def test_yt_dlp_debug_mode_verbose_flag(tmp_path):
+    """Verify that --debug mode enables --verbose in yt-dlp arguments."""
+    import sys
+    downloader = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=dbg",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="dbg.mp4"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch.object(sys, "argv", ["main.py", "--debug"]), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = ["[download] Destination: /tmp/test.mp4"]
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        downloader.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        assert "--verbose" in cmd
+        assert "--no-warnings" not in cmd
+
+
+
 

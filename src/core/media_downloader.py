@@ -9,6 +9,7 @@ import sys
 import re
 import json
 import shutil
+import logging
 import tarfile
 import zipfile
 import urllib.request
@@ -16,6 +17,8 @@ import subprocess
 from pathlib import Path
 from .utils import get_cache_dir, get_data_dir, get_clean_env
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
+
+logger = logging.getLogger("bengal.media_downloader")
 
 APP_DATA_DIR = Path(get_data_dir())
 BIN_DIR = APP_DATA_DIR / "bin"
@@ -401,13 +404,14 @@ class MediaExtractorWorker(QThread):
             
             bin_dir = str(BIN_DIR)
             clean_env = get_clean_env(bin_dir)
+            is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
 
             cmd = [
                 yt_dlp_bin,
                 "-J",
                 "--flat-playlist",
                 "--playlist-end", "100",
-                "--no-warnings",
+                "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
                 "--ffmpeg-location", bin_dir,
             ]
@@ -418,6 +422,9 @@ class MediaExtractorWorker(QThread):
                 cmd.extend(["--cookies", self.cookies_file])
 
             cmd.append(self.url)
+
+            if is_debug:
+                logger.debug("[MediaExtractor] Running command: %s", " ".join(cmd))
 
             self.process = subprocess.Popen(
                 cmd,
@@ -439,11 +446,13 @@ class MediaExtractorWorker(QThread):
                         "-J",
                         "--flat-playlist",
                         "--playlist-end", "100",
-                        "--no-warnings",
+                        "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
                         "--ffmpeg-location", bin_dir,
                         self.url
                     ]
+                    if is_debug:
+                        logger.debug("[MediaExtractor] Retrying clean command: %s", " ".join(clean_cmd))
                     self.process = subprocess.Popen(
                         clean_cmd,
                         env=clean_env,
@@ -456,12 +465,18 @@ class MediaExtractorWorker(QThread):
 
             if self.process.returncode != 0:
                 err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {self.process.returncode}"
+                logger.error("[MediaExtractor] yt-dlp metadata extraction failed: %s", err_msg)
+                if is_debug and stderr:
+                    logger.debug("[MediaExtractor] stderr output:\n%s", stderr)
                 self.analysis_failed.emit(err_msg)
                 return
 
             try:
                 data = json.loads(stdout)
             except json.JSONDecodeError as json_err:
+                logger.error("[MediaExtractor] Failed to parse yt-dlp metadata JSON: %s", json_err)
+                if is_debug and stdout:
+                    logger.debug("[MediaExtractor] Raw stdout:\n%s", stdout[:1000])
                 self.analysis_failed.emit(f"Failed to parse yt-dlp metadata JSON: {json_err}")
                 return
 
@@ -624,12 +639,13 @@ class YtDlpDownloadWorker(QThread):
             bin_path = YtDlpManager.ensure_binary()
             bin_dir = str(BIN_DIR)
 
+            is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
             output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
 
             cmd = [
                 bin_path,
                 "--newline",
-                "--no-warnings",
+                "--verbose" if is_debug else "--no-warnings",
                 "--progress-delta", "0.1",
                 "--remote-components", "ejs:github",
                 "--ffmpeg-location", bin_dir,
@@ -655,6 +671,8 @@ class YtDlpDownloadWorker(QThread):
             clean_env = get_clean_env(bin_dir)
 
             self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
+            if is_debug:
+                logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
             self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
 
             self.process = subprocess.Popen(
@@ -684,6 +702,12 @@ class YtDlpDownloadWorker(QThread):
                     continue
 
                 self.log_signal.emit(line_str)
+                if "ERROR:" in line_str or "error:" in line_str.lower():
+                    logger.error("[YtDlpDownload] %s", line_str)
+                elif "WARNING:" in line_str or "warning:" in line_str.lower():
+                    logger.warning("[YtDlpDownload] %s", line_str)
+                elif is_debug:
+                    logger.debug("[YtDlpDownload] %s", line_str)
 
                 # Track destination file type to filter out subtitles/thumbnails
                 dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
@@ -808,11 +832,13 @@ class YtDlpDownloadWorker(QThread):
                 self.main_progress_signal.emit(self.row_index, data_tuple)
                 self.finished_signal.emit(self.row_index, final_path or "")
             else:
+                logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
                 data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
                 self.main_progress_signal.emit(self.row_index, data_tuple)
                 self.finished_signal.emit(self.row_index, "")
 
         except Exception as e:
+            logger.exception("[YtDlpDownload] Download Worker Exception: %s", e)
             self.log_signal.emit(f"Download Worker Exception: {e}")
             data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
             self.main_progress_signal.emit(self.row_index, data_tuple)
