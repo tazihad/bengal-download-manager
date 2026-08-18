@@ -781,6 +781,8 @@ class MainWindow(QMainWindow):
         self.category_tree.customContextMenuRequested.connect(self._show_sidebar_context_menu)
         
         self.download_table = QTableWidget()
+        self.download_table.setWordWrap(False)
+        self.download_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self._default_table_delegate = self.download_table.itemDelegate()
         self.table_style = "classic"
         self.download_table.setIconSize(QSize(16, 16))
