@@ -164,8 +164,16 @@ class SchedulerDialog(QDialog):
             }
         """)
 
-        # Queue data storage — use caller-supplied list or fall back to defaults
-        source = initial_queues if initial_queues is not None else DEFAULT_QUEUES
+        # Queue data storage — use caller-supplied list or fall back to DB/defaults
+        if initial_queues is not None:
+            source = initial_queues
+        else:
+            try:
+                from core.database import get_all_queues
+                db_queues = get_all_queues()
+                source = db_queues if db_queues else DEFAULT_QUEUES
+            except Exception:
+                source = DEFAULT_QUEUES
         self.queues = [dict(q) for q in source]
         for q in self.queues:
             q["daily_days"] = list(q["daily_days"])

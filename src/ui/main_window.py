@@ -84,6 +84,17 @@ from core.services.ipc_service import (
     check_single_instance,
 )
 
+from core.database import (
+    init_db,
+    get_all_downloads,
+    save_all_downloads,
+    get_all_queues,
+    save_all_queues,
+    upsert_queue,
+    delete_queue,
+)
+
+
 
 from core.services.theme_service import (
     ACCENT_COLORS,
@@ -750,8 +761,9 @@ class MainWindow(QMainWindow):
         self.queues_header.setExpanded(True)
 
         from ui.dialogs.scheduler import DEFAULT_QUEUES, _make_default_queue
-        # _queues_data is the persistent source-of-truth across dialog open/close cycles
-        self._queues_data = [dict(q) for q in DEFAULT_QUEUES]
+        # _queues_data is loaded from SQLite database, falling back to defaults if empty
+        db_queues = get_all_queues()
+        self._queues_data = [dict(q) for q in (db_queues if db_queues else DEFAULT_QUEUES)]
         for q in self._queues_data:
             q["daily_days"] = list(q["daily_days"])
         self._sidebar_queue_names = []
@@ -1376,6 +1388,10 @@ class MainWindow(QMainWindow):
 
         # Remove from persistent queue data
         self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
+        try:
+            delete_queue(queue_name)
+        except Exception:
+            pass
 
         # Also remove from scheduler if it's open
         if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
@@ -1399,6 +1415,10 @@ class MainWindow(QMainWindow):
         # Persist into the source-of-truth list
         new_q = _make_default_queue(name)
         self._queues_data.append(new_q)
+        try:
+            upsert_queue(new_q)
+        except Exception:
+            pass
 
         # Add to sidebar
         child = QTreeWidgetItem(self.queues_header, [name])
@@ -1427,6 +1447,10 @@ class MainWindow(QMainWindow):
         self._queues_data = [dict(q) for q in self._scheduler_dlg.queues]
         for q in self._queues_data:
             q["daily_days"] = list(q["daily_days"])
+        try:
+            save_all_queues(self._queues_data)
+        except Exception:
+            pass
 
         # Rebuild sidebar from the updated persistent store
         while self.queues_header.childCount() > 0:
@@ -1514,23 +1538,16 @@ class MainWindow(QMainWindow):
                 }
                 downloads.append(dl_data)
             
-            gdd = _resolve_symbol("get_data_dir", get_data_dir)
-            data_dir = gdd()
-            with open(os.path.join(data_dir, "downloads.json"), "w") as f:
-                json.dump(downloads, f, indent=4)
+            save_all_downloads(downloads)
+            save_all_queues(self._queues_data)
         except Exception:
             pass
 
     def load_data(self):
-        gdd = _resolve_symbol("get_data_dir", get_data_dir)
-        data_dir = gdd()
-        path = os.path.join(data_dir, "downloads.json")
-        if not os.path.exists(path):
-            return
-
         try:
-            with open(path, "r") as f:
-                downloads = json.load(f)
+            downloads = get_all_downloads()
+            if not downloads:
+                return
             
             self.download_table.setSortingEnabled(False)
                 
