@@ -665,26 +665,26 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_video_format = QComboBox()
         self.cmb_video_format.setFixedHeight(30)
         self.cmb_video_format.setToolTip("Filter video container / codec")
-        self.cmb_video_format.addItems([
-            "All Formats",
-            "MP4 (H.264 / AVC)",
-            "WEBM (VP9 / AV1)",
-            "AV1 Codec",
-            "VP9 Codec",
-            "H.264 Codec"
-        ])
+        for label, key in [
+            ("Any Format (Default)", "any"),
+            ("MP4 (H.264 / AVC)", "h264"),
+            ("WebM (VP9)", "webm"),
+            ("AV1 Codec", "av1")
+        ]:
+            self.cmb_video_format.addItem(label, key)
         self.cmb_video_format.currentIndexChanged.connect(self._on_preset_changed)
 
         lbl_afmt = QLabel("Audio:")
         self.cmb_audio_format = QComboBox()
         self.cmb_audio_format.setFixedHeight(30)
         self.cmb_audio_format.setToolTip("Filter audio container / codec")
-        self.cmb_audio_format.addItems([
-            "All Formats",
-            "MP3 Audio",
-            "M4A / AAC Audio",
-            "OPUS Audio"
-        ])
+        for label, key in [
+            ("Any Format (Default)", "any"),
+            ("M4A (AAC Audio)", "m4a"),
+            ("Opus (WebM Audio)", "opus"),
+            ("MP3 Audio", "mp3")
+        ]:
+            self.cmb_audio_format.addItem(label, key)
         self.cmb_audio_format.currentIndexChanged.connect(self._on_preset_changed)
 
         preset_layout.addWidget(lbl_preset)
@@ -1093,15 +1093,19 @@ class MediaDownloaderDialog(QDialog):
                 res_display = res_label
             self.tbl_formats.setItem(row_idx, 1, QTableWidgetItem(res_display))
             
-            self.tbl_formats.setItem(row_idx, 2, QTableWidgetItem(str(fmt["ext"])))
+            self.tbl_formats.setItem(row_idx, 2, QTableWidgetItem(str(fmt.get("ext", "-"))))
             
-            codec_info = fmt["vcodec"] if fmt["vcodec"] != "none" else fmt["acodec"]
+            vcodec = fmt.get("vcodec", "none")
+            acodec = fmt.get("acodec", "none")
+            codec_info = vcodec if vcodec != "none" else acodec
             self.tbl_formats.setItem(row_idx, 3, QTableWidgetItem(str(codec_info)))
             
-            tbr_str = f"{int(fmt['tbr'])} kbps" if fmt["tbr"] else "-"
+            tbr = fmt.get("tbr")
+            tbr_str = f"{int(tbr)} kbps" if tbr else "-"
             self.tbl_formats.setItem(row_idx, 4, QTableWidgetItem(tbr_str))
             
-            size_mb = f"{fmt['filesize'] / (1024*1024):.1f} MB" if fmt["filesize"] else "-"
+            filesize = fmt.get("filesize")
+            size_mb = f"{filesize / (1024*1024):.1f} MB" if filesize else "-"
             self.tbl_formats.setItem(row_idx, 5, QTableWidgetItem(size_mb))
 
         is_manual = self.chk_manual_selection.isChecked()
@@ -1191,35 +1195,62 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_fps.setEnabled(bool(available_fps) and not self.chk_manual_selection.isChecked())
         self.cmb_fps.blockSignals(False)
 
-        # Dynamic Video & Audio Codec Filters based on analyzed video formats
+        # Dynamic Video Codec Filters based on analyzed video formats
         has_h264 = any("avc" in (f.get("vcodec") or "").lower() or f.get("ext") == "mp4" for f in formats if f.get("is_video"))
         has_webm_vp9 = any("vp9" in (f.get("vcodec") or "").lower() or f.get("ext") == "webm" for f in formats if f.get("is_video"))
         has_av1 = any("av01" in (f.get("vcodec") or "").lower() or "av1" in (f.get("vcodec") or "").lower() for f in formats if f.get("is_video"))
 
+        v_items = [
+            ("Any Format (Default)", "any", True),
+            ("MP4 (H.264 / AVC)", "h264", has_h264),
+            ("WebM (VP9)", "webm", has_webm_vp9),
+            ("AV1 Codec", "av1", has_av1),
+        ]
+
+        curr_v_data = self.cmb_video_format.currentData() or "any"
+        self.cmb_video_format.blockSignals(True)
+        self.cmb_video_format.clear()
+        v_model = self.cmb_video_format.model()
+        v_idx_to_select = 0
+        for idx, (label, key, is_avail) in enumerate(v_items):
+            display_text = label if is_avail else f"{label} (Not Available)"
+            self.cmb_video_format.addItem(display_text, key)
+            item = v_model.item(idx)
+            if item:
+                item.setEnabled(is_avail)
+            if key == curr_v_data and is_avail:
+                v_idx_to_select = idx
+
+        self.cmb_video_format.setCurrentIndex(v_idx_to_select)
+        self.cmb_video_format.blockSignals(False)
+
+        # Dynamic Audio Codec Filters based on analyzed audio formats
         has_m4a = any("mp4a" in (f.get("acodec") or "").lower() or f.get("ext") == "m4a" for f in formats if f.get("is_audio"))
         has_opus = any("opus" in (f.get("acodec") or "").lower() or "vorbis" in (f.get("acodec") or "").lower() or f.get("ext") == "webm" for f in formats if f.get("is_audio"))
         has_mp3 = any("mp3" in (f.get("acodec") or "").lower() or f.get("ext") == "mp3" for f in formats if f.get("is_audio"))
 
-        v_options = [("Any Format (Default)", "any")]
-        if has_h264: v_options.append(("MP4 (H.264 / AVC)", "h264"))
-        if has_webm_vp9: v_options.append(("WebM (VP9)", "webm"))
-        if has_av1: v_options.append(("AV1 Codec", "av1"))
+        a_items = [
+            ("Any Format (Default)", "any", True),
+            ("M4A (AAC Audio)", "m4a", has_m4a),
+            ("Opus (WebM Audio)", "opus", has_opus),
+            ("MP3 Audio", "mp3", has_mp3),
+        ]
 
-        a_options = [("Any Format (Default)", "any")]
-        if has_m4a: a_options.append(("M4A (AAC)", "m4a"))
-        if has_opus: a_options.append(("Opus / WebM", "opus"))
-        if has_mp3: a_options.append(("MP3 Audio", "mp3"))
-
-        self.cmb_video_format.blockSignals(True)
-        self.cmb_video_format.clear()
-        for label, filter_key in v_options:
-            self.cmb_video_format.addItem(label, filter_key)
-        self.cmb_video_format.blockSignals(False)
-
+        curr_a_data = self.cmb_audio_format.currentData() or "any"
         self.cmb_audio_format.blockSignals(True)
         self.cmb_audio_format.clear()
-        for label, filter_key in a_options:
-            self.cmb_audio_format.addItem(label, filter_key)
+        a_model = self.cmb_audio_format.model()
+        a_idx_to_select = 0
+        for idx, (label, key, is_avail) in enumerate(a_items):
+            display_text = label if is_avail else f"{label} (Not Available)"
+            self.cmb_audio_format.addItem(display_text, key)
+            item = a_model.item(idx)
+            if item:
+                item.setEnabled(is_avail)
+            if key == curr_a_data and is_avail:
+                a_idx_to_select = idx
+
+        self.cmb_audio_format.setCurrentIndex(a_idx_to_select)
         self.cmb_audio_format.blockSignals(False)
 
     def _reset_preset_labels(self):
@@ -1252,6 +1283,44 @@ class MediaDownloaderDialog(QDialog):
             self.cmb_fps.clear()
             self.cmb_fps.addItem("Any FPS (Default)", 0)
             self.cmb_fps.blockSignals(False)
+
+        if hasattr(self, "cmb_video_format"):
+            v_items = [
+                ("Any Format (Default)", "any"),
+                ("MP4 (H.264 / AVC)", "h264"),
+                ("WebM (VP9)", "webm"),
+                ("AV1 Codec", "av1"),
+            ]
+            curr_v = self.cmb_video_format.currentIndex()
+            self.cmb_video_format.blockSignals(True)
+            self.cmb_video_format.clear()
+            v_model = self.cmb_video_format.model()
+            for idx, (label, key) in enumerate(v_items):
+                self.cmb_video_format.addItem(label, key)
+                item = v_model.item(idx)
+                if item:
+                    item.setEnabled(True)
+            self.cmb_video_format.setCurrentIndex(min(max(0, curr_v), len(v_items) - 1))
+            self.cmb_video_format.blockSignals(False)
+
+        if hasattr(self, "cmb_audio_format"):
+            a_items = [
+                ("Any Format (Default)", "any"),
+                ("M4A (AAC Audio)", "m4a"),
+                ("Opus (WebM Audio)", "opus"),
+                ("MP3 Audio", "mp3"),
+            ]
+            curr_a = self.cmb_audio_format.currentIndex()
+            self.cmb_audio_format.blockSignals(True)
+            self.cmb_audio_format.clear()
+            a_model = self.cmb_audio_format.model()
+            for idx, (label, key) in enumerate(a_items):
+                self.cmb_audio_format.addItem(label, key)
+                item = a_model.item(idx)
+                if item:
+                    item.setEnabled(True)
+            self.cmb_audio_format.setCurrentIndex(min(max(0, curr_a), len(a_items) - 1))
+            self.cmb_audio_format.blockSignals(False)
 
     def _on_playlist_ready(self, data: dict):
         self._finish_loading()

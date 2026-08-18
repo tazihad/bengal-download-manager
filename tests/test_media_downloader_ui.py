@@ -526,3 +526,47 @@ def test_playlist_download_enqueues_to_main_queue(qapp, tmp_path):
 
     mw.close()
     dlg.close()
+
+
+def test_video_and_audio_codec_availability_dropdowns(qapp):
+    """Verify that video and audio codec dropdowns display unavailable codecs as disabled."""
+    dlg = MediaDownloaderDialog()
+
+    # Video with only H264 video and M4A audio (no WebM VP9, no AV1, no Opus, no MP3)
+    sample_video = {
+        "title": "H264 Only Video",
+        "formats": [
+            {"format_id": "1", "vcodec": "avc1.4d401e", "acodec": "none", "ext": "mp4", "height": 720, "is_video": True, "is_audio": False},
+            {"format_id": "2", "vcodec": "none", "acodec": "mp4a.40.2", "ext": "m4a", "is_video": False, "is_audio": True}
+        ]
+    }
+    dlg._on_single_video_ready(sample_video)
+
+    # Video dropdown verification
+    v_model = dlg.cmb_video_format.model()
+    # 0: Any Format (Enabled)
+    assert v_model.item(0).isEnabled() is True
+    # 1: MP4 (H.264 / AVC) (Enabled)
+    assert v_model.item(1).isEnabled() is True
+    # 2: WebM (VP9) (Disabled)
+    assert v_model.item(2).isEnabled() is False
+    assert "(Not Available)" in dlg.cmb_video_format.itemText(2)
+    # 3: AV1 Codec (Disabled)
+    assert v_model.item(3).isEnabled() is False
+    assert "(Not Available)" in dlg.cmb_video_format.itemText(3)
+
+    # Audio dropdown verification
+    a_model = dlg.cmb_audio_format.model()
+    # 0: Any Format (Enabled)
+    assert a_model.item(0).isEnabled() is True
+    # 1: M4A (AAC Audio) (Enabled)
+    assert a_model.item(1).isEnabled() is True
+    # 2: Opus (WebM Audio) (Disabled)
+    assert a_model.item(2).isEnabled() is False
+    assert "(Not Available)" in dlg.cmb_audio_format.itemText(2)
+    # 3: MP3 Audio (Disabled)
+    assert a_model.item(3).isEnabled() is False
+    assert "(Not Available)" in dlg.cmb_audio_format.itemText(3)
+
+    dlg.close()
+
