@@ -54,7 +54,7 @@ if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
     chmod +x "$BUILD_DIR/files/bin/aria2c"
 fi
 
-for s in 16 32 64 128 256 512 1024; do
+for s in 16 32 64 128 256 512; do
     mkdir -p "$BUILD_DIR/files/share/icons/hicolor/${s}x${s}/apps"
     cp "assets/icons/${s}x${s}.png" "$BUILD_DIR/files/share/icons/hicolor/${s}x${s}/apps/$APP_ID.png" 2>/dev/null || true
 done

@@ -23,7 +23,7 @@ cp assets/io.github.tazihad.bengal-download-manager.png assets/bengal-download-m
 rm -rf AppDir
 
 install -Dm755 dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
-for s in 16 32 64 128 256 512 1024; do
+for s in 16 32 64 128 256 512; do
     if [ -f "assets/icons/${s}x${s}.png" ]; then
         install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/io.github.tazihad.bengal-download-manager.png"
         install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"

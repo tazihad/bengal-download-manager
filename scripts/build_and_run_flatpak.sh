@@ -56,7 +56,7 @@ mkdir -p "$BUILD_DIR/files/share/app-info/icons/flatpak"
 VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
 VERSION="${VERSION#v}"
 
-for s in 16 32 64 128 256 512 1024; do
+for s in 16 32 64 128 256 512; do
     mkdir -p "$BUILD_DIR/files/share/icons/hicolor/${s}x${s}/apps"
     cp "assets/icons/${s}x${s}.png" "$BUILD_DIR/files/share/icons/hicolor/${s}x${s}/apps/$APP_ID.png" 2>/dev/null || true
 done

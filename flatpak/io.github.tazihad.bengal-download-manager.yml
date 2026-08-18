@@ -48,7 +48,6 @@ modules:
       - install -D -m 644 assets/icons/128x128.png /app/share/icons/hicolor/128x128/apps/${FLATPAK_ID}.png
       - install -D -m 644 assets/icons/256x256.png /app/share/icons/hicolor/256x256/apps/${FLATPAK_ID}.png
       - install -D -m 644 assets/icons/512x512.png /app/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png
-      - install -D -m 644 assets/icons/1024x1024.png /app/share/icons/hicolor/1024x1024/apps/${FLATPAK_ID}.png
       - install -D -m 644 assets/logo.svg /app/share/icons/hicolor/scalable/apps/${FLATPAK_ID}.svg
       - install -D -m 644 flatpak/${FLATPAK_ID}.desktop /app/share/applications/${FLATPAK_ID}.desktop
       - install -D -m 644 flatpak/${FLATPAK_ID}.metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
