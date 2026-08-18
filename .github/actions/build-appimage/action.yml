@@ -38,8 +38,16 @@ runs:
         # Pre-populate AppDir structure using install
         rm -rf AppDir
         install -Dm755 "$RAW_EXE" AppDir/usr/bin/bengal-download-manager
-        install -Dm644 assets/io.github.tazihad.bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png
-        install -Dm644 assets/io.github.tazihad.bengal-download-manager.png AppDir/usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
+        for s in 16 32 64 128 256 512 1024; do
+            if [ -f "assets/icons/${s}x${s}.png" ]; then
+                install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/io.github.tazihad.bengal-download-manager.png"
+                install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
+            fi
+        done
+        if [ -f assets/logo.svg ]; then
+            install -Dm644 assets/logo.svg AppDir/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg
+            install -Dm644 assets/logo.svg AppDir/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg
+        fi
         install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/io.github.tazihad.bengal-download-manager.desktop
         install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
         if [ -f flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml ]; then
