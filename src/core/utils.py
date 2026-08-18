@@ -1085,7 +1085,7 @@ def choose_portal_open_file_path(title="Select File", folder=""):
 
 def get_autostart_filepath():
     autostart_dir = os.path.expanduser("~/.config/autostart")
-    return os.path.join(autostart_dir, "bengal-download-manager.desktop")
+    return os.path.join(autostart_dir, "io.github.tazihad.bengal-download-manager.desktop")
 
 
 def is_autostart_enabled():
@@ -1124,8 +1124,9 @@ Type=Application
 Name=Bengal Download Manager
 Comment=High-performance multi-threaded download manager
 Exec={exec_cmd}
-Icon=bengal-download-manager
+Icon=io.github.tazihad.bengal-download-manager
 Terminal=false
+StartupWMClass=io.github.tazihad.bengal-download-manager
 Categories=Network;FileTransfer;
 X-GNOME-Autostart-enabled=true
 """

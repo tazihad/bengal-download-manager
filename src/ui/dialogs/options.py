@@ -291,7 +291,8 @@ class OptionsDialog(QDialog):
         
         self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
         self.chk_start_minimized.setChecked(getattr(self.main_win, "start_minimized_on_autostart", False))
-
+        self.chk_start_minimized.setEnabled(self.chk_startup.isChecked())
+        self.chk_startup.toggled.connect(self.chk_start_minimized.setEnabled)
         self.chk_start_minimized.setToolTip("Launch hidden in system tray when autostarting")
         vbox_startup.addWidget(self.chk_start_minimized)
         
