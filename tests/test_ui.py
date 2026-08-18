@@ -1308,11 +1308,11 @@ def test_options_dialog_media_tab_youtube_client(qapp, monkeypatch):
     media_defs = saved_configs[0].get("media_downloader_defaults", {})
     assert media_defs.get("youtube_player_client") == "android,web"
 
-    # Test Reset button restores default "android"
+    # Test Reset button restores default "default"
     dlg2 = OptionsDialog(main_window=None)
     dlg2.txt_opt_youtube_client.setText("ios")
     dlg2.btn_opt_reset_youtube_client.click()
-    assert dlg2.txt_opt_youtube_client.text() == "android"
+    assert dlg2.txt_opt_youtube_client.text() == "default"
 
     dlg.close()
     dlg2.close()
