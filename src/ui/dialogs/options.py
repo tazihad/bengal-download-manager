@@ -748,6 +748,41 @@ class OptionsDialog(QDialog):
 
         layout.addWidget(grp_cookies)
 
+        # 3. YouTube Extractor & Player Client Settings
+        grp_extractor = QGroupBox("YouTube Extractor Engine Settings")
+        vbox_extractor = QVBoxLayout(grp_extractor)
+        vbox_extractor.setContentsMargins(10, 15, 10, 15)
+        vbox_extractor.setSpacing(10)
+
+        row_client = QHBoxLayout()
+        row_client.addWidget(QLabel("YouTube Player Client:"))
+        self.cmb_opt_youtube_client = QComboBox()
+        self.cmb_opt_youtube_client.setToolTip("Select YouTube player client used by yt-dlp to query formats and download streams (--extractor-args youtube:player_client=...)")
+        
+        client_options = [
+            ("Android (Default - Fast & Reliable)", "android"),
+            ("Android VR (Android VR Client)", "android_vr"),
+            ("Desktop Web (web)", "web"),
+            ("Mobile Web (mweb)", "mweb"),
+            ("iOS (Apple Mobile Client)", "ios"),
+            ("Smart TV (tv)", "tv"),
+            ("YouTube Studio (web_creator)", "web_creator"),
+            ("All / Automatic (yt-dlp default)", "all"),
+        ]
+        for label, val in client_options:
+            self.cmb_opt_youtube_client.addItem(label, val)
+
+        saved_client = media_defaults.get("youtube_player_client", "android")
+        idx_c = self.cmb_opt_youtube_client.findData(saved_client)
+        if idx_c != -1:
+            self.cmb_opt_youtube_client.setCurrentIndex(idx_c)
+        else:
+            self.cmb_opt_youtube_client.setCurrentIndex(0)
+
+        row_client.addWidget(self.cmb_opt_youtube_client, stretch=1)
+        vbox_extractor.addLayout(row_client)
+        layout.addWidget(grp_extractor)
+
         layout.addStretch()
 
     def _update_opt_cookies_ui(self):
@@ -893,6 +928,8 @@ class OptionsDialog(QDialog):
             c_path = self.txt_opt_cookies_path.text().strip()
             media_defaults["cookies_path"] = c_path
             self.config_data["media_downloader_cookies_path"] = c_path
+        if hasattr(self, "cmb_opt_youtube_client"):
+            media_defaults["youtube_player_client"] = self.cmb_opt_youtube_client.currentData() or "android"
         self.config_data["media_downloader_defaults"] = media_defaults
 
         save_category_config(self.config_data)

@@ -16,6 +16,7 @@ import urllib.request
 import subprocess
 from pathlib import Path
 from .utils import get_cache_dir, get_data_dir, get_clean_env
+from .config import load_category_config
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
 logger = logging.getLogger("bengal.media_downloader")
@@ -406,6 +407,13 @@ class MediaExtractorWorker(QThread):
             clean_env = get_clean_env(bin_dir)
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
 
+            try:
+                cfg = load_category_config()
+                media_defaults = cfg.get("media_downloader_defaults", {})
+                yt_client = media_defaults.get("youtube_player_client", "android") or "android"
+            except Exception:
+                yt_client = "android"
+
             cmd = [
                 yt_dlp_bin,
                 "-J",
@@ -414,6 +422,7 @@ class MediaExtractorWorker(QThread):
                 "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
                 "--ffmpeg-location", bin_dir,
+                "--extractor-args", f"youtube:player_client={yt_client}",
             ]
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
@@ -449,6 +458,7 @@ class MediaExtractorWorker(QThread):
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
                         "--ffmpeg-location", bin_dir,
+                        "--extractor-args", f"youtube:player_client={yt_client}",
                         self.url
                     ]
                     if is_debug:
@@ -642,6 +652,13 @@ class YtDlpDownloadWorker(QThread):
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
             output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
 
+            try:
+                cfg = load_category_config()
+                media_defaults = cfg.get("media_downloader_defaults", {})
+                yt_client = media_defaults.get("youtube_player_client", "android") or "android"
+            except Exception:
+                yt_client = "android"
+
             cmd = [
                 bin_path,
                 "--newline",
@@ -652,6 +669,7 @@ class YtDlpDownloadWorker(QThread):
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",
                 "--restrict-filenames",
+                "--extractor-args", f"youtube:player_client={yt_client}",
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]

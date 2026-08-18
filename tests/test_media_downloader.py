@@ -346,5 +346,40 @@ def test_yt_dlp_debug_mode_verbose_flag(tmp_path):
         assert "--no-warnings" not in cmd
 
 
+def test_yt_dlp_extractor_args_youtube_player_client(tmp_path):
+    """Verify that youtube:player_client extractor arg is passed to yt-dlp."""
+    downloader = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=android_test",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test.mp4"
+    )
+
+    custom_cfg = {
+        "media_downloader_defaults": {
+            "youtube_player_client": "android"
+        }
+    }
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value=custom_cfg), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = ["[download] Destination: /tmp/test.mp4"]
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        downloader.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        assert "--extractor-args" in cmd
+        ext_idx = cmd.index("--extractor-args")
+        assert cmd[ext_idx + 1] == "youtube:player_client=android"
+
+
+
 
 
