@@ -56,7 +56,12 @@ mkdir -p "$BUILD_DIR/files/share/app-info/icons/flatpak"
 VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
 VERSION="${VERSION#v}"
 
-cp assets/io.github.tazihad.bengal-download-manager.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png" 2>/dev/null || cp assets/logo.png "$BUILD_DIR/files/share/icons/hicolor/256x256/apps/$APP_ID.png"
+for s in 16 32 64 128 256 512; do
+    mkdir -p "$BUILD_DIR/files/share/icons/hicolor/${s}x${s}/apps"
+    cp "assets/icons/${s}x${s}.png" "$BUILD_DIR/files/share/icons/hicolor/${s}x${s}/apps/$APP_ID.png" 2>/dev/null || true
+done
+mkdir -p "$BUILD_DIR/files/share/icons/hicolor/scalable/apps"
+cp assets/logo.svg "$BUILD_DIR/files/share/icons/hicolor/scalable/apps/$APP_ID.svg" 2>/dev/null || true
 cp flatpak/io.github.tazihad.bengal-download-manager.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
 cp flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 

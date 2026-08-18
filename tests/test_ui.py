@@ -257,6 +257,12 @@ def test_options_dialog_startup_checkbox_ordering_and_browser_removal(qapp):
     assert startup_idx < minimized_idx
     assert startup_idx == 0
 
+    # Check enabled state dependency
+    opt_dlg.chk_startup.setChecked(False)
+    assert not opt_dlg.chk_start_minimized.isEnabled()
+    opt_dlg.chk_startup.setChecked(True)
+    assert opt_dlg.chk_start_minimized.isEnabled()
+
     opt_dlg.close()
     window.close()
 
