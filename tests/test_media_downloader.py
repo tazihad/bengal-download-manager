@@ -16,6 +16,13 @@ def test_parse_size_str_to_bytes():
     assert parse_size_str_to_bytes("1.5GB") == 1.5 * 1000 * 1000 * 1000
 
 
+def test_dependency_tools_standalone_yt_dlp_url():
+    """Verify that DEPENDENCY_TOOLS uses standalone yt-dlp binary builds."""
+    from core.media_downloader import DEPENDENCY_TOOLS
+    url = DEPENDENCY_TOOLS["yt-dlp"]["url"]
+    assert "yt-dlp_linux" in url
+
+
 def test_yt_dlp_manager_binary_detection(tmp_path):
     """Test YtDlpManager binary path check logic."""
     fake_bin = tmp_path / "yt-dlp"

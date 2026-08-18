@@ -30,7 +30,11 @@ DEPENDENCY_TOOLS = {
     "yt-dlp": {
         "binary_name": "yt-dlp",
         "version_cmd": ["--version"],
-        "url": "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp",
+        "url": (
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64"
+            if IS_ARM else
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+        ),
         "type": "direct"
     },
     "ffmpeg": {
