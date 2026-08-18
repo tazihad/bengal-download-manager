@@ -1312,6 +1312,21 @@ def test_options_dialog_media_tab_youtube_client(qapp, monkeypatch):
     dlg.close()
 
 
+def test_options_dialog_height_matches_main_window(qapp):
+    """Verify that OptionsDialog height matches main window height."""
+    from ui.dialogs.options import OptionsDialog
+    from PyQt6.QtWidgets import QWidget
+
+    fake_main = QWidget()
+    fake_main.resize(800, 680)
+
+    dlg = OptionsDialog(main_window=fake_main)
+    assert dlg.height() == 680
+    dlg.close()
+    fake_main.close()
+
+
+
 
 
 

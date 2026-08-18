@@ -25,7 +25,14 @@ class OptionsDialog(QDialog):
         MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Options")
         self.setWindowIcon(QApplication.windowIcon())
-        self.setFixedSize(500, 520)
+        
+        target_height = 520
+        if self._main_window and hasattr(self._main_window, "height"):
+            main_h = self._main_window.height()
+            if main_h > 200:
+                target_height = main_h
+        self.setFixedWidth(520)
+        self.setFixedHeight(target_height)
         
         # Set window flags so Options dialog appears as an independent top-level window in taskbar panels
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
