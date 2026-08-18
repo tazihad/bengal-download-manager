@@ -1535,12 +1535,16 @@ class MainWindow(QMainWindow):
         # FEATURE: Start Minimized logic
         if getattr(self, "start_minimized", False):
             # We use a timer to hide because some window managers might show it briefly otherwise
+            self._is_in_tray = True
             QTimer.singleShot(0, self.hide)
             # Update tray icon action to "Show"
             QTimer.singleShot(0, self.update_tray_action)
+        else:
+            self._is_in_tray = False
         
         self.active_downloads = {}
         self.active_speeds = {}
+        self._pending_tray_updates = {}
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
@@ -1652,6 +1656,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent):
         if not self.is_quitting:
             event.ignore()
+            self._is_in_tray = True
             self.hide()
             self.update_tray_action()
             return
@@ -2445,6 +2450,7 @@ class MainWindow(QMainWindow):
 
     def restore_window(self):
         """Restores the window from minimized or hidden state and brings it to the foreground."""
+        self._is_in_tray = False
         if self.isMinimized():
             self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
         self.show()
@@ -2452,10 +2458,12 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
         self.update_tray_action()
+        self._flush_pending_tray_updates()
 
     def toggle_window(self):
         """Toggles the visibility of the main window."""
         if self.isVisible() and not self.isMinimized():
+            self._is_in_tray = True
             self.hide()
             self.update_tray_action()
         else:
@@ -2527,6 +2535,8 @@ class MainWindow(QMainWindow):
 
     def _notify_views_changed(self):
         """Notifies QML bridge and scheduler dialog of download list/progress changes."""
+        if not self.isVisible():
+            return
         if MemoryGuard.is_widget_alive(getattr(self, '_scheduler_dlg', None)):
             if hasattr(self._scheduler_dlg, 'tabs') and self._scheduler_dlg.tabs.currentIndex() == 1:
                 self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
@@ -3210,11 +3220,61 @@ class MainWindow(QMainWindow):
         finally:
             self._is_applying_theme = False
 
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if hasattr(self, "timestamp_timer") and self.timestamp_timer.isActive():
+            self.timestamp_timer.stop()
+        if hasattr(self, "status_bar_timer") and self.status_bar_timer.isActive():
+            self.status_bar_timer.stop()
+        MemoryGuard.clean_and_trim()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if hasattr(self, "timestamp_timer") and not self.timestamp_timer.isActive():
+            self.timestamp_timer.start(10000)
+        if hasattr(self, "status_bar_timer") and not self.status_bar_timer.isActive():
+            self.status_bar_timer.start(1000)
+        self._flush_pending_tray_updates()
+
     def changeEvent(self, event):
         super().changeEvent(event)
         if event and event.type() == QEvent.Type.WindowStateChange:
             if self.isMinimized():
+                if hasattr(self, "timestamp_timer") and self.timestamp_timer.isActive():
+                    self.timestamp_timer.stop()
+                if hasattr(self, "status_bar_timer") and self.status_bar_timer.isActive():
+                    self.status_bar_timer.stop()
                 MemoryGuard.clean_and_trim()
+            elif not self.isMinimized() and self.isVisible():
+                if hasattr(self, "timestamp_timer") and not self.timestamp_timer.isActive():
+                    self.timestamp_timer.start(10000)
+                if hasattr(self, "status_bar_timer") and not self.status_bar_timer.isActive():
+                    self.status_bar_timer.start(1000)
+                self._flush_pending_tray_updates()
+
+    def _flush_pending_tray_updates(self):
+        if not getattr(self, "_pending_tray_updates", None):
+            return
+        updates = list(self._pending_tray_updates.values())
+        self._pending_tray_updates.clear()
+        
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
+        self.download_table.blockSignals(True)
+        try:
+            for item_ref, data in updates:
+                try:
+                    self._apply_download_row_data(item_ref, data)
+                except Exception:
+                    pass
+        finally:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self._notify_views_changed()
+            self.update_status_bar_speed()
+            self.download_table.viewport().update()
 
     def on_system_theme_changed(self, *args):
         if getattr(self, "_is_applying_theme", False):
@@ -4223,6 +4283,8 @@ class MainWindow(QMainWindow):
                         self._stop_worker_entry(dlg)
                     if hasattr(self, "active_speeds"):
                         self.active_speeds.pop(key, None)
+                    if hasattr(self, "_pending_tray_updates"):
+                        self._pending_tray_updates.pop(key, None)
                     if hasattr(self, "active_file_info_dialogs"):
                         self.active_file_info_dialogs.pop(key, None)
                     if hasattr(self, "active_complete_dialogs"):
@@ -4302,6 +4364,8 @@ class MainWindow(QMainWindow):
                     self._stop_worker_entry(dlg)
                 if hasattr(self, "active_speeds"):
                     self.active_speeds.pop(key, None)
+                if hasattr(self, "_pending_tray_updates"):
+                    self._pending_tray_updates.pop(key, None)
                 if hasattr(self, "active_file_info_dialogs"):
                     self.active_file_info_dialogs.pop(key, None)
                 if hasattr(self, "active_complete_dialogs"):
@@ -4318,6 +4382,36 @@ class MainWindow(QMainWindow):
         self.update_status_bar_speed()
         MemoryGuard.clean_and_trim()
     def update_download_row(self, item_ref, data):
+        # FAST PATH: When window is hibernating in tray, buffer state and avoid all UI/DOM mutations
+        if getattr(self, "_is_in_tray", False):
+            if not hasattr(self, "_pending_tray_updates"):
+                self._pending_tray_updates = {}
+            self._pending_tray_updates[id(item_ref)] = (item_ref, data)
+            if hasattr(self, "active_speeds"):
+                worker_status = data[2] if len(data) > 2 else ""
+                if worker_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
+                    self.active_speeds.pop(id(item_ref), None)
+                else:
+                    raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
+                    if raw_speed is not None:
+                        self.active_speeds[id(item_ref)] = float(raw_speed)
+                    elif len(data) > 4 and data[4]:
+                        self.active_speeds[id(item_ref)] = parse_size_to_bytes(str(data[4]).replace("/s", "").strip())
+            return
+
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
+        self.download_table.blockSignals(True)
+        try:
+            self._apply_download_row_data(item_ref, data)
+        finally:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self._notify_views_changed()
+
+    def _apply_download_row_data(self, item_ref, data):
         try:
             row = self.download_table.row(item_ref)
         except RuntimeError:
@@ -4333,128 +4427,117 @@ class MainWindow(QMainWindow):
         if old_logic_status == "Complete" and id(item_ref) not in getattr(self, "active_downloads", {}):
             return
         
-        # --- FIX: Block signals and disable sorting during update to prevent flickering ---
-        sorting_was_enabled = self.download_table.isSortingEnabled()
-        if sorting_was_enabled:
-            self.download_table.setSortingEnabled(False)
-        self.download_table.blockSignals(True)
+        # --- Update Last Try Timestamp ---
+        new_timestamp = str(time.time())
+        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+
+        new_name = data[0]
+        if item_ref.text() != new_name:
+            item_ref.setText(new_name)
+            item_ref.setToolTip(new_name)
+            item_ref.setIcon(get_file_icon(new_name))
         
-        try:
-            # --- Update Last Try Timestamp ---
-            new_timestamp = str(time.time())
-            item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+        # Col 1: Size (Display total file size if known)
+        tot_bytes = data[6] if len(data) > 6 else 0
+        comp_bytes = data[5] if len(data) > 5 else 0
 
-            new_name = data[0]
-            if item_ref.text() != new_name:
-                item_ref.setText(new_name)
-                item_ref.setToolTip(new_name)
-                item_ref.setIcon(get_file_icon(new_name))
-            
-            # Col 1: Size (Display total file size if known)
-            tot_bytes = data[6] if len(data) > 6 else 0
-            comp_bytes = data[5] if len(data) > 5 else 0
+        if tot_bytes > 0:
+            size_display = format_bytes(tot_bytes)
+        elif comp_bytes > 0:
+            size_display = format_bytes(comp_bytes)
+        else:
+            size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
 
-            if tot_bytes > 0:
-                size_display = format_bytes(tot_bytes)
-            elif comp_bytes > 0:
-                size_display = format_bytes(comp_bytes)
+        self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+        
+        # Col 2: Status
+        worker_status = data[2] if len(data) > 2 else ""
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
+            display_status = "Downloading"
+        elif worker_status == "Connecting...":
+            display_status = "Connecting..."
+        elif worker_status == "Complete":
+            display_status = "Complete"
+        elif worker_status == "Resume GET...":
+            display_status = "Resuming..."
+        elif worker_status == "Queued":
+            display_status = "Queued"
+        else:
+            display_status = worker_status
+
+        pct_str = ""
+        if len(data) > 6 and tot_bytes > 0:
+            pct_val = (comp_bytes / tot_bytes) * 100
+            if comp_bytes >= tot_bytes or pct_val >= 99.95 or worker_status == "Complete":
+                pct_str = "Complete"
             else:
-                size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
+                prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+                if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
+                    try:
+                        prev_val = float(str(prev_pct_str).replace("%", "").strip())
+                        if prev_val > 0:
+                            pct_val = prev_val
+                    except ValueError:
+                        pass
+                pct_str = f"{pct_val:.2f}%"
 
-            self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
-            
-            # Col 2: Status
-            worker_status = data[2] if len(data) > 2 else ""
-            if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
-                display_status = "Downloading"
-            elif worker_status == "Connecting...":
-                display_status = "Connecting..."
-            elif worker_status == "Complete":
-                display_status = "Complete"
-            elif worker_status == "Resume GET...":
-                display_status = "Resuming..."
-            elif worker_status == "Queued":
-                display_status = "Queued"
-            else:
-                display_status = worker_status
+        if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":
+            display_status = "Complete"
+            final_display = "Complete"
+        elif display_status == "Downloading":
+            final_display = pct_str if pct_str else "Downloading"
+        elif display_status in ["Paused", "Cancelled"]:
+            pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+            final_display = pct_data if pct_data else display_status
+        else:
+            final_display = display_status
 
-            pct_str = ""
-            if len(data) > 6 and tot_bytes > 0:
-                pct_val = (comp_bytes / tot_bytes) * 100
-                if comp_bytes >= tot_bytes or pct_val >= 99.95 or worker_status == "Complete":
-                    pct_str = "Complete"
-                else:
-                    prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
-                    if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
-                        try:
-                            prev_val = float(str(prev_pct_str).replace("%", "").strip())
-                            if prev_val > 0:
-                                pct_val = prev_val
-                        except ValueError:
-                            pass
-                    pct_str = f"{pct_val:.2f}%"
-
-            if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":
-                display_status = "Complete"
-                final_display = "Complete"
-            elif display_status == "Downloading":
-                final_display = pct_str if pct_str else "Downloading"
-            elif display_status in ["Paused", "Cancelled"]:
-                pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
-                final_display = pct_data if pct_data else display_status
-            else:
-                final_display = display_status
-
-            if pct_str and pct_str != "Complete" and status_item:
-                status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
-            
-            if final_display != old_status or display_status != old_logic_status:
-                self._set_status_text(row, final_display)
-                status_item = self.download_table.item(row, 2)
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-                if display_status != old_logic_status:
-                    self.update_ui_states()
-            
-            # Col 3 & 4: Time Left & Rate
-            if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
-                self._set_sortable_item(row, 3, "", parse_time_to_sec)
-                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-                if hasattr(self, "active_speeds"):
-                    self.active_speeds.pop(id(item_ref), None)
-            else:
-                time_val = data[3] if len(data) > 3 else ""
-                rate_val = data[4] if len(data) > 4 else ""
-                self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
-                self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
-                if hasattr(self, "active_speeds"):
-                    raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
-                    if raw_speed is not None:
-                        self.active_speeds[id(item_ref)] = float(raw_speed)
-                    elif rate_val:
-                        self.active_speeds[id(item_ref)] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
-            self.update_status_bar_speed()
-            
-            # Col 5: Last Try
-            formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
-            last_try_item = self.download_table.item(row, 5)
-            if not last_try_item:
-                self._set_timestamp_item(row, 5, formatted_last_try)
-            elif last_try_item.text() != formatted_last_try:
-                last_try_item.setText(formatted_last_try)
-            
-            is_active = (display_status not in ["Complete", "Error", "Paused", "Cancelled", "Queued"])
-            self._set_row_bold(row, is_active)
-            
-        finally:
-            self.download_table.blockSignals(False)
-            if sorting_was_enabled:
-                self.download_table.setSortingEnabled(True)
-            self._notify_views_changed()
+        if pct_str and pct_str != "Complete" and status_item:
+            status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
+        
+        if final_display != old_status or display_status != old_logic_status:
+            self._set_status_text(row, final_display)
+            status_item = self.download_table.item(row, 2)
+            if status_item:
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            if display_status != old_logic_status:
+                self.update_ui_states()
+        
+        # Col 3 & 4: Time Left & Rate
+        if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
+            self._set_sortable_item(row, 3, "", parse_time_to_sec)
+            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            if hasattr(self, "active_speeds"):
+                self.active_speeds.pop(id(item_ref), None)
+        else:
+            time_val = data[3] if len(data) > 3 else ""
+            rate_val = data[4] if len(data) > 4 else ""
+            self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+            self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+            if hasattr(self, "active_speeds"):
+                raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
+                if raw_speed is not None:
+                    self.active_speeds[id(item_ref)] = float(raw_speed)
+                elif rate_val:
+                    self.active_speeds[id(item_ref)] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
+        self.update_status_bar_speed()
+        
+        # Col 5: Last Try
+        formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
+        last_try_item = self.download_table.item(row, 5)
+        if not last_try_item:
+            self._set_timestamp_item(row, 5, formatted_last_try)
+        elif last_try_item.text() != formatted_last_try:
+            last_try_item.setText(formatted_last_try)
+        
+        is_active = (display_status not in ["Complete", "Error", "Paused", "Cancelled", "Queued"])
+        self._set_row_bold(row, is_active)
 
     def download_finished(self, item_ref, status_text):
         if hasattr(self, "active_speeds"):
             self.active_speeds.pop(id(item_ref), None)
+        if hasattr(self, "_pending_tray_updates"):
+            self._pending_tray_updates.pop(id(item_ref), None)
         self.update_status_bar_speed()
 
         # Ignore spurious Paused/Cancelled signals if already Complete

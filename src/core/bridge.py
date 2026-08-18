@@ -95,4 +95,6 @@ class DownloadBridge(QObject):
 
     @pyqtSlot()
     def refresh(self):
+        if self._main_window and hasattr(self._main_window, 'isVisible') and not self._main_window.isVisible():
+            return
         self.downloadsChanged.emit()
