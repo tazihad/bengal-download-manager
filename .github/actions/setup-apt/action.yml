@@ -1,0 +1,70 @@
+name: 'Setup Resilient APT'
+description: 'Configures resilient APT retry policies, mirrorlist fallback, package caching, and installs system packages'
+inputs:
+  packages:
+    description: 'Space-separated list of apt packages to install'
+    required: false
+    default: ''
+  cache:
+    description: 'Enable package caching'
+    required: false
+    default: 'true'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure APT Retries and Fallback
+      shell: bash
+      run: |
+        echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries
+
+        if [ "$(dpkg --print-architecture)" = "amd64" ]; then
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|mirror+file:/etc/apt/apt-mirrors.txt|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list 2>/dev/null || true
+          fi
+        fi
+
+    - name: Prepare APT Cache Keys
+      if: inputs.cache == 'true' && inputs.packages != ''
+      id: apt-cache-prep
+      shell: bash
+      run: |
+        mkdir -p "${HOME}/.apt-cache"
+        echo "week=$(date +'%Y-%U')" >> $GITHUB_OUTPUT
+        echo "pkg_hash=$(echo '${{ inputs.packages }}' | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+    - name: Restore APT Cache
+      if: inputs.cache == 'true' && inputs.packages != ''
+      uses: actions/cache@v4
+      with:
+        path: ${{ format('{0}/.apt-cache', env.HOME) }}
+        key: apt-${{ runner.os }}-${{ runner.arch }}-${{ steps.apt-cache-prep.outputs.pkg_hash }}-${{ steps.apt-cache-prep.outputs.week }}
+        restore-keys: |
+          apt-${{ runner.os }}-${{ runner.arch }}-${{ steps.apt-cache-prep.outputs.pkg_hash }}-
+          apt-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Restore Cached .deb files
+      if: inputs.cache == 'true' && inputs.packages != ''
+      shell: bash
+      run: |
+        if [ -d "${HOME}/.apt-cache" ] && compgen -G "${HOME}/.apt-cache/*.deb" > /dev/null; then
+          sudo cp -n ${HOME}/.apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+        fi
+
+    - name: Update & Install System Dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        if [ -n "${{ inputs.packages }}" ]; then
+          sudo apt-get install -y --no-install-recommends ${{ inputs.packages }}
+        fi
+
+    - name: Persist Downloaded Packages for Cache Save
+      if: inputs.cache == 'true' && inputs.packages != ''
+      shell: bash
+      run: |
+        mkdir -p "${HOME}/.apt-cache"
+        if compgen -G "/var/cache/apt/archives/*.deb" > /dev/null; then
+          sudo cp -n /var/cache/apt/archives/*.deb "${HOME}/.apt-cache/" 2>/dev/null || true
+          sudo chown -R $(id -u):$(id -g) "${HOME}/.apt-cache" 2>/dev/null || true
+        fi
