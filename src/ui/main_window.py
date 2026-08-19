@@ -1026,9 +1026,9 @@ class MainWindow(QMainWindow):
 
         if is_running:
             pid_info = f", PID {pid}" if pid else ""
-            self.status_aria2_label.setText("● Aria2: Running")
+            self.status_aria2_label.setText("● Aria2: Connected")
             self.status_aria2_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 6px;")
-            self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Running (Port {port}{pid_info})")
+            self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Connected (Port {port}{pid_info})")
         else:
             self.status_aria2_label.setText("● Aria2: Stopped")
             self.status_aria2_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")

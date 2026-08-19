@@ -733,7 +733,7 @@ def test_status_bar_aria2_and_memory(qapp):
     mock_proc.pid = 99999
     window.aria2_process = mock_proc
     window.update_status_bar_aria2()
-    assert "Running" in window.status_aria2_label.text()
+    assert "Connected" in window.status_aria2_label.text()
     assert "99999" in window.status_aria2_label.toolTip()
 
     # Mock stopped aria2 process
