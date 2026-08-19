@@ -12,6 +12,14 @@ inputs:
     description: 'Release target (latest or tag name)'
     required: false
     default: 'latest'
+  sign:
+    description: 'Sign AppImage with GPG (true/false)'
+    required: false
+    default: 'false'
+  gpg_key:
+    description: 'GPG key ID to sign with'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -73,6 +81,17 @@ runs:
         TARGET_APPIMAGE="bengal-download-manager-${VERSION}-${ARCH}.AppImage"
         TARGET_ZSYNC="bengal-download-manager-${VERSION}-${ARCH}.AppImage.zsync"
 
+        SIGN_ENV=()
+        if [ "${{ inputs.sign }}" = "true" ] || [ "${{ inputs.sign }}" = "1" ] || [ "${SIGN:-0}" = "1" ]; then
+            SIGN_ENV+=(SIGN=1 LDAI_SIGN=1)
+            GPG_KEY_VAL="${{ inputs.gpg_key }}"
+            if [ -n "$GPG_KEY_VAL" ] || [ -n "${GPG_KEY:-}" ]; then
+                KEY_ID="${GPG_KEY_VAL:-$GPG_KEY}"
+                SIGN_ENV+=(GPG_KEY="$KEY_ID" LDAI_GPG_KEY="$KEY_ID")
+            fi
+        fi
+
+        env "${SIGN_ENV[@]}" \
         VERSION="${VERSION}" \
         LINUXDEPLOY_OUTPUT_VERSION="${VERSION}" \
         UPDATE_INFORMATION="${ZSYNC_INFO}" \

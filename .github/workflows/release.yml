@@ -98,6 +98,10 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+    env:
+      HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     
     steps:
       - name: Checkout Code
@@ -132,11 +136,21 @@ jobs:
           version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
+      - name: Import GPG Key for AppImage Signing
+        if: env.HAS_GPG == 'true'
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
       - name: Build AppImage
         uses: ./.github/actions/build-appimage
         with:
           version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
+          sign: ${{ env.HAS_GPG == 'true' }}
+          gpg_key: ${{ steps.import_gpg.outputs.keyid }}
 
       - name: Build Extension
         if: matrix.arch == 'x86_64'

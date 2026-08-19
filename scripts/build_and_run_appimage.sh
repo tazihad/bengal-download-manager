@@ -57,6 +57,15 @@ echo "=== 4. Packaging AppImage with linuxdeploy & zsync ==="
 UPDATE_INFO="gh-releases-zsync|${REPO_OWNER}|${REPO_NAME}|latest|bengal-download-manager-*-${ARCH}.AppImage.zsync"
 OUTPUT_APPIMAGE="dist/bengal-download-manager-${ARCH}.AppImage"
 
+SIGN_ENV=()
+if [ "${SIGN:-0}" = "1" ] || [ "${SIGN:-0}" = "true" ]; then
+    SIGN_ENV+=(SIGN=1 LDAI_SIGN=1)
+    if [ -n "${GPG_KEY:-}" ]; then
+        SIGN_ENV+=(GPG_KEY="${GPG_KEY}" LDAI_GPG_KEY="${GPG_KEY}")
+    fi
+fi
+
+env "${SIGN_ENV[@]}" \
 VERSION="${VERSION}" \
 LINUXDEPLOY_OUTPUT_VERSION="${VERSION}" \
 UPDATE_INFORMATION="${UPDATE_INFO}" \
