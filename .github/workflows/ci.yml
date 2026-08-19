@@ -9,14 +9,6 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
-  push:
-    branches:
-      - 'main'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
 
 concurrency:
   group: ci-${{ github.ref }}

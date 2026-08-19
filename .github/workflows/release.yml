@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - 'main'
+    tags:
+      - 'v*'
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -16,9 +18,13 @@ on:
         description: 'Release Tag (leave empty for auto-increment)'
         required: false
         default: ''
+      is_prerelease:
+        description: 'Mark as Pre-release / Alpha'
+        type: boolean
+        default: false
 
 concurrency:
-  group: release-main
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -245,7 +251,7 @@ jobs:
           body_path: release_body.md
           files: release_dist/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(needs.prepare.outputs.tag, 'alpha') || contains(needs.prepare.outputs.tag, 'beta') || contains(needs.prepare.outputs.tag, 'rc') || inputs.is_prerelease }}
           generate_release_notes: true
           append_body: true
         env:
