@@ -249,6 +249,17 @@ class MainWindow(QMainWindow):
             token = ext_data.get("token", "")
             max_conn = str(ext_data.get("max_connections", 8))
 
+            # If an Aria2 instance is already responding on this port, don't spawn a duplicate that will immediately crash
+            try:
+                import socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.2)
+                    if s.connect_ex(("127.0.0.1", port)) == 0:
+                        # Existing daemon is already active on the port
+                        return None
+            except Exception:
+                pass
+
             # Note: --no-proxy is not needed for the server side of RPC
             cmd = [
                 aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
@@ -991,9 +1002,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "status_aria2_label"):
             return
         is_running = False
-        if hasattr(self, "aria2_process") and self.aria2_process:
-            if self.aria2_process.poll() is None:
-                is_running = True
+        pid = None
 
         try:
             ext_data = load_extension_config()
@@ -1001,11 +1010,25 @@ class MainWindow(QMainWindow):
         except Exception:
             port = 56800
 
+        if hasattr(self, "aria2_process") and self.aria2_process and self.aria2_process.poll() is None:
+            is_running = True
+            pid = getattr(self.aria2_process, "pid", None)
+        else:
+            # If process object is not running or not tracked, check if an Aria2 RPC daemon is active on port
+            try:
+                import socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.15)
+                    if s.connect_ex(("127.0.0.1", port)) == 0:
+                        is_running = True
+            except Exception:
+                pass
+
         if is_running:
-            pid = getattr(self.aria2_process, "pid", "N/A")
+            pid_info = f", PID {pid}" if pid else ""
             self.status_aria2_label.setText("● Aria2: Running")
             self.status_aria2_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 6px;")
-            self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Running (Port {port}, PID {pid})")
+            self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Running (Port {port}{pid_info})")
         else:
             self.status_aria2_label.setText("● Aria2: Stopped")
             self.status_aria2_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")
@@ -2737,11 +2760,20 @@ class MainWindow(QMainWindow):
         # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.
         use_aria2 = True
         try:
-            # Quick check if it's alive, but don't strictly require it to be responsive
-            # at this exact millisecond (it might be starting up or busy).
-            if not hasattr(self, 'aria2_process') or not self.aria2_process:
+            is_aria2_live = False
+            if hasattr(self, 'aria2_process') and self.aria2_process and self.aria2_process.poll() is None:
+                is_aria2_live = True
+            else:
+                import socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.15)
+                    ext_data = load_extension_config()
+                    r_port = ext_data.get("port", 56800)
+                    if s.connect_ex(("127.0.0.1", r_port)) == 0:
+                        is_aria2_live = True
+            if not is_aria2_live:
                 use_aria2 = False
-        except:
+        except Exception:
             use_aria2 = False
 
         if use_aria2:

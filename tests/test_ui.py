@@ -723,7 +723,7 @@ def test_status_bar_download_speed(qapp):
 
 
 def test_status_bar_aria2_and_memory(qapp):
-    from unittest.mock import MagicMock
+    from unittest.mock import MagicMock, patch
     window = MainWindow(start_ipc=False)
     window.hide()
 
@@ -738,7 +738,9 @@ def test_status_bar_aria2_and_memory(qapp):
 
     # Mock stopped aria2 process
     mock_proc.poll.return_value = 1
-    window.update_status_bar_aria2()
+    with patch("socket.socket") as mock_sock:
+        mock_sock.return_value.__enter__.return_value.connect_ex.return_value = 1
+        window.update_status_bar_aria2()
     assert "Stopped" in window.status_aria2_label.text()
 
     # Memory label update
