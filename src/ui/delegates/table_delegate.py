@@ -37,8 +37,8 @@ class ModernTableDelegate(QStyledItemDelegate):
         self.row_height = 50
 
     def sizeHint(self, option: QStyleOptionViewItem, index):
-        size = super().sizeHint(option, index)
-        return QSize(size.width(), self.row_height)
+        width = option.rect.width() if option.rect.isValid() and option.rect.width() > 0 else 100
+        return QSize(width, self.row_height)
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
         painter.save()
@@ -74,8 +74,8 @@ class ModernTableDelegate(QStyledItemDelegate):
 
         # Dynamic text colors adapting to selection and theme
         if is_selected:
-            primary_color = QColor("#000000")
-            sub_color = QColor("#000000")
+            primary_color = option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.HighlightedText)
+            sub_color = primary_color
         else:
             primary_color = option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText)
             sub_color = option.palette.color(option.palette.ColorGroup.Disabled, option.palette.ColorRole.WindowText)
@@ -153,16 +153,19 @@ class ModernTableDelegate(QStyledItemDelegate):
                 state_label = "Connecting"
             elif clean_status.lower() in ("download", "downloading", "receiving data"):
                 state_label = "Downloading"
-            else:
+            elif "%" not in clean_status:
                 state_label = clean_status
-        elif "pause" in status_text.lower():
-            state_label = "Paused"
-        elif "resum" in status_text.lower():
-            state_label = "Resuming"
-        elif "connect" in status_text.lower():
-            state_label = "Connecting"
-        elif pct > 0:
-            state_label = "Downloading"
+        if not state_label:
+            if "pause" in status_text.lower():
+                state_label = "Paused"
+            elif "resum" in status_text.lower():
+                state_label = "Resuming"
+            elif "connect" in status_text.lower():
+                state_label = "Connecting"
+            elif "error" in status_text.lower():
+                state_label = "Error"
+            elif pct > 0:
+                state_label = "Downloading"
 
         if pct_str:
             if state_label and state_label.lower() not in pct_str.lower():
@@ -175,7 +178,7 @@ class ModernTableDelegate(QStyledItemDelegate):
         text_rect = QRect(rect.left(), rect.top() + 1, rect.width(), (rect.height() // 2))
 
         if is_selected:
-            painter.setPen(QColor("#000000"))
+            painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.HighlightedText))
         else:
             if "pause" in display_label.lower():
                 painter.setPen(QColor("#f59e0b"))
@@ -184,7 +187,12 @@ class ModernTableDelegate(QStyledItemDelegate):
             else:
                 painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText))
         metrics = painter.fontMetrics()
-        elided_status = metrics.elidedText(display_label, Qt.TextElideMode.ElideRight, text_rect.width())
+        if pct_str and metrics.horizontalAdvance(display_label) > text_rect.width():
+            elided_status = metrics.elidedText(display_label, Qt.TextElideMode.ElideRight, text_rect.width())
+            if "..." in elided_status and metrics.horizontalAdvance(pct_str) <= text_rect.width():
+                elided_status = pct_str
+        else:
+            elided_status = metrics.elidedText(display_label, Qt.TextElideMode.ElideRight, text_rect.width())
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextSingleLine, elided_status)
 
         # Mini Progress Bar underneath percentage/download status
@@ -211,7 +219,7 @@ class ModernTableDelegate(QStyledItemDelegate):
         font = QFont(option.font)
         painter.setFont(font)
         if is_selected:
-            painter.setPen(QColor("#000000"))
+            painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.HighlightedText))
         else:
             painter.setPen(option.palette.color(option.palette.ColorGroup.Normal, option.palette.ColorRole.WindowText))
         metrics = painter.fontMetrics()

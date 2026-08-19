@@ -130,6 +130,12 @@ class Aria2Worker(QThread):
             if getattr(self, 'is_pause_requested', False):
                 download_speed = 0
                 state = "paused"
+            elif getattr(self, 'is_resuming', False):
+                if state == "paused":
+                    state = "active"
+                    display_state = "Resuming..."
+                else:
+                    self.is_resuming = False
 
             self.main_bar_signal.emit(completed_length, total_length)
 
@@ -302,12 +308,16 @@ class Aria2Worker(QThread):
 
     def pause(self):
         self.is_pause_requested = True
+        self.is_paused = True
+        self.is_resuming = False
         if self.gid:
             self.call_rpc("aria2.pause", [self.gid])
             self.log_signal.emit("Pausing download in Aria2...")
 
     def resume(self):
         self.is_pause_requested = False
+        self.is_paused = False
+        self.is_resuming = True
         self.paused_logged = False
         if self.gid:
             self.call_rpc("aria2.unpause", [self.gid])

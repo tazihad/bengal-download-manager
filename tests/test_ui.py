@@ -723,7 +723,7 @@ def test_status_bar_download_speed(qapp):
 
 
 def test_status_bar_aria2_and_memory(qapp):
-    from unittest.mock import MagicMock
+    from unittest.mock import MagicMock, patch
     window = MainWindow(start_ipc=False)
     window.hide()
 
@@ -733,12 +733,14 @@ def test_status_bar_aria2_and_memory(qapp):
     mock_proc.pid = 99999
     window.aria2_process = mock_proc
     window.update_status_bar_aria2()
-    assert "Running" in window.status_aria2_label.text()
+    assert "Connected" in window.status_aria2_label.text()
     assert "99999" in window.status_aria2_label.toolTip()
 
     # Mock stopped aria2 process
     mock_proc.poll.return_value = 1
-    window.update_status_bar_aria2()
+    with patch("socket.socket") as mock_sock:
+        mock_sock.return_value.__enter__.return_value.connect_ex.return_value = 1
+        window.update_status_bar_aria2()
     assert "Stopped" in window.status_aria2_label.text()
 
     # Memory label update
@@ -1345,8 +1347,9 @@ def test_tray_hibernation_buffers_updates_and_suspends_timers(qapp):
     window.update_download_row(item_ref, progress_data)
 
     # Item should be buffered in _pending_tray_updates and not yet mutated in DOM
-    assert id(item_ref) in window._pending_tray_updates
-    assert window.active_speeds.get(id(item_ref)) is not None
+    item_key = window._get_item_key(item_ref)
+    assert item_key in window._pending_tray_updates
+    assert window.active_speeds.get(item_key) is not None
     if window.tray_icon:
         assert "2.00 MB/s" in window.tray_icon.toolTip()
         assert "active download" in window.tray_icon.toolTip()
