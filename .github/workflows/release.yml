@@ -9,7 +9,7 @@ on:
         default: ''
   push:
     branches:
-      - '**'
+      - 'main'
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -18,7 +18,7 @@ on:
       - '.gitignore'
   pull_request:
     branches:
-      - '**'
+      - 'main'
     paths-ignore:
       - '**.md'
       - 'docs/**'
