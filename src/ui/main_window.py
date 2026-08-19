@@ -1707,17 +1707,23 @@ class MainWindow(QMainWindow):
         if not key or key not in getattr(self, "active_downloads", {}):
             return False
         entry = self.active_downloads.get(key)
-        if entry:
-            worker = getattr(entry, "worker", entry)
-            if getattr(worker, "is_paused", False) or getattr(worker, "is_pause_requested", False):
-                return False
-        row = self.download_table.row(item)
-        if row >= 0:
-            status_item = self.download_table.item(row, 2)
-            if status_item:
-                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                if logic_status in ["Paused", "Cancelled", "Error", "Complete"]:
+        if entry is not None:
+            try:
+                worker = getattr(entry, "worker", entry)
+                if getattr(worker, "is_paused", False) or getattr(worker, "is_pause_requested", False):
                     return False
+            except (RuntimeError, AttributeError, Exception):
+                pass
+        try:
+            row = self.download_table.row(item)
+            if row >= 0:
+                status_item = self.download_table.item(row, 2)
+                if status_item:
+                    logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                    if logic_status in ["Paused", "Cancelled", "Error", "Complete"]:
+                        return False
+        except (RuntimeError, Exception):
+            return False
         return True
 
     def _is_row_active(self, row: int) -> bool:
@@ -2821,17 +2827,28 @@ class MainWindow(QMainWindow):
             key = self._get_item_key(item_name)
             if key in self.active_downloads:
                 dialog = self.active_downloads[key]
-                status_item = self.download_table.item(row, 2)
-                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-                
-                if logic_status in ["Paused", "Cancelled", "Error"]:
-                    # Forward resume to existing worker
-                    if hasattr(dialog, 'worker') and dialog.worker:
-                        dialog.worker.resume()
-                
-                dialog.activateWindow()
-                dialog.raise_()
-                continue
+                if not MemoryGuard.is_widget_alive(dialog) and not hasattr(dialog, 'isRunning'):
+                    self.active_downloads.pop(key, None)
+                    dialog = None
+
+                if dialog:
+                    status_item = self.download_table.item(row, 2)
+                    logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                    
+                    if logic_status in ["Paused", "Cancelled", "Error"]:
+                        # Forward resume to existing worker
+                        try:
+                            if hasattr(dialog, 'worker') and dialog.worker:
+                                dialog.worker.resume()
+                        except (RuntimeError, Exception):
+                            pass
+                    
+                    try:
+                        dialog.activateWindow()
+                        dialog.raise_()
+                    except (RuntimeError, Exception):
+                        pass
+                    continue
             
             # Start/Resume download
             url = item_name.data(Qt.ItemDataRole.UserRole)
@@ -2897,47 +2914,60 @@ class MainWindow(QMainWindow):
 
     def _stop_worker_entry(self, entry):
         """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
-        from core.media_downloader import YtDlpDownloadWorker
-        if isinstance(entry, YtDlpDownloadWorker):
-            try:
-                entry.stop()
-                entry.requestInterruption()
-                entry.quit()
-                entry.wait(2000)
-                if entry.isRunning():
-                    entry.terminate()
+        if entry is None:
+            return
+        try:
+            from core.media_downloader import YtDlpDownloadWorker
+            if isinstance(entry, YtDlpDownloadWorker):
+                try:
+                    entry.stop()
+                    entry.requestInterruption()
+                    entry.quit()
                     entry.wait(2000)
-            except Exception:
-                pass
-        else:
-            # Legacy ProgressDialog path
-            if hasattr(entry, 'worker') and entry.worker:
-                try:
-                    entry.worker.main_progress_signal.disconnect()
+                    if entry.isRunning():
+                        entry.terminate()
+                        entry.wait(2000)
                 except Exception:
                     pass
+            else:
+                # ProgressDialog path - protect against deleted C++ object
+                worker = None
                 try:
-                    entry.worker.finished_signal.disconnect()
-                except Exception:
+                    worker = getattr(entry, 'worker', None)
+                except (RuntimeError, AttributeError, Exception):
                     pass
+
+                if worker:
+                    try:
+                        worker.main_progress_signal.disconnect()
+                    except Exception:
+                        pass
+                    try:
+                        worker.finished_signal.disconnect()
+                    except Exception:
+                        pass
+                    try:
+                        worker.stop()
+                    except Exception:
+                        pass
+                    try:
+                        worker.quit()
+                        worker.wait(1000)
+                    except Exception:
+                        pass
+
                 try:
-                    entry.worker.stop()
-                except Exception:
+                    if hasattr(entry, 'finished'):
+                        entry.finished.disconnect()
+                except (RuntimeError, AttributeError, Exception):
                     pass
+
                 try:
-                    entry.worker.quit()
-                    entry.worker.wait(1000)
-                except Exception:
+                    entry.reject()
+                except (RuntimeError, AttributeError, Exception):
                     pass
-            if hasattr(entry, 'finished'):
-                try:
-                    entry.finished.disconnect()
-                except Exception:
-                    pass
-            try:
-                entry.reject()
-            except Exception:
-                pass
+        except (RuntimeError, Exception):
+            pass
 
     def stop_all_downloads(self):
         for key, entry in list(self.active_downloads.items()):
