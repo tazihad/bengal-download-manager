@@ -60,7 +60,7 @@ body {
   background: var(--bg-window);
   color: var(--text-main);
   padding: 12px;
-  width: 230px;
+  width: 380px;
   -webkit-font-smoothing: antialiased;
 }
 
