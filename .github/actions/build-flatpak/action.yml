@@ -16,7 +16,7 @@ runs:
     - name: Install Flatpak Dependencies
       uses: ./.github/actions/setup-apt
       with:
-        packages: flatpak appstream appstream-compose
+        packages: flatpak appstream appstream-compose librsvg2-common
 
     - name: Build Flatpak Bundle
       shell: bash
