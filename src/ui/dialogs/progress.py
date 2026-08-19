@@ -284,11 +284,19 @@ class DownloadProgressDialog(QDialog):
             self.btn_pause.setText("Resume")
             self.lbl_main_status.setText("Paused")
             self.btn_cancel.setText("Close") 
+            self.lbl_speed.setText("0.00 B/s")
+            self.lbl_time.setText("-")
+            if hasattr(self.worker, "main_progress_signal"):
+                data = (self.worker.filename, self.worker.format_bytes(self.total_bytes, precision=2, pad=False) if self.total_bytes > 0 else "Unknown", "Paused", "", "0.00 B/s", self.current_bytes, self.total_bytes, 0)
+                self.worker.main_progress_signal.emit(self.worker.row_index, data)
         elif self.btn_pause.text() == "Resume":
             self.worker.resume()
             self.btn_pause.setText("Pause")
             self.lbl_main_status.setText("Resuming...")
             self.btn_cancel.setText("Cancel") 
+            if hasattr(self.worker, "main_progress_signal"):
+                data = (self.worker.filename, self.worker.format_bytes(self.total_bytes, precision=2, pad=False) if self.total_bytes > 0 else "Unknown", "Resuming...", "", "0.00 B/s", self.current_bytes, self.total_bytes, 0)
+                self.worker.main_progress_signal.emit(self.worker.row_index, data)
         elif self.btn_pause.text() == "Open Folder":
             import os
             show_in_folder(self.worker.target_path)
@@ -513,7 +521,8 @@ class DownloadProgressDialog(QDialog):
             
             
     def closeEvent(self, event):
-        if not getattr(self, "is_completed", False) and self.btn_cancel.text() == "Cancel":
-            self.worker.stop()
-            self.worker.finished_signal.emit(self.worker.row_index, "Paused")
+        if not getattr(self, "is_completed", False):
+            if hasattr(self, "worker") and self.worker:
+                self.worker.stop()
+                self.worker.finished_signal.emit(self.worker.row_index, "Paused")
         self.reject()
