@@ -131,9 +131,8 @@ class Aria2Worker(QThread):
                 download_speed = 0
                 state = "paused"
             elif getattr(self, 'is_resuming', False):
-                if state == "paused":
+                if state in ("paused", "waiting"):
                     state = "active"
-                    display_state = "Resuming..."
                 else:
                     self.is_resuming = False
 
@@ -143,11 +142,18 @@ class Aria2Worker(QThread):
             if download_speed > 0 and total_length > 0:
                 time_left = (total_length - completed_length) / download_speed
 
-            display_state = "Receiving data..."
-            if state == "paused": display_state = "Paused"
-            elif state == "complete": display_state = "Complete"
-            elif state == "error": display_state = "Error"
-            elif state == "removed": display_state = "Cancelled"
+            if getattr(self, 'is_resuming', False):
+                display_state = "Resuming..."
+            elif state == "paused":
+                display_state = "Paused"
+            elif state == "complete":
+                display_state = "Complete"
+            elif state == "error":
+                display_state = "Error"
+            elif state == "removed":
+                display_state = "Cancelled"
+            else:
+                display_state = "Receiving data..."
 
             self.main_progress_signal.emit(self.row_index, (
                 self.filename,
