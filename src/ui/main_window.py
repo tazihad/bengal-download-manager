@@ -1711,6 +1711,7 @@ class MainWindow(QMainWindow):
                 worker = getattr(entry, "worker", entry)
                 if getattr(worker, "is_paused", False) or getattr(worker, "is_pause_requested", False):
                     return False
+                return True
             except (RuntimeError, AttributeError, Exception):
                 pass
         try:
@@ -2834,6 +2835,9 @@ class MainWindow(QMainWindow):
                                 dialog.worker.resume()
                         except (RuntimeError, Exception):
                             pass
+                        self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                        if status_item:
+                            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
                     
                     try:
                         dialog.activateWindow()
@@ -3243,8 +3247,8 @@ class MainWindow(QMainWindow):
         if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":
             display_status = "Complete"
             final_display = "Complete"
-        elif display_status == "Downloading":
-            final_display = pct_str if pct_str else "Downloading"
+        elif display_status in ["Downloading", "Resuming..."]:
+            final_display = pct_str if pct_str else display_status
         elif display_status in ["Paused", "Cancelled"]:
             pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
             final_display = pct_data if pct_data else display_status
