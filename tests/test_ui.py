@@ -1510,6 +1510,162 @@ def test_download_progress_dialog_respects_custom_connections(qapp, monkeypatch,
     worker1.deleteLater()
 
 
+def test_pause_resume_multi_interface_lifecycle(qapp, monkeypatch):
+    """
+    Test multiple pause and resume operations on a single download across:
+    1. Toolbar Pause / Resume (action_stop, action_resume)
+    2. Download Window Pause / Resume (DownloadProgressDialog.toggle_pause)
+    3. Right-Click Context Menu (stop_selected_download, resume_selected_download)
+    4. Mixed cross-interface alternating cycles
+    """
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    # Prevent spawning real background processes
+    monkeypatch.setattr(window, "_start_download_worker", lambda url, item_ref, resume_filename=None, **kw: None)
+
+    window.start_download(
+        url="http://example.com/test_lifecycle.iso",
+        custom_save_dir="/tmp",
+        start_paused=False,
+        show_dialog=False
+    )
+
+    row = 0
+    item0 = window.download_table.item(row, 0)
+    key = window._get_item_key(item0)
+    assert key is not None
+    item0.setData(Qt.ItemDataRole.UserRole + 13, 1)
+
+    from PyQt6.QtCore import QObject, pyqtSignal
+    class MockWorker(QObject):
+        log_signal = pyqtSignal(str)
+        main_bar_signal = pyqtSignal(object, object)
+        main_progress_signal = pyqtSignal(int, tuple)
+        finished_signal = pyqtSignal(int, str)
+        init_segments_signal = pyqtSignal(int)
+        segment_update_signal = pyqtSignal(int, object, object, float, str)
+
+        def __init__(self):
+            super().__init__()
+            self.is_paused = False
+            self.is_pause_requested = False
+            self.url = "http://example.com/test_lifecycle.iso"
+            self.target_path = "/tmp/test_lifecycle.iso"
+            self.filename = "test_lifecycle.iso"
+            self.row_index = 0
+            self.total_bytes = 1000000
+            self.current_bytes = 500000
+            self.generation = 1
+        def start(self):
+            pass
+        def stop(self):
+            pass
+        def pause(self):
+            self.is_paused = True
+            self.is_pause_requested = True
+        def resume(self):
+            self.is_paused = False
+            self.is_pause_requested = False
+        def format_bytes(self, b, **kw):
+            return "500.00 KB"
+
+    mock_worker = MockWorker()
+    from ui.dialogs import DownloadProgressDialog
+    dlg = DownloadProgressDialog(mock_worker, None)
+    dlg.hide()
+    window.active_downloads[key] = dlg
+    mock_worker.main_progress_signal.connect(lambda _, data: window.update_download_row(item0, data))
+
+    window.download_table.selectRow(row)
+
+    # Initial active progress tick (50.00%, Downloading)
+    window.update_download_row(item0, (
+        "test_lifecycle.iso", "1.00 MB", "Receiving data...", "10s", "50.00 KB/s", 500000, 1000000, 50000, 1
+    ))
+    assert window.download_table.item(row, 2).text() == "50.00%"
+    assert window._is_row_active(row) is True
+    assert window.action_stop.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
+
+    # 1. TOOLBAR PAUSE & RESUME
+    window.action_stop.trigger()
+    assert mock_worker.is_paused is True
+    assert item0.data(Qt.ItemDataRole.UserRole + 11) == "Paused"
+    assert window.download_table.item(row, 2).text() == "50.00%"
+    assert window._is_row_active(row) is False
+    assert window.action_stop.isEnabled() is False
+    assert window.action_resume.isEnabled() is True
+
+    # Stale in-flight callback from older session arriving while paused -> discarded
+    window.update_download_row(item0, (
+        "test_lifecycle.iso", "1.00 MB", "Receiving data...", "9s", "60.00 KB/s", 510000, 1000000, 60000, 0
+    ))
+    assert window.download_table.item(row, 2).text() == "50.00%"
+    assert window._is_row_active(row) is False
+
+    # Toolbar Resume
+    window.action_resume.trigger()
+    assert mock_worker.is_paused is False
+    assert item0.data(Qt.ItemDataRole.UserRole + 11) == "Normal"
+    assert window._is_row_active(row) is True
+    assert window.action_stop.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
+
+    # 2. DOWNLOAD WINDOW (DIALOG) PAUSE & RESUME
+    dlg.btn_pause.setText("Pause")
+    dlg.toggle_pause()
+    assert mock_worker.is_paused is True
+    assert window._is_row_active(row) is False
+    assert window.action_stop.isEnabled() is False
+    assert window.action_resume.isEnabled() is True
+
+    dlg.btn_pause.setText("Resume")
+    dlg.toggle_pause()
+    assert mock_worker.is_paused is False
+    assert window._is_row_active(row) is True
+    assert window.action_stop.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
+
+    # 3. RIGHT-CLICK CONTEXT MENU PAUSE & RESUME
+    window.stop_selected_download()
+    assert mock_worker.is_paused is True
+    assert window._is_row_active(row) is False
+    assert window.action_stop.isEnabled() is False
+    assert window.action_resume.isEnabled() is True
+
+    window.resume_selected_download()
+    assert mock_worker.is_paused is False
+    assert window._is_row_active(row) is True
+    assert window.action_stop.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
+
+    # 4. CROSS-INTERFACE ALTERNATING SWITCHES
+    # Toolbar Pause -> Window Resume
+    window.action_stop.trigger()
+    assert window._is_row_active(row) is False
+    dlg.btn_pause.setText("Resume")
+    dlg.toggle_pause()
+    assert window._is_row_active(row) is True
+
+    # Window Pause -> Context Menu Resume
+    dlg.btn_pause.setText("Pause")
+    dlg.toggle_pause()
+    assert window._is_row_active(row) is False
+    window.resume_selected_download()
+    assert window._is_row_active(row) is True
+
+    # Context Menu Pause -> Toolbar Resume
+    window.stop_selected_download()
+    assert window._is_row_active(row) is False
+    window.action_resume.trigger()
+    assert window._is_row_active(row) is True
+
+    dlg.close()
+    dlg.deleteLater()
+
+
+
 
 
 

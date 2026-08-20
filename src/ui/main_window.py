@@ -2999,17 +2999,24 @@ class MainWindow(QMainWindow):
             item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
             return "Complete", "Complete", pct_str or "100.00%", False
 
-        # 2. User Intent: Paused
-        if user_state == "Paused":
+        # 2. Worker reports active/resuming states -> sync user intent to Normal
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading") or worker_status in ["Resuming...", "Resume GET...", "Connecting..."]:
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            user_state = "Normal"
+
+        # 3. User Intent / Progress Dialog Paused
+        if user_state == "Paused" or worker_status == "Paused":
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
             final_display = pct_str if pct_str else "Paused"
             return final_display, "Paused", pct_str, False
 
-        # 3. User Intent: Cancelled
-        if user_state == "Cancelled":
+        # 4. User Intent: Cancelled
+        if user_state == "Cancelled" or worker_status == "Cancelled":
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Cancelled")
             final_display = pct_str if pct_str else "Cancelled"
             return final_display, "Cancelled", pct_str, False
 
-        # 4. User Intent: Normal / Active -> Interpret Engine Status
+        # 5. User Intent: Normal / Active -> Interpret Engine Status
         if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
             engine_status = "Downloading"
             final_display = pct_str if pct_str else "Downloading"
@@ -3021,11 +3028,6 @@ class MainWindow(QMainWindow):
         elif worker_status == "Connecting...":
             engine_status = "Connecting..."
             final_display = pct_str if pct_str else "Connecting..."
-            is_active = True
-        elif worker_status in ["Paused", "Cancelled"]:
-            # Engine reports paused while user state is Normal -> transitioning
-            engine_status = "Resuming..."
-            final_display = pct_str if pct_str else "Resuming..."
             is_active = True
         elif worker_status == "Error":
             engine_status = "Error"
@@ -3417,132 +3419,6 @@ class MainWindow(QMainWindow):
             if sorting_was_enabled:
                 self.download_table.setSortingEnabled(True)
             self._notify_views_changed()
-
-    def _apply_download_row_data(self, item_ref, data):
-        try:
-            row = self.download_table.row(item_ref)
-        except RuntimeError:
-            return # object has been deleted by remove
-        if row == -1: return 
-
-        status_item = self.download_table.item(row, 2)
-        old_status = status_item.text() if status_item else ""
-        old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-
-        # --- PROTECTION GUARD ---
-        # If the row is already marked as Complete, ignore any late progress signals unless actively downloading (e.g. redownload)
-        key = self._get_item_key(item_ref)
-        if old_logic_status == "Complete" and key not in getattr(self, "active_downloads", {}):
-            return
-        
-        # --- Update Last Try Timestamp ---
-        new_timestamp = str(time.time())
-        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-
-        new_name = data[0]
-        if item_ref.text() != new_name:
-            item_ref.setText(new_name)
-            item_ref.setToolTip(new_name)
-            item_ref.setIcon(get_file_icon(new_name))
-        
-        # Col 1: Size (Display total file size if known)
-        tot_bytes = data[6] if len(data) > 6 else 0
-        comp_bytes = data[5] if len(data) > 5 else 0
-
-        if tot_bytes > 0:
-            size_display = format_bytes(tot_bytes)
-        elif comp_bytes > 0:
-            size_display = format_bytes(comp_bytes)
-        else:
-            size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
-
-        self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
-        
-        # Col 2: Status
-        worker_status = data[2] if len(data) > 2 else ""
-        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
-            display_status = "Downloading"
-        elif worker_status == "Connecting...":
-            display_status = "Connecting..."
-        elif worker_status == "Complete":
-            display_status = "Complete"
-        elif worker_status == "Resume GET...":
-            display_status = "Resuming..."
-        elif worker_status == "Queued":
-            display_status = "Queued"
-        else:
-            display_status = worker_status if worker_status else old_logic_status
-
-        # If data[5] and data[6] are valid integers, calculate actual %
-        pct_str = ""
-        if len(data) > 6 and isinstance(data[5], (int, float)) and isinstance(data[6], (int, float)):
-            comp = data[5]
-            tot = data[6]
-            if tot > 0:
-                pct_val = min(100.0, (comp / tot) * 100.0)
-                # If progress reports 0% (e.g. initial connection), do not overwrite higher previous percentage
-                prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
-                if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
-                    try:
-                        prev_val = float(str(prev_pct_str).replace("%", "").strip())
-                        if prev_val > 0:
-                            pct_val = prev_val
-                    except ValueError:
-                        pass
-                pct_str = f"{pct_val:.2f}%"
-
-        if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":
-            display_status = "Complete"
-            final_display = "Complete"
-        elif display_status in ["Downloading", "Resuming..."]:
-            final_display = pct_str if pct_str else display_status
-        elif display_status in ["Paused", "Cancelled"]:
-            pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
-            final_display = pct_data if pct_data else display_status
-        else:
-            final_display = display_status
-
-        if pct_str and pct_str != "Complete" and status_item:
-            status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
-        
-        if final_display != old_status or display_status != old_logic_status:
-            self._set_status_text(row, final_display, logic_status=display_status)
-            status_item = self.download_table.item(row, 2)
-            if status_item:
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            if display_status != old_logic_status:
-                self.update_ui_states()
-        
-        # Col 3 & 4: Time Left & Rate
-        if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
-            self._set_sortable_item(row, 3, "", parse_time_to_sec)
-            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-            if hasattr(self, "active_speeds"):
-                self.active_speeds.pop(key, None)
-        else:
-            time_val = data[3] if len(data) > 3 else ""
-            rate_val = data[4] if len(data) > 4 else ""
-            self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
-            self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
-            if hasattr(self, "active_speeds"):
-                raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
-                if raw_speed is not None:
-                    self.active_speeds[key] = float(raw_speed)
-                elif rate_val:
-                    self.active_speeds[key] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
-        self.update_status_bar_speed()
-        
-        # Col 5: Last Try
-        formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
-        last_try_item = self.download_table.item(row, 5)
-        if not last_try_item:
-            self._set_timestamp_item(row, 5, formatted_last_try)
-        elif last_try_item.text() != formatted_last_try:
-            last_try_item.setText(formatted_last_try)
-        
-        is_active = (display_status not in ["Complete", "Error", "Paused", "Cancelled", "Queued"])
-        self._set_row_bold(row, is_active)
-
     def download_finished(self, item_ref, status_text):
         key = self._get_item_key(item_ref)
         if hasattr(self, "active_speeds"):
