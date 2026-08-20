@@ -335,7 +335,7 @@ class DownloadProgressDialog(QDialog):
             self.segments_layout.itemAt(i).widget().setParent(None)
         self.segment_bars = []
 
-        total_display = 8
+        total_display = max(1, num_segments)
 
         for i in range(total_display):
             bar = QProgressBar()

@@ -1466,6 +1466,36 @@ def test_options_dialog_max_connections_persistence(qapp, monkeypatch, tmp_path)
     dlg2.reject()
 
 
+def test_download_progress_dialog_respects_custom_connections(qapp, monkeypatch, tmp_path):
+    from ui.dialogs import DownloadProgressDialog
+    from core.workers import DownloadWorker
+    from core.utils import save_extension_config
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 10})
+
+    worker = DownloadWorker("http://example.com/test.iso", 0, "/tmp")
+    progress_dlg = DownloadProgressDialog(worker, None)
+    progress_dlg.show()
+
+    assert len(progress_dlg.segment_bars) == 10
+    assert progress_dlg.seg_table.rowCount() == 10
+
+    # Expand details and verify geometry
+    progress_dlg.toggle_details(True)
+    assert not progress_dlg.details_frame.isHidden()
+    assert progress_dlg.btn_details.text() == "Details <<"
+
+    # Collapse details
+    progress_dlg.toggle_details(False)
+    assert progress_dlg.details_frame.isHidden()
+    assert progress_dlg.btn_details.text() == "Details >>"
+
+    progress_dlg.close()
+    worker.deleteLater()
+
+
+
 
 
 
