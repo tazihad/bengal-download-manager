@@ -50,6 +50,9 @@ class Aria2Worker(QThread):
             try: os.makedirs(self.working_dir, exist_ok=True)
             except: self.working_dir = self.save_dir
 
+        self.target_path = self.target_path
+        self.generation = 0
+
     def call_rpc(self, method, params=None):
         return call_aria2_rpc(method, params=params, port=self.rpc_port, token=self.rpc_token)
 
@@ -127,27 +130,31 @@ class Aria2Worker(QThread):
             if total_length > 0 and completed_length >= total_length:
                 state = "complete"
 
-            if getattr(self, 'is_pause_requested', False):
+            if getattr(self, 'is_pause_requested', False) or getattr(self, 'is_paused', False):
                 download_speed = 0
                 state = "paused"
+                display_state = "Paused"
             elif getattr(self, 'is_resuming', False):
-                if state == "paused":
+                if state in ("paused", "waiting"):
                     state = "active"
                     display_state = "Resuming..."
                 else:
                     self.is_resuming = False
+                    display_state = "Receiving data..."
+            elif state == "complete":
+                display_state = "Complete"
+            elif state == "error":
+                display_state = "Error"
+            elif state == "removed":
+                display_state = "Cancelled"
+            else:
+                display_state = "Receiving data..."
 
             self.main_bar_signal.emit(completed_length, total_length)
 
             time_left = 0
             if download_speed > 0 and total_length > 0:
                 time_left = (total_length - completed_length) / download_speed
-
-            display_state = "Receiving data..."
-            if state == "paused": display_state = "Paused"
-            elif state == "complete": display_state = "Complete"
-            elif state == "error": display_state = "Error"
-            elif state == "removed": display_state = "Cancelled"
 
             self.main_progress_signal.emit(self.row_index, (
                 self.filename,
@@ -157,7 +164,8 @@ class Aria2Worker(QThread):
                 f"{self.format_bytes(download_speed, precision=2, pad=False)}/s",
                 completed_length,
                 total_length,
-                download_speed
+                download_speed,
+                getattr(self, 'generation', 0)
             ))
 
             current_time = time.time()

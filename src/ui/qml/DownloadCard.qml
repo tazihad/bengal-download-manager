@@ -22,7 +22,6 @@ Kirigami.Card {
                 id: fileNameLabel
                 text: model.filename || "File"
                 font.bold: true
-                font.weight: Font.DemiBold
                 elide: Text.ElideRight
                 Layout.fillWidth: true
 
@@ -41,6 +40,7 @@ Kirigami.Card {
                 font.features: { "tnum": 1 }
                 color: model.status === "Complete" ? Kirigami.Theme.positiveTextColor :
                        model.status === "Error" ? Kirigami.Theme.negativeTextColor :
+                       (model.status === "Paused" || model.status === "Cancelled") ? Kirigami.Theme.neutralTextColor :
                        Kirigami.Theme.highlightColor
             }
         }

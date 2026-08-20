@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
-from core.utils import show_in_folder
+from core.utils import show_in_folder, load_extension_config
 from core.memory_guard import MemoryGuard
 
 class DownloadProgressDialog(QDialog):
@@ -38,7 +38,10 @@ class DownloadProgressDialog(QDialog):
         self.worker.segment_update_signal.connect(self.update_segment_row)
 
         self.setup_ui()
-        self.init_segment_table(8)
+        
+        ext_data = load_extension_config()
+        initial_conn = ext_data.get("max_connections", 8)
+        self.init_segment_table(int(initial_conn) if isinstance(initial_conn, (int, float, str)) and str(initial_conn).isdigit() else 8)
         self.worker.start()
 
     def setup_status_tab(self):
@@ -307,9 +310,9 @@ class DownloadProgressDialog(QDialog):
             self.btn_details.setText("Details <<")
             row_height = 20
             self.seg_table.verticalHeader().setDefaultSectionSize(row_height)
-            num_rows = self.seg_table.rowCount()
             header_height = 25
-            table_height = header_height + (row_height * num_rows) + 2
+            visible_rows = min(8, self.seg_table.rowCount())
+            table_height = header_height + (row_height * visible_rows) + 2
             self.seg_table.setFixedHeight(table_height)
             
             # Expand window vertically while keeping width 520
@@ -332,7 +335,7 @@ class DownloadProgressDialog(QDialog):
             self.segments_layout.itemAt(i).widget().setParent(None)
         self.segment_bars = []
 
-        total_display = 8
+        total_display = max(8, num_segments)
 
         for i in range(total_display):
             bar = QProgressBar()

@@ -276,7 +276,16 @@ def load_extension_config():
     if os.path.exists(path):
         try:
             with open(path, "r") as f:
-                return json.load(f)
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    merged = default.copy()
+                    merged.update(loaded)
+                    try:
+                        conn = int(merged.get("max_connections", 8))
+                        merged["max_connections"] = max(1, min(32, conn))
+                    except (ValueError, TypeError):
+                        merged["max_connections"] = 8
+                    return merged
         except: pass
     return default
 

@@ -824,7 +824,6 @@ class MainWindow(QMainWindow):
             QTableWidget::item:focus { 
                 border: none; 
                 outline: 0; 
-                background: transparent; 
             }
             QHeaderView::section {
                 font-weight: normal;
@@ -1712,6 +1711,7 @@ class MainWindow(QMainWindow):
                 worker = getattr(entry, "worker", entry)
                 if getattr(worker, "is_paused", False) or getattr(worker, "is_pause_requested", False):
                     return False
+                return True
             except (RuntimeError, AttributeError, Exception):
                 pass
         try:
@@ -1739,6 +1739,7 @@ class MainWindow(QMainWindow):
             return
         if row < 0 or row >= self.download_table.rowCount():
             return
+        changed = False
         for col in range(self.download_table.columnCount()):
             item = self.download_table.item(row, col)
             if item:
@@ -1747,12 +1748,21 @@ class MainWindow(QMainWindow):
                     font.setBold(is_bold)
                     font.setFeature(QFont.Tag.fromString('tnum'), 1)
                     item.setFont(font)
+                    changed = True
+        if changed and hasattr(self, "download_table"):
+            row_top = self.download_table.rowViewportPosition(row)
+            row_height = self.download_table.rowHeight(row)
+            if row_height > 0:
+                self.download_table.viewport().update(0, row_top, self.download_table.viewport().width(), row_height)
 
     def _set_sortable_item(self, row, col, text, parser_func):
         item = self.download_table.item(row, col)
         created = False
         if not item:
             item = SortableTableWidgetItem(text)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
             self.download_table.setItem(row, col, item)
             created = True
         elif item.text() != text:
@@ -1762,13 +1772,6 @@ class MainWindow(QMainWindow):
         col_names = {1: "Size", 3: "Time Left", 4: "Transfer Rate"}
         if col in col_names:
             item.setToolTip(f"{col_names[col]}: {text}" if text else f"{col_names[col]}: N/A")
-
-        if getattr(self, "table_style", "classic") != "modern":
-            is_active = self._is_row_active(row)
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(is_active)
-            item.setFont(font)
             
         raw_val = parser_func(text)
         if item.data(Qt.ItemDataRole.UserRole) != raw_val:
@@ -1779,6 +1782,9 @@ class MainWindow(QMainWindow):
         created = False
         if not item:
             item = QTableWidgetItem(text)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
             self.download_table.setItem(row, 2, item)
             created = True
         elif item.text() != text:
@@ -1790,30 +1796,19 @@ class MainWindow(QMainWindow):
         elif text in ["Paused", "Complete", "Finished", "Error", "Cancelled", "Connecting...", "Downloading", "Resuming...", "Pending...", "Queued"]:
             item.setData(Qt.ItemDataRole.UserRole + 1, text)
 
-        if getattr(self, "table_style", "classic") != "modern":
-            is_active = self._is_row_active(row) or text in ["Connecting...", "Downloading", "Resuming...", "Pending...", "Receiving data..."]
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(is_active)
-            item.setFont(font)
-
     def _set_timestamp_item(self, row, col, text):
         item = self.download_table.item(row, col)
         if not item:
             item = QTableWidgetItem(text)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
             self.download_table.setItem(row, col, item)
         elif item.text() != text:
             item.setText(text)
             
         col_name = "Last Attempt" if col == 5 else "Date Added"
         item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
-
-        if getattr(self, "table_style", "classic") != "modern":
-            is_active = self._is_row_active(row)
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(is_active)
-            item.setFont(font)
         return item
 
     def add_new_download(self, url, category="General", save_path=""):
@@ -2791,6 +2786,12 @@ class MainWindow(QMainWindow):
             worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
         else:
             worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
+        
+        gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+        item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+        item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+        worker.generation = gen
+
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
         item_ref.setText(worker.filename)
         item_ref.setToolTip(worker.filename)
@@ -2822,54 +2823,81 @@ class MainWindow(QMainWindow):
         if not selected_items:
             return
         
-        rows = set(item.row() for item in selected_items)
-        for row in rows:
-            item_name = self.download_table.item(row, 0)
-            if not item_name:
-                continue
-            
-            # If already active, bring dialog to front or resume if paused
-            key = self._get_item_key(item_name)
-            if key in self.active_downloads:
-                dialog = self.active_downloads[key]
-                if not MemoryGuard.is_widget_alive(dialog) and not hasattr(dialog, 'isRunning'):
-                    self.active_downloads.pop(key, None)
-                    dialog = None
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
+        self.download_table.blockSignals(True)
+        try:
+            rows = set(item.row() for item in selected_items)
+            for row in rows:
+                item_name = self.download_table.item(row, 0)
+                if not item_name:
+                    continue
+                
+                # If already active, bring dialog to front or resume if paused
+                key = self._get_item_key(item_name)
+                if key in self.active_downloads:
+                    dialog = self.active_downloads[key]
+                    if not MemoryGuard.is_widget_alive(dialog) and not hasattr(dialog, 'isRunning'):
+                        self.active_downloads.pop(key, None)
+                        dialog = None
 
-                if dialog:
-                    status_item = self.download_table.item(row, 2)
-                    logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-                    
-                    if logic_status in ["Paused", "Cancelled", "Error"]:
-                        # Forward resume to existing worker
+                    if dialog:
+                        status_item = self.download_table.item(row, 2)
+                        logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                        
+                        worker = getattr(dialog, 'worker', dialog)
+                        if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
+                            gen = (item_name.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+                            item_name.setData(Qt.ItemDataRole.UserRole + 13, gen)
+                            item_name.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+                            worker.generation = gen
+                            # Forward resume to existing worker
+                            try:
+                                if hasattr(worker, 'resume'):
+                                    worker.resume()
+                            except (RuntimeError, Exception):
+                                pass
+                            if hasattr(dialog, 'lbl_main_status'):
+                                try:
+                                    dialog.lbl_main_status.setText("Resuming...")
+                                    dialog.btn_pause.setText("Pause")
+                                    dialog.btn_cancel.setText("Cancel")
+                                except Exception:
+                                    pass
+                            self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                            if status_item:
+                                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                            self._set_row_bold(row, True)
+                        
                         try:
-                            if hasattr(dialog, 'worker') and dialog.worker:
-                                dialog.worker.resume()
+                            dialog.activateWindow()
+                            dialog.raise_()
                         except (RuntimeError, Exception):
                             pass
-                    
-                    try:
-                        dialog.activateWindow()
-                        dialog.raise_()
-                    except (RuntimeError, Exception):
-                        pass
-                    continue
-            
-            # Start/Resume download
-            url = item_name.data(Qt.ItemDataRole.UserRole)
-            filename = item_name.text()
-            
-            if url:
-                self._set_status_text(row, "Resuming...", logic_status="Resuming...")
-                status_item = self.download_table.item(row, 2)
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
-                # Update last try timestamp before resuming
-                new_timestamp = str(time.time())
-                item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                        continue
                 
-                self._start_download_worker(url, item_name, resume_filename=filename)
+                # Start/Resume download
+                url = item_name.data(Qt.ItemDataRole.UserRole)
+                filename = item_name.text()
+                
+                if url:
+                    self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                    status_item = self.download_table.item(row, 2)
+                    if status_item:
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                    # Update last try timestamp before resuming
+                    new_timestamp = str(time.time())
+                    item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                    self._set_timestamp_item(row, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                    self._set_row_bold(row, True)
+                    
+                    self._start_download_worker(url, item_name, resume_filename=filename)
+        finally:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self.download_table.viewport().update()
         
         self.update_ui_states()
 
@@ -2878,44 +2906,230 @@ class MainWindow(QMainWindow):
         if not selected_items:
             return
         
-        rows = set(item.row() for item in selected_items)
-        for r in rows:
-            item = self.download_table.item(r, 0)
-            if not item:
-                continue
-            key = self._get_item_key(item)
-            if key in self.active_downloads:
-                dialog = self.active_downloads.pop(key, None)
-                self._stop_worker_entry(dialog)
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
+        self.download_table.blockSignals(True)
+        try:
+            rows = set(item.row() for item in selected_items)
+            for r in rows:
+                item = self.download_table.item(r, 0)
+                if not item:
+                    continue
+                item.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
+                key = self._get_item_key(item)
+                if key in self.active_downloads:
+                    dialog = self.active_downloads[key]
+                    worker = getattr(dialog, 'worker', dialog)
+                    if worker is not None and hasattr(worker, 'pause'):
+                        try:
+                            worker.pause()
+                        except Exception:
+                            pass
+                    
+                    if hasattr(dialog, 'lbl_main_status'):
+                        try:
+                            dialog.lbl_main_status.setText("Paused")
+                            dialog.btn_pause.setText("Resume")
+                            dialog.btn_cancel.setText("Close")
+                            dialog.lbl_speed.setText("0.00 B/s")
+                            dialog.lbl_time.setText("-")
+                        except Exception:
+                            pass
 
-                # Update status preserving percentage string
-                status_item = self.download_table.item(r, 2)
-                if status_item:
-                    current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                    if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
-                        continue
-                if not status_item:
-                    status_item = QTableWidgetItem()
-                    self.download_table.setItem(r, 2, status_item)
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
-                self._set_status_text(r, final_display, logic_status="Paused")
+                    # Update status preserving percentage string
+                    status_item = self.download_table.item(r, 2)
+                    if status_item:
+                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                        if current_status == "Complete" or status_item.text() == "Complete":
+                            continue
+                    if not status_item:
+                        status_item = QTableWidgetItem()
+                        self.download_table.setItem(r, 2, status_item)
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                    self._set_status_text(r, final_display, logic_status="Paused")
 
-                # Reset Time Left and Rate on pause
-                self._set_sortable_item(r, 3, "", parse_time_to_sec)
-                self._set_sortable_item(r, 4, "", parse_size_to_bytes)
+                    # Reset Time Left and Rate on pause
+                    self._set_sortable_item(r, 3, "", parse_time_to_sec)
+                    self._set_sortable_item(r, 4, "", parse_size_to_bytes)
 
-                # Update last try timestamp on pause
-                new_timestamp = str(time.time())
-                item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
-
-                # Close the dialog if it's a ProgressDialog
-                if hasattr(dialog, 'reject'):
-                    dialog.reject()
+                    # Update last try timestamp on pause
+                    new_timestamp = str(time.time())
+                    item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                    self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                    self._set_row_bold(r, False)
+        finally:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self.download_table.viewport().update()
         
         self.update_ui_states()
+
+    def _get_display_state(self, item_ref, worker_status, comp_bytes=0, tot_bytes=0):
+        """
+        Central IDM-style State Resolver.
+        User Intent State (item_ref UserRole+11) is the supreme authority.
+        Engine State (worker_status) is only considered when User Intent is Normal/Active.
+        """
+        user_state = item_ref.data(Qt.ItemDataRole.UserRole + 11) # "Complete", "Paused", "Cancelled", "Normal"
+        row = self.download_table.row(item_ref) if hasattr(self, "download_table") else -1
+        status_item = self.download_table.item(row, 2) if (row >= 0 and hasattr(self, "download_table")) else None
+        prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+        
+        # Calculate percentage string
+        pct_str = ""
+        if tot_bytes > 0:
+            pct_val = min(100.0, (comp_bytes / tot_bytes) * 100.0)
+            if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
+                try:
+                    prev_val = float(str(prev_pct_str).replace("%", "").strip())
+                    if prev_val > 0:
+                        pct_val = prev_val
+                except ValueError:
+                    pass
+            pct_str = f"{pct_val:.2f}%"
+        elif prev_pct_str and "%" in str(prev_pct_str):
+            pct_str = str(prev_pct_str)
+
+        # 1. User Intent: Complete
+        if user_state == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes):
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
+            return "Complete", "Complete", pct_str or "100.00%", False
+
+        # 2. Worker reports active/resuming states -> sync user intent to Normal
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading") or worker_status in ["Resuming...", "Resume GET...", "Connecting..."]:
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            user_state = "Normal"
+
+        # 3. User Intent / Progress Dialog Paused
+        if user_state == "Paused" or worker_status == "Paused":
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
+            final_display = pct_str if pct_str else "Paused"
+            return final_display, "Paused", pct_str, False
+
+        # 4. User Intent: Cancelled
+        if user_state == "Cancelled" or worker_status == "Cancelled":
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Cancelled")
+            final_display = pct_str if pct_str else "Cancelled"
+            return final_display, "Cancelled", pct_str, False
+
+        # 5. User Intent: Normal / Active -> Interpret Engine Status
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
+            engine_status = "Downloading"
+            final_display = pct_str if pct_str else "Downloading"
+            is_active = True
+        elif worker_status in ["Resuming...", "Resume GET..."]:
+            engine_status = "Resuming..."
+            final_display = pct_str if pct_str else "Resuming..."
+            is_active = True
+        elif worker_status == "Connecting...":
+            engine_status = "Connecting..."
+            final_display = pct_str if pct_str else "Connecting..."
+            is_active = True
+        elif worker_status == "Error":
+            engine_status = "Error"
+            final_display = "Error"
+            is_active = False
+        else:
+            engine_status = worker_status if worker_status else "Downloading"
+            final_display = pct_str if pct_str else engine_status
+            is_active = True
+
+        return final_display, engine_status, pct_str, is_active
+
+    def _apply_download_row_data(self, item_ref, data):
+        try:
+            row = self.download_table.row(item_ref)
+        except RuntimeError:
+            return # object has been deleted by remove
+        if row == -1: return 
+
+        # Freshness guard: Discard stale callbacks from older sessions
+        if len(data) > 8 and data[8] is not None:
+            callback_gen = data[8]
+            current_gen = item_ref.data(Qt.ItemDataRole.UserRole + 13)
+            if current_gen is not None and callback_gen < current_gen:
+                return
+
+        status_item = self.download_table.item(row, 2)
+        old_status = status_item.text() if status_item else ""
+        old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+
+        # --- PROTECTION GUARD ---
+        # If the row is already marked as Complete, ignore any late progress signals unless actively downloading (e.g. redownload)
+        key = self._get_item_key(item_ref)
+        if item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete" and key not in getattr(self, "active_downloads", {}):
+            return
+        
+        # --- Update Last Try Timestamp ---
+        new_timestamp = str(time.time())
+        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+
+        new_name = data[0]
+        if item_ref.text() != new_name:
+            item_ref.setText(new_name)
+            item_ref.setToolTip(new_name)
+            item_ref.setIcon(get_file_icon(new_name))
+        
+        # Col 1: Size (Display total file size if known)
+        tot_bytes = data[6] if len(data) > 6 else 0
+        comp_bytes = data[5] if len(data) > 5 else 0
+
+        if tot_bytes > 0:
+            size_display = format_bytes(tot_bytes)
+        elif comp_bytes > 0:
+            size_display = format_bytes(comp_bytes)
+        else:
+            size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
+
+        self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+        
+        # Col 2: Status (Resolved centrally via IDM State Architecture)
+        worker_status = data[2] if len(data) > 2 else ""
+        final_display, display_status, pct_str, is_active = self._get_display_state(item_ref, worker_status, comp_bytes, tot_bytes)
+
+        if pct_str and pct_str != "Complete" and status_item:
+            status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
+        
+        if final_display != old_status or display_status != old_logic_status:
+            self._set_status_text(row, final_display, logic_status=display_status)
+            status_item = self.download_table.item(row, 2)
+            if status_item:
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            if display_status != old_logic_status:
+                self.update_ui_states()
+        
+        # Col 3 & 4: Time Left & Rate
+        if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
+            self._set_sortable_item(row, 3, "", parse_time_to_sec)
+            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            if hasattr(self, "active_speeds"):
+                self.active_speeds.pop(key, None)
+        else:
+            time_val = data[3] if len(data) > 3 else ""
+            rate_val = data[4] if len(data) > 4 else ""
+            self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+            self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+            if hasattr(self, "active_speeds"):
+                raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
+                if raw_speed is not None:
+                    self.active_speeds[key] = float(raw_speed)
+                elif rate_val:
+                    self.active_speeds[key] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
+        self.update_status_bar_speed()
+        
+        # Col 5: Last Try
+        formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
+        last_try_item = self.download_table.item(row, 5)
+        if not last_try_item:
+            self._set_timestamp_item(row, 5, formatted_last_try)
+        elif last_try_item.text() != formatted_last_try:
+            last_try_item.setText(formatted_last_try)
+        
+        self._set_row_bold(row, is_active)
 
     def _stop_worker_entry(self, entry):
         """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
@@ -2975,33 +3189,59 @@ class MainWindow(QMainWindow):
             pass
 
     def stop_all_downloads(self):
-        for key, entry in list(self.active_downloads.items()):
-            self._stop_worker_entry(entry)
-            # Find the corresponding table item and update status/timestamp
-            for r in range(self.download_table.rowCount()):
-                item_ref = self.download_table.item(r, 0)
-                if item_ref and self._get_item_key(item_ref) == key:
-                    status_item = self.download_table.item(r, 2)
-                    if status_item:
-                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                        if current_status == "Complete" or status_item.text() == "Complete" or item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
-                            continue
-                    if not status_item:
-                        status_item = QTableWidgetItem()
-                        self.download_table.setItem(r, 2, status_item)
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
-                    self._set_status_text(r, final_display, logic_status="Paused")
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
+        self.download_table.blockSignals(True)
+        try:
+            for key, entry in list(self.active_downloads.items()):
+                worker = getattr(entry, 'worker', entry)
+                if worker is not None and hasattr(worker, 'pause'):
+                    try:
+                        worker.pause()
+                    except Exception:
+                        pass
+                
+                if hasattr(entry, 'lbl_main_status'):
+                    try:
+                        entry.lbl_main_status.setText("Paused")
+                        entry.btn_pause.setText("Resume")
+                        entry.btn_cancel.setText("Close")
+                        entry.lbl_speed.setText("0.00 B/s")
+                        entry.lbl_time.setText("-")
+                    except Exception:
+                        pass
 
-                    self._set_sortable_item(r, 3, "", parse_time_to_sec)
-                    self._set_sortable_item(r, 4, "", parse_size_to_bytes)
+                # Find the corresponding table item and update status/timestamp
+                for r in range(self.download_table.rowCount()):
+                    item_ref = self.download_table.item(r, 0)
+                    if item_ref and self._get_item_key(item_ref) == key:
+                        status_item = self.download_table.item(r, 2)
+                        if status_item:
+                            current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                            if current_status == "Complete" or status_item.text() == "Complete" or item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                                continue
+                        if not status_item:
+                            status_item = QTableWidgetItem()
+                            self.download_table.setItem(r, 2, status_item)
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                        pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                        final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                        self._set_status_text(r, final_display, logic_status="Paused")
 
-                    new_timestamp = str(time.time())
-                    item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                    self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
-                    break
-        self.active_downloads.clear()
+                        self._set_sortable_item(r, 3, "", parse_time_to_sec)
+                        self._set_sortable_item(r, 4, "", parse_size_to_bytes)
+
+                        new_timestamp = str(time.time())
+                        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                        self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                        self._set_row_bold(r, False)
+                        break
+        finally:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self.download_table.viewport().update()
         if hasattr(self, "active_speeds"):
             self.active_speeds.clear()
         self.update_status_bar_speed()
@@ -3179,132 +3419,6 @@ class MainWindow(QMainWindow):
             if sorting_was_enabled:
                 self.download_table.setSortingEnabled(True)
             self._notify_views_changed()
-
-    def _apply_download_row_data(self, item_ref, data):
-        try:
-            row = self.download_table.row(item_ref)
-        except RuntimeError:
-            return # object has been deleted by remove
-        if row == -1: return 
-
-        status_item = self.download_table.item(row, 2)
-        old_status = status_item.text() if status_item else ""
-        old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-
-        # --- PROTECTION GUARD ---
-        # If the row is already marked as Complete, ignore any late progress signals unless actively downloading (e.g. redownload)
-        key = self._get_item_key(item_ref)
-        if old_logic_status == "Complete" and key not in getattr(self, "active_downloads", {}):
-            return
-        
-        # --- Update Last Try Timestamp ---
-        new_timestamp = str(time.time())
-        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-
-        new_name = data[0]
-        if item_ref.text() != new_name:
-            item_ref.setText(new_name)
-            item_ref.setToolTip(new_name)
-            item_ref.setIcon(get_file_icon(new_name))
-        
-        # Col 1: Size (Display total file size if known)
-        tot_bytes = data[6] if len(data) > 6 else 0
-        comp_bytes = data[5] if len(data) > 5 else 0
-
-        if tot_bytes > 0:
-            size_display = format_bytes(tot_bytes)
-        elif comp_bytes > 0:
-            size_display = format_bytes(comp_bytes)
-        else:
-            size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
-
-        self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
-        
-        # Col 2: Status
-        worker_status = data[2] if len(data) > 2 else ""
-        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
-            display_status = "Downloading"
-        elif worker_status == "Connecting...":
-            display_status = "Connecting..."
-        elif worker_status == "Complete":
-            display_status = "Complete"
-        elif worker_status == "Resume GET...":
-            display_status = "Resuming..."
-        elif worker_status == "Queued":
-            display_status = "Queued"
-        else:
-            display_status = worker_status if worker_status else old_logic_status
-
-        # If data[5] and data[6] are valid integers, calculate actual %
-        pct_str = ""
-        if len(data) > 6 and isinstance(data[5], (int, float)) and isinstance(data[6], (int, float)):
-            comp = data[5]
-            tot = data[6]
-            if tot > 0:
-                pct_val = min(100.0, (comp / tot) * 100.0)
-                # If progress reports 0% (e.g. initial connection), do not overwrite higher previous percentage
-                prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
-                if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
-                    try:
-                        prev_val = float(str(prev_pct_str).replace("%", "").strip())
-                        if prev_val > 0:
-                            pct_val = prev_val
-                    except ValueError:
-                        pass
-                pct_str = f"{pct_val:.2f}%"
-
-        if display_status == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes) or pct_str == "Complete":
-            display_status = "Complete"
-            final_display = "Complete"
-        elif display_status == "Downloading":
-            final_display = pct_str if pct_str else "Downloading"
-        elif display_status in ["Paused", "Cancelled"]:
-            pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
-            final_display = pct_data if pct_data else display_status
-        else:
-            final_display = display_status
-
-        if pct_str and pct_str != "Complete" and status_item:
-            status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
-        
-        if final_display != old_status or display_status != old_logic_status:
-            self._set_status_text(row, final_display, logic_status=display_status)
-            status_item = self.download_table.item(row, 2)
-            if status_item:
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            if display_status != old_logic_status:
-                self.update_ui_states()
-        
-        # Col 3 & 4: Time Left & Rate
-        if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
-            self._set_sortable_item(row, 3, "", parse_time_to_sec)
-            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-            if hasattr(self, "active_speeds"):
-                self.active_speeds.pop(key, None)
-        else:
-            time_val = data[3] if len(data) > 3 else ""
-            rate_val = data[4] if len(data) > 4 else ""
-            self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
-            self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
-            if hasattr(self, "active_speeds"):
-                raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
-                if raw_speed is not None:
-                    self.active_speeds[key] = float(raw_speed)
-                elif rate_val:
-                    self.active_speeds[key] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
-        self.update_status_bar_speed()
-        
-        # Col 5: Last Try
-        formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
-        last_try_item = self.download_table.item(row, 5)
-        if not last_try_item:
-            self._set_timestamp_item(row, 5, formatted_last_try)
-        elif last_try_item.text() != formatted_last_try:
-            last_try_item.setText(formatted_last_try)
-        
-        is_active = (display_status not in ["Complete", "Error", "Paused", "Cancelled", "Queued"])
-        self._set_row_bold(row, is_active)
-
     def download_finished(self, item_ref, status_text):
         key = self._get_item_key(item_ref)
         if hasattr(self, "active_speeds"):
@@ -3329,49 +3443,62 @@ class MainWindow(QMainWindow):
         else:
             display_status = "Error"
 
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        if sorting_was_enabled:
+            self.download_table.setSortingEnabled(False)
+        self.download_table.blockSignals(True)
         try:
             row = self.download_table.row(item_ref)
         except RuntimeError:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
             return 
             
-        if row != -1:
-            status_item = self.download_table.item(row, 2)
-            if not status_item:
-                self._set_status_text(row, "")
+        try:
+            if row != -1:
                 status_item = self.download_table.item(row, 2)
-            
-            # Formatting final display text and updating logical status
-            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-            
-            if display_status == "Complete":
-                final_display = "Complete"
-                status_item.setData(Qt.ItemDataRole.UserRole, "Complete")
-                path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
-                if path and os.path.exists(path) and os.path.isfile(path):
-                    try:
-                        actual_sz = os.path.getsize(path)
-                        if actual_sz > 0:
-                            self._set_sortable_item(row, 1, format_bytes(actual_sz), parse_size_to_bytes)
-                    except Exception:
-                        pass
-            elif display_status in ["Paused", "Cancelled"]:
-                pct = status_item.data(Qt.ItemDataRole.UserRole)
-                final_display = pct if pct else "0.00%"
-            else:
-                final_display = display_status
-            
-            self._set_status_text(row, final_display, logic_status=display_status)
-            
-            if display_status in ["Complete", "Error"]:
-                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
-                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
-            elif display_status in ["Paused", "Cancelled"]:
-                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                if not status_item:
+                    self._set_status_text(row, "")
+                    status_item = self.download_table.item(row, 2)
+                
+                # Formatting final display text and updating logical status
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+                
+                if display_status == "Complete":
+                    final_display = "Complete"
+                    status_item.setData(Qt.ItemDataRole.UserRole, "Complete")
+                    path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
+                    if path and os.path.exists(path) and os.path.isfile(path):
+                        try:
+                            actual_sz = os.path.getsize(path)
+                            if actual_sz > 0:
+                                self._set_sortable_item(row, 1, format_bytes(actual_sz), parse_size_to_bytes)
+                        except Exception:
+                            pass
+                elif display_status in ["Paused", "Cancelled"]:
+                    pct = status_item.data(Qt.ItemDataRole.UserRole)
+                    final_display = pct if pct else "0.00%"
+                else:
+                    final_display = display_status
+                
+                self._set_status_text(row, final_display, logic_status=display_status)
+                
+                if display_status in ["Complete", "Error"]:
+                     self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                     self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                elif display_status in ["Paused", "Cancelled"]:
+                     self._set_sortable_item(row, 4, "", parse_size_to_bytes)
 
-            final_timestamp = str(time.time())
-            item_ref.setData(Qt.ItemDataRole.UserRole + 2, final_timestamp)
-            self._set_timestamp_item(row, 5, format_timestamp_relative(final_timestamp, max_relative_seconds=300))
-            self._set_row_bold(row, False)
+                final_timestamp = str(time.time())
+                item_ref.setData(Qt.ItemDataRole.UserRole + 2, final_timestamp)
+                self._set_timestamp_item(row, 5, format_timestamp_relative(final_timestamp, max_relative_seconds=300))
+                self._set_row_bold(row, False)
+        finally:
+            self.download_table.blockSignals(False)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self.download_table.viewport().update()
 
         # Handle UI Popups / Dialogs
         if key in self.active_downloads:

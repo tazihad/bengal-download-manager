@@ -113,10 +113,13 @@ Kirigami.ApplicationWindow {
     }
 
     function updateFilteredModel() {
-        filteredModel.clear()
         var items = downloadBridge.downloads
-        if (!items) return
+        if (!items) {
+            filteredModel.clear()
+            return
+        }
 
+        var matching = []
         for (var i = 0; i < items.length; i++) {
             var item = items[i]
             var name = (item.filename || "").toLowerCase()
@@ -137,7 +140,18 @@ Kirigami.ApplicationWindow {
 
             if (matchSearch && matchCategory && matchStatus) {
                 item.originalIndex = i
-                filteredModel.append(item)
+                matching.push(item)
+            }
+        }
+
+        if (filteredModel.count === matching.length) {
+            for (var j = 0; j < matching.length; j++) {
+                filteredModel.set(j, matching[j])
+            }
+        } else {
+            filteredModel.clear()
+            for (var k = 0; k < matching.length; k++) {
+                filteredModel.append(matching[k])
             }
         }
     }

@@ -275,6 +275,23 @@ class OptionsDialog(QDialog):
         self.lbl_engine.setToolTip("Connection status of backend Aria2 download engine")
         vbox_engine.addWidget(self.lbl_engine)
         
+        # Max Split Connections (threads)
+        row_conn = QHBoxLayout()
+        lbl_conn = QLabel("Max Split Connections (threads):")
+        lbl_conn.setToolTip("Default number of parallel split connections / threads per download (1-32). Default: 8")
+        self.spin_max_conn = QSpinBox()
+        self.spin_max_conn.setRange(1, 32)
+        init_conn = 8
+        if hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
+            init_conn = self.extension_data.get("max_connections", 8)
+        self.spin_max_conn.setValue(int(init_conn) if isinstance(init_conn, (int, float, str)) and str(init_conn).isdigit() else 8)
+        self.spin_max_conn.setFixedWidth(70)
+        self.spin_max_conn.setToolTip("Default number of parallel split connections / threads per download (1-32). Default: 8")
+        row_conn.addWidget(lbl_conn)
+        row_conn.addWidget(self.spin_max_conn)
+        row_conn.addStretch()
+        vbox_engine.addLayout(row_conn)
+
         # Initial check
         self.refresh_engine_status()
         
@@ -860,12 +877,36 @@ class OptionsDialog(QDialog):
         save_proxy_config(self.proxy_data)
 
     def save_extension_data(self):
+        max_c = 8
+        if hasattr(self, "spin_max_conn"):
+            max_c = self.spin_max_conn.value()
+        elif hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
+            max_c = self.extension_data.get("max_connections", 8)
+
+        proto = "ws"
+        if hasattr(self, "combo_aria_proto"):
+            proto = self.combo_aria_proto.currentData()
+        elif hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
+            proto = self.extension_data.get("protocol", "ws")
+
+        port = 56800
+        if hasattr(self, "spin_aria_port"):
+            port = self.spin_aria_port.value()
+        elif hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
+            port = self.extension_data.get("port", 56800)
+
+        token = ""
+        if hasattr(self, "txt_aria_token"):
+            token = self.txt_aria_token.text().strip()
+        elif hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
+            token = self.extension_data.get("token", "")
+
         self.extension_data = {
-            "protocol": self.combo_aria_proto.currentData(), 
+            "protocol": proto, 
             "host": "localhost",
-            "port": self.spin_aria_port.value(),
-            "token": self.txt_aria_token.text().strip(),
-            "max_connections": 8
+            "port": port,
+            "token": token,
+            "max_connections": max_c
         }
         save_extension_config(self.extension_data)
 
