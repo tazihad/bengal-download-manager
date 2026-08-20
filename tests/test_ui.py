@@ -1495,16 +1495,19 @@ def test_download_progress_dialog_respects_custom_connections(qapp, monkeypatch,
     progress_dlg.close()
     worker.deleteLater()
 
-    # Test with 16 connections — expanded height must remain identical to 8-row height
-    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 16})
-    worker16 = DownloadWorker("http://example.com/test.iso", 0, "/tmp")
-    progress_dlg16 = DownloadProgressDialog(worker16, None)
-    progress_dlg16.show()
-    assert progress_dlg16.seg_table.rowCount() == 16
-    progress_dlg16.toggle_details(True)
-    assert progress_dlg16.height() == expanded_height_10
-    progress_dlg16.close()
-    worker16.deleteLater()
+    # Test with 1 connection — must render minimum 8 rows (1 active, 7 unused) and identical expanded height
+    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 1})
+    worker1 = DownloadWorker("http://example.com/test.iso", 0, "/tmp")
+    progress_dlg1 = DownloadProgressDialog(worker1, None)
+    progress_dlg1.show()
+    assert progress_dlg1.seg_table.rowCount() == 8
+    assert len(progress_dlg1.segment_bars) == 8
+    assert progress_dlg1.seg_table.item(0, 3).text() == "Pending..."
+    assert progress_dlg1.seg_table.item(1, 3).text() == "Unused"
+    progress_dlg1.toggle_details(True)
+    assert progress_dlg1.height() == expanded_height_10
+    progress_dlg1.close()
+    worker1.deleteLater()
 
 
 
