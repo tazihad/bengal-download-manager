@@ -1366,6 +1366,80 @@ def test_tray_hibernation_buffers_updates_and_suspends_timers(qapp):
     window.close()
 
 
+def test_download_complete_dialog_shown_after_file_info_fetched(qapp, tmp_path):
+    target_file = tmp_path / "archive.zip"
+    target_file.write_bytes(b"PK\x03\x04" + b"0" * 1024)
+
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    file_info = {
+        "url": "http://example.com/archive.zip",
+        "suggested_filename": "archive.zip",
+        "size_str": "1.00 KB",
+        "size_bytes": 1028
+    }
+    window.on_file_info_fetched(file_info)
+
+    assert len(window.active_file_info_dialogs) == 1
+    dlg_key = list(window.active_file_info_dialogs.keys())[0]
+    info_dlg = window.active_file_info_dialogs[dlg_key]
+
+    # Simulate user confirming "Start Download"
+    info_dlg.on_start()
+
+    # Active file info dialog must be cleanly evicted from tracking
+    assert dlg_key not in window.active_file_info_dialogs
+    assert len(window.active_file_info_dialogs) == 0
+
+    # Ensure download item exists and download is marked complete
+    item_ref = window.download_table.item(0, 0)
+    assert item_ref is not None
+    item_ref.setData(Qt.ItemDataRole.UserRole + 1, str(target_file))
+
+    window.download_finished(item_ref, "Complete")
+
+    # Complete dialog must be created and shown
+    assert dlg_key in window.active_complete_dialogs
+    complete_dlg = window.active_complete_dialogs[dlg_key]
+    assert complete_dlg is not None
+    assert complete_dlg.isVisible()
+
+    # Closing dialog cleans up tracking
+    complete_dlg.accept()
+    assert dlg_key not in window.active_complete_dialogs
+    window.close()
+
+
+def test_media_download_complete_dialog_shown(qapp, tmp_path):
+    media_file = tmp_path / "video.mp4"
+    media_file.write_bytes(b"\x00\x00\x00 ftypisom" + b"0" * 2048)
+
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    item_name = window.start_media_download(
+        url="https://www.youtube.com/watch?v=sample123",
+        filename="video.mp4",
+        custom_save_dir=str(tmp_path)
+    )
+    key = window._get_item_key(item_name)
+    assert key in window.active_downloads
+
+    # Simulate media download finish
+    window._on_media_download_finished(key, item_name, str(media_file))
+
+    assert key in window.active_complete_dialogs
+    complete_dlg = window.active_complete_dialogs[key]
+    assert complete_dlg is not None
+    assert complete_dlg.isVisible()
+
+    complete_dlg.accept()
+    assert key not in window.active_complete_dialogs
+    window.close()
+
+
+
 
 
 

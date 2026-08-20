@@ -2612,7 +2612,7 @@ class MainWindow(QMainWindow):
         # Track the dialog to prevent garbage collection and allow cleanup
         dialog_id = self._get_item_key(item_ref)
         self.active_file_info_dialogs[dialog_id] = dialog
-        dialog.finished.connect(lambda d_id=dialog_id: self.active_file_info_dialogs.pop(d_id, None))
+        dialog.finished.connect(lambda *_, d_id=dialog_id: self.active_file_info_dialogs.pop(d_id, None))
 
         # Connect signals to handle the dialog result
         dialog.accepted.connect(lambda: self._handle_download_dialog_accepted(dialog, file_info, item_ref))
@@ -2626,6 +2626,8 @@ class MainWindow(QMainWindow):
     def _handle_download_dialog_accepted(self, dialog, file_info, item_ref):
         results = dialog.get_results()
         key = self._get_item_key(item_ref)
+        if key:
+            self.active_file_info_dialogs.pop(key, None)
         
         # Update filename and path in case user changed them in the dialog
         item_ref.setText(results["filename"])
@@ -2650,6 +2652,9 @@ class MainWindow(QMainWindow):
             self._set_status_text(row, "Paused")
 
     def _handle_download_dialog_rejected(self, item_ref):
+        key = self._get_item_key(item_ref)
+        if key:
+            self.active_file_info_dialogs.pop(key, None)
         # User cancelled - remove the proposed download from the table
         row = self.download_table.row(item_ref)
         if row != -1:
@@ -2806,7 +2811,7 @@ class MainWindow(QMainWindow):
         # Use persistent item key to manage active dialogs
         key = self._get_item_key(item_ref)
         self.active_downloads[key] = progress_dialog
-        progress_dialog.finished.connect(lambda k=key: self.active_downloads.pop(k, None))
+        progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
         progress_dialog.finished.connect(self._try_start_queued)
 
         # Trigger UI Update for Stop Buttons
@@ -3371,6 +3376,8 @@ class MainWindow(QMainWindow):
         # Handle UI Popups / Dialogs
         if key in self.active_downloads:
             dlg = self.active_downloads.pop(key, None)
+            if hasattr(dlg, 'is_completed') and display_status == "Complete":
+                dlg.is_completed = True
             if hasattr(dlg, 'close'):
                 dlg.close()
             MemoryGuard.safe_delete_later(dlg)
@@ -3410,7 +3417,7 @@ class MainWindow(QMainWindow):
             # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
             dialog = DownloadCompleteDialog(file_data, None)
             self.active_complete_dialogs[key] = dialog
-            dialog.finished.connect(lambda: self.active_complete_dialogs.pop(key, None))
+            dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
             dialog.show()
             
         self.update_status_bar_speed()
@@ -3430,7 +3437,7 @@ class MainWindow(QMainWindow):
         # Top-level window (parent=None) sharing app WM_CLASS so it appears as a separate icon in taskbar panel
         self._options_dlg = OptionsDialog(main_window=self)
         self._options_dlg.accepted.connect(self._handle_options_accepted)
-        self._options_dlg.finished.connect(lambda: setattr(self, "_options_dlg", None))
+        self._options_dlg.finished.connect(lambda *_: setattr(self, "_options_dlg", None))
         self._options_dlg.show()
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
@@ -3451,7 +3458,7 @@ class MainWindow(QMainWindow):
                         self._media_downloader_dlg._on_analyze_or_stop_clicked()
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
-        self._media_downloader_dlg.finished.connect(lambda: setattr(self, "_media_downloader_dlg", None))
+        self._media_downloader_dlg.finished.connect(lambda *_: setattr(self, "_media_downloader_dlg", None))
         if not auto_start:
             self._media_downloader_dlg.show()
             self._media_downloader_dlg.raise_()
@@ -3473,7 +3480,7 @@ class MainWindow(QMainWindow):
         # Pass the persistent queue list so reopening the dialog preserves all queues
         self._scheduler_dlg = SchedulerDialog(main_window=self, initial_queues=self._queues_data)
         self._scheduler_dlg.finished.connect(self._sync_sidebar_queues)
-        self._scheduler_dlg.finished.connect(lambda: setattr(self, "_scheduler_dlg", None))
+        self._scheduler_dlg.finished.connect(lambda *_: setattr(self, "_scheduler_dlg", None))
         self._scheduler_dlg.show()
         self._scheduler_dlg.raise_()
         self._scheduler_dlg.activateWindow()
@@ -3596,6 +3603,34 @@ class MainWindow(QMainWindow):
                     status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
                 self._set_sortable_item(row, 3, "", parse_time_to_sec)
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+
+                # Dispatch XDG system notification if enabled
+                if getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)):
+                    try:
+                        from core.notifications import send_system_notification
+                        size_str = self.download_table.item(row, 1).text() if self.download_table.item(row, 1) else ""
+                        body = f"{filename} ({size_str})" if size_str and size_str != "?" else filename
+                        send_system_notification(
+                            title="Download Complete",
+                            message=body,
+                            app_name="Bengal Download Manager",
+                            icon_name="io.github.tazihad.bengal-download-manager",
+                            file_path=path,
+                            tray_icon=getattr(self, "tray_icon", None)
+                        )
+                    except Exception:
+                        pass
+
+                # Show IDM-style Download Complete Dialog
+                file_data = {
+                    "url": item_ref.data(Qt.ItemDataRole.UserRole),
+                    "path": path,
+                    "size": self.download_table.item(row, 1).text() if row != -1 else "?"
+                }
+                dialog = DownloadCompleteDialog(file_data, None)
+                self.active_complete_dialogs[key] = dialog
+                dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
+                dialog.show()
             else:
                 status_item = self.download_table.item(row, 2)
                 if status_item:
