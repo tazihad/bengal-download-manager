@@ -2840,13 +2840,21 @@ class MainWindow(QMainWindow):
                         status_item = self.download_table.item(row, 2)
                         logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
                         
-                        if logic_status in ["Paused", "Cancelled", "Error"]:
+                        worker = getattr(dialog, 'worker', dialog)
+                        if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
                             # Forward resume to existing worker
                             try:
-                                if hasattr(dialog, 'worker') and dialog.worker:
-                                    dialog.worker.resume()
+                                if hasattr(worker, 'resume'):
+                                    worker.resume()
                             except (RuntimeError, Exception):
                                 pass
+                            if hasattr(dialog, 'lbl_main_status'):
+                                try:
+                                    dialog.lbl_main_status.setText("Resuming...")
+                                    dialog.btn_pause.setText("Pause")
+                                    dialog.btn_cancel.setText("Cancel")
+                                except Exception:
+                                    pass
                             self._set_status_text(row, "Resuming...", logic_status="Resuming...")
                             if status_item:
                                 status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
@@ -2900,8 +2908,23 @@ class MainWindow(QMainWindow):
                     continue
                 key = self._get_item_key(item)
                 if key in self.active_downloads:
-                    dialog = self.active_downloads.pop(key, None)
-                    self._stop_worker_entry(dialog)
+                    dialog = self.active_downloads[key]
+                    worker = getattr(dialog, 'worker', dialog)
+                    if worker is not None and hasattr(worker, 'pause'):
+                        try:
+                            worker.pause()
+                        except Exception:
+                            pass
+                    
+                    if hasattr(dialog, 'lbl_main_status'):
+                        try:
+                            dialog.lbl_main_status.setText("Paused")
+                            dialog.btn_pause.setText("Resume")
+                            dialog.btn_cancel.setText("Close")
+                            dialog.lbl_speed.setText("0.00 B/s")
+                            dialog.lbl_time.setText("-")
+                        except Exception:
+                            pass
 
                     # Update status preserving percentage string
                     status_item = self.download_table.item(r, 2)
@@ -2926,10 +2949,6 @@ class MainWindow(QMainWindow):
                     item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                     self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                     self._set_row_bold(r, False)
-
-                    # Close the dialog if it's a ProgressDialog
-                    if hasattr(dialog, 'reject'):
-                        dialog.reject()
         finally:
             self.download_table.blockSignals(False)
             if sorting_was_enabled:
@@ -3002,7 +3021,23 @@ class MainWindow(QMainWindow):
         self.download_table.blockSignals(True)
         try:
             for key, entry in list(self.active_downloads.items()):
-                self._stop_worker_entry(entry)
+                worker = getattr(entry, 'worker', entry)
+                if worker is not None and hasattr(worker, 'pause'):
+                    try:
+                        worker.pause()
+                    except Exception:
+                        pass
+                
+                if hasattr(entry, 'lbl_main_status'):
+                    try:
+                        entry.lbl_main_status.setText("Paused")
+                        entry.btn_pause.setText("Resume")
+                        entry.btn_cancel.setText("Close")
+                        entry.lbl_speed.setText("0.00 B/s")
+                        entry.lbl_time.setText("-")
+                    except Exception:
+                        pass
+
                 # Find the corresponding table item and update status/timestamp
                 for r in range(self.download_table.rowCount()):
                     item_ref = self.download_table.item(r, 0)
@@ -3028,7 +3063,6 @@ class MainWindow(QMainWindow):
                         self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
                         self._set_row_bold(r, False)
                         break
-            self.active_downloads.clear()
         finally:
             self.download_table.blockSignals(False)
             if sorting_was_enabled:
