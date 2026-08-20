@@ -30,7 +30,7 @@ concurrency:
 jobs:
   test:
     name: Test & Validate
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
   prepare:
     name: Determine Tag
     needs: [test]
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.get_tag.outputs.tag }}
       version: ${{ steps.get_tag.outputs.version }}
@@ -92,9 +92,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            runner: ubuntu-26.04
+            runner: ubuntu-24.04
           - arch: aarch64
-            runner: ubuntu-26.04-arm
+            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -183,7 +183,7 @@ jobs:
   release:
     name: Publish Release
     needs: [test, prepare, build]
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
