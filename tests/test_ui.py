@@ -1481,10 +1481,11 @@ def test_download_progress_dialog_respects_custom_connections(qapp, monkeypatch,
     assert len(progress_dlg.segment_bars) == 10
     assert progress_dlg.seg_table.rowCount() == 10
 
-    # Expand details and verify geometry
+    # Expand details and verify geometry is capped to 8 rows
     progress_dlg.toggle_details(True)
     assert not progress_dlg.details_frame.isHidden()
     assert progress_dlg.btn_details.text() == "Details <<"
+    expanded_height_10 = progress_dlg.height()
 
     # Collapse details
     progress_dlg.toggle_details(False)
@@ -1493,6 +1494,17 @@ def test_download_progress_dialog_respects_custom_connections(qapp, monkeypatch,
 
     progress_dlg.close()
     worker.deleteLater()
+
+    # Test with 16 connections — expanded height must remain identical to 8-row height
+    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 16})
+    worker16 = DownloadWorker("http://example.com/test.iso", 0, "/tmp")
+    progress_dlg16 = DownloadProgressDialog(worker16, None)
+    progress_dlg16.show()
+    assert progress_dlg16.seg_table.rowCount() == 16
+    progress_dlg16.toggle_details(True)
+    assert progress_dlg16.height() == expanded_height_10
+    progress_dlg16.close()
+    worker16.deleteLater()
 
 
 

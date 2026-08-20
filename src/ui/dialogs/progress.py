@@ -310,9 +310,9 @@ class DownloadProgressDialog(QDialog):
             self.btn_details.setText("Details <<")
             row_height = 20
             self.seg_table.verticalHeader().setDefaultSectionSize(row_height)
-            num_rows = self.seg_table.rowCount()
             header_height = 25
-            table_height = header_height + (row_height * num_rows) + 2
+            visible_rows = min(8, self.seg_table.rowCount())
+            table_height = header_height + (row_height * visible_rows) + 2
             self.seg_table.setFixedHeight(table_height)
             
             # Expand window vertically while keeping width 520
