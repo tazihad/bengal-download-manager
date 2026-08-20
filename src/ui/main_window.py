@@ -1739,6 +1739,7 @@ class MainWindow(QMainWindow):
             return
         if row < 0 or row >= self.download_table.rowCount():
             return
+        changed = False
         for col in range(self.download_table.columnCount()):
             item = self.download_table.item(row, col)
             if item:
@@ -1747,6 +1748,12 @@ class MainWindow(QMainWindow):
                     font.setBold(is_bold)
                     font.setFeature(QFont.Tag.fromString('tnum'), 1)
                     item.setFont(font)
+                    changed = True
+        if changed and hasattr(self, "download_table"):
+            row_top = self.download_table.rowViewportPosition(row)
+            row_height = self.download_table.rowHeight(row)
+            if row_height > 0:
+                self.download_table.viewport().update(0, row_top, self.download_table.viewport().width(), row_height)
 
     def _set_sortable_item(self, row, col, text, parser_func):
         item = self.download_table.item(row, col)
