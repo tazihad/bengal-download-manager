@@ -320,7 +320,8 @@ class DownloadWorker(QThread):
                     f"{self.format_bytes(total_speed, precision=2, pad=False)}/s",
                     total_dl,
                     total_size,
-                    total_speed
+                    total_speed,
+                    getattr(self, 'generation', 0)
                 ))
 
                 save_counter += 1

@@ -50,6 +50,9 @@ class Aria2Worker(QThread):
             try: os.makedirs(self.working_dir, exist_ok=True)
             except: self.working_dir = self.save_dir
 
+        self.target_path = self.target_path
+        self.generation = 0
+
     def call_rpc(self, method, params=None):
         return call_aria2_rpc(method, params=params, port=self.rpc_port, token=self.rpc_token)
 
@@ -161,7 +164,8 @@ class Aria2Worker(QThread):
                 f"{self.format_bytes(download_speed, precision=2, pad=False)}/s",
                 completed_length,
                 total_length,
-                download_speed
+                download_speed,
+                getattr(self, 'generation', 0)
             ))
 
             current_time = time.time()

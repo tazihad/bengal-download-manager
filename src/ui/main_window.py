@@ -2786,6 +2786,12 @@ class MainWindow(QMainWindow):
             worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
         else:
             worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
+        
+        gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+        item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+        item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+        worker.generation = gen
+
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
         item_ref.setText(worker.filename)
         item_ref.setToolTip(worker.filename)
@@ -2842,6 +2848,10 @@ class MainWindow(QMainWindow):
                         
                         worker = getattr(dialog, 'worker', dialog)
                         if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
+                            gen = (item_name.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+                            item_name.setData(Qt.ItemDataRole.UserRole + 13, gen)
+                            item_name.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+                            worker.generation = gen
                             # Forward resume to existing worker
                             try:
                                 if hasattr(worker, 'resume'):
@@ -2906,6 +2916,7 @@ class MainWindow(QMainWindow):
                 item = self.download_table.item(r, 0)
                 if not item:
                     continue
+                item.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
                 key = self._get_item_key(item)
                 if key in self.active_downloads:
                     dialog = self.active_downloads[key]
@@ -2930,7 +2941,7 @@ class MainWindow(QMainWindow):
                     status_item = self.download_table.item(r, 2)
                     if status_item:
                         current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                        if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                        if current_status == "Complete" or status_item.text() == "Complete":
                             continue
                     if not status_item:
                         status_item = QTableWidgetItem()
@@ -2956,6 +2967,167 @@ class MainWindow(QMainWindow):
             self.download_table.viewport().update()
         
         self.update_ui_states()
+
+    def _get_display_state(self, item_ref, worker_status, comp_bytes=0, tot_bytes=0):
+        """
+        Central IDM-style State Resolver.
+        User Intent State (item_ref UserRole+11) is the supreme authority.
+        Engine State (worker_status) is only considered when User Intent is Normal/Active.
+        """
+        user_state = item_ref.data(Qt.ItemDataRole.UserRole + 11) # "Complete", "Paused", "Cancelled", "Normal"
+        row = self.download_table.row(item_ref) if hasattr(self, "download_table") else -1
+        status_item = self.download_table.item(row, 2) if (row >= 0 and hasattr(self, "download_table")) else None
+        prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+        
+        # Calculate percentage string
+        pct_str = ""
+        if tot_bytes > 0:
+            pct_val = min(100.0, (comp_bytes / tot_bytes) * 100.0)
+            if prev_pct_str and "%" in str(prev_pct_str) and pct_val == 0.0:
+                try:
+                    prev_val = float(str(prev_pct_str).replace("%", "").strip())
+                    if prev_val > 0:
+                        pct_val = prev_val
+                except ValueError:
+                    pass
+            pct_str = f"{pct_val:.2f}%"
+        elif prev_pct_str and "%" in str(prev_pct_str):
+            pct_str = str(prev_pct_str)
+
+        # 1. User Intent: Complete
+        if user_state == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes):
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
+            return "Complete", "Complete", pct_str or "100.00%", False
+
+        # 2. User Intent: Paused
+        if user_state == "Paused":
+            final_display = pct_str if pct_str else "Paused"
+            return final_display, "Paused", pct_str, False
+
+        # 3. User Intent: Cancelled
+        if user_state == "Cancelled":
+            final_display = pct_str if pct_str else "Cancelled"
+            return final_display, "Cancelled", pct_str, False
+
+        # 4. User Intent: Normal / Active -> Interpret Engine Status
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
+            engine_status = "Downloading"
+            final_display = pct_str if pct_str else "Downloading"
+            is_active = True
+        elif worker_status in ["Resuming...", "Resume GET..."]:
+            engine_status = "Resuming..."
+            final_display = pct_str if pct_str else "Resuming..."
+            is_active = True
+        elif worker_status == "Connecting...":
+            engine_status = "Connecting..."
+            final_display = pct_str if pct_str else "Connecting..."
+            is_active = True
+        elif worker_status in ["Paused", "Cancelled"]:
+            # Engine reports paused while user state is Normal -> transitioning
+            engine_status = "Resuming..."
+            final_display = pct_str if pct_str else "Resuming..."
+            is_active = True
+        elif worker_status == "Error":
+            engine_status = "Error"
+            final_display = "Error"
+            is_active = False
+        else:
+            engine_status = worker_status if worker_status else "Downloading"
+            final_display = pct_str if pct_str else engine_status
+            is_active = True
+
+        return final_display, engine_status, pct_str, is_active
+
+    def _apply_download_row_data(self, item_ref, data):
+        try:
+            row = self.download_table.row(item_ref)
+        except RuntimeError:
+            return # object has been deleted by remove
+        if row == -1: return 
+
+        # Freshness guard: Discard stale callbacks from older sessions
+        if len(data) > 8 and data[8] is not None:
+            callback_gen = data[8]
+            current_gen = item_ref.data(Qt.ItemDataRole.UserRole + 13)
+            if current_gen is not None and callback_gen < current_gen:
+                return
+
+        status_item = self.download_table.item(row, 2)
+        old_status = status_item.text() if status_item else ""
+        old_logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+
+        # --- PROTECTION GUARD ---
+        # If the row is already marked as Complete, ignore any late progress signals unless actively downloading (e.g. redownload)
+        key = self._get_item_key(item_ref)
+        if item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete" and key not in getattr(self, "active_downloads", {}):
+            return
+        
+        # --- Update Last Try Timestamp ---
+        new_timestamp = str(time.time())
+        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+
+        new_name = data[0]
+        if item_ref.text() != new_name:
+            item_ref.setText(new_name)
+            item_ref.setToolTip(new_name)
+            item_ref.setIcon(get_file_icon(new_name))
+        
+        # Col 1: Size (Display total file size if known)
+        tot_bytes = data[6] if len(data) > 6 else 0
+        comp_bytes = data[5] if len(data) > 5 else 0
+
+        if tot_bytes > 0:
+            size_display = format_bytes(tot_bytes)
+        elif comp_bytes > 0:
+            size_display = format_bytes(comp_bytes)
+        else:
+            size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
+
+        self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+        
+        # Col 2: Status (Resolved centrally via IDM State Architecture)
+        worker_status = data[2] if len(data) > 2 else ""
+        final_display, display_status, pct_str, is_active = self._get_display_state(item_ref, worker_status, comp_bytes, tot_bytes)
+
+        if pct_str and pct_str != "Complete" and status_item:
+            status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
+        
+        if final_display != old_status or display_status != old_logic_status:
+            self._set_status_text(row, final_display, logic_status=display_status)
+            status_item = self.download_table.item(row, 2)
+            if status_item:
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+            if display_status != old_logic_status:
+                self.update_ui_states()
+        
+        # Col 3 & 4: Time Left & Rate
+        if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
+            self._set_sortable_item(row, 3, "", parse_time_to_sec)
+            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            if hasattr(self, "active_speeds"):
+                self.active_speeds.pop(key, None)
+        else:
+            time_val = data[3] if len(data) > 3 else ""
+            rate_val = data[4] if len(data) > 4 else ""
+            self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+            self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+            if hasattr(self, "active_speeds"):
+                raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
+                if raw_speed is not None:
+                    self.active_speeds[key] = float(raw_speed)
+                elif rate_val:
+                    self.active_speeds[key] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
+        self.update_status_bar_speed()
+        
+        # Col 5: Last Try
+        formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
+        last_try_item = self.download_table.item(row, 5)
+        if not last_try_item:
+            self._set_timestamp_item(row, 5, formatted_last_try)
+        elif last_try_item.text() != formatted_last_try:
+            last_try_item.setText(formatted_last_try)
+        
+        self._set_row_bold(row, is_active)
 
     def _stop_worker_entry(self, entry):
         """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
