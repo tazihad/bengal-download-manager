@@ -824,7 +824,6 @@ class MainWindow(QMainWindow):
             QTableWidget::item:focus { 
                 border: none; 
                 outline: 0; 
-                background: transparent; 
             }
             QHeaderView::section {
                 font-weight: normal;
@@ -1753,6 +1752,9 @@ class MainWindow(QMainWindow):
         created = False
         if not item:
             item = SortableTableWidgetItem(text)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
             self.download_table.setItem(row, col, item)
             created = True
         elif item.text() != text:
@@ -1762,13 +1764,6 @@ class MainWindow(QMainWindow):
         col_names = {1: "Size", 3: "Time Left", 4: "Transfer Rate"}
         if col in col_names:
             item.setToolTip(f"{col_names[col]}: {text}" if text else f"{col_names[col]}: N/A")
-
-        if getattr(self, "table_style", "classic") != "modern":
-            is_active = self._is_row_active(row)
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(is_active)
-            item.setFont(font)
             
         raw_val = parser_func(text)
         if item.data(Qt.ItemDataRole.UserRole) != raw_val:
@@ -1779,6 +1774,9 @@ class MainWindow(QMainWindow):
         created = False
         if not item:
             item = QTableWidgetItem(text)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
             self.download_table.setItem(row, 2, item)
             created = True
         elif item.text() != text:
@@ -1790,30 +1788,19 @@ class MainWindow(QMainWindow):
         elif text in ["Paused", "Complete", "Finished", "Error", "Cancelled", "Connecting...", "Downloading", "Resuming...", "Pending...", "Queued"]:
             item.setData(Qt.ItemDataRole.UserRole + 1, text)
 
-        if getattr(self, "table_style", "classic") != "modern":
-            is_active = self._is_row_active(row) or text in ["Connecting...", "Downloading", "Resuming...", "Pending...", "Receiving data..."]
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(is_active)
-            item.setFont(font)
-
     def _set_timestamp_item(self, row, col, text):
         item = self.download_table.item(row, col)
         if not item:
             item = QTableWidgetItem(text)
+            font = QFont(QApplication.font())
+            font.setFeature(QFont.Tag.fromString('tnum'), 1)
+            item.setFont(font)
             self.download_table.setItem(row, col, item)
         elif item.text() != text:
             item.setText(text)
             
         col_name = "Last Attempt" if col == 5 else "Date Added"
         item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
-
-        if getattr(self, "table_style", "classic") != "modern":
-            is_active = self._is_row_active(row)
-            font = QFont(QApplication.font())
-            font.setFeature(QFont.Tag.fromString('tnum'), 1)
-            font.setBold(is_active)
-            item.setFont(font)
         return item
 
     def add_new_download(self, url, category="General", save_path=""):
