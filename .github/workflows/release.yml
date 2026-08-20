@@ -186,6 +186,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Download Build Artifacts
@@ -212,6 +214,7 @@ jobs:
           tag = os.environ.get("TAG", "")
           base_url = os.environ.get("BASE_URL", "")
           version = os.environ.get("VERSION", "")
+          repo = os.environ.get("REPOSITORY", "tazihad/bengal-download-manager")
 
           files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in ("SHA256SUMS.txt",)]
 
@@ -244,6 +247,15 @@ jobs:
               lines.append(f"| {label} | [{fname}]({url}) |")
           lines.append(f"| 📄 **SHA-256 Checksums** | [SHA256SUMS.txt]({base_url}/SHA256SUMS.txt) |")
           lines.append("\n---\n")
+          
+          is_stable = not any(k in tag.lower() for k in ("alpha", "beta", "rc", "dev"))
+          if is_stable:
+              lines.append("### 🛡️ Supply Chain Security & Artifact Attestation\n")
+              lines.append("Every artifact in this release is signed and attested via GitHub Artifact Attestations (Sigstore).\n")
+              lines.append("Verify the provenance of any downloaded binary with the GitHub CLI:\n```bash")
+              lines.append(f"gh attestation verify <downloaded-file> --repo {repo}")
+              lines.append("```\n\n---\n")
+
           lines.append("### 🔒 Checksums (SHA-256)\n```text")
           
           if os.path.exists("SHA256SUMS.txt"):
@@ -256,6 +268,12 @@ jobs:
           EOF
 
           cd ..
+
+      - name: Generate Artifact Attestation for Stable Release
+        if: ${{ !(contains(needs.prepare.outputs.tag, 'alpha') || contains(needs.prepare.outputs.tag, 'beta') || contains(needs.prepare.outputs.tag, 'rc') || contains(needs.prepare.outputs.tag, 'dev') || inputs.is_prerelease) }}
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release_dist/*'
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
