@@ -1439,6 +1439,34 @@ def test_media_download_complete_dialog_shown(qapp, tmp_path):
     window.close()
 
 
+def test_options_dialog_max_connections_persistence(qapp, monkeypatch, tmp_path):
+    from ui.dialogs import OptionsDialog
+    from core.utils import save_extension_config, load_extension_config
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 8})
+
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "spin_max_conn")
+    assert dlg.spin_max_conn.minimum() == 1
+    assert dlg.spin_max_conn.maximum() == 32
+    assert dlg.spin_max_conn.value() == 8
+
+    # Change to 16 and save
+    dlg.spin_max_conn.setValue(16)
+    dlg.save_and_accept()
+
+    loaded = load_extension_config()
+    assert loaded["max_connections"] == 16
+
+    # Reopen dialog and verify 16 is displayed
+    dlg2 = OptionsDialog()
+    assert dlg2.spin_max_conn.value() == 16
+    dlg2.reject()
+
+
+
 
 
 

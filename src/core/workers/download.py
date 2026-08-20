@@ -4,7 +4,7 @@ import json
 from urllib.parse import urlparse, unquote
 import urllib.request
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
-from core.utils import get_unique_filepath, resolve_filename
+from core.utils import get_unique_filepath, resolve_filename, load_extension_config
 from core.memory_guard import MemoryGuard
 
 class SegmentWorker(QThread):
@@ -221,7 +221,10 @@ class DownloadWorker(QThread):
             
             segments_info = []
             is_resuming = False
-            num_threads = 8
+            
+            ext_data = load_extension_config()
+            max_conn = ext_data.get("max_connections", 8)
+            num_threads = max(1, min(32, int(max_conn))) if isinstance(max_conn, (int, float, str)) and str(max_conn).isdigit() else 8
 
             if os.path.exists(self.state_file) and os.path.exists(self.save_path):
                 try:

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
-from core.utils import show_in_folder
+from core.utils import show_in_folder, load_extension_config
 from core.memory_guard import MemoryGuard
 
 class DownloadProgressDialog(QDialog):
@@ -38,7 +38,10 @@ class DownloadProgressDialog(QDialog):
         self.worker.segment_update_signal.connect(self.update_segment_row)
 
         self.setup_ui()
-        self.init_segment_table(8)
+        
+        ext_data = load_extension_config()
+        initial_conn = ext_data.get("max_connections", 8)
+        self.init_segment_table(int(initial_conn) if isinstance(initial_conn, (int, float, str)) and str(initial_conn).isdigit() else 8)
         self.worker.start()
 
     def setup_status_tab(self):

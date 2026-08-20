@@ -22,3 +22,19 @@ def test_aria2_worker_format_bytes(qapp):
 def test_fetcher_worker_format_bytes(qapp):
     fetcher = FileInfoFetcherWorker("http://example.com")
     assert fetcher.format_bytes(4096, precision=2, pad=False) == "4.00  KB"
+
+def test_workers_respect_configured_max_connections(qapp, monkeypatch, tmp_path):
+    from core.utils import save_extension_config, load_extension_config
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 12})
+    cfg = load_extension_config()
+    assert cfg["max_connections"] == 12
+
+    # Verify clamping
+    save_extension_config({"max_connections": 999})
+    assert load_extension_config()["max_connections"] == 32
+
+    save_extension_config({"max_connections": 0})
+    assert load_extension_config()["max_connections"] == 1
+
