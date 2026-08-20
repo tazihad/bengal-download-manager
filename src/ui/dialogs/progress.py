@@ -196,6 +196,7 @@ class DownloadProgressDialog(QDialog):
         main_layout.addSpacing(5)
 
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(6)
         self.btn_details = QPushButton("Details >>")
         self.btn_details.setCheckable(True)
         self.btn_details.setFixedWidth(100)
@@ -221,6 +222,7 @@ class DownloadProgressDialog(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         
         main_layout.addLayout(btn_layout)
+
 
         # Details frame (placed at the bottom)
         self.details_frame = QFrame()
