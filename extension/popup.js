@@ -102,7 +102,8 @@ function updateGlobalToggleUI(enabled) {
 
 function updateSiteToggleUI(domain, isBlacklisted, hasValidSite) {
   const toggle = document.getElementById('toggle-site-interception');
-  const subtitle = document.getElementById('site-subtitle');
+  const domainElem = document.getElementById('site-domain');
+  const descElem = document.getElementById('site-desc');
   const row = document.getElementById('site-toggle-row');
 
   if (!hasValidSite || !domain) {
@@ -110,7 +111,8 @@ function updateSiteToggleUI(domain, isBlacklisted, hasValidSite) {
       toggle.checked = false;
       toggle.disabled = true;
     }
-    if (subtitle) subtitle.textContent = "No active website";
+    if (domainElem) domainElem.textContent = "No active website";
+    if (descElem) descElem.textContent = "Open a webpage to configure per-site rules";
     if (row) row.classList.add('disabled');
     return;
   }
@@ -120,10 +122,13 @@ function updateSiteToggleUI(domain, isBlacklisted, hasValidSite) {
     toggle.disabled = false;
     toggle.checked = isBlacklisted; // Checked = Don't catch (bypassed)
   }
-  if (subtitle) {
-    subtitle.textContent = isBlacklisted 
-      ? `Bypassed on ${domain} (Browser downloads directly)` 
-      : `Active on ${domain} (Bengal DM catches downloads)`;
+  if (domainElem) {
+    domainElem.textContent = domain;
+  }
+  if (descElem) {
+    descElem.textContent = isBlacklisted 
+      ? "Bypassed — downloads are handled directly by your browser" 
+      : "Active — Bengal DM captures downloads from this site";
   }
 }
 
