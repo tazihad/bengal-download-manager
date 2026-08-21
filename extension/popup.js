@@ -95,8 +95,8 @@ function updateGlobalToggleUI(enabled) {
   if (toggle) toggle.checked = enabled;
   if (subtitle) {
     subtitle.textContent = enabled 
-      ? "Automatically intercept browser downloads" 
-      : "Interception paused for all websites";
+      ? "Capture downloads browser-wide" 
+      : "Paused for all websites";
   }
 }
 
@@ -112,7 +112,7 @@ function updateSiteToggleUI(domain, isBlacklisted, hasValidSite) {
       toggle.disabled = true;
     }
     if (domainElem) domainElem.textContent = "No active website";
-    if (descElem) descElem.textContent = "Open a webpage to configure per-site rules";
+    if (descElem) descElem.textContent = "Open a website to configure";
     if (row) row.classList.add('disabled');
     return;
   }
@@ -127,8 +127,8 @@ function updateSiteToggleUI(domain, isBlacklisted, hasValidSite) {
   }
   if (descElem) {
     descElem.textContent = isBlacklisted 
-      ? "Bypassed — downloads are handled directly by your browser" 
-      : "Active — Bengal DM captures downloads from this site";
+      ? "Handled by browser" 
+      : "Captured by Bengal DM";
   }
 }
 
