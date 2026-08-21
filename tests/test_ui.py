@@ -1186,6 +1186,59 @@ def test_sidebar_selected_icon_black_in_dark_and_light_modes(qapp):
     win_light.close()
 
 
+def test_yaru_sidebar_selected_icon_retains_colors(qapp):
+    """Verify that in Yaru icon theme, left panel selected icon retains colorful squircle and toolbar hover does not switch icon."""
+    from main import MainWindow, apply_app_theme
+    from PyQt6.QtWidgets import QStyleOptionViewItem, QStyle, QToolBar, QToolButton
+    from PyQt6.QtGui import QPainter, QPixmap
+    from PyQt6.QtCore import QRect, QEvent
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.apply_appearance_setting("BDM Dark (Default)", icon_theme_name="Yaru")
+
+    tree = win.category_tree
+    item = win.all_downloads_header
+    tree.setCurrentItem(item)
+
+    # Render selected item using delegate
+    pm = QPixmap(200, 30)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    opt = QStyleOptionViewItem()
+    opt.initFrom(tree)
+    opt.rect = QRect(0, 0, 200, 30)
+    opt.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
+    tree.itemDelegate().paint(p, opt, tree.model().index(1, 0))
+    p.end()
+
+    img = pm.toImage()
+    colored_px = sum(1 for y in range(img.height()) for x in range(30) if (img.pixelColor(x, y).red() > 20 or img.pixelColor(x, y).blue() > 20) and img.pixelColor(x, y).alpha() > 150)
+    assert colored_px > 0, "Yaru selected sidebar item must retain colorful squircle rather than turning black"
+
+    # Verify toolbar hover does not swap Yaru icon with monochrome icon
+    toolbar = win.findChild(QToolBar, "MainToolbar")
+    btn = toolbar.widgetForAction(win.action_add_url)
+    assert btn is not None
+    initial_icon = btn.icon()
+    initial_pm = initial_icon.pixmap(24, 24)
+
+    # Trigger Enter event
+    enter_ev = QEvent(QEvent.Type.Enter)
+    win.toolbar_hover_filter.eventFilter(btn, enter_ev)
+    hover_icon = btn.icon()
+    hover_pm = hover_icon.pixmap(24, 24)
+
+    initial_img = initial_pm.toImage()
+    hover_img = hover_pm.toImage()
+    initial_orange_px = sum(1 for y in range(initial_img.height()) for x in range(initial_img.width()) if initial_img.pixelColor(x, y).red() > 150 and initial_img.pixelColor(x, y).alpha() > 150)
+    hover_orange_px = sum(1 for y in range(hover_img.height()) for x in range(hover_img.width()) if hover_img.pixelColor(x, y).red() > 150 and hover_img.pixelColor(x, y).alpha() > 150)
+    assert initial_orange_px > 0, "Initial Yaru Add URL button must have orange pixels"
+    assert hover_orange_px > 0, "Hovered Yaru Add URL button must preserve orange pixels and not swap to BDM monochrome"
+
+    win.close()
+
+
 def test_add_url_dialog_button_click_icon_colors(qapp):
     """Verify that in AddUrlDialog, clicking Paste or Download Media uses white icon in dark mode and dark icon in light mode."""
     from main import apply_app_theme

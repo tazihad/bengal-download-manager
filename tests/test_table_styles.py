@@ -111,14 +111,22 @@ def test_modern_color_icon_set(qapp):
 
 
 def test_yaru_icon_set(qapp):
-    from main import get_themed_icon, normalize_icon_theme_name, apply_app_theme
+    from main import get_themed_icon, normalize_icon_theme_name, apply_app_theme, is_monochrome_icon_theme
     from ui.icons import get_yaru_icon
 
     assert normalize_icon_theme_name("Yaru") == "Yaru"
     assert normalize_icon_theme_name("yaru") == "Yaru"
     assert normalize_icon_theme_name("ubuntu yaru") == "Yaru"
 
+    assert not is_monochrome_icon_theme("Yaru")
+    assert not is_monochrome_icon_theme("Ubuntu Yaru")
+    assert not is_monochrome_icon_theme("Modern Color")
+    assert is_monochrome_icon_theme("BDM Auto (Default)")
+    assert is_monochrome_icon_theme("BDM Dark")
+    assert is_monochrome_icon_theme("BDM Light")
+
     apply_app_theme("BDM Dark (Default)", "BDM (Default)", "Yaru", "App Icon (Default)", qapp)
+    assert not is_monochrome_icon_theme()
 
     all_symbols = [
         "add_url", "resume", "stop", "stop_all", "delete", "clear",

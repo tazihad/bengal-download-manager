@@ -61,24 +61,26 @@ class SidebarItemDelegate(QStyledItemDelegate):
             opt = QStyleOptionViewItem(option)
             self.initStyleOption(opt, index)
 
-            # Left panel selected/hovered icon MUST be pure black in both dark mode and light mode
-            icon = index.data(Qt.ItemDataRole.DecorationRole)
-            if isinstance(icon, QIcon) and not icon.isNull():
-                dec_size = opt.decorationSize if opt.decorationSize.isValid() and not opt.decorationSize.isEmpty() else QSize(18, 18)
-                src_pm = icon.pixmap(dec_size, QIcon.Mode.Normal)
-                if not src_pm.isNull() and src_pm.width() > 0 and src_pm.height() > 0:
-                    img = src_pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
-                    for y in range(img.height()):
-                        for x in range(img.width()):
-                            c = img.pixelColor(x, y)
-                            if c.alpha() > 0:
-                                img.setPixelColor(x, y, QColor(0, 0, 0, c.alpha()))
-                    black_pm = QPixmap.fromImage(img)
-                    black_ic = QIcon()
-                    black_ic.addPixmap(black_pm, QIcon.Mode.Normal)
-                    black_ic.addPixmap(black_pm, QIcon.Mode.Selected)
-                    black_ic.addPixmap(black_pm, QIcon.Mode.Active)
-                    opt.icon = black_ic
+            from core.services.theme_service import is_monochrome_icon_theme
+            if is_monochrome_icon_theme():
+                # Left panel selected/hovered icon for BDM monochrome stroke icons MUST be pure black
+                icon = index.data(Qt.ItemDataRole.DecorationRole)
+                if isinstance(icon, QIcon) and not icon.isNull():
+                    dec_size = opt.decorationSize if opt.decorationSize.isValid() and not opt.decorationSize.isEmpty() else QSize(18, 18)
+                    src_pm = icon.pixmap(dec_size, QIcon.Mode.Normal)
+                    if not src_pm.isNull() and src_pm.width() > 0 and src_pm.height() > 0:
+                        img = src_pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+                        for y in range(img.height()):
+                            for x in range(img.width()):
+                                c = img.pixelColor(x, y)
+                                if c.alpha() > 0:
+                                    img.setPixelColor(x, y, QColor(0, 0, 0, c.alpha()))
+                        black_pm = QPixmap.fromImage(img)
+                        black_ic = QIcon()
+                        black_ic.addPixmap(black_pm, QIcon.Mode.Normal)
+                        black_ic.addPixmap(black_pm, QIcon.Mode.Selected)
+                        black_ic.addPixmap(black_pm, QIcon.Mode.Active)
+                        opt.icon = black_ic
 
             opt.palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
             opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))

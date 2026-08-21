@@ -396,6 +396,19 @@ CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
 
 
+def is_monochrome_icon_theme(icon_theme_name=None) -> bool:
+    """Returns True if the specified or active icon theme is a BDM monochrome stroke theme."""
+    if icon_theme_name is None:
+        global CURRENT_ICON_THEME
+        icon_theme_name = CURRENT_ICON_THEME if CURRENT_ICON_THEME else "BDM Auto (Default)"
+    s_lower = str(icon_theme_name).strip().lower()
+    return s_lower in (
+        "automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto",
+        "bdm (default)", "default", "bdm dark", "bdmdark", "bdm dark (default)",
+        "bdm light", "bdmlight"
+    )
+
+
 def init_app_font() -> QFont:
     """
     Initializes the primary application font.

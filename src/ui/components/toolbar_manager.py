@@ -40,16 +40,20 @@ class ToolbarHoverFilter(QObject):
 
     def get_glow_icon(self, icon_name: str) -> QIcon:
         if icon_name not in self._glow_icons:
-            from ui.icons import get_monochrome_icon
-            is_dark = self.main_window.is_dark_theme() if hasattr(self.main_window, "is_dark_theme") else True
-            stroke_color = QColor("#ffffff") if is_dark else QColor("#232629")
-            self._glow_icons[icon_name] = get_monochrome_icon(
-                icon_name,
-                color=stroke_color,
-                selected_color=stroke_color,
-                active_color=stroke_color,
-                glow=True
-            )
+            from core.services.theme_service import is_monochrome_icon_theme, get_themed_icon
+            if is_monochrome_icon_theme():
+                from ui.icons import get_monochrome_icon
+                is_dark = self.main_window.is_dark_theme() if hasattr(self.main_window, "is_dark_theme") else True
+                stroke_color = QColor("#ffffff") if is_dark else QColor("#232629")
+                self._glow_icons[icon_name] = get_monochrome_icon(
+                    icon_name,
+                    color=stroke_color,
+                    selected_color=stroke_color,
+                    active_color=stroke_color,
+                    glow=True
+                )
+            else:
+                self._glow_icons[icon_name] = get_themed_icon(icon_name)
         return self._glow_icons[icon_name]
 
     def clear_cache(self):
@@ -57,6 +61,10 @@ class ToolbarHoverFilter(QObject):
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QToolButton) and obj.isEnabled():
+            from core.services.theme_service import is_monochrome_icon_theme
+            if not is_monochrome_icon_theme():
+                return super().eventFilter(obj, event)
+
             if event.type() in (QEvent.Type.Enter, QEvent.Type.MouseButtonPress):
                 action = obj.defaultAction()
                 if action:
