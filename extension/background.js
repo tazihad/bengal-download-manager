@@ -461,7 +461,10 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
         })();
 
         if (extraSpec.includes("blocking")) {
-          // If blocking is supported, we check synchronicity if available
+          // If blocking is supported (Firefox MV3/MV2), check synchronous cancellation
+          if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt) {
+            return { cancel: true };
+          }
         }
       },
       { urls: ["<all_urls>"], types: ["main_frame", "sub_frame", "other"] },
@@ -473,10 +476,62 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
   const hasBlocking = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
   const extraSpec = hasBlocking ? ["responseHeaders", "blocking"] : ["responseHeaders"];
 
-  setupListener(extraSpec);
+  try {
+    setupListener(extraSpec);
+  } catch {
+    setupListener(["responseHeaders"]);
+  }
 }
 
-// --- BROWSER DOWNLOAD CANCELLER & TAKEOVER (Guarantees zero browser downloads when Bengal DM is running) ---
+// --- BROWSER DOWNLOAD CANCELLER & TAKEOVER (Zero-Popup, Zero-Animation, Zero-History) ---
+const interceptedDownloadIds = new Set();
+
+function eraseDownloadRecord(downloadId) {
+  if (!downloadId || !chrome.downloads || !chrome.downloads.erase) return;
+  try {
+    chrome.downloads.erase({ id: downloadId }, () => {
+      if (chrome.runtime && chrome.runtime.lastError) { /* ignore */ }
+    });
+  } catch {}
+}
+
+function cancelAndEraseDownload(downloadId) {
+  if (!downloadId || !chrome.downloads) return;
+  interceptedDownloadIds.add(downloadId);
+  try {
+    chrome.downloads.cancel(downloadId, () => {
+      eraseDownloadRecord(downloadId);
+    });
+  } catch {}
+  eraseDownloadRecord(downloadId);
+  setTimeout(() => eraseDownloadRecord(downloadId), 40);
+  setTimeout(() => eraseDownloadRecord(downloadId), 150);
+  setTimeout(() => eraseDownloadRecord(downloadId), 500);
+}
+
+// Disable download shelf UI if supported by browser build
+if (chrome.downloads && typeof chrome.downloads.setShelfEnabled === 'function') {
+  try { chrome.downloads.setShelfEnabled(false); } catch {}
+}
+
+// 1. Hook onDeterminingFilename (Chrome/Edge): Cancels before Save-As dialog opens and before download animation triggers
+if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
+  chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+    if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
+
+    (async () => {
+      const shouldIntercept = await shouldInterceptDownload(downloadItem.url, downloadItem.filename);
+      if (!shouldIntercept) return;
+
+      const isOnline = await isBengalDMOnline();
+      if (!isOnline) return;
+
+      cancelAndEraseDownload(downloadItem.id);
+    })();
+  });
+}
+
+// 2. Hook onCreated: Initial download instantiation and handover to Bengal DM
 if (chrome.downloads && chrome.downloads.onCreated) {
   chrome.downloads.onCreated.addListener(async (downloadItem) => {
     if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
@@ -494,20 +549,7 @@ if (chrome.downloads && chrome.downloads.onCreated) {
     }
 
     // 2. Bengal DM is active: cancel and erase browser native download immediately on 0th byte
-    try {
-      chrome.downloads.cancel(downloadItem.id, () => {
-        try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
-      });
-      setTimeout(() => {
-        try {
-          chrome.downloads.cancel(downloadItem.id, () => {
-            try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
-          });
-        } catch (e) {}
-      }, 50);
-    } catch (e) {
-      try { chrome.downloads.erase({ id: downloadItem.id }); } catch (err) {}
-    }
+    cancelAndEraseDownload(downloadItem.id);
 
     // 3. Deduplicate if already processed by content script or webRequest
     if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
@@ -539,6 +581,18 @@ if (chrome.downloads && chrome.downloads.onCreated) {
       filename: downloadItem.filename || "",
       referrer: downloadItem.referrer || ""
     });
+  });
+}
+
+// 3. Hook onChanged: Erase the download from history database the moment state reaches "interrupted"
+if (chrome.downloads && chrome.downloads.onChanged) {
+  chrome.downloads.onChanged.addListener((delta) => {
+    if (!delta || !delta.id) return;
+    if (interceptedDownloadIds.has(delta.id) || (delta.state && delta.state.current === "interrupted")) {
+      eraseDownloadRecord(delta.id);
+      setTimeout(() => eraseDownloadRecord(delta.id), 80);
+      setTimeout(() => eraseDownloadRecord(delta.id), 300);
+    }
   });
 }
 
