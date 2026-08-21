@@ -728,8 +728,8 @@ class OptionsDialog(QDialog):
         vbox_cookies.setContentsMargins(10, 15, 10, 15)
         vbox_cookies.setSpacing(10)
 
-        row_cmode = QHBoxLayout()
-        row_cmode.addWidget(QLabel("Default Cookie Source:"))
+        row_cookies_config = QHBoxLayout()
+        row_cookies_config.addWidget(QLabel("Cookie:"))
         self.cmb_opt_cookies_mode = QComboBox()
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
@@ -738,20 +738,18 @@ class OptionsDialog(QDialog):
         ])
         saved_cmode = media_defaults.get("cookies_mode_idx", 0)
         self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 2))
-        row_cmode.addWidget(self.cmb_opt_cookies_mode, stretch=1)
-        vbox_cookies.addLayout(row_cmode)
+        row_cookies_config.addWidget(self.cmb_opt_cookies_mode, stretch=1)
 
-        row_cbrowser = QHBoxLayout()
-        self.lbl_opt_cookies_browser = QLabel("Default Browser:")
-        row_cbrowser.addWidget(self.lbl_opt_cookies_browser)
+        self.lbl_opt_cookies_browser = QLabel("Browser:")
+        row_cookies_config.addWidget(self.lbl_opt_cookies_browser)
         self.cmb_opt_cookies_browser = QComboBox()
         self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
         saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
         idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
         if idx_cb != -1:
             self.cmb_opt_cookies_browser.setCurrentIndex(idx_cb)
-        row_cbrowser.addWidget(self.cmb_opt_cookies_browser, stretch=1)
-        vbox_cookies.addLayout(row_cbrowser)
+        row_cookies_config.addWidget(self.cmb_opt_cookies_browser, stretch=1)
+        vbox_cookies.addLayout(row_cookies_config)
 
         # Full-width cookies path input with Browse / Clear buttons below
         self.lbl_opt_cookies_path = QLabel("Netscape cookies.txt Path:")

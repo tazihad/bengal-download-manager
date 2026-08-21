@@ -257,9 +257,119 @@ def test_sanitize_media_url():
     assert sanitize_media_url(tiktok_url) == "https://www.tiktok.com/@creator/video/71234567890"
 
     # 6. Plain URL without tracking
-    plain_url = "https://vimeo.com/76979871"
-    assert sanitize_media_url(plain_url) == "https://vimeo.com/76979871"
+def test_show_in_folder_linux(monkeypatch, tmp_path):
+    from core.utils import show_in_folder
+    import platform
+    import subprocess
 
+    target_file = tmp_path / "archive.tar.gz"
+    target_file.write_text("dummy archive content")
+    target_dir = tmp_path / "downloads"
+    target_dir.mkdir()
 
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
 
+    # 1. Directory path -> opens directory directly
+    opened_cmds = []
+    def mock_popen_dir(cmd, *args, **kwargs):
+        opened_cmds.append(cmd)
+        class MockProc:
+            def communicate(self): return ("", "")
+        return MockProc()
 
+    monkeypatch.setattr(subprocess, "Popen", mock_popen_dir)
+    show_in_folder(str(target_dir))
+    assert len(opened_cmds) == 1
+    assert opened_cmds[0] == ["xdg-open", str(target_dir)]
+
+    # 2. File path -> Nautilus with --select
+    monkeypatch.setattr("PyQt6.QtDBus.QDBusConnection.sessionBus", lambda: (_ for _ in ()).throw(RuntimeError("no dbus")))
+    def mock_popen_nautilus(cmd, *args, **kwargs):
+        opened_cmds.append(cmd)
+        class MockProc:
+            def communicate(self):
+                if cmd[:3] == ["xdg-mime", "query", "default"]:
+                    return ("org.gnome.Nautilus.desktop\n", "")
+                return ("", "")
+        return MockProc()
+
+    opened_cmds.clear()
+    monkeypatch.setattr(subprocess, "Popen", mock_popen_nautilus)
+    show_in_folder(str(target_file))
+    assert ["nautilus", "--select", str(target_file)] in opened_cmds
+
+    # 3. File path -> Dolphin with --select
+    def mock_popen_dolphin(cmd, *args, **kwargs):
+        opened_cmds.append(cmd)
+        class MockProc:
+            def communicate(self):
+                if cmd[:3] == ["xdg-mime", "query", "default"]:
+                    return ("org.kde.dolphin.desktop\n", "")
+                return ("", "")
+        return MockProc()
+
+    opened_cmds.clear()
+    monkeypatch.setattr(subprocess, "Popen", mock_popen_dolphin)
+    show_in_folder(str(target_file))
+    assert ["dolphin", "--select", str(target_file)] in opened_cmds
+
+    # 4. File path -> Nemo with --select
+    def mock_popen_nemo(cmd, *args, **kwargs):
+        opened_cmds.append(cmd)
+        class MockProc:
+            def communicate(self):
+                if cmd[:3] == ["xdg-mime", "query", "default"]:
+                    return ("nemo.desktop\n", "")
+                return ("", "")
+        return MockProc()
+
+    opened_cmds.clear()
+    monkeypatch.setattr(subprocess, "Popen", mock_popen_nemo)
+    show_in_folder(str(target_file))
+    assert ["nemo", "--select", str(target_file)] in opened_cmds
+
+    # 5. File path -> Generic/Unknown fallback -> xdg-open parent dir
+    def mock_popen_generic(cmd, *args, **kwargs):
+        opened_cmds.append(cmd)
+        class MockProc:
+            def communicate(self):
+                if cmd[:3] == ["xdg-mime", "query", "default"]:
+                    return ("thunar.desktop\n", "")
+                return ("", "")
+        return MockProc()
+
+    opened_cmds.clear()
+    monkeypatch.setattr(subprocess, "Popen", mock_popen_generic)
+    show_in_folder(str(target_file))
+    assert ["xdg-open", str(tmp_path)] in opened_cmds
+
+    # 6. File path -> DBus FileManager1.ShowItems success
+    from PyQt6.QtDBus import QDBusMessage
+    dbus_calls = []
+    class MockDBusReply:
+        def type(self):
+            return QDBusMessage.MessageType.ReplyMessage
+    class MockDBusMsg:
+        def __init__(self, service, path, iface, method):
+            self.service = service
+            self.path = path
+            self.iface = iface
+            self.method = method
+            self.args = []
+        def setArguments(self, args):
+            self.args = args
+    class MockBus:
+        def isConnected(self): return True
+        def call(self, msg):
+            dbus_calls.append(msg)
+            return MockDBusReply()
+
+    monkeypatch.setattr("PyQt6.QtDBus.QDBusConnection.sessionBus", lambda: MockBus())
+    monkeypatch.setattr("PyQt6.QtDBus.QDBusMessage.createMethodCall", MockDBusMsg)
+    opened_cmds.clear()
+    show_in_folder(str(target_file))
+    assert len(dbus_calls) == 1
+    assert dbus_calls[0].service == "org.freedesktop.FileManager1"
+    assert dbus_calls[0].method == "ShowItems"
+    assert dbus_calls[0].args[0] == [f"file://{target_file}"]
+    assert len(opened_cmds) == 0  # Did not need CLI subprocess

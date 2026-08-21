@@ -54,6 +54,7 @@ from core.services.theme_service import (
     get_themed_icon,
     get_themed_tray_icon,
     init_app_font,
+    is_monochrome_icon_theme,
     make_faded_icon,
     normalize_accent_name,
     normalize_icon_theme_name,
