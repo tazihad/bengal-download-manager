@@ -118,12 +118,12 @@ function updateSiteToggleUI(domain, isBlacklisted, hasValidSite) {
   if (row) row.classList.remove('disabled');
   if (toggle) {
     toggle.disabled = false;
-    toggle.checked = !isBlacklisted;
+    toggle.checked = isBlacklisted; // Checked = Don't catch (bypassed)
   }
   if (subtitle) {
     subtitle.textContent = isBlacklisted 
-      ? `Bypassed on ${domain} (Browser handles downloads)` 
-      : `Active on ${domain}`;
+      ? `Bypassed on ${domain} (Browser downloads directly)` 
+      : `Active on ${domain} (Bengal DM catches downloads)`;
   }
 }
 
@@ -156,13 +156,13 @@ document.getElementById('toggle-global-interception').addEventListener('change',
 });
 
 document.getElementById('toggle-site-interception').addEventListener('change', (e) => {
-  const catchOnSite = e.target.checked;
+  const bypassThisSite = e.target.checked;
   if (!currentDomain) return;
 
   chrome.storage.local.get({ blacklistUrls: [] }, (items) => {
     let list = Array.isArray(items.blacklistUrls) ? [...items.blacklistUrls] : [];
 
-    if (!catchOnSite) {
+    if (bypassThisSite) {
       // Add domain to blacklist if not already present
       const alreadyIn = list.some(p => {
         const clean = p.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
@@ -180,7 +180,7 @@ document.getElementById('toggle-site-interception').addEventListener('change', (
     }
 
     chrome.storage.local.set({ blacklistUrls: list }, () => {
-      updateSiteToggleUI(currentDomain, !catchOnSite, true);
+      updateSiteToggleUI(currentDomain, bypassThisSite, true);
     });
   });
 });

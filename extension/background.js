@@ -24,15 +24,37 @@ function getFileExtension(urlOrFilename) {
 }
 
 // --- WHITELIST & BLACKLIST FILTER RULES ---
+let cachedFilterRules = {
+  enableInterception: true,
+  whitelistUrls: [],
+  whitelistExts: [],
+  blacklistUrls: [],
+  blacklistExts: []
+};
+
+function refreshFilterRules() {
+  chrome.storage.local.get(cachedFilterRules, (items) => {
+    cachedFilterRules = { ...cachedFilterRules, ...items };
+  });
+}
+refreshFilterRules();
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local') {
+    for (const key of ['enableInterception', 'whitelistUrls', 'whitelistExts', 'blacklistUrls', 'blacklistExts']) {
+      if (changes[key] !== undefined) {
+        cachedFilterRules[key] = changes[key].newValue;
+      }
+    }
+  }
+});
+
 async function getFilterRules() {
   return new Promise((resolve) => {
-    chrome.storage.local.get({
-      enableInterception: true,
-      whitelistUrls: [],
-      whitelistExts: [],
-      blacklistUrls: [],
-      blacklistExts: []
-    }, resolve);
+    chrome.storage.local.get(cachedFilterRules, (items) => {
+      cachedFilterRules = { ...cachedFilterRules, ...items };
+      resolve(cachedFilterRules);
+    });
   });
 }
 
@@ -135,10 +157,10 @@ function matchesExtension(extOrFilename, extList) {
   return false;
 }
 
-async function shouldInterceptDownload(url, filename, referrer) {
+function shouldInterceptDownloadSync(url, filename, referrer) {
   if (!url || isIgnoredServiceUrl(url)) return false;
 
-  const rules = await getFilterRules();
+  const rules = cachedFilterRules;
   if (rules.enableInterception === false) {
     return false;
   }
@@ -166,6 +188,10 @@ async function shouldInterceptDownload(url, filename, referrer) {
   }
 
   return true;
+}
+
+async function shouldInterceptDownload(url, filename, referrer) {
+  return shouldInterceptDownloadSync(url, filename, referrer);
 }
 
 // --- ENHANCED COOKIE EXTRACTION (cliget method with Firefox storeId & dFPI support) ---
@@ -490,22 +516,21 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
         }
 
         const ext = getFileExtension(filenameFromHeader || details.url);
+        const referrer = details.initiator || details.documentUrl || "";
 
-        (async () => {
-          const ext = getFileExtension(filenameFromHeader || details.url);
-          const referrer = details.initiator || details.documentUrl || "";
-          const shouldIntercept = await shouldInterceptDownload(details.url, filenameFromHeader, referrer);
-          if (!shouldIntercept) {
-            return;
-          }
+        // Synchronous blacklist & interception check
+        const shouldIntercept = shouldInterceptDownloadSync(details.url, filenameFromHeader, referrer);
+        if (!shouldIntercept) {
+          return; // Bypassed to native browser! NEVER cancel or redirect!
+        }
 
-          const rules = await getFilterRules();
-          const isExplicitWhitelistedExt = matchesExtension(ext || filenameFromHeader, rules.whitelistExts);
-          const isDownloadExt = ext && RECOGNIZED_DOWNLOAD_EXTS.includes(ext);
-          const isGoogleDriveExport = details.url.includes("export=download") || details.url.includes("uc-download-link");
+        const isExplicitWhitelistedExt = matchesExtension(ext || filenameFromHeader, cachedFilterRules.whitelistExts);
+        const isDownloadExt = ext && RECOGNIZED_DOWNLOAD_EXTS.includes(ext);
+        const isGoogleDriveExport = details.url.includes("export=download") || details.url.includes("uc-download-link");
 
-          // Only intercept if there is a real download intent
-          if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt || isGoogleDriveExport) {
+        // Only intercept if there is a real download intent
+        if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt || isGoogleDriveExport) {
+          (async () => {
             const isOnline = await isBengalDMOnline();
             if (!isOnline) return;
 
@@ -530,12 +555,9 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
               filename: filenameFromHeader,
               referrer: referrer
             });
-          }
-        })();
+          })();
 
-        if (extraSpec.includes("blocking")) {
-          // If blocking is supported (Firefox MV3/MV2), check synchronous cancellation
-          if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt) {
+          if (extraSpec.includes("blocking")) {
             return { cancel: true };
           }
         }
@@ -592,11 +614,13 @@ if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
   chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
     if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
 
-    (async () => {
-      const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
-      const shouldIntercept = await shouldInterceptDownload(downloadItem.url, downloadItem.filename, referrer);
-      if (!shouldIntercept) return;
+    const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
+    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
+    if (!shouldIntercept) {
+      return; // Leave download to native browser!
+    }
 
+    (async () => {
       const isOnline = await isBengalDMOnline();
       if (!isOnline) return;
 
@@ -612,9 +636,9 @@ if (chrome.downloads && chrome.downloads.onCreated) {
 
     const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
     // Check Whitelist & Blacklist rules
-    const shouldIntercept = await shouldInterceptDownload(downloadItem.url, downloadItem.filename, referrer);
+    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
     if (!shouldIntercept) {
-      return; // Leave download to native browser
+      return; // Leave download to native browser!
     }
 
     // 1. Verify if Bengal DM application is online
