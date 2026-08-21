@@ -40,13 +40,17 @@ document.addEventListener('click', (event) => {
     }
 
     // Query background service to check Bengal DM backend status & filtering rules
-    chrome.runtime.sendMessage({ action: "check_status", url: link.href }, (statusResponse) => {
+    chrome.runtime.sendMessage({
+      action: "check_status",
+      url: link.href,
+      referrer: window.location.href
+    }, (statusResponse) => {
       if (chrome.runtime.lastError || !statusResponse || !statusResponse.online) {
         return;
       }
 
-      // If blacklisted, leave to browser
-      if (statusResponse.blacklisted) {
+      // If global interception is disabled or website/URL is blacklisted, leave to browser
+      if (statusResponse.enableInterception === false || statusResponse.blacklisted) {
         return;
       }
 
@@ -67,7 +71,8 @@ document.addEventListener('click', (event) => {
 
       chrome.runtime.sendMessage({
         action: "send_to_bengal",
-        url: link.href
+        url: link.href,
+        referrer: window.location.href
       }, (response) => {
         if (response && response.isHtmlLanding) {
           // HTML web page target: open normally in browser tab

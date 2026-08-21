@@ -88,6 +88,19 @@
             <button id="reset" class="btn btn-subtle">Reset Defaults</button>
           </div>
         </div>
+
+        <div class="card">
+          <div class="card-title">Download Interception</div>
+          <p class="card-desc">Control whether this extension automatically intercepts file downloads from the browser.</p>
+
+          <label class="toggle-control-label">
+            <input type="checkbox" id="options-enable-interception" checked>
+            <div class="toggle-control-text">
+              <span class="toggle-control-title">Capture browser downloads</span>
+              <span class="toggle-control-desc">Automatically route eligible downloads to Bengal DM</span>
+            </div>
+          </label>
+        </div>
       </section>
 
       <!-- Tab: Appearance -->
@@ -160,7 +173,9 @@
             <input type="text" id="whitelist-url-input" class="form-input" placeholder="Add domain or URL pattern (e.g. example.com)">
             <button id="add-whitelist-url" class="btn btn-secondary">Add URL</button>
           </div>
-          <div id="whitelist-url-tags" class="tags-container"></div>
+          <div class="listbox-container">
+            <div id="whitelist-url-tags" class="listbox-items"></div>
+          </div>
         </div>
 
         <div class="card">
@@ -171,7 +186,9 @@
             <input type="text" id="whitelist-ext-input" class="form-input" placeholder="Add extension (e.g. .iso, .zip, .exe)">
             <button id="add-whitelist-ext" class="btn btn-secondary">Add Extension</button>
           </div>
-          <div id="whitelist-ext-tags" class="tags-container"></div>
+          <div class="listbox-container">
+            <div id="whitelist-ext-tags" class="listbox-items"></div>
+          </div>
         </div>
       </section>
 
@@ -187,10 +204,12 @@
           <p class="card-desc">Never intercept downloads from these websites or URL patterns.</p>
           
           <div class="tag-input-row">
-            <input type="text" id="blacklist-url-input" class="form-input" placeholder="Add domain or URL pattern (e.g. adsite.com)">
+            <input type="text" id="blacklist-url-input" class="form-input" placeholder="Add domain or URL pattern (e.g. adsite.com, mirror.xeonbd.com)">
             <button id="add-blacklist-url" class="btn btn-secondary">Add URL</button>
           </div>
-          <div id="blacklist-url-tags" class="tags-container"></div>
+          <div class="listbox-container">
+            <div id="blacklist-url-tags" class="listbox-items"></div>
+          </div>
         </div>
 
         <div class="card">
@@ -201,7 +220,9 @@
             <input type="text" id="blacklist-ext-input" class="form-input" placeholder="Add extension (e.g. .pdf, .docx, .png)">
             <button id="add-blacklist-ext" class="btn btn-secondary">Add Extension</button>
           </div>
-          <div id="blacklist-ext-tags" class="tags-container"></div>
+          <div class="listbox-container">
+            <div id="blacklist-ext-tags" class="listbox-items"></div>
+          </div>
         </div>
       </section>
 
