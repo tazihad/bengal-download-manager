@@ -260,7 +260,7 @@ async function getCookiesForUrl(targetUrl, storeId) {
   }
 }
 
-// --- RESOLVE DOWNLOAD TARGET (handles HTML landing pages with meta refresh / direct mirror links) ---
+// --- RESOLVE DOWNLOAD TARGET (handles HTML landing pages vs binary file targets) ---
 async function resolveDownloadTarget(url, userAgent, cookies) {
   if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
     return { url, isHtmlLanding: false };
@@ -289,41 +289,9 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
       return { url: finalUrl, isHtmlLanding: false };
     }
 
-    // For HTML responses, inspect the snippet for meta refresh or target file confirmation forms
     const text = await response.text();
 
-    // 1. Check for Meta Refresh tag (e.g. VideoLAN mirror redirect)
-    const metaMatch = text.match(/content=["']?\d+;\s*url=['"]?([^'"]+)/i)
-                   || text.match(/url=['"]?([^'"]+)['"]?[^>]*http-equiv/i);
-    if (metaMatch && metaMatch[1]) {
-      const cleanUrl = metaMatch[1].replace(/['"]$/, '').trim();
-      const resolvedTarget = new URL(cleanUrl, finalUrl).href;
-      return { url: resolvedTarget, isHtmlLanding: false };
-    }
-
-    // 2. Google Drive / Cloud storage download confirmation forms or links
-    const formMatch = text.match(/<form[^>]*id=["']download-form["'][^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i)
-                   || text.match(/<form[^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i);
-    if (formMatch) {
-      const formAction = formMatch[1].replace(/&amp;/g, '&');
-      const formInner = formMatch[2];
-
-      const inputs = [];
-      const inputRegex = /<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi;
-      let m;
-      while ((m = inputRegex.exec(formInner)) !== null) {
-        if (m[1] && m[1] !== 'submit') {
-          inputs.push(`${encodeURIComponent(m[1])}=${encodeURIComponent(m[2])}`);
-        }
-      }
-
-      if (inputs.length > 0) {
-        const baseUrl = new URL(formAction, finalUrl).href;
-        const confirmUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + inputs.join('&');
-        return { url: confirmUrl, isHtmlLanding: false };
-      }
-    }
-
+    // Google Drive large file direct confirmation links
     const gdriveConfirmMatch = text.match(/id=["']uc-download-link["'][^>]*href=["']([^"']+)["']/i)
                             || text.match(/href=["'](\/uc\?export=download&[^"']+)["']/i)
                             || text.match(/href=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i)
@@ -334,7 +302,6 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
       return { url: resolvedTarget, isHtmlLanding: false };
     }
 
-    // Pure HTML landing page with no extractable redirect/confirmation
     return { url: finalUrl, isHtmlLanding: true };
   } catch (err) {
     console.warn("Could not resolve download target:", err);
