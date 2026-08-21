@@ -99,7 +99,6 @@ from core.database import (
 from core.services.theme_service import (
     ACCENT_COLORS,
     CURRENT_ICON_THEME,
-    CURRENT_TRAY_ICON,
     CATEGORY_EXTENSIONS,
     FREEDESKTOP_MAP,
     apply_app_theme,
@@ -1080,8 +1079,9 @@ class MainWindow(QMainWindow):
         try:
             self.tray_icon = QSystemTrayIcon(self)
 
-            # Set monochrome app icon for tray
-            icon = get_monochrome_app_icon()
+            # Set themed icon for tray
+            tray_opt = getattr(self, "settings", {}).get("tray_icon", None)
+            icon = get_themed_tray_icon(tray_opt)
             if icon.isNull():
                 icon = self.windowIcon()
             if icon.isNull():
@@ -2068,9 +2068,7 @@ class MainWindow(QMainWindow):
             self.update_tray_action()
 
         if hasattr(self, "tray_icon") and self.tray_icon:
-            global CURRENT_TRAY_ICON
-            tray_opt = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
-            tray_ic = get_themed_tray_icon(tray_opt)
+            tray_ic = get_themed_tray_icon()
             if not tray_ic.isNull():
                 self.tray_icon.setIcon(tray_ic)
 
@@ -2156,6 +2154,11 @@ class MainWindow(QMainWindow):
             settings["icon_theme"],
             settings["tray_icon"]
         )
+
+        if hasattr(self, "tray_icon") and self.tray_icon:
+            tray_ic = get_themed_tray_icon(settings["tray_icon"])
+            if not tray_ic.isNull():
+                self.tray_icon.setIcon(tray_ic)
 
         self.set_table_style(settings["table_style"], initial=True)
 

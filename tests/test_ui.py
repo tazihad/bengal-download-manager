@@ -407,6 +407,36 @@ def test_options_dialog_theme_selection(qapp):
     opt_dlg.close()
     window.close()
 
+def test_tray_icon_resolution_and_dynamic_preview(qapp):
+    """Verify tray icon asset resolution and real-time preview switching."""
+    from main import MainWindow
+    from core.services.theme_service import _resolve_tray_asset, get_themed_tray_icon, apply_app_theme
+    import os
+
+    light_path = _resolve_tray_asset("tray_monochrome_light.png")
+    dark_path = _resolve_tray_asset("tray_monochrome_dark.png")
+    assert light_path != "", "tray_monochrome_light.png asset not found"
+    assert os.path.exists(light_path), f"Path {light_path} does not exist"
+    assert dark_path != "", "tray_monochrome_dark.png asset not found"
+    assert os.path.exists(dark_path), f"Path {dark_path} does not exist"
+
+    window = MainWindow(start_ipc=False)
+    from ui.dialogs.options import OptionsDialog
+    opt_dlg = OptionsDialog(window)
+
+    if window.tray_icon:
+        for opt in ["Monochrome Light", "Monochrome Dark", "Automatic", "App Icon (Default)"]:
+            idx = opt_dlg.combo_tray_icon.findText(opt)
+            assert idx != -1
+            opt_dlg.combo_tray_icon.setCurrentIndex(idx)
+            ic = get_themed_tray_icon()
+            assert not ic.isNull(), f"Themed tray icon is null for option {opt}"
+            assert not window.tray_icon.icon().isNull(), f"MainWindow tray icon is null for option {opt}"
+        opt_dlg.reject()
+    else:
+        opt_dlg.close()
+    window.close()
+
 def test_main_window_restore_window(qapp):
     from main import MainWindow
 
