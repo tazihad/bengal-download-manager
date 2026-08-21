@@ -734,6 +734,27 @@ def show_in_folder(path):
 
     else:
         # Linux / Unix
+        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface
+        try:
+            from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+            from PyQt6.QtCore import QUrl
+            bus = QDBusConnection.sessionBus()
+            if bus.isConnected():
+                msg = QDBusMessage.createMethodCall(
+                    "org.freedesktop.FileManager1",
+                    "/org/freedesktop/FileManager1",
+                    "org.freedesktop.FileManager1",
+                    "ShowItems"
+                )
+                uri = QUrl.fromLocalFile(path).toString()
+                msg.setArguments([[uri], ""])
+                reply = bus.call(msg)
+                if reply.type() != QDBusMessage.MessageType.ErrorMessage:
+                    return
+        except Exception:
+            pass
+
+        # 2. CLI fallbacks based on default file manager
         try:
             proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
@@ -743,11 +764,11 @@ def show_in_folder(path):
             if "dolphin" in output:
                 subprocess.Popen(['dolphin', '--select', path], env=clean_env)
             elif "nautilus" in output:
-                subprocess.Popen(['nautilus', '--no-desktop', path], env=clean_env)
+                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
             elif "caja" in output:
-                subprocess.Popen(['caja', '--no-desktop', path], env=clean_env)
+                subprocess.Popen(['caja', '--select', path], env=clean_env)
             elif "nemo" in output:
-                subprocess.Popen(['nemo', '--no-desktop', path], env=clean_env)
+                subprocess.Popen(['nemo', '--select', path], env=clean_env)
             elif "konqueror" in output:
                 subprocess.Popen(['konqueror', '--select', path], env=clean_env)
             else:
