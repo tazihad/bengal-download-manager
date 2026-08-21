@@ -527,12 +527,27 @@ body {
 /* Listbox (Firefox Setting / Exceptions Style) */
 .tag-input-row {
   display: flex;
+  align-items: stretch;
   gap: 8px;
   margin-bottom: 10px;
+  width: 100%;
 }
 
 .tag-input-row .form-input {
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tag-input-row .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 16px;
+  min-width: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .listbox-container {
