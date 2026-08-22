@@ -9,7 +9,6 @@ from core.memory_guard import MemoryGuard
 class ColumnDialog(QDialog):
     def __init__(self, columns_data, parent=None):
         super().__init__(parent)
-        MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Columns")
         self.setWindowIcon(QApplication.windowIcon())
         self.setFixedWidth(420)
@@ -123,7 +122,6 @@ class ColumnDialog(QDialog):
 
     def deselect_all(self):
         for i, col in enumerate(self.columns):
-            # Keep at least the first column visible
             col["visible"] = (i == 0)
         self.refresh_list()
 
@@ -140,6 +138,7 @@ class ColumnDialog(QDialog):
             self.columns[row]["width"] = val
 
     def move_up(self):
+        self._sync_from_widgets()
         row = self.list_widget.currentRow()
         if row > 0:
             self.columns[row], self.columns[row-1] = self.columns[row-1], self.columns[row]
@@ -147,6 +146,7 @@ class ColumnDialog(QDialog):
             self.list_widget.selectRow(row - 1)
 
     def move_down(self):
+        self._sync_from_widgets()
         row = self.list_widget.currentRow()
         if 0 <= row < len(self.columns) - 1:
             self.columns[row], self.columns[row+1] = self.columns[row+1], self.columns[row]
@@ -169,12 +169,20 @@ class ColumnDialog(QDialog):
         finally:
             self._is_refreshing = False
 
-    def get_results(self):
-        for i in range(len(self.columns)):
-            item = self.list_widget.item(i, 0)
-            if item:
-                self.columns[i]["visible"] = (item.checkState() == Qt.CheckState.Checked)
-        # Ensure at least one column is visible
+    def _sync_from_widgets(self):
+        try:
+            for i in range(len(self.columns)):
+                item = self.list_widget.item(i, 0)
+                if item:
+                    self.columns[i]["visible"] = (item.checkState() == Qt.CheckState.Checked)
+        except Exception:
+            pass
         if not any(c.get("visible", False) for c in self.columns) and self.columns:
             self.columns[0]["visible"] = True
-        return self.columns
+
+    def accept(self):
+        self._sync_from_widgets()
+        super().accept()
+
+    def get_results(self):
+        return [dict(c) for c in self.columns]

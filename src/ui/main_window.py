@@ -2260,6 +2260,7 @@ class MainWindow(QMainWindow):
             new_data = dlg.get_results()
             self.apply_column_settings(new_data)
             self.save_settings()
+        dlg.deleteLater()
 
     def apply_column_settings(self, data):
         header = self.download_table.horizontalHeader()
