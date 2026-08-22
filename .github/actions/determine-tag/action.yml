@@ -29,7 +29,7 @@ runs:
             # Advance patch version; rollover to minor when reaching or exceeding 99
             if z >= 99:
                 return x, y + 1, "00"
-            return x, y, str(z + 1)
+            return x, y, f"{z + 1:02d}"
 
         manual_tag = """${{ inputs.manual_tag }}""".strip()
         ref = """${{ github.ref }}""".strip()
@@ -65,7 +65,7 @@ runs:
                     parsed.append((x, y, z, is_stable, n, z_raw, suffix, t_clean))
 
             if not parsed:
-                latest = (0, 1, 0, False, 0, "0", "alpha", "v0.1.0-alpha.0")
+                latest = (0, 1, 0, False, 0, "00", "alpha", "v0.1.00-alpha.0")
             else:
                 parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
                 latest = parsed[-1]
@@ -79,7 +79,7 @@ runs:
             if is_main:
                 if not is_stable:
                     # Latest tag was pre-release vX.Y.Z-alpha.N -> stable release tag is vX.Y.Z
-                    tag = f"v{x}.{y}.{z_raw}"
+                    tag = f"v{x}.{y}.{z:02d}"
                 else:
                     # Latest tag was stable vX.Y.Z -> advance version
                     nx, ny, nz = advance_version(x, y, z)
@@ -99,7 +99,7 @@ runs:
                 if not is_stable:
                     # Already in pre-release cycle vX.Y.Z-alpha.N -> increment N
                     next_n = n + 1
-                    tag = f"v{x}.{y}.{z_raw}-{suffix}.{next_n}"
+                    tag = f"v{x}.{y}.{z:02d}-{suffix}.{next_n}"
                 else:
                     # Latest tag was stable vX.Y.Z -> advance to upcoming pre-release (vX.Y.(Z+1)-alpha.1 or vX.(Y+1).00-alpha.1)
                     nx, ny, nz = advance_version(x, y, z)
@@ -109,10 +109,10 @@ runs:
                 while tag in existing_tags:
                     m = pattern.match(tag)
                     if m:
-                        tx, ty, tz_raw = m.group(1), m.group(2), m.group(3)
+                        tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
                         tsuffix = m.group(4) or "alpha"
                         tn = int(m.group(5)) if m.group(5) else 0
-                        tag = f"v{tx}.{ty}.{tz_raw}-{tsuffix}.{tn + 1}"
+                        tag = f"v{tx}.{ty}.{tz:02d}-{tsuffix}.{tn + 1}"
                     else:
                         break
 

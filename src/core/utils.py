@@ -1425,12 +1425,15 @@ def advance_semantic_version(x: int, y: int, z: int) -> tuple[int, int, str]:
     """
     Advances the patch version. When patch version reaches or exceeds 99,
     rolls over minor version (y + 1) and resets patch to '00'.
-    e.g. (0, 1, 79) -> (0, 1, '80')
-         (0, 1, 99) -> (0, 2, '00')
+    Patch numbers are 2-digit zero-padded (e.g. '01', '02', ..., '99').
+    e.g. (0, 2, 1) -> (0, 2, '02')
+         (0, 2, 2) -> (0, 2, '03')
+         (0, 2, 99) -> (0, 3, '00')
+         (0, 3, 0) -> (0, 3, '01')
     """
     if z >= 99:
         return x, y + 1, "00"
-    return x, y, str(z + 1)
+    return x, y, f"{z + 1:02d}"
 
 
 def determine_next_release_tag(
@@ -1473,7 +1476,7 @@ def determine_next_release_tag(
             parsed.append((x, y, z, is_stable, n, z_raw, suffix, t_clean))
 
     if not parsed:
-        latest = (0, 1, 0, False, 0, "0", "alpha", "v0.1.0-alpha.0")
+        latest = (0, 1, 0, False, 0, "00", "alpha", "v0.1.00-alpha.0")
     else:
         parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
         latest = parsed[-1]
@@ -1485,7 +1488,7 @@ def determine_next_release_tag(
 
     if is_main:
         if not is_stable:
-            tag = f"v{x}.{y}.{z_raw}"
+            tag = f"v{x}.{y}.{z:02d}"
         else:
             nx, ny, nz = advance_semantic_version(x, y, z)
             tag = f"v{nx}.{ny}.{nz}"
@@ -1501,7 +1504,7 @@ def determine_next_release_tag(
     else:
         if not is_stable:
             next_n = n + 1
-            tag = f"v{x}.{y}.{z_raw}-{suffix}.{next_n}"
+            tag = f"v{x}.{y}.{z:02d}-{suffix}.{next_n}"
         else:
             nx, ny, nz = advance_semantic_version(x, y, z)
             tag = f"v{nx}.{ny}.{nz}-alpha.1"
@@ -1509,10 +1512,10 @@ def determine_next_release_tag(
         while tag in existing_tags:
             m = pattern.match(tag)
             if m:
-                tx, ty, tz_raw = m.group(1), m.group(2), m.group(3)
+                tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
                 tsuffix = m.group(4) or "alpha"
                 tn = int(m.group(5)) if m.group(5) else 0
-                tag = f"v{tx}.{ty}.{tz_raw}-{tsuffix}.{tn + 1}"
+                tag = f"v{tx}.{ty}.{tz:02d}-{tsuffix}.{tn + 1}"
             else:
                 break
 
