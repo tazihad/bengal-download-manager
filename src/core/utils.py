@@ -209,14 +209,47 @@ def resolve_filename(url, headers):
 
     return filename
 
-def get_unique_filepath(filepath):
-    if not os.path.exists(filepath):
+def get_unique_filepath(filepath, existing_paths=None, existing_names=None, force_suffix=False):
+    """
+    Returns a unique file path by appending (1), (2), etc. if the file exists on disk
+    or in the given existing_paths / existing_names sets.
+    """
+    base_dir = os.path.dirname(filepath)
+    filename = os.path.basename(filepath)
+    base, ext = os.path.splitext(filename)
+
+    paths_set = set(os.path.normpath(p).lower() for p in existing_paths) if existing_paths else set()
+    names_set = set(n.lower() for n in existing_names) if existing_names else set()
+
+    def _is_taken(target_fn):
+        target_fp = os.path.join(base_dir, target_fn)
+        if os.path.exists(target_fp):
+            return True
+        if os.path.normpath(target_fp).lower() in paths_set:
+            return True
+        if target_fn.lower() in names_set:
+            return True
+        return False
+
+    if not force_suffix and not _is_taken(filename):
         return filepath
-    base, ext = os.path.splitext(filepath)
-    counter = 1
-    while os.path.exists(f"{base} ({counter}){ext}"):
+
+    import re
+    m = re.match(r"^(.*?)\s*\((\d+)\)$", base)
+    if m:
+        root_base = m.group(1)
+        counter = int(m.group(2)) + 1
+    else:
+        root_base = base
+        counter = 1
+
+    candidate_name = f"{root_base} ({counter}){ext}"
+    while _is_taken(candidate_name):
         counter += 1
-    return f"{base} ({counter}){ext}"
+        candidate_name = f"{root_base} ({counter}){ext}"
+
+    return os.path.join(base_dir, candidate_name)
+
 
 def get_data_dir():
     home = os.path.expanduser("~")
