@@ -767,27 +767,59 @@ def show_in_folder(path):
 
     else:
         # Linux / Unix
-        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface via QtDBus or dbus-send
+        # 1. Primary Method: Query user's default configured file manager via XDG MIME
         try:
-            from PyQt6.QtDBus import QDBusConnection, QDBusMessage
-            from PyQt6.QtCore import QUrl
-            bus = QDBusConnection.sessionBus()
-            if bus.isConnected():
-                msg = QDBusMessage.createMethodCall(
-                    "org.freedesktop.FileManager1",
-                    "/org/freedesktop/FileManager1",
-                    "org.freedesktop.FileManager1",
-                    "ShowItems"
-                )
-                uri = QUrl.fromLocalFile(path).toString()
-                msg.setArguments([[uri], ""])
-                reply = bus.call(msg)
-                if reply.type() != QDBusMessage.MessageType.ErrorMessage:
-                    return
+            proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            output, _ = proc.communicate()
+            output = output.strip().lower()
+            
+            if "dolphin" in output:
+                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
+                return
+            elif "nautilus" in output:
+                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
+            elif "caja" in output:
+                subprocess.Popen(['caja', '--select', path], env=clean_env)
+            elif "nemo" in output:
+                subprocess.Popen(['nemo', '--select', path], env=clean_env)
+            elif "pcmanfm-qt" in output:
+                subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
+            elif "pcmanfm" in output:
+                subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
+            elif "konqueror" in output:
+                subprocess.Popen(['konqueror', '--select', path], env=clean_env)
         except Exception:
             pass
 
-        # 2. Secondary Method: dbus-send / gdbus with explicit (as, s) signature
+        # 2. Desktop Environment Detection Fallback
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
+        if "KDE" in desktop and shutil.which("dolphin"):
+            try:
+                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        elif "GNOME" in desktop and shutil.which("nautilus"):
+            try:
+                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        elif "CINNAMON" in desktop and shutil.which("nemo"):
+            try:
+                subprocess.Popen(['nemo', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        elif "MATE" in desktop and shutil.which("caja"):
+            try:
+                subprocess.Popen(['caja', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+
+        # 3. DBus FileManager1 Interface (for generic / sandbox environments)
         try:
             from PyQt6.QtCore import QUrl
             uri = QUrl.fromLocalFile(path).toString()
@@ -809,36 +841,13 @@ def show_in_folder(path):
         except Exception:
             pass
 
-        # 3. CLI fallbacks based on default file manager
+        # 4. Final Fallback: Open directory with xdg-open
         try:
-            proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
-            output, _ = proc.communicate()
-            output = output.strip().lower()
-            
-            if "dolphin" in output:
-                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
-            elif "nautilus" in output:
-                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
-            elif "caja" in output:
-                subprocess.Popen(['caja', '--select', path], env=clean_env)
-            elif "nemo" in output:
-                subprocess.Popen(['nemo', '--select', path], env=clean_env)
-            elif "pcmanfm-qt" in output:
-                subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
-            elif "pcmanfm" in output:
-                subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
-            elif "konqueror" in output:
-                subprocess.Popen(['konqueror', '--select', path], env=clean_env)
-            else:
-                parent = os.path.dirname(path)
-                subprocess.Popen(['xdg-open', parent], env=clean_env)
-        except Exception:
             parent = os.path.dirname(path)
-            try:
-                subprocess.Popen(['xdg-open', parent], env=clean_env)
-            except Exception:
-                pass
+            subprocess.Popen(['xdg-open', parent], env=clean_env)
+        except Exception:
+            pass
+
 
 
 
