@@ -284,6 +284,7 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
 
     # 2. File path -> Nautilus with --select
     monkeypatch.setattr("PyQt6.QtDBus.QDBusConnection.sessionBus", lambda: (_ for _ in ()).throw(RuntimeError("no dbus")))
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, returncode=1))
     def mock_popen_nautilus(cmd, *args, **kwargs):
         opened_cmds.append(cmd)
         class MockProc:
@@ -329,12 +330,13 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     assert ["nemo", "--select", str(target_file)] in opened_cmds
 
     # 5. File path -> Generic/Unknown fallback -> xdg-open parent dir
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "unknown")
     def mock_popen_generic(cmd, *args, **kwargs):
         opened_cmds.append(cmd)
         class MockProc:
             def communicate(self):
                 if cmd[:3] == ["xdg-mime", "query", "default"]:
-                    return ("thunar.desktop\n", "")
+                    return ("unknown.desktop\n", "")
                 return ("", "")
         return MockProc()
 
@@ -343,33 +345,27 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     show_in_folder(str(target_file))
     assert ["xdg-open", str(tmp_path)] in opened_cmds
 
-    # 6. File path -> DBus FileManager1.ShowItems success
-    from PyQt6.QtDBus import QDBusMessage
-    dbus_calls = []
-    class MockDBusReply:
-        def type(self):
-            return QDBusMessage.MessageType.ReplyMessage
-    class MockDBusMsg:
-        def __init__(self, service, path, iface, method):
-            self.service = service
-            self.path = path
-            self.iface = iface
-            self.method = method
-            self.args = []
-        def setArguments(self, args):
-            self.args = args
-    class MockBus:
-        def isConnected(self): return True
-        def call(self, msg):
-            dbus_calls.append(msg)
-            return MockDBusReply()
 
-    monkeypatch.setattr("PyQt6.QtDBus.QDBusConnection.sessionBus", lambda: MockBus())
-    monkeypatch.setattr("PyQt6.QtDBus.QDBusMessage.createMethodCall", MockDBusMsg)
+    # 6. File path -> dbus-send fallback success
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "unknown")
+    def mock_popen_generic2(cmd, *args, **kwargs):
+        class MockProc:
+            def communicate(self):
+                return ("", "")
+        return MockProc()
+    monkeypatch.setattr(subprocess, "Popen", mock_popen_generic2)
+
+    run_cmds = []
+    def mock_run_dbus(cmd, *a, **k):
+        run_cmds.append(cmd)
+        return subprocess.CompletedProcess(cmd, returncode=0)
+    
+    monkeypatch.setattr(subprocess, "run", mock_run_dbus)
     opened_cmds.clear()
     show_in_folder(str(target_file))
-    assert len(dbus_calls) == 1
-    assert dbus_calls[0].service == "org.freedesktop.FileManager1"
-    assert dbus_calls[0].method == "ShowItems"
-    assert dbus_calls[0].args[0] == [f"file://{target_file}"]
-    assert len(opened_cmds) == 0  # Did not need CLI subprocess
+    assert len(run_cmds) == 1
+    assert run_cmds[0][0] == "dbus-send"
+    assert f"array:string:file://{target_file}" in run_cmds[0]
+    assert len(opened_cmds) == 0
+
+

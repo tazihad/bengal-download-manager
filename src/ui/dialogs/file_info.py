@@ -10,7 +10,7 @@ from core.config import load_category_config
 from core.memory_guard import MemoryGuard
 
 class DownloadFileInfoDialog(QDialog):
-    def __init__(self, file_info, parent=None):
+    def __init__(self, file_info, parent=None, existing_paths=None, existing_names=None, force_copy=False):
         super().__init__(parent)
         MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Download File Info")
@@ -22,6 +22,9 @@ class DownloadFileInfoDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Window)
         
         self.file_info = file_info
+        self.existing_paths = set(existing_paths) if existing_paths else set()
+        self.existing_names = set(existing_names) if existing_names else set()
+        self.force_copy = force_copy
         self.config = load_category_config()
         
         self.layout = QVBoxLayout(self)
@@ -140,7 +143,13 @@ class DownloadFileInfoDialog(QDialog):
         
         filename = self.file_info.get("filename") or os.path.basename(self.save_input.text().strip()) or "file"
         target_path = os.path.join(base_dir, filename)
-        target_path = get_unique_filepath(target_path)
+        target_path = get_unique_filepath(
+            target_path,
+            existing_paths=self.existing_paths,
+            existing_names=self.existing_names,
+            force_suffix=self.force_copy
+        )
+        self.file_info["filename"] = os.path.basename(target_path)
         self.save_input.setText(target_path)
         self.save_input.setCursorPosition(0)
         

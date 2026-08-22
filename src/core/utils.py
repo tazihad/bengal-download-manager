@@ -209,14 +209,47 @@ def resolve_filename(url, headers):
 
     return filename
 
-def get_unique_filepath(filepath):
-    if not os.path.exists(filepath):
+def get_unique_filepath(filepath, existing_paths=None, existing_names=None, force_suffix=False):
+    """
+    Returns a unique file path by appending (1), (2), etc. if the file exists on disk
+    or in the given existing_paths / existing_names sets.
+    """
+    base_dir = os.path.dirname(filepath)
+    filename = os.path.basename(filepath)
+    base, ext = os.path.splitext(filename)
+
+    paths_set = set(os.path.normpath(p).lower() for p in existing_paths) if existing_paths else set()
+    names_set = set(n.lower() for n in existing_names) if existing_names else set()
+
+    def _is_taken(target_fn):
+        target_fp = os.path.join(base_dir, target_fn)
+        if os.path.exists(target_fp):
+            return True
+        if os.path.normpath(target_fp).lower() in paths_set:
+            return True
+        if target_fn.lower() in names_set:
+            return True
+        return False
+
+    if not force_suffix and not _is_taken(filename):
         return filepath
-    base, ext = os.path.splitext(filepath)
-    counter = 1
-    while os.path.exists(f"{base} ({counter}){ext}"):
+
+    import re
+    m = re.match(r"^(.*?)\s*\((\d+)\)$", base)
+    if m:
+        root_base = m.group(1)
+        counter = int(m.group(2)) + 1
+    else:
+        root_base = base
+        counter = 1
+
+    candidate_name = f"{root_base} ({counter}){ext}"
+    while _is_taken(candidate_name):
         counter += 1
-    return f"{base} ({counter}){ext}"
+        candidate_name = f"{root_base} ({counter}){ext}"
+
+    return os.path.join(base_dir, candidate_name)
+
 
 def get_data_dir():
     home = os.path.expanduser("~")
@@ -734,27 +767,7 @@ def show_in_folder(path):
 
     else:
         # Linux / Unix
-        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface
-        try:
-            from PyQt6.QtDBus import QDBusConnection, QDBusMessage
-            from PyQt6.QtCore import QUrl
-            bus = QDBusConnection.sessionBus()
-            if bus.isConnected():
-                msg = QDBusMessage.createMethodCall(
-                    "org.freedesktop.FileManager1",
-                    "/org/freedesktop/FileManager1",
-                    "org.freedesktop.FileManager1",
-                    "ShowItems"
-                )
-                uri = QUrl.fromLocalFile(path).toString()
-                msg.setArguments([[uri], ""])
-                reply = bus.call(msg)
-                if reply.type() != QDBusMessage.MessageType.ErrorMessage:
-                    return
-        except Exception:
-            pass
-
-        # 2. CLI fallbacks based on default file manager
+        # 1. Primary Method: Query user's default configured file manager via XDG MIME
         try:
             proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
@@ -763,20 +776,82 @@ def show_in_folder(path):
             
             if "dolphin" in output:
                 subprocess.Popen(['dolphin', '--select', path], env=clean_env)
+                return
             elif "nautilus" in output:
                 subprocess.Popen(['nautilus', '--select', path], env=clean_env)
             elif "caja" in output:
                 subprocess.Popen(['caja', '--select', path], env=clean_env)
             elif "nemo" in output:
                 subprocess.Popen(['nemo', '--select', path], env=clean_env)
+            elif "pcmanfm-qt" in output:
+                subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
+            elif "pcmanfm" in output:
+                subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
             elif "konqueror" in output:
                 subprocess.Popen(['konqueror', '--select', path], env=clean_env)
-            else:
-                parent = os.path.dirname(path)
-                subprocess.Popen(['xdg-open', parent], env=clean_env)
         except Exception:
+            pass
+
+        # 2. Desktop Environment Detection Fallback
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
+        if "KDE" in desktop and shutil.which("dolphin"):
+            try:
+                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        elif "GNOME" in desktop and shutil.which("nautilus"):
+            try:
+                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        elif "CINNAMON" in desktop and shutil.which("nemo"):
+            try:
+                subprocess.Popen(['nemo', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        elif "MATE" in desktop and shutil.which("caja"):
+            try:
+                subprocess.Popen(['caja', '--select', path], env=clean_env)
+                return
+            except Exception:
+                pass
+
+        # 3. DBus FileManager1 Interface (for generic / sandbox environments)
+        try:
+            from PyQt6.QtCore import QUrl
+            uri = QUrl.fromLocalFile(path).toString()
+            if shutil.which("dbus-send"):
+                res = subprocess.run(
+                    [
+                        "dbus-send", "--session", "--dest=org.freedesktop.FileManager1",
+                        "--type=method_call", "/org/freedesktop/FileManager1",
+                        "org.freedesktop.FileManager1.ShowItems",
+                        f"array:string:{uri}", "string:"
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=clean_env,
+                    timeout=1.5
+                )
+                if res.returncode == 0:
+                    return
+        except Exception:
+            pass
+
+        # 4. Final Fallback: Open directory with xdg-open
+        try:
             parent = os.path.dirname(path)
             subprocess.Popen(['xdg-open', parent], env=clean_env)
+        except Exception:
+            pass
+
+
+
+
+
 
 def choose_portal_save_path(title="Save File As", filename="file", folder=""):
     """

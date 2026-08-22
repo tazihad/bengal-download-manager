@@ -139,7 +139,7 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, allow_resume=True):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -147,6 +147,7 @@ class DownloadWorker(QThread):
         self.temp_dir = temp_dir
         self.user_agent = user_agent
         self.cookies = cookies
+        self.allow_resume = allow_resume
         self.is_running = True
         self.is_paused = False
         self.mutex = QMutex()
@@ -207,6 +208,15 @@ class DownloadWorker(QThread):
             self.log_signal.emit("Connecting to server...")
             self.log_signal.emit(f"Target file: {self.filename}")
             
+            if not self.allow_resume:
+                for d in [self.working_dir, self.save_dir]:
+                    if d and os.path.exists(d):
+                        for fn in [self.filename, f"{self.filename}.tmpbdm", f"{self.filename}.tmpbdm.bdmx"]:
+                            fp = os.path.join(d, fn)
+                            if os.path.exists(fp):
+                                try: os.remove(fp)
+                                except Exception: pass
+
             req = urllib.request.Request(self.url, method='HEAD')
             if self.cookies:
                 req.add_header('Cookie', self.cookies)
@@ -226,7 +236,7 @@ class DownloadWorker(QThread):
             max_conn = ext_data.get("max_connections", 8)
             num_threads = max(1, min(32, int(max_conn))) if isinstance(max_conn, (int, float, str)) and str(max_conn).isdigit() else 8
 
-            if os.path.exists(self.state_file) and os.path.exists(self.save_path):
+            if self.allow_resume and os.path.exists(self.state_file) and os.path.exists(self.save_path):
                 try:
                     with open(self.state_file, 'r') as f:
                         state_data = json.load(f)
@@ -243,6 +253,7 @@ class DownloadWorker(QThread):
                     num_threads = 1
                     self.log_signal.emit("Using 1 connection.")
                 else:
+
                     self.log_signal.emit(f"Splitting into {num_threads} connections.")
 
                 with open(self.save_path, "wb") as f:

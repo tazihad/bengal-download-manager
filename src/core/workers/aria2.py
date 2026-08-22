@@ -15,7 +15,7 @@ class Aria2Worker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -24,6 +24,7 @@ class Aria2Worker(QThread):
         self.user_agent = user_agent
         self.cookies = cookies
         self.referrer = referrer
+        self.allow_resume = allow_resume
         self.is_running = True
         self.gid = None
         
@@ -58,6 +59,19 @@ class Aria2Worker(QThread):
 
     def run(self):
         self.log_signal.emit("Connecting to Aria2 engine...")
+
+        if not self.allow_resume:
+            for d in [self.working_dir, self.save_dir]:
+                if d and os.path.exists(d):
+                    for fn in [self.filename, f"{self.filename}.aria2"]:
+                        fp = os.path.join(d, fn)
+                        if os.path.exists(fp):
+                            try: os.remove(fp)
+                            except Exception: pass
+            try:
+                self.call_rpc("aria2.purgeDownloadResult")
+            except Exception:
+                pass
         
         ext_data = load_extension_config()
         max_conn_val = ext_data.get("max_connections", 8)
@@ -74,8 +88,10 @@ class Aria2Worker(QThread):
             "out": self.filename, 
             "split": max_conn, 
             "max-connection-per-server": max_conn, 
-            "continue": "true"
+            "continue": "true" if self.allow_resume else "false",
+            "allow-overwrite": "true"
         }
+
         
         # --- FULL BROWSER HEADERS (Mimic JD2) ---
         ua = self.user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"

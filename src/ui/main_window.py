@@ -2483,7 +2483,7 @@ class MainWindow(QMainWindow):
             else:
                 self.process_incoming_url(url)
 
-    def process_incoming_url(self, data):
+    def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
         parts = data.split("|", 2)
         url = parts[0]
@@ -2525,28 +2525,30 @@ class MainWindow(QMainWindow):
 
         canon_name = _canonical_fn(url)
 
-        # 1. Check if a fetcher worker is already actively fetching info for this URL / filename
-        for fetcher in getattr(self, 'active_fetchers', []):
-            if hasattr(fetcher, 'url') and (fetcher.url == url or (_canonical_fn(fetcher.url) == canon_name and canon_name)):
-                return
-
-        # 2. Check if a popup dialog is ALREADY open for this URL / filename
-        for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
-            if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
-                existing_d_url = dialog.file_info.get("url")
-                if existing_d_url == url or (_canonical_fn(existing_d_url) == canon_name and canon_name):
-                    dialog.show()
-                    dialog.raise_()
-                    dialog.activateWindow()
+        if not allow_duplicate:
+            # 1. Check if a fetcher worker is already actively fetching info for this URL / filename
+            for fetcher in getattr(self, 'active_fetchers', []):
+                if hasattr(fetcher, 'url') and (fetcher.url == url or (_canonical_fn(fetcher.url) == canon_name and canon_name)):
                     return
 
-        # 3. Check if download already exists in main download table for this URL / filename
-        for row in range(self.download_table.rowCount()):
-            item = self.download_table.item(row, 0)
-            if item:
-                existing_url = item.data(Qt.ItemDataRole.UserRole)
-                if existing_url == url or (_canonical_fn(existing_url) == canon_name and canon_name):
-                    return
+            # 2. Check if a popup dialog is ALREADY open for this URL / filename
+            for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
+                if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
+                    existing_d_url = dialog.file_info.get("url")
+                    if existing_d_url == url or (_canonical_fn(existing_d_url) == canon_name and canon_name):
+                        dialog.show()
+                        dialog.raise_()
+                        dialog.activateWindow()
+                        return
+
+            # 3. Check if download already exists in main download table for this URL / filename
+            for row in range(self.download_table.rowCount()):
+                item = self.download_table.item(row, 0)
+                if item:
+                    existing_url = item.data(Qt.ItemDataRole.UserRole)
+                    if existing_url == url or (_canonical_fn(existing_url) == canon_name and canon_name):
+                        self._handle_duplicate_download(row, item, url, user_agent, cookies)
+                        return
 
         # 4. Start the fetcher
         from core.workers import FileInfoFetcherWorker
@@ -2556,6 +2558,134 @@ class MainWindow(QMainWindow):
         # Connect to a wrapper that cleans up the thread memory when done
         fetcher.finished_signal.connect(lambda info, f=fetcher: self._handle_fetch_complete(info, f))
         fetcher.start()
+
+    def _handle_duplicate_download(self, row, item_ref, url, user_agent, cookies):
+        """Handles duplicate download requests based on download status (IDM style)."""
+        filename = item_ref.text()
+        saved_path = item_ref.data(Qt.ItemDataRole.UserRole + 1) or ""
+        status_item = self.download_table.item(row, 2)
+        status_text = status_item.text() if status_item else ""
+        logic_status = (status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else "") or status_text
+        size_item = self.download_table.item(row, 1)
+        size_str = size_item.text() if size_item else "Unknown"
+
+        key = self._get_item_key(item_ref)
+        is_in_active = key in self.active_downloads
+        is_active = (is_in_active and logic_status not in ["Paused", "Cancelled", "Canceled", "Error", "Complete"]) or logic_status in ["Downloading", "Starting...", "Pending...", "Queued", "Resuming..."]
+
+        # Case 1: Actively downloading or queued
+        if is_active:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            self.download_table.selectRow(row)
+            if is_in_active:
+                dlg = self.active_downloads.get(key)
+                if dlg and MemoryGuard.is_widget_alive(dlg):
+                    dlg.show()
+                    dlg.raise_()
+                    dlg.activateWindow()
+            if hasattr(self, 'statusBar') and self.statusBar():
+                self.statusBar().showMessage(f"Download is already in progress: {filename}", 5000)
+            return
+
+        # Case 2: Completed or Paused/Incomplete
+        is_complete = logic_status in ["Complete", "Finished", "Downloaded"] or status_text in ["Complete", "100%"]
+        
+        file_data = {
+            "url": url or item_ref.data(Qt.ItemDataRole.UserRole),
+            "filename": filename,
+            "path": saved_path,
+            "size": size_str,
+            "status": "Complete" if is_complete else logic_status,
+            "user_agent": user_agent,
+            "cookies": cookies
+        }
+
+        from ui.dialogs.duplicate import DuplicateDownloadDialog
+        dlg = DuplicateDownloadDialog(file_data, parent=None)
+        dlg.exec()
+        action = dlg.get_action()
+
+        if action == "resume":
+            self.download_table.selectRow(row)
+            self.resume_selected_download()
+        elif action in ["restart", "redownload"]:
+            self._restart_download_row(row, item_ref, url, user_agent, cookies)
+        elif action == "download_copy":
+            self._start_duplicate_copy(url, user_agent, cookies)
+
+    def _restart_download_row(self, row, item_ref, url=None, user_agent=None, cookies=None):
+        """Restarts a download from 0%, resetting progress and deleting previous partial chunks."""
+        if not item_ref:
+            return
+
+        key = self._get_item_key(item_ref)
+        if key in self.active_downloads:
+            dlg = self.active_downloads.pop(key, None)
+            if dlg:
+                try:
+                    worker = getattr(dlg, 'worker', dlg)
+                    if worker and hasattr(worker, 'stop'):
+                        worker.stop()
+                    dlg.close()
+                except Exception:
+                    pass
+
+        url = url or item_ref.data(Qt.ItemDataRole.UserRole)
+        filename = item_ref.text()
+        user_agent = user_agent or item_ref.data(Qt.ItemDataRole.UserRole + 4)
+        cookies = cookies or item_ref.data(Qt.ItemDataRole.UserRole + 5)
+
+        # Reset item intent status
+        item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+
+        # Reset status column & progress percentage to 0%
+        self._set_status_text(row, "Starting...", logic_status="Starting...")
+        status_item = self.download_table.item(row, 2)
+        if status_item:
+            status_item.setData(Qt.ItemDataRole.UserRole, "0%")
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Starting...")
+
+        self._set_sortable_item(row, 3, "...", parse_time_to_sec)
+        self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
+
+        new_ts = str(time.time())
+        item_ref.setData(Qt.ItemDataRole.UserRole + 2, new_ts)
+        self._set_timestamp_item(row, 5, format_timestamp_relative(new_ts, max_relative_seconds=300))
+        self._set_row_bold(row, True)
+
+        from core.config import load_category_config
+        config = load_category_config()
+        temp_dir = config.get("temp_dir")
+        saved_path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
+        custom_save_dir = os.path.dirname(saved_path) if saved_path else None
+
+        # Clean all existing partial or target files on disk
+        dirs_to_clean = [d for d in [custom_save_dir, temp_dir] if d and os.path.exists(d)]
+        for d in dirs_to_clean:
+            for ext_pattern in ["", ".aria2", ".tmpbdm", ".tmpbdm.bdmx"]:
+                fp = os.path.join(d, filename + ext_pattern)
+                if os.path.exists(fp):
+                    try:
+                        os.remove(fp)
+                    except Exception:
+                        pass
+
+        # Start worker with allow_resume=False for clean restart
+        self._start_download_worker(
+            url, item_ref, resume_filename=filename,
+            custom_save_dir=custom_save_dir,
+            user_agent=user_agent, cookies=cookies,
+            allow_resume=False
+        )
+        self.save_data()
+
+    def _start_duplicate_copy(self, url, user_agent=None, cookies=None):
+        """Initiates a new duplicate download copy for an existing URL."""
+        data = f"{url}|{user_agent or ''}|{cookies or ''}"
+        self.process_incoming_url(data, allow_duplicate=True)
+
 
     def _handle_fetch_complete(self, file_info, fetcher):
         # Remove the finished thread from memory
@@ -2591,8 +2721,23 @@ class MainWindow(QMainWindow):
                         dialog.activateWindow()
                         return
 
+        existing_filenames = set()
+        existing_paths = set()
+        for r in range(self.download_table.rowCount()):
+            it = self.download_table.item(r, 0)
+            if it:
+                existing_filenames.add(it.text())
+                sp = it.data(Qt.ItemDataRole.UserRole + 1)
+                if sp:
+                    existing_paths.add(os.path.normpath(sp))
+
         # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
-        dialog = DownloadFileInfoDialog(file_info, None)
+        dialog = DownloadFileInfoDialog(
+            file_info,
+            parent=None,
+            existing_paths=existing_paths,
+            existing_names=existing_filenames
+        )
         
         # Add to list but don't start downloading yet (wait for user confirmation)
         results = dialog.get_results()
@@ -2734,7 +2879,7 @@ class MainWindow(QMainWindow):
         self.save_data()
         return item_name
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None, allow_resume=True):
         if not user_agent:
             user_agent = item_ref.data(Qt.ItemDataRole.UserRole + 4)
         if not cookies:
@@ -2786,9 +2931,18 @@ class MainWindow(QMainWindow):
             use_aria2 = False
 
         if use_aria2:
-            worker = Aria2Worker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
+            worker = Aria2Worker(
+                url, item_ref.row(), save_dir, resume_filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                allow_resume=allow_resume
+            )
         else:
-            worker = DownloadWorker(url, item_ref.row(), save_dir, resume_filename, user_agent=user_agent, cookies=cookies, temp_dir=temp_dir)
+            worker = DownloadWorker(
+                url, item_ref.row(), save_dir, resume_filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                allow_resume=allow_resume
+            )
+
         
         gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
         item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
