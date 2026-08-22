@@ -1756,23 +1756,22 @@ def test_column_dialog(qapp):
         {"name": "Status", "visible": False, "width": 120, "logical_index": 2},
     ]
     dlg = ColumnDialog(columns_data)
-    assert dlg.list_widget.rowCount() == 3
+    assert dlg.list_widget.count() == 3
 
     # Uncheck first item
-    item0 = dlg.list_widget.item(0, 0)
+    item0 = dlg.list_widget.item(0)
     assert item0.checkState() == Qt.CheckState.Checked
     item0.setCheckState(Qt.CheckState.Unchecked)
 
     # Check that visible flag synced
     assert dlg.columns[0]["visible"] is False
 
-    # Double click toggles state
-    dlg._on_item_double_clicked(item0)
-    assert item0.checkState() == Qt.CheckState.Checked
+    # Recheck item
+    item0.setCheckState(Qt.CheckState.Checked)
     assert dlg.columns[0]["visible"] is True
 
     # Move down
-    dlg.list_widget.selectRow(0)
+    dlg.list_widget.setCurrentRow(0)
     dlg.move_down()
     assert dlg.columns[0]["name"] == "Size"
     assert dlg.columns[1]["name"] == "File Name"
