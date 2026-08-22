@@ -23,21 +23,12 @@ body:
       options:
         - Flatpak
         - AppImage
+        - Snap
         - Standalone Binary
         - Running from Source (Python)
         - Other
     validations:
       required: true
-  - type: dropdown
-    id: ui_mode
-    attributes:
-      label: UI Interface Mode
-      description: Which UI interface are you using?
-      options:
-        - PyQt6 QWidget (Default)
-        - KDE Kirigami QML (--kirigami)
-    validations:
-      required: false
   - type: input
     id: os_arch
     attributes:
@@ -63,14 +54,14 @@ body:
         2. Click on '....'
         3. See error
     validations:
-      required: true
+      required: false
   - type: textarea
     id: expected
     attributes:
       label: Expected Behavior
       description: A clear and concise description of what you expected to happen.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: logs_screenshots
     attributes:
