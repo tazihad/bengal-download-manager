@@ -15,7 +15,8 @@ class ColumnDialog(QDialog):
         self.setFixedWidth(420)
         self.setMinimumHeight(400)
         self.resize(420, 400)
-        self.columns = columns_data # List of dicts: {"name": str, "visible": bool, "width": int, "logical_index": int}
+        self.columns = [dict(c) for c in columns_data]  # List of dicts: {"name": str, "visible": bool, "width": int, "logical_index": int}
+        self._is_refreshing = False
         
         layout = QVBoxLayout(self)
         
@@ -32,11 +33,7 @@ class ColumnDialog(QDialog):
         self.list_widget.horizontalHeader().setVisible(False)
         self.list_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         
-        for i, col in enumerate(self.columns):
-            item = QTableWidgetItem(col["name"])
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked if col["visible"] else Qt.CheckState.Unchecked)
-            self.list_widget.setItem(i, 0, item)
+        self.refresh_list()
             
         main_layout.addWidget(self.list_widget)
         
@@ -49,9 +46,20 @@ class ColumnDialog(QDialog):
         self.btn_down = QPushButton("Move Down")
         self.btn_down.setFixedWidth(100)
         self.btn_down.setFixedHeight(30)
+
+        self.btn_select_all = QPushButton("Select All")
+        self.btn_select_all.setFixedWidth(100)
+        self.btn_select_all.setFixedHeight(30)
+
+        self.btn_deselect_all = QPushButton("Deselect All")
+        self.btn_deselect_all.setFixedWidth(100)
+        self.btn_deselect_all.setFixedHeight(30)
         
         btn_vbox.addWidget(self.btn_up)
         btn_vbox.addWidget(self.btn_down)
+        btn_vbox.addSpacing(10)
+        btn_vbox.addWidget(self.btn_select_all)
+        btn_vbox.addWidget(self.btn_deselect_all)
         btn_vbox.addStretch()
         main_layout.addLayout(btn_vbox)
         
@@ -86,19 +94,49 @@ class ColumnDialog(QDialog):
         # Connections
         self.btn_up.clicked.connect(self.move_up)
         self.btn_down.clicked.connect(self.move_down)
+        self.btn_select_all.clicked.connect(self.select_all)
+        self.btn_deselect_all.clicked.connect(self.deselect_all)
         self.btn_ok.clicked.connect(self.accept)
         self.btn_cancel.clicked.connect(self.reject)
         self.list_widget.itemSelectionChanged.connect(self.update_width_spin)
+        self.list_widget.itemChanged.connect(self._on_item_changed)
+        self.list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
         self.spin_width.valueChanged.connect(self.update_width_data)
+
+    def _on_item_changed(self, item):
+        if self._is_refreshing or not item:
+            return
+        row = item.row()
+        if 0 <= row < len(self.columns):
+            self.columns[row]["visible"] = (item.checkState() == Qt.CheckState.Checked)
+
+    def _on_item_double_clicked(self, item):
+        if not item:
+            return
+        new_state = Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked
+        item.setCheckState(new_state)
+
+    def select_all(self):
+        for col in self.columns:
+            col["visible"] = True
+        self.refresh_list()
+
+    def deselect_all(self):
+        for i, col in enumerate(self.columns):
+            # Keep at least the first column visible
+            col["visible"] = (i == 0)
+        self.refresh_list()
 
     def update_width_spin(self):
         row = self.list_widget.currentRow()
-        if row >= 0:
+        if 0 <= row < len(self.columns):
+            self.spin_width.blockSignals(True)
             self.spin_width.setValue(self.columns[row]["width"])
+            self.spin_width.blockSignals(False)
 
     def update_width_data(self, val):
         row = self.list_widget.currentRow()
-        if row >= 0:
+        if 0 <= row < len(self.columns):
             self.columns[row]["width"] = val
 
     def move_up(self):
@@ -110,18 +148,33 @@ class ColumnDialog(QDialog):
 
     def move_down(self):
         row = self.list_widget.currentRow()
-        if row < len(self.columns) - 1:
+        if 0 <= row < len(self.columns) - 1:
             self.columns[row], self.columns[row+1] = self.columns[row+1], self.columns[row]
             self.refresh_list()
             self.list_widget.selectRow(row + 1)
 
     def refresh_list(self):
-        for i, col in enumerate(self.columns):
-            item = self.list_widget.item(i, 0)
-            item.setText(col["name"])
-            item.setCheckState(Qt.CheckState.Checked if col["visible"] else Qt.CheckState.Unchecked)
+        self._is_refreshing = True
+        try:
+            self.list_widget.setRowCount(len(self.columns))
+            for i, col in enumerate(self.columns):
+                item = self.list_widget.item(i, 0)
+                if not item:
+                    item = QTableWidgetItem(col["name"])
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsUserCheckable)
+                    self.list_widget.setItem(i, 0, item)
+                else:
+                    item.setText(col["name"])
+                item.setCheckState(Qt.CheckState.Checked if col.get("visible", True) else Qt.CheckState.Unchecked)
+        finally:
+            self._is_refreshing = False
 
     def get_results(self):
         for i in range(len(self.columns)):
-            self.columns[i]["visible"] = self.list_widget.item(i, 0).checkState() == Qt.CheckState.Checked
+            item = self.list_widget.item(i, 0)
+            if item:
+                self.columns[i]["visible"] = (item.checkState() == Qt.CheckState.Checked)
+        # Ensure at least one column is visible
+        if not any(c.get("visible", False) for c in self.columns) and self.columns:
+            self.columns[0]["visible"] = True
         return self.columns

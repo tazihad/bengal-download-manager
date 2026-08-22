@@ -779,16 +779,22 @@ def show_in_folder(path):
                 return
             elif "nautilus" in output:
                 subprocess.Popen(['nautilus', '--select', path], env=clean_env)
+                return
             elif "caja" in output:
                 subprocess.Popen(['caja', '--select', path], env=clean_env)
+                return
             elif "nemo" in output:
                 subprocess.Popen(['nemo', '--select', path], env=clean_env)
+                return
             elif "pcmanfm-qt" in output:
                 subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
+                return
             elif "pcmanfm" in output:
                 subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
+                return
             elif "konqueror" in output:
                 subprocess.Popen(['konqueror', '--select', path], env=clean_env)
+                return
         except Exception:
             pass
 

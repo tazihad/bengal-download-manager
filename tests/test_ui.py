@@ -1748,6 +1748,88 @@ def test_pause_resume_multi_interface_lifecycle(qapp, monkeypatch):
     dlg.deleteLater()
 
 
+def test_column_dialog(qapp):
+    from ui.dialogs.column import ColumnDialog
+    columns_data = [
+        {"name": "File Name", "visible": True, "width": 200, "logical_index": 0},
+        {"name": "Size", "visible": True, "width": 100, "logical_index": 1},
+        {"name": "Status", "visible": False, "width": 120, "logical_index": 2},
+    ]
+    dlg = ColumnDialog(columns_data)
+    assert dlg.list_widget.rowCount() == 3
+
+    # Uncheck first item
+    item0 = dlg.list_widget.item(0, 0)
+    assert item0.checkState() == Qt.CheckState.Checked
+    item0.setCheckState(Qt.CheckState.Unchecked)
+
+    # Check that visible flag synced
+    assert dlg.columns[0]["visible"] is False
+
+    # Double click toggles state
+    dlg._on_item_double_clicked(item0)
+    assert item0.checkState() == Qt.CheckState.Checked
+    assert dlg.columns[0]["visible"] is True
+
+    # Move down
+    dlg.list_widget.selectRow(0)
+    dlg.move_down()
+    assert dlg.columns[0]["name"] == "Size"
+    assert dlg.columns[1]["name"] == "File Name"
+
+    # Select all / Deselect all
+    dlg.select_all()
+    assert all(c["visible"] for c in dlg.columns)
+    dlg.deselect_all()
+    assert dlg.columns[0]["visible"] is True
+    assert dlg.columns[1]["visible"] is False
+
+    res = dlg.get_results()
+    assert len(res) == 3
+    dlg.close()
+    dlg.deleteLater()
+
+
+def test_main_window_column_visibility(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    assert not window.download_table.isColumnHidden(1)
+    window.toggle_column_visibility(1, False)
+    assert window.download_table.isColumnHidden(1)
+
+    window.toggle_column_visibility(1, True)
+    assert not window.download_table.isColumnHidden(1)
+
+
+def test_show_in_folder_single_nautilus(monkeypatch, tmp_path):
+    from core.utils import show_in_folder
+    import subprocess
+
+    dummy_file = tmp_path / "test.txt"
+    dummy_file.write_text("content")
+
+    spawn_calls = []
+
+    def mock_popen(args, *a, **kw):
+        spawn_calls.append(args)
+        class MockProc:
+            def communicate(self):
+                return ("org.gnome.Nautilus.desktop\n", "")
+        return MockProc()
+
+    monkeypatch.setattr(subprocess, "Popen", mock_popen)
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+
+    show_in_folder(str(dummy_file))
+
+    # Should have called xdg-mime query and nautilus exactly once
+    nautilus_calls = [c for c in spawn_calls if c[0] == "nautilus"]
+    assert len(nautilus_calls) == 1
+    assert nautilus_calls[0] == ["nautilus", "--select", str(dummy_file)]
+
+
+
 
 
 

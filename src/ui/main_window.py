@@ -2201,10 +2201,41 @@ class MainWindow(QMainWindow):
 
     def show_header_context_menu(self, pos):
         menu = QMenu(self)
-        act_columns = QAction("Columns", self)
+        header = self.download_table.horizontalHeader()
+
+        # Add toggle action for each column in visual order
+        for visual_idx in range(self.download_table.columnCount()):
+            logical_idx = header.logicalIndex(visual_idx)
+            header_item = self.download_table.horizontalHeaderItem(logical_idx)
+            col_name = header_item.text() if header_item else f"Column {logical_idx + 1}"
+            is_visible = not self.download_table.isColumnHidden(logical_idx)
+
+            act = QAction(col_name, menu)
+            act.setCheckable(True)
+            act.setChecked(is_visible)
+
+            def make_toggle(l_idx=logical_idx):
+                return lambda checked: self.toggle_column_visibility(l_idx, checked)
+
+            act.triggered.connect(make_toggle(logical_idx))
+            menu.addAction(act)
+
+        menu.addSeparator()
+        act_columns = QAction("Columns...", self)
         act_columns.triggered.connect(self.open_column_dialog)
         menu.addAction(act_columns)
         menu.exec(self.download_table.horizontalHeader().viewport().mapToGlobal(pos))
+
+    def toggle_column_visibility(self, logical_idx: int, visible: bool):
+        if not visible:
+            visible_count = sum(
+                1 for i in range(self.download_table.columnCount())
+                if not self.download_table.isColumnHidden(i) and i != logical_idx
+            )
+            if visible_count == 0:
+                return
+        self.download_table.setColumnHidden(logical_idx, not visible)
+        self.save_settings()
 
     def open_column_dialog(self):
         header = self.download_table.horizontalHeader()
