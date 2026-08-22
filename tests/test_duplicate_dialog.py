@@ -112,6 +112,7 @@ def test_main_window_duplicate_detection_active(qapp, monkeypatch):
 
     # For active downloads, dialog should NOT open; it brings active window to front
     assert len(dialog_opened) == 0
+    window.close()
 
 
 def test_main_window_duplicate_detection_completed(qapp, monkeypatch):
@@ -144,6 +145,7 @@ def test_main_window_duplicate_detection_completed(qapp, monkeypatch):
 
     assert "download_copy" in actions_called
     assert copy_started == ["http://example.com/finished.zip"]
+    window.close()
 
 
 def test_main_window_duplicate_detection_resume(qapp, monkeypatch):
@@ -172,6 +174,7 @@ def test_main_window_duplicate_detection_resume(qapp, monkeypatch):
     window.process_incoming_url("http://example.com/paused.zip")
 
     assert len(resumed) == 1
+    window.close()
 
 
 def test_get_unique_filepath_with_existing_names_and_paths():
@@ -235,6 +238,7 @@ def test_download_copy_paused_renaming(qapp, monkeypatch):
     dlg2 = DownloadFileInfoDialog(file_info, existing_names=existing_filenames2)
     results2 = dlg2.get_results()
     assert results2["filename"] == "doc (2).pdf"
+    window.close()
 
 
 def test_main_window_restart_download_clean(qapp, tmp_path, monkeypatch):
@@ -277,5 +281,7 @@ def test_main_window_restart_download_clean(qapp, tmp_path, monkeypatch):
     assert len(workers_spawned) == 1
     assert workers_spawned[0]["allow_resume"] is False
     assert status_item.data(Qt.ItemDataRole.UserRole) == "0%"
+    window.close()
+
 
 

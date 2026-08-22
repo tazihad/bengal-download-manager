@@ -767,7 +767,7 @@ def show_in_folder(path):
 
     else:
         # Linux / Unix
-        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface
+        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface via QtDBus
         try:
             from PyQt6.QtDBus import QDBusConnection, QDBusMessage
             from PyQt6.QtCore import QUrl
@@ -809,7 +809,13 @@ def show_in_folder(path):
                 subprocess.Popen(['xdg-open', parent], env=clean_env)
         except Exception:
             parent = os.path.dirname(path)
-            subprocess.Popen(['xdg-open', parent], env=clean_env)
+            try:
+                subprocess.Popen(['xdg-open', parent], env=clean_env)
+            except Exception:
+                pass
+
+
+
 
 def choose_portal_save_path(title="Save File As", filename="file", folder=""):
     """
