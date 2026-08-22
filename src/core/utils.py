@@ -767,7 +767,7 @@ def show_in_folder(path):
 
     else:
         # Linux / Unix
-        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface via QtDBus
+        # 1. Primary Method: Standard FreeDesktop DBus FileManager1 ShowItems interface via QtDBus or dbus-send
         try:
             from PyQt6.QtDBus import QDBusConnection, QDBusMessage
             from PyQt6.QtCore import QUrl
@@ -787,7 +787,29 @@ def show_in_folder(path):
         except Exception:
             pass
 
-        # 2. CLI fallbacks based on default file manager
+        # 2. Secondary Method: dbus-send / gdbus with explicit (as, s) signature
+        try:
+            from PyQt6.QtCore import QUrl
+            uri = QUrl.fromLocalFile(path).toString()
+            if shutil.which("dbus-send"):
+                res = subprocess.run(
+                    [
+                        "dbus-send", "--session", "--dest=org.freedesktop.FileManager1",
+                        "--type=method_call", "/org/freedesktop/FileManager1",
+                        "org.freedesktop.FileManager1.ShowItems",
+                        f"array:string:{uri}", "string:"
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=clean_env,
+                    timeout=1.5
+                )
+                if res.returncode == 0:
+                    return
+        except Exception:
+            pass
+
+        # 3. CLI fallbacks based on default file manager
         try:
             proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
@@ -802,6 +824,10 @@ def show_in_folder(path):
                 subprocess.Popen(['caja', '--select', path], env=clean_env)
             elif "nemo" in output:
                 subprocess.Popen(['nemo', '--select', path], env=clean_env)
+            elif "pcmanfm-qt" in output:
+                subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
+            elif "pcmanfm" in output:
+                subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
             elif "konqueror" in output:
                 subprocess.Popen(['konqueror', '--select', path], env=clean_env)
             else:
@@ -813,6 +839,7 @@ def show_in_folder(path):
                 subprocess.Popen(['xdg-open', parent], env=clean_env)
             except Exception:
                 pass
+
 
 
 
