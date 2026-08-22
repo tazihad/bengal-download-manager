@@ -184,21 +184,41 @@ const filterLists = {
   blacklistExts: []
 };
 
+function normalizeUrlOrDomainInput(input) {
+  if (!input || typeof input !== 'string') return "";
+  let val = input.trim().toLowerCase();
+  // If user pasted a full URL with protocol and no path or just root path e.g. https://mirror.xeonbd.com/
+  try {
+    if (val.startsWith('http://') || val.startsWith('https://')) {
+      const parsed = new URL(val);
+      if (!parsed.pathname || parsed.pathname === '/') {
+        return parsed.hostname;
+      }
+      return parsed.hostname + parsed.pathname.replace(/\/$/, '');
+    }
+  } catch (e) {}
+
+  // Strip trailing slash
+  val = val.replace(/\/+$/, '');
+  return val;
+}
+
 function renderTagList(containerId, listKey) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
 
   filterLists[listKey].forEach((item, index) => {
-    const chip = document.createElement('div');
-    chip.className = 'tag-chip';
+    const row = document.createElement('div');
+    row.className = 'listbox-row';
 
     const textSpan = document.createElement('span');
+    textSpan.className = 'listbox-text';
     textSpan.textContent = item;
-    chip.appendChild(textSpan);
+    row.appendChild(textSpan);
 
     const removeBtn = document.createElement('button');
-    removeBtn.className = 'tag-remove';
+    removeBtn.className = 'listbox-remove';
     removeBtn.innerHTML = '&times;';
     removeBtn.title = 'Remove';
     removeBtn.addEventListener('click', () => {
@@ -210,8 +230,8 @@ function renderTagList(containerId, listKey) {
       chrome.storage.local.set(updatePayload);
     });
 
-    chip.appendChild(removeBtn);
-    container.appendChild(chip);
+    row.appendChild(removeBtn);
+    container.appendChild(row);
   });
 }
 
@@ -228,9 +248,11 @@ function setupFilterInput(inputId, buttonId, containerId, listKey, isExtension =
       if (!val.startsWith('.')) {
         val = '.' + val;
       }
+    } else {
+      val = normalizeUrlOrDomainInput(val);
     }
 
-    if (!filterLists[listKey].includes(val)) {
+    if (val && !filterLists[listKey].includes(val)) {
       filterLists[listKey].push(val);
       renderTagList(containerId, listKey);
       // Auto-persist filter item
@@ -283,18 +305,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 3. Setup Filter Inputs
+  // 3. Interception Toggle Listener
+  const interceptionCheckbox = document.getElementById('options-enable-interception');
+  if (interceptionCheckbox) {
+    interceptionCheckbox.addEventListener('change', (e) => {
+      chrome.storage.local.set({ enableInterception: e.target.checked }, () => {
+        showToast(e.target.checked ? 'Interception enabled ✓' : 'Interception paused ✓', 'success');
+      });
+    });
+  }
+
+  // 4. Setup Filter Inputs
   setupFilterInput('whitelist-url-input', 'add-whitelist-url', 'whitelist-url-tags', 'whitelistUrls', false);
   setupFilterInput('whitelist-ext-input', 'add-whitelist-ext', 'whitelist-ext-tags', 'whitelistExts', true);
   setupFilterInput('blacklist-url-input', 'add-blacklist-url', 'blacklist-url-tags', 'blacklistUrls', false);
   setupFilterInput('blacklist-ext-input', 'add-blacklist-ext', 'blacklist-ext-tags', 'blacklistExts', true);
 
-  // 4. Load from storage
+  // 5. Load from storage
   const defaults = {
     port: 56800,
     token: "",
     theme: "system",
     bdmVersion: "",
+    enableInterception: true,
     whitelistUrls: [],
     whitelistExts: [],
     blacklistUrls: [],
@@ -310,6 +343,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('port').value = port;
     document.getElementById('token').value = items.token || '';
+    if (interceptionCheckbox) {
+      interceptionCheckbox.checked = (items.enableInterception !== false);
+    }
 
     applyTheme(items.theme || 'system');
 
@@ -338,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     testConnection(port, items.token || '');
   });
 
-  // 5. Button Listeners
+  // 6. Button Listeners
   document.getElementById('refresh-btn').addEventListener('click', () => {
     const port = parseInt(document.getElementById('port').value, 10) || 56800;
     const token = document.getElementById('token').value.trim();
@@ -350,12 +386,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = document.getElementById('token').value.trim();
     const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
     const theme = selectedRadio ? selectedRadio.value : 'system';
+    const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
 
     const payload = {
       host: "localhost",
       port,
       token,
       theme,
+      enableInterception,
       whitelistUrls: filterLists.whitelistUrls,
       whitelistExts: filterLists.whitelistExts,
       blacklistUrls: filterLists.blacklistUrls,
@@ -384,12 +422,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
         const theme = selectedRadio ? selectedRadio.value : 'system';
+        const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
 
         const savePayload = {
           host: "localhost",
           port,
           token: token || '',
           theme,
+          enableInterception,
           whitelistUrls: filterLists.whitelistUrls,
           whitelistExts: filterLists.whitelistExts,
           blacklistUrls: filterLists.blacklistUrls,
@@ -418,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
       port: 56800,
       token: "",
       theme: "system",
+      enableInterception: true,
       whitelistUrls: [],
       whitelistExts: [],
       blacklistUrls: [],
@@ -427,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set(defaults, () => {
       document.getElementById('port').value = defaults.port;
       document.getElementById('token').value = defaults.token;
+      if (interceptionCheckbox) interceptionCheckbox.checked = true;
       applyTheme(defaults.theme);
 
       filterLists.whitelistUrls = [];

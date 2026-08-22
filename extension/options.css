@@ -489,62 +489,151 @@ body {
   color: var(--text-muted);
 }
 
-/* Tags & Tag Input */
-.tag-input-row {
+/* Toggle Control Label */
+.toggle-control-label {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 0;
+  user-select: none;
 }
 
-.tag-input-row .form-input {
-  flex-grow: 1;
+.toggle-control-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--bdm-highlight);
+  cursor: pointer;
 }
 
-.tags-container {
+.toggle-control-text {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 38px;
-  padding: 8px;
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.tags-container:empty::before {
-  content: "No filter items configured.";
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 4px;
-}
-
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background-color: var(--bg-tag);
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  font-size: 12px;
-  font-weight: 500;
+.toggle-control-title {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-main);
 }
 
-.tag-remove {
+.toggle-control-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Listbox (Firefox Setting / Exceptions Style) */
+.tag-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.tag-input-row .form-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tag-input-row .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 16px;
+  min-width: 80px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.listbox-container {
+  max-height: 180px;
+  min-height: 90px;
+  overflow-y: auto;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.listbox-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.listbox-container::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 3px;
+}
+
+.listbox-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.listbox-items:empty::before {
+  content: "No items configured.";
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 12px;
+  display: block;
+  text-align: center;
+}
+
+.listbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-main);
+  background-color: transparent;
+  transition: background-color var(--transition);
+}
+
+.listbox-row:nth-child(even) {
+  background-color: rgba(128, 128, 128, 0.04);
+}
+
+.listbox-row:hover {
+  background-color: var(--bg-tag);
+}
+
+.listbox-text {
+  flex-grow: 1;
+  word-break: break-all;
+  font-family: monospace, var(--font-family);
+  font-size: 12px;
+}
+
+.listbox-remove {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-muted);
   line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  transition: color var(--transition), background-color var(--transition);
 }
 
-.tag-remove:hover {
+.listbox-remove:hover {
   color: var(--bdm-error);
+  background-color: rgba(239, 68, 68, 0.12);
 }
 
 /* About Grid */

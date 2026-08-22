@@ -24,24 +24,119 @@ function getFileExtension(urlOrFilename) {
 }
 
 // --- WHITELIST & BLACKLIST FILTER RULES ---
+let cachedFilterRules = {
+  enableInterception: true,
+  whitelistUrls: [],
+  whitelistExts: [],
+  blacklistUrls: [],
+  blacklistExts: []
+};
+
+function refreshFilterRules() {
+  chrome.storage.local.get(cachedFilterRules, (items) => {
+    cachedFilterRules = { ...cachedFilterRules, ...items };
+  });
+}
+refreshFilterRules();
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local') {
+    for (const key of ['enableInterception', 'whitelistUrls', 'whitelistExts', 'blacklistUrls', 'blacklistExts']) {
+      if (changes[key] !== undefined) {
+        cachedFilterRules[key] = changes[key].newValue;
+      }
+    }
+  }
+});
+
 async function getFilterRules() {
   return new Promise((resolve) => {
-    chrome.storage.local.get({
-      whitelistUrls: [],
-      whitelistExts: [],
-      blacklistUrls: [],
-      blacklistExts: []
-    }, resolve);
+    chrome.storage.local.get(cachedFilterRules, (items) => {
+      cachedFilterRules = { ...cachedFilterRules, ...items };
+      resolve(cachedFilterRules);
+    });
   });
 }
 
-function matchesUrlOrDomain(url, urlPatterns) {
-  if (!url || !Array.isArray(urlPatterns) || urlPatterns.length === 0) return false;
-  const urlLower = url.toLowerCase();
+function parseDomainAndPath(rawInput) {
+  if (!rawInput || typeof rawInput !== 'string') return { hostname: "", pathname: "", raw: "" };
+  let str = rawInput.trim().toLowerCase();
+  // Strip wildcard prefix if present e.g. *.example.com -> example.com
+  let hasWildcard = false;
+  if (str.startsWith('*.')) {
+    hasWildcard = true;
+    str = str.substring(2);
+  } else if (str.startsWith('*')) {
+    hasWildcard = true;
+    str = str.substring(1);
+  }
+
+  // Prepend dummy protocol if missing to parse cleanly via URL parser
+  let toParse = str;
+  if (!toParse.includes('://')) {
+    toParse = 'http://' + toParse;
+  }
+
+  try {
+    const parsed = new URL(toParse);
+    let hostname = parsed.hostname.toLowerCase();
+    let pathname = parsed.pathname || "";
+    if (pathname === '/') pathname = "";
+    return { hostname, pathname, hasWildcard, raw: str };
+  } catch (e) {
+    return { hostname: str.replace(/\/.*$/, ''), pathname: "", hasWildcard, raw: str };
+  }
+}
+
+function matchesUrlOrDomain(targetUrl, urlPatterns, referrerUrl) {
+  if (!Array.isArray(urlPatterns) || urlPatterns.length === 0) return false;
+  
+  const targets = [];
+  if (targetUrl) targets.push(targetUrl);
+  if (referrerUrl && typeof referrerUrl === 'string' && referrerUrl.startsWith('http')) {
+    targets.push(referrerUrl);
+  }
+  if (targets.length === 0) return false;
+
   for (const pattern of urlPatterns) {
-    const p = pattern.trim().toLowerCase();
-    if (!p) continue;
-    if (urlLower.includes(p)) return true;
+    if (!pattern || typeof pattern !== 'string') continue;
+    const pInfo = parseDomainAndPath(pattern);
+    if (!pInfo.hostname && !pInfo.raw) continue;
+
+    for (const testUrl of targets) {
+      const urlLower = testUrl.toLowerCase();
+      const tInfo = parseDomainAndPath(urlLower);
+
+      // Direct substring match if pattern specifies specific path or query
+      if (pInfo.pathname && urlLower.includes(pInfo.raw)) {
+        return true;
+      }
+
+      // Hostname comparison
+      if (pInfo.hostname && tInfo.hostname) {
+        if (tInfo.hostname === pInfo.hostname) {
+          // If pattern also has pathname requirement
+          if (pInfo.pathname) {
+            if (tInfo.pathname.startsWith(pInfo.pathname)) return true;
+          } else {
+            return true;
+          }
+        }
+        // Subdomain matching (e.g. sub.mirror.xeonbd.com matches mirror.xeonbd.com or xeonbd.com)
+        if (tInfo.hostname.endsWith('.' + pInfo.hostname)) {
+          if (pInfo.pathname) {
+            if (tInfo.pathname.startsWith(pInfo.pathname)) return true;
+          } else {
+            return true;
+          }
+        }
+      }
+
+      // Fallback substring search for raw pattern if user typed partial keyword
+      if (pInfo.raw && urlLower.includes(pInfo.raw)) {
+        return true;
+      }
+    }
   }
   return false;
 }
@@ -62,14 +157,18 @@ function matchesExtension(extOrFilename, extList) {
   return false;
 }
 
-async function shouldInterceptDownload(url, filename) {
+function shouldInterceptDownloadSync(url, filename, referrer) {
   if (!url || isIgnoredServiceUrl(url)) return false;
 
-  const ext = getFileExtension(filename || url);
-  const rules = await getFilterRules();
+  const rules = cachedFilterRules;
+  if (rules.enableInterception === false) {
+    return false;
+  }
 
-  // 1. Blacklist check - if matched, do NOT intercept (leave to browser)
-  if (matchesUrlOrDomain(url, rules.blacklistUrls) || matchesExtension(ext || filename, rules.blacklistExts)) {
+  const ext = getFileExtension(filename || url);
+
+  // 1. Blacklist check - if matched on URL, domain, referrer, or extension: do NOT intercept (leave to browser)
+  if (matchesUrlOrDomain(url, rules.blacklistUrls, referrer) || matchesExtension(ext || filename, rules.blacklistExts)) {
     return false;
   }
 
@@ -84,11 +183,15 @@ async function shouldInterceptDownload(url, filename) {
   }
 
   // 4. Whitelisted URL/domain - intercept downloadable files on this domain
-  if (matchesUrlOrDomain(url, rules.whitelistUrls)) {
+  if (matchesUrlOrDomain(url, rules.whitelistUrls, referrer)) {
     return true;
   }
 
   return true;
+}
+
+async function shouldInterceptDownload(url, filename, referrer) {
+  return shouldInterceptDownloadSync(url, filename, referrer);
 }
 
 // --- ENHANCED COOKIE EXTRACTION (cliget method with Firefox storeId & dFPI support) ---
@@ -189,7 +292,7 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
     // For HTML responses, inspect the snippet for meta refresh or target file confirmation forms
     const text = await response.text();
 
-    // 1. Check for Meta Refresh tag (e.g. VideoLAN mirror redirect)
+    // 1. Check for Meta Refresh tag (e.g. VideoLAN mirror redirect, SourceForge)
     const metaMatch = text.match(/content=["']?\d+;\s*url=['"]?([^'"]+)/i)
                    || text.match(/url=['"]?([^'"]+)['"]?[^>]*http-equiv/i);
     if (metaMatch && metaMatch[1]) {
@@ -413,26 +516,21 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
         }
 
         const ext = getFileExtension(filenameFromHeader || details.url);
+        const referrer = details.initiator || details.documentUrl || "";
 
-        (async () => {
-          const rules = await getFilterRules();
+        // Synchronous blacklist & interception check
+        const shouldIntercept = shouldInterceptDownloadSync(details.url, filenameFromHeader, referrer);
+        if (!shouldIntercept) {
+          return; // Bypassed to native browser! NEVER cancel or redirect!
+        }
 
-          // 1. Blacklist check - never intercept
-          if (matchesUrlOrDomain(details.url, rules.blacklistUrls) || matchesExtension(ext || filenameFromHeader, rules.blacklistExts)) {
-            return;
-          }
+        const isExplicitWhitelistedExt = matchesExtension(ext || filenameFromHeader, cachedFilterRules.whitelistExts);
+        const isDownloadExt = ext && RECOGNIZED_DOWNLOAD_EXTS.includes(ext);
+        const isGoogleDriveExport = details.url.includes("export=download") || details.url.includes("uc-download-link");
 
-          // 2. Default ignored web extensions (manifest.json, html, js, css, web images) MUST NOT be intercepted unless specifically whitelisted
-          const isExplicitWhitelistedExt = matchesExtension(ext || filenameFromHeader, rules.whitelistExts);
-          if (ext && DEFAULT_IGNORED_EXTS.includes(ext) && !isExplicitWhitelistedExt) {
-            return;
-          }
-
-          const isDownloadExt = ext && RECOGNIZED_DOWNLOAD_EXTS.includes(ext);
-          const isGoogleDriveExport = details.url.includes("export=download") || details.url.includes("uc-download-link");
-
-          // Only intercept if there is a real download intent
-          if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt || isGoogleDriveExport) {
+        // Only intercept if there is a real download intent
+        if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt || isGoogleDriveExport) {
+          (async () => {
             const isOnline = await isBengalDMOnline();
             if (!isOnline) return;
 
@@ -455,13 +553,13 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
               userAgent: navigator.userAgent,
               cookies: cookieString,
               filename: filenameFromHeader,
-              referrer: details.initiator || details.documentUrl || ""
+              referrer: referrer
             });
-          }
-        })();
+          })();
 
-        if (extraSpec.includes("blocking")) {
-          // If blocking is supported, we check synchronicity if available
+          if (extraSpec.includes("blocking")) {
+            return { cancel: true };
+          }
         }
       },
       { urls: ["<all_urls>"], types: ["main_frame", "sub_frame", "other"] },
@@ -473,18 +571,74 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
   const hasBlocking = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
   const extraSpec = hasBlocking ? ["responseHeaders", "blocking"] : ["responseHeaders"];
 
-  setupListener(extraSpec);
+  try {
+    setupListener(extraSpec);
+  } catch {
+    setupListener(["responseHeaders"]);
+  }
 }
 
-// --- BROWSER DOWNLOAD CANCELLER & TAKEOVER (Guarantees zero browser downloads when Bengal DM is running) ---
+// --- BROWSER DOWNLOAD CANCELLER & TAKEOVER (Zero-Popup, Zero-Animation, Zero-History) ---
+const interceptedDownloadIds = new Set();
+
+function eraseDownloadRecord(downloadId) {
+  if (!downloadId || !chrome.downloads || !chrome.downloads.erase) return;
+  try {
+    chrome.downloads.erase({ id: downloadId }, () => {
+      if (chrome.runtime && chrome.runtime.lastError) { /* ignore */ }
+    });
+  } catch {}
+}
+
+function cancelAndEraseDownload(downloadId) {
+  if (!downloadId || !chrome.downloads) return;
+  interceptedDownloadIds.add(downloadId);
+  try {
+    chrome.downloads.cancel(downloadId, () => {
+      eraseDownloadRecord(downloadId);
+    });
+  } catch {}
+  eraseDownloadRecord(downloadId);
+  setTimeout(() => eraseDownloadRecord(downloadId), 40);
+  setTimeout(() => eraseDownloadRecord(downloadId), 150);
+  setTimeout(() => eraseDownloadRecord(downloadId), 500);
+}
+
+// Disable download shelf UI if supported by browser build
+if (chrome.downloads && typeof chrome.downloads.setShelfEnabled === 'function') {
+  try { chrome.downloads.setShelfEnabled(false); } catch {}
+}
+
+// 1. Hook onDeterminingFilename (Chrome/Edge): Cancels before Save-As dialog opens and before download animation triggers
+if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
+  chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+    if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
+
+    const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
+    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
+    if (!shouldIntercept) {
+      return; // Leave download to native browser!
+    }
+
+    (async () => {
+      const isOnline = await isBengalDMOnline();
+      if (!isOnline) return;
+
+      cancelAndEraseDownload(downloadItem.id);
+    })();
+  });
+}
+
+// 2. Hook onCreated: Initial download instantiation and handover to Bengal DM
 if (chrome.downloads && chrome.downloads.onCreated) {
   chrome.downloads.onCreated.addListener(async (downloadItem) => {
     if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url)) return;
 
+    const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
     // Check Whitelist & Blacklist rules
-    const shouldIntercept = await shouldInterceptDownload(downloadItem.url, downloadItem.filename);
+    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
     if (!shouldIntercept) {
-      return; // Leave download to native browser
+      return; // Leave download to native browser!
     }
 
     // 1. Verify if Bengal DM application is online
@@ -494,20 +648,7 @@ if (chrome.downloads && chrome.downloads.onCreated) {
     }
 
     // 2. Bengal DM is active: cancel and erase browser native download immediately on 0th byte
-    try {
-      chrome.downloads.cancel(downloadItem.id, () => {
-        try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
-      });
-      setTimeout(() => {
-        try {
-          chrome.downloads.cancel(downloadItem.id, () => {
-            try { chrome.downloads.erase({ id: downloadItem.id }); } catch (e) {}
-          });
-        } catch (e) {}
-      }, 50);
-    } catch (e) {
-      try { chrome.downloads.erase({ id: downloadItem.id }); } catch (err) {}
-    }
+    cancelAndEraseDownload(downloadItem.id);
 
     // 3. Deduplicate if already processed by content script or webRequest
     if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
@@ -537,8 +678,20 @@ if (chrome.downloads && chrome.downloads.onCreated) {
       userAgent: navigator.userAgent,
       cookies: cookieString,
       filename: downloadItem.filename || "",
-      referrer: downloadItem.referrer || ""
+      referrer: referrer
     });
+  });
+}
+
+// 3. Hook onChanged: Erase the download from history database the moment state reaches "interrupted"
+if (chrome.downloads && chrome.downloads.onChanged) {
+  chrome.downloads.onChanged.addListener((delta) => {
+    if (!delta || !delta.id) return;
+    if (interceptedDownloadIds.has(delta.id) || (delta.state && delta.state.current === "interrupted")) {
+      eraseDownloadRecord(delta.id);
+      setTimeout(() => eraseDownloadRecord(delta.id), 80);
+      setTimeout(() => eraseDownloadRecord(delta.id), 300);
+    }
   });
 }
 
@@ -584,7 +737,7 @@ function sanitizeMediaUrl(url) {
         return parsed.toString();
       }
     } else if (hostname.includes("tiktok.com")) {
-      for (const k of ["is_from_webapp", "sender_device", "share_app_id", "share_item_id", "share_link_id"]) {
+      for (const k of ["is_fromwebapp", "sender_device", "share_app_id", "share_item_id", "share_link_id"]) {
         parsed.searchParams.delete(k);
       }
       return parsed.toString();
@@ -684,9 +837,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           url: cleanUrl,
           userAgent: navigator.userAgent,
           cookies: cookieString,
-          referrer: request.url
+          referrer: request.referrer || request.url
         });
         sendResponse({ success, resolvedUrl: cleanUrl });
+        return;
+      }
+
+      // Check filters
+      const shouldIntercept = await shouldInterceptDownload(request.url, request.filename, request.referrer);
+      if (!shouldIntercept) {
+        sendResponse({ success: false, bypassed: true });
         return;
       }
 
@@ -708,7 +868,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         url: resolved.url,
         userAgent: navigator.userAgent,
         cookies: cookieString,
-        referrer: request.url
+        referrer: request.referrer || request.url
       });
       sendResponse({ success, resolvedUrl: resolved.url });
     })();
@@ -718,19 +878,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "check_status") {
     (async () => {
       const isOnline = await isBengalDMOnline();
+      const rules = await getFilterRules();
       let blacklisted = false;
       let whitelistedUrl = false;
       let whitelistedExt = false;
 
       if (request.url) {
         const ext = getFileExtension(request.url);
-        const rules = await getFilterRules();
-        blacklisted = matchesUrlOrDomain(request.url, rules.blacklistUrls) || matchesExtension(ext, rules.blacklistExts);
-        whitelistedUrl = matchesUrlOrDomain(request.url, rules.whitelistUrls);
+        blacklisted = matchesUrlOrDomain(request.url, rules.blacklistUrls, request.referrer) || matchesExtension(ext, rules.blacklistExts);
+        whitelistedUrl = matchesUrlOrDomain(request.url, rules.whitelistUrls, request.referrer);
         whitelistedExt = matchesExtension(ext, rules.whitelistExts);
       }
 
-      sendResponse({ online: isOnline, blacklisted, whitelistedUrl, whitelistedExt });
+      sendResponse({
+        online: isOnline,
+        enableInterception: rules.enableInterception !== false,
+        blacklisted,
+        whitelistedUrl,
+        whitelistedExt
+      });
     })();
     return true;
   }

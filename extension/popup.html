@@ -17,12 +17,45 @@
       </a>
     </header>
 
+    <!-- Backend Status Box -->
     <div class="status-box">
       <div id="dot" class="dot"></div>
       <div class="status-info">
         <span class="status-label">Backend Status</span>
         <span id="status-text" class="status-value">Connecting...</span>
       </div>
+    </div>
+
+    <!-- Quick Capture Controls (FDM Style) -->
+    <div class="controls-card">
+      <!-- Master Global Toggle -->
+      <label class="toggle-row" id="global-toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-title">Capture downloads from all sites</span>
+          <span class="toggle-subtitle" id="global-subtitle">Capture downloads browser-wide</span>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="toggle-global-interception" checked>
+          <span class="slider"></span>
+        </div>
+      </label>
+
+      <div class="divider"></div>
+
+      <!-- Current Website Toggle -->
+      <label class="toggle-row" id="site-toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-title">Don't catch downloads from this site</span>
+          <div class="toggle-subtitle" id="site-subtitle">
+            <span class="site-domain" id="site-domain">Checking website...</span>
+            <span class="site-desc" id="site-desc"></span>
+          </div>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="toggle-site-interception">
+          <span class="slider"></span>
+        </div>
+      </label>
     </div>
   </div>
 
