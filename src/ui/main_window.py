@@ -2603,7 +2603,7 @@ class MainWindow(QMainWindow):
         }
 
         from ui.dialogs.duplicate import DuplicateDownloadDialog
-        dlg = DuplicateDownloadDialog(file_data, parent=self)
+        dlg = DuplicateDownloadDialog(file_data, parent=None)
         dlg.exec()
         action = dlg.get_action()
 
