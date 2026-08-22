@@ -1,0 +1,80 @@
+name: Bug Report
+description: File a bug report to help us improve Bengal Download Manager
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: version
+    attributes:
+      label: App Version
+      description: What version of Bengal Download Manager are you running?
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: package_mode
+    attributes:
+      label: Package / Installation Method
+      description: How did you install or run the application?
+      options:
+        - Flatpak
+        - AppImage
+        - Standalone Binary
+        - Running from Source (Python)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: ui_mode
+    attributes:
+      label: UI Interface Mode
+      description: Which UI interface are you using?
+      options:
+        - PyQt6 QWidget (Default)
+        - KDE Kirigami QML (--kirigami)
+    validations:
+      required: false
+  - type: input
+    id: os_arch
+    attributes:
+      label: OS & Architecture
+      description: Operating system and architecture
+      placeholder: e.g. Ubuntu 24.04 (x86_64), Fedora 40, Arch Linux
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs_screenshots
+    attributes:
+      label: Logs / Screenshots
+      description: Attach logs, terminal output, or screenshots if applicable.
+    validations:
+      required: false
