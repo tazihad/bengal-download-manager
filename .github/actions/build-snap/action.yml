@@ -21,8 +21,15 @@ runs:
           VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "1.0.0")
         fi
         VERSION="${VERSION#v}"
-        echo "Setting snapcraft.yaml version to: $VERSION"
-        python3 -c "import sys, re; f=open('snap/snapcraft.yaml', 'r'); c=f.read(); f.close(); c=re.sub(r\"version:\s*['\"][^'\"]+['\"]\", f\"version: '{sys.argv[1]}'\", c); f=open('snap/snapcraft.yaml', 'w'); f.write(c); f.close()" "$VERSION"
+        python3 - << 'EOF' "$VERSION"
+import sys, re
+ver = sys.argv[1]
+with open('snap/snapcraft.yaml', 'r') as f:
+    content = f.read()
+content = re.sub(r"version:\s*['\"][^'\"]+['\"]", f"version: '{ver}'", content)
+with open('snap/snapcraft.yaml', 'w') as f:
+    f.write(content)
+EOF
         grep "^version:" snap/snapcraft.yaml
 
     - name: Build Snap Package
