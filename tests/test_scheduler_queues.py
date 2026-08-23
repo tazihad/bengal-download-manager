@@ -531,9 +531,19 @@ def test_download_context_menu_queue_operations(qapp, monkeypatch):
     assert len(captured_menus) == 1
     ctx_menu = captured_menus[0]
 
-    actions_dict = {act.text(): act for act in ctx_menu.actions()}
-    assert "Move to queue" in actions_dict
-    assert "Delete from queue" in actions_dict
+    action_texts = [act.text() for act in ctx_menu.actions()]
+    assert "Delete" in action_texts
+    assert "Move to queue" in action_texts
+    assert "Delete from queue" in action_texts
+    assert "Properties" in action_texts
+
+    idx_delete = action_texts.index("Delete")
+    idx_move = action_texts.index("Move to queue")
+    idx_del_q = action_texts.index("Delete from queue")
+    idx_props = action_texts.index("Properties")
+
+    # Assert queue options are below Delete and above Properties
+    assert idx_delete < idx_move < idx_del_q < idx_props
 
     # Move to Synchronization queue
     win.download_table.selectRow(0)

@@ -2314,7 +2314,17 @@ class MainWindow(QMainWindow):
         menu.addActions([act_resume, act_stop])
         menu.addSeparator()
 
-        # Queue Management: Move to queue & Delete from queue (IDM Style)
+        act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
+        act_refresh = QAction(get_themed_icon("clear_completed"), "Refresh download address", self)
+        menu.addActions([act_redownload, act_refresh])
+        menu.addSeparator()
+        
+        act_delete = QAction(get_themed_icon("delete"), "Delete", self)
+        act_delete.triggered.connect(self.delete_selected_download)
+        menu.addAction(act_delete)
+        menu.addSeparator()
+
+        # Queue Management: Move to queue & Delete from queue (Below Delete, Above Properties)
         menu_queue = menu.addMenu(get_themed_icon("scheduler"), "Move to queue")
         
         existing_queues = []
@@ -2345,16 +2355,6 @@ class MainWindow(QMainWindow):
         act_del_from_queue.triggered.connect(self._delete_selected_from_queue)
         act_del_from_queue.setEnabled(bool(item_0.data(Qt.ItemDataRole.UserRole + 8)))
         menu.addAction(act_del_from_queue)
-        menu.addSeparator()
-
-        act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
-        act_refresh = QAction(get_themed_icon("clear_completed"), "Refresh download address", self)
-        menu.addActions([act_redownload, act_refresh])
-        menu.addSeparator()
-        
-        act_delete = QAction(get_themed_icon("delete"), "Delete", self)
-        act_delete.triggered.connect(self.delete_selected_download)
-        menu.addAction(act_delete)
         menu.addSeparator()
         
         act_props = QAction(get_themed_icon("options"), "Properties", self)
