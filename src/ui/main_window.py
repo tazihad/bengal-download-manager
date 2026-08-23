@@ -544,6 +544,13 @@ class MainWindow(QMainWindow):
             sort_menu.addAction(action)
 
         view_menu.addSeparator()
+        self.action_hide_categories = QAction("&Hide categories", self)
+        self.action_hide_categories.setCheckable(True)
+        self.action_hide_categories.setChecked(False)
+        self.action_hide_categories.setEnabled(True)
+        self.action_hide_categories.triggered.connect(self.toggle_hide_categories)
+        view_menu.addAction(self.action_hide_categories)
+
         self.action_toolbar_toggle = QAction("&Toolbar", self)
         self.action_toolbar_toggle.setCheckable(True)
         self.action_toolbar_toggle.setChecked(True)
@@ -558,6 +565,16 @@ class MainWindow(QMainWindow):
 
         # 5. Help
         help_menu = menu_bar.addMenu("&Help")
+        self.action_homepage = QAction(get_themed_icon("browse"), "BDM &Homepage", self)
+        self.action_homepage.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager")))
+        help_menu.addAction(self.action_homepage)
+
+        self.action_bug_report = QAction(get_themed_icon("clear"), "&File bug report", self)
+        self.action_bug_report.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/issues")))
+        help_menu.addAction(self.action_bug_report)
+
+        help_menu.addSeparator()
+
         about_action = QAction("&About Bengal DM", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1043,6 +1060,15 @@ class MainWindow(QMainWindow):
         self.update_status_bar_speed()
         self.update_status_bar_aria2()
         self.update_status_bar_memory()
+
+    def toggle_hide_categories(self, hide: bool, save: bool = True):
+        """Hides or shows the left categories panel."""
+        if hasattr(self, "category_tree") and self.category_tree:
+            self.category_tree.setVisible(not hide)
+        if hasattr(self, "action_hide_categories") and self.action_hide_categories:
+            self.action_hide_categories.setChecked(hide)
+        if save and hasattr(self, "save_settings"):
+            self.save_settings()
 
     def _on_toolbar_toggled(self, checked: bool, save: bool = True):
         tb = self.findChild(QToolBar, "MainToolbar")
@@ -1893,7 +1919,8 @@ class MainWindow(QMainWindow):
                 "table_style": getattr(self, "table_style", "classic"),
                 "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
                 "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
-                "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True
+                "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True,
+                "hide_categories": self.category_tree.isHidden() if hasattr(self, "category_tree") and self.category_tree else False
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2161,6 +2188,9 @@ class MainWindow(QMainWindow):
 
         show_toolbar = settings.get("show_toolbar", True)
         self._on_toolbar_toggled(show_toolbar, save=False)
+
+        hide_categories = settings.get("hide_categories", False)
+        self.toggle_hide_categories(hide_categories, save=False)
         return settings
 
     def set_table_style(self, style_name: str, initial=False):

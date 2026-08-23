@@ -1538,6 +1538,50 @@ def test_options_dialog_proxy_tab(qapp, tmp_path, monkeypatch):
     dlg.deleteLater()
 
 
+def test_view_menu_hide_categories_and_help_menu_links(qapp, monkeypatch):
+    """Verify View menu 'Hide categories' toggle and Help menu GitHub links."""
+    from main import MainWindow
+    from PyQt6.QtGui import QDesktopServices
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # 1. View -> Hide categories
+    assert hasattr(win, "action_hide_categories")
+    assert win.action_hide_categories.isCheckable() is True
+    assert win.action_hide_categories.isEnabled() is True
+    assert win.action_hide_categories.isChecked() is False
+    assert not win.category_tree.isHidden()
+
+    # Toggle to hide categories
+    win.action_hide_categories.trigger()
+    assert win.category_tree.isHidden()
+    assert win.action_hide_categories.isChecked() is True
+
+    # Toggle back to show categories
+    win.action_hide_categories.trigger()
+    assert not win.category_tree.isHidden()
+    assert win.action_hide_categories.isChecked() is False
+
+    # 2. Help menu actions
+    assert hasattr(win, "action_homepage")
+    assert hasattr(win, "action_bug_report")
+
+    opened_urls = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened_urls.append(url.toString() if hasattr(url, "toString") else str(url)))
+
+    win.action_homepage.trigger()
+    assert len(opened_urls) == 1
+    assert "https://github.com/tazihad/bengal-download-manager" in opened_urls[0]
+
+    win.action_bug_report.trigger()
+    assert len(opened_urls) == 2
+    assert "https://github.com/tazihad/bengal-download-manager/issues" in opened_urls[1]
+
+    win.close()
+
+
+
 
 
 
