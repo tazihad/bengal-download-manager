@@ -219,6 +219,15 @@ class MainWindow(QMainWindow):
         self.aria2_process = self.start_aria2_daemon()
         self.is_quitting = False
         
+        # Scheduler periodic background timer
+        self._last_scheduled_minute = {}
+        self._last_sync_times = {}
+        self.download_retry_counts = {}
+        self.scheduler_timer = QTimer(self)
+        self.scheduler_timer.setInterval(1000)
+        self.scheduler_timer.timeout.connect(self._check_scheduled_queues)
+        self.scheduler_timer.start()
+
         # Check and start queues configured to run on application startup
         QTimer.singleShot(100, self._check_startup_queues)
 
@@ -1452,6 +1461,69 @@ class MainWindow(QMainWindow):
                     self._scheduler_dlg.queue_list.setCurrentRow(i)
                     break
 
+    def _check_scheduled_queues(self):
+        """Periodically checks queue schedules (start_at, stop_at, sync_interval)."""
+        from PyQt6.QtCore import QDateTime
+        now = QDateTime.currentDateTime()
+        current_time_str = now.toString("HH:mm:ss")
+        current_time_hm = now.toString("HH:mm")
+        current_date_str = now.toString("yyyy-MM-dd")
+        current_weekday = (now.date().dayOfWeek() % 7)  # 0=Sun, 1=Mon, ..., 6=Sat
+
+        queues = getattr(self, "_queues_data", [])
+        if not queues:
+            db_queues = get_all_queues()
+            queues = db_queues if db_queues else []
+
+        for q in queues:
+            if not isinstance(q, dict):
+                continue
+            q_name = q.get("name", "Main download queue")
+            max_c = q.get("max_concurrent", 4)
+
+            # 1. Start At Check
+            if q.get("start_at_enabled", False):
+                sched_type = q.get("schedule_type", "daily")
+                can_run_today = False
+                if sched_type == "once":
+                    can_run_today = (q.get("once_date") == current_date_str)
+                else:
+                    days = q.get("daily_days", [True] * 7)
+                    if current_weekday < len(days) and days[current_weekday]:
+                        can_run_today = True
+
+                if can_run_today:
+                    target_time = q.get("start_at_time", "23:00:00")
+                    match_time = (current_time_str == target_time) or (len(target_time) == 5 and current_time_hm == target_time) or (len(target_time) >= 5 and current_time_hm == target_time[:5] and not target_time.endswith(":00") and current_time_str == target_time)
+                    trigger_key = f"start_{q_name}_{current_date_str}_{target_time}"
+                    if match_time and not getattr(self, "_last_scheduled_minute", {}).get(trigger_key):
+                        if not hasattr(self, "_last_scheduled_minute"):
+                            self._last_scheduled_minute = {}
+                        self._last_scheduled_minute[trigger_key] = True
+                        self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False)
+
+            # 2. Stop At Check
+            if q.get("stop_at_enabled", False):
+                target_stop_time = q.get("stop_at_time", "07:30:00")
+                match_stop = (current_time_str == target_stop_time) or (len(target_stop_time) == 5 and current_time_hm == target_stop_time)
+                trigger_stop_key = f"stop_{q_name}_{current_date_str}_{target_stop_time}"
+                if match_stop and not getattr(self, "_last_scheduled_minute", {}).get(trigger_stop_key):
+                    if not hasattr(self, "_last_scheduled_minute"):
+                        self._last_scheduled_minute = {}
+                    self._last_scheduled_minute[trigger_stop_key] = True
+                    self._stop_queue_downloads(q_name)
+
+            # 3. Periodic Sync Check
+            if q.get("mode") == "sync" and q.get("sync_interval_enabled", False):
+                interval_sec = q.get("sync_hours", 2) * 3600 + q.get("sync_minutes", 0) * 60
+                if interval_sec > 0:
+                    if not hasattr(self, "_last_sync_times"):
+                        self._last_sync_times = {}
+                    last_sync = self._last_sync_times.get(q_name, 0)
+                    if time.time() - last_sync >= interval_sec:
+                        self._last_sync_times[q_name] = time.time()
+                        self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False)
+
     def _check_startup_queues(self):
         """Starts any queues configured to run on application startup."""
         db_queues = get_all_queues()
@@ -1542,9 +1614,14 @@ class MainWindow(QMainWindow):
                 continue
 
             status_item = self.download_table.item(r, 2)
-            if status_item and status_item.text() == "Queued":
-                self._set_status_text(r, "Paused", logic_status="Paused")
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            is_completed = (
+                logic_status in ["Complete", "Finished"] or
+                status_text in ["Complete", "Finished"] or
+                (item_name.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
+            )
+            if is_completed:
                 continue
 
             key = self._get_item_key(item_name)
@@ -1556,11 +1633,12 @@ class MainWindow(QMainWindow):
                         worker.pause()
                     except Exception:
                         pass
-                item_name.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                self._set_status_text(r, "Paused", logic_status="Paused")
-                self._set_row_bold(r, False)
+
+            item_name.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
+            if status_item:
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+            self._set_status_text(r, "Paused", logic_status="Paused")
+            self._set_row_bold(r, False)
 
     def _queue_action_start(self, queue_name):
         """Starts downloads in the named queue."""
@@ -4047,6 +4125,29 @@ class MainWindow(QMainWindow):
                 dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
                 dialog.show()
             
+            if hasattr(self, "download_retry_counts"):
+                self.download_retry_counts.pop(key, None)
+
+        elif display_status == "Error":
+            queue_name = item_ref.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+            queues = getattr(self, "_queues_data", [])
+            if not queues:
+                db_queues = get_all_queues()
+                queues = db_queues if db_queues else []
+            q_config = next((q for q in queues if isinstance(q, dict) and q.get("name") == queue_name), None)
+            if q_config and q_config.get("retries_enabled", False):
+                max_retries = q_config.get("retries_count", 10)
+                if not hasattr(self, "download_retry_counts"):
+                    self.download_retry_counts = {}
+                current_retries = self.download_retry_counts.get(key, 0)
+                if current_retries < max_retries:
+                    self.download_retry_counts[key] = current_retries + 1
+                    url = item_ref.data(Qt.ItemDataRole.UserRole)
+                    if url:
+                        self._set_status_text(row, f"Retrying ({current_retries + 1}/{max_retries})...")
+                        QTimer.singleShot(3000, lambda ref=item_ref, u=url: self._start_download_worker(u, ref, show_dialog=False))
+                        return
+
         self.update_status_bar_speed()
         self.update_status_bar_items()
         self.update_ui_states()
