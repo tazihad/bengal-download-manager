@@ -421,17 +421,19 @@ class OptionsDialog(QDialog):
         self.lbl_engine.setText("Active Engine: <span style='color: #3498db;'>●</span> Checking...")
         
         def check():
-            proxy = load_proxy_config()
             engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
             try:
-                # This is a blocking network call (3s timeout)
                 result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
-                if result:
+                if result and isinstance(result, dict) and "version" in result:
                     version = result.get('version', 'Unknown')
                     engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
-                elif proxy.get("mode") == "manual":
-                    engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting..."
-            except:
+                else:
+                    aria2_bin = find_aria2()
+                    if not aria2_bin:
+                        engine_status = "<span style='color: red;'>●</span> Aria2 Not Installed (Python Engine Active)"
+                    else:
+                        engine_status = "<span style='color: orange;'>●</span> Offline (Python Fallback Active)"
+            except Exception:
                 pass
             
             aria2_bin = find_aria2() or "Not found"
@@ -439,7 +441,7 @@ class OptionsDialog(QDialog):
             
             # Update UI safely from background thread
             try:
-                import sip
+                from PyQt6 import sip
                 if hasattr(self, 'lbl_engine') and not sip.isdeleted(self.lbl_engine):
                     QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
             except Exception:
