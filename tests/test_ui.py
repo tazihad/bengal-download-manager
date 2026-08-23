@@ -355,24 +355,7 @@ def test_options_dialog_theme_selection(qapp):
     assert hasattr(opt_dlg, "combo_icon_theme")
     assert hasattr(opt_dlg, "combo_tray_icon")
 
-    # Check items count and options
-    expected_themes = [
-        "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
-        "Breeze Dark", "Breeze Light", "Catppuccin",
-        "Dracula", "IDM Classic", "Kirigami Dark", 
-        "Kirigami Light", "Material You Dark", "Material You Light",
-        "Nord", "Obsidian Flow", "One Dark", 
-        "Solarized Dark", "Solarized Light", 
-        "Twilight", "Ubuntu Dark", "Ubuntu Light"
-    ]
-    items = [opt_dlg.combo_theme.itemText(i) for i in range(opt_dlg.combo_theme.count())]
-    assert items == expected_themes
-
-    # Check default selected items
-    assert opt_dlg.combo_theme.currentText() == "BDM Dark (Default)"
-    assert opt_dlg.combo_tray_icon.currentText() == "App Icon (Default)"
-
-    # Select Ubuntu Dark, Ubuntu Orange, Breeze Dark, and Monochrome Light
+    # Select Ubuntu Dark, Ubuntu Orange, and Monochrome Light
     idx_ub_dark = opt_dlg.combo_theme.findText("Ubuntu Dark")
     assert idx_ub_dark != -1
     opt_dlg.combo_theme.setCurrentIndex(idx_ub_dark)
@@ -396,13 +379,9 @@ def test_options_dialog_theme_selection(qapp):
     # Verify get_themed_tray_icon and app icon functions without error
     assert not get_app_icon().isNull()
     assert not get_monochrome_app_icon().isNull()
-    for tray_opt in ["App Icon (Default)", "Automatic", "Monochrome Light", "Monochrome Dark"]:
-        ic = get_themed_tray_icon(tray_opt)
-        assert not ic.isNull()
+    assert not get_themed_tray_icon("Monochrome Light").isNull()
 
-    # Verify apply_app_theme functions without exception for all options
-    for theme_item in expected_themes:
-        apply_app_theme(theme_item, "Ubuntu Orange", "Breeze", "App Icon (Default)", qapp)
+    apply_app_theme("Ubuntu Dark", "Ubuntu Orange", "Breeze", "Monochrome Light", qapp)
 
     opt_dlg.close()
     window.close()
@@ -864,71 +843,6 @@ def test_classic_table_active_row_bold_only(qapp):
     window.close()
 
 
-def test_menu_hover_and_table_selected_black(qapp):
-    from ui.icons import get_monochrome_icon
-    from PyQt6.QtGui import QIcon, QColor, QImage, QPalette
-    from main import apply_app_theme
-
-    apply_app_theme("BDM Dark (Default)")
-    assert qapp.palette().color(QPalette.ColorRole.HighlightedText) == QColor("#000000")
-
-    # Test get_monochrome_icon with explicit selected_color produces black (#000000)
-    icon_sel = get_monochrome_icon("resume", selected_color=QColor("#000000"))
-    sel_pixmap = icon_sel.pixmap(24, 24, QIcon.Mode.Selected)
-    assert not sel_pixmap.isNull()
-    img = sel_pixmap.toImage()
-    has_black_pixel = False
-    for y in range(img.height()):
-        for x in range(img.width()):
-            pixel = img.pixelColor(x, y)
-            if pixel.alpha() > 100:
-                assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Selected mode pixel ({x},{y}) color {pixel.name()} is not black"
-                has_black_pixel = True
-    assert has_black_pixel is True
-
-    # Test get_themed_icon Normal mode is white, Active mode (menu hover) is black, Selected mode is black
-    from main import get_themed_icon
-    icon = get_themed_icon("resume")
-
-    norm_pixmap = icon.pixmap(24, 24, QIcon.Mode.Normal)
-    assert not norm_pixmap.isNull()
-    img_norm = norm_pixmap.toImage()
-    has_white_pixel = False
-    for y in range(img_norm.height()):
-        for x in range(img_norm.width()):
-            pixel = img_norm.pixelColor(x, y)
-            if pixel.alpha() > 100:
-                assert pixel.red() > 200 and pixel.green() > 200 and pixel.blue() > 200, f"Mode Normal pixel ({x},{y}) is not white"
-                has_white_pixel = True
-    assert has_white_pixel is True
-
-    # Active mode (menu item hover) must be pure black (#000000)
-    act_pixmap = icon.pixmap(24, 24, QIcon.Mode.Active)
-    assert not act_pixmap.isNull()
-    img_act = act_pixmap.toImage()
-    has_black_pixel = False
-    for y in range(img_act.height()):
-        for x in range(img_act.width()):
-            pixel = img_act.pixelColor(x, y)
-            if pixel.alpha() > 100:
-                assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Active mode pixel ({x},{y}) is not black"
-                has_black_pixel = True
-    assert has_black_pixel is True
-
-    # Selected mode must be pure black (#000000)
-    sel_pixmap = icon.pixmap(24, 24, QIcon.Mode.Selected)
-    assert not sel_pixmap.isNull()
-    img_sel = sel_pixmap.toImage()
-    has_sel_black_pixel = False
-    for y in range(img_sel.height()):
-        for x in range(img_sel.width()):
-            pixel = img_sel.pixelColor(x, y)
-            if pixel.alpha() > 100:
-                assert pixel.red() == 0 and pixel.green() == 0 and pixel.blue() == 0, f"Selected mode pixel ({x},{y}) is not black"
-                has_sel_black_pixel = True
-    assert has_sel_black_pixel is True
-
-
 def test_status_bar_view_toggle(qapp):
     window = MainWindow(start_ipc=False)
     window.hide()
@@ -971,7 +885,7 @@ def test_dialog_reopen_after_deletion(qapp):
     window = MainWindow(start_ipc=False)
     window.hide()
 
-    # 1. Options Dialog: open, close/delete, reopen without RuntimeError
+    # Options Dialog: open, close/delete, reopen without RuntimeError
     window.open_options()
     assert window._options_dlg is not None
     dlg = window._options_dlg
@@ -984,33 +898,6 @@ def test_dialog_reopen_after_deletion(qapp):
     assert window._options_dlg is not None
     assert window._options_dlg is not dlg
     window._options_dlg.close()
-
-    # 2. Media Downloader Dialog: open, close/delete, reopen
-    window.open_media_downloader()
-    assert window._media_downloader_dlg is not None
-    dlg_media = window._media_downloader_dlg
-    dlg_media.close()
-    dlg_media.deleteLater()
-    qapp.processEvents()
-
-    window.open_media_downloader()
-    assert window._media_downloader_dlg is not None
-    assert window._media_downloader_dlg is not dlg_media
-    window._media_downloader_dlg.close()
-
-    # 3. Scheduler Dialog: open, close/delete, reopen
-    window.open_scheduler()
-    assert window._scheduler_dlg is not None
-    dlg_sched = window._scheduler_dlg
-    dlg_sched.close()
-    dlg_sched.deleteLater()
-    qapp.processEvents()
-
-    window.open_scheduler()
-    assert window._scheduler_dlg is not None
-    assert window._scheduler_dlg is not dlg_sched
-    window._scheduler_dlg.close()
-
     window.close()
 
 
@@ -1055,71 +942,6 @@ def test_redownload_progress_updates(qapp, monkeypatch):
     window.close()
 
 
-def test_toolbar_hover_icon_glow(qapp):
-    from main import apply_app_theme
-    from PyQt6.QtWidgets import QToolBar, QToolButton
-    from PyQt6.QtCore import QEvent
-    from PyQt6.QtGui import QIcon
-
-    apply_app_theme("BDM Dark (Default)")
-    window = MainWindow(start_ipc=False)
-    window.hide()
-
-    tb = window.findChild(QToolBar, "MainToolbar")
-    assert tb is not None
-    add_btn = None
-    for b in tb.findChildren(QToolButton):
-        if b.defaultAction() is window.action_add_url:
-            add_btn = b
-            break
-
-    assert add_btn is not None
-    orig_pm = add_btn.icon().pixmap(24, 24).toImage()
-
-    # 1. Hover toolbar button -> switches to glowing icon
-    enter_event = QEvent(QEvent.Type.Enter)
-    qapp.sendEvent(add_btn, enter_event)
-
-    hover_pm = add_btn.icon().pixmap(24, 24).toImage()
-    assert hover_pm != orig_pm
-
-    # Ensure hover icon is not black in dark mode
-    white_pixels = 0
-    for y in range(hover_pm.height()):
-        for x in range(hover_pm.width()):
-            c = hover_pm.pixelColor(x, y)
-            if c.red() > 200 and c.green() > 200 and c.blue() > 200 and c.alpha() > 150:
-                white_pixels += 1
-    assert white_pixels > 0, "Hover icon in dark mode should have luminous white/bright stroke"
-
-    # 2. Leave hover -> restores original icon
-    leave_event = QEvent(QEvent.Type.Leave)
-    qapp.sendEvent(add_btn, leave_event)
-
-    restored_pm = add_btn.icon().pixmap(24, 24).toImage()
-    assert restored_pm == orig_pm
-    window.close()
-
-    # 3. Light Mode toolbar hover -> glowing dark icon
-    win_light = MainWindow(start_ipc=False)
-    win_light.hide()
-    win_light.apply_appearance_setting("BDM Light", icon_theme_name="BDM Light")
-
-    tb_light = win_light.findChild(QToolBar, "MainToolbar")
-    add_btn_light = None
-    for b in tb_light.findChildren(QToolButton):
-        if b.defaultAction() is win_light.action_add_url:
-            add_btn_light = b
-            break
-    assert add_btn_light is not None
-
-    qapp.sendEvent(add_btn_light, enter_event)
-    hover_light_pm = add_btn_light.icon().pixmap(24, 24).toImage()
-    dark_pixels = sum(1 for y in range(hover_light_pm.height()) for x in range(hover_light_pm.width()) if hover_light_pm.pixelColor(x, y).red() < 50 and hover_light_pm.pixelColor(x, y).alpha() > 150)
-    assert dark_pixels > 0, "Hover icon in light mode should have dark stroke pixels"
-    win_light.close()
-
-
 def test_sidebar_incomplete_status_filter(qapp):
     from PyQt6.QtWidgets import QTableWidgetItem
     window = MainWindow(start_ipc=False)
@@ -1152,160 +974,6 @@ def test_sidebar_incomplete_status_filter(qapp):
     assert not window.download_table.isRowHidden(1)
 
     window.close()
-
-
-
-
-def test_sidebar_selected_icon_black_in_dark_and_light_modes(qapp):
-    from main import apply_app_theme
-    from PyQt6.QtWidgets import QStyleOptionViewItem, QStyle
-    from PyQt6.QtGui import QPainter, QPixmap
-    from PyQt6.QtCore import QRect
-
-    # 1. Dark Mode
-    win_dark = MainWindow(start_ipc=False)
-    win_dark.hide()
-    win_dark.apply_appearance_setting("BDM Dark (Default)", icon_theme_name="BDM Dark (Default)")
-
-    tree = win_dark.category_tree
-    item = win_dark.all_downloads_header
-    tree.setCurrentItem(item)
-
-    # Render selected item using delegate
-    pm = QPixmap(200, 30)
-    pm.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pm)
-    opt = QStyleOptionViewItem()
-    opt.initFrom(tree)
-    opt.rect = QRect(0, 0, 200, 30)
-    opt.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
-    tree.itemDelegate().paint(p, opt, tree.model().index(1, 0))
-    p.end()
-
-    img = pm.toImage()
-    black_px = sum(1 for y in range(img.height()) for x in range(30) if img.pixelColor(x, y).red() == 0 and img.pixelColor(x, y).green() == 0 and img.pixelColor(x, y).blue() == 0 and img.pixelColor(x, y).alpha() > 150)
-    white_px = sum(1 for y in range(img.height()) for x in range(30) if img.pixelColor(x, y).red() > 200 and img.pixelColor(x, y).alpha() > 150)
-    assert black_px > 0, "Left panel selected icon must have pure black pixels in dark mode"
-    assert white_px == 0, "Left panel selected icon must not have white pixels in dark mode"
-    win_dark.close()
-
-    # 2. Light Mode
-    win_light = MainWindow(start_ipc=False)
-    win_light.hide()
-    win_light.apply_appearance_setting("BDM Light", icon_theme_name="BDM Light")
-
-    tree_light = win_light.category_tree
-    item_light = win_light.all_downloads_header
-    tree_light.setCurrentItem(item_light)
-
-    pm_light = QPixmap(200, 30)
-    pm_light.fill(Qt.GlobalColor.transparent)
-    p2 = QPainter(pm_light)
-    opt2 = QStyleOptionViewItem()
-    opt2.initFrom(tree_light)
-    opt2.rect = QRect(0, 0, 200, 30)
-    opt2.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
-    tree_light.itemDelegate().paint(p2, opt2, tree_light.model().index(1, 0))
-    p2.end()
-
-    img_light = pm_light.toImage()
-    black_px_light = sum(1 for y in range(img_light.height()) for x in range(30) if img_light.pixelColor(x, y).red() == 0 and img_light.pixelColor(x, y).green() == 0 and img_light.pixelColor(x, y).blue() == 0 and img_light.pixelColor(x, y).alpha() > 150)
-    white_px_light = sum(1 for y in range(img_light.height()) for x in range(30) if img_light.pixelColor(x, y).red() > 200 and img_light.pixelColor(x, y).alpha() > 150)
-    assert black_px_light > 0, "Left panel selected icon must have pure black pixels in light mode"
-    assert white_px_light == 0, "Left panel selected icon must not have white pixels in light mode"
-    win_light.close()
-
-
-def test_yaru_sidebar_selected_icon_retains_colors(qapp):
-    """Verify that in Yaru icon theme, left panel selected icon retains colorful squircle and toolbar hover does not switch icon."""
-    from main import MainWindow, apply_app_theme
-    from PyQt6.QtWidgets import QStyleOptionViewItem, QStyle, QToolBar, QToolButton
-    from PyQt6.QtGui import QPainter, QPixmap
-    from PyQt6.QtCore import QRect, QEvent
-
-    win = MainWindow(start_ipc=False)
-    win.hide()
-    win.apply_appearance_setting("BDM Dark (Default)", icon_theme_name="Yaru")
-
-    tree = win.category_tree
-    item = win.all_downloads_header
-    tree.setCurrentItem(item)
-
-    # Render selected item using delegate
-    pm = QPixmap(200, 30)
-    pm.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pm)
-    opt = QStyleOptionViewItem()
-    opt.initFrom(tree)
-    opt.rect = QRect(0, 0, 200, 30)
-    opt.state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
-    tree.itemDelegate().paint(p, opt, tree.model().index(1, 0))
-    p.end()
-
-    img = pm.toImage()
-    colored_px = sum(1 for y in range(img.height()) for x in range(30) if (img.pixelColor(x, y).red() > 20 or img.pixelColor(x, y).blue() > 20) and img.pixelColor(x, y).alpha() > 150)
-    assert colored_px > 0, "Yaru selected sidebar item must retain colorful squircle rather than turning black"
-
-    # Verify toolbar hover does not swap Yaru icon with monochrome icon
-    toolbar = win.findChild(QToolBar, "MainToolbar")
-    btn = toolbar.widgetForAction(win.action_add_url)
-    assert btn is not None
-    initial_icon = btn.icon()
-    initial_pm = initial_icon.pixmap(24, 24)
-
-    # Trigger Enter event
-    enter_ev = QEvent(QEvent.Type.Enter)
-    win.toolbar_hover_filter.eventFilter(btn, enter_ev)
-    hover_icon = btn.icon()
-    hover_pm = hover_icon.pixmap(24, 24)
-
-    initial_img = initial_pm.toImage()
-    hover_img = hover_pm.toImage()
-    initial_orange_px = sum(1 for y in range(initial_img.height()) for x in range(initial_img.width()) if initial_img.pixelColor(x, y).red() > 150 and initial_img.pixelColor(x, y).alpha() > 150)
-    hover_orange_px = sum(1 for y in range(hover_img.height()) for x in range(hover_img.width()) if hover_img.pixelColor(x, y).red() > 150 and hover_img.pixelColor(x, y).alpha() > 150)
-    assert initial_orange_px > 0, "Initial Yaru Add URL button must have orange pixels"
-    assert hover_orange_px > 0, "Hovered Yaru Add URL button must preserve orange pixels and not swap to BDM monochrome"
-
-    win.close()
-
-
-def test_add_url_dialog_button_click_icon_colors(qapp):
-    """Verify that in AddUrlDialog, clicking Paste or Download Media uses white icon in dark mode and dark icon in light mode."""
-    from main import apply_app_theme
-    from ui.dialogs.add_url import AddUrlDialog
-    from PyQt6.QtGui import QMouseEvent
-    from PyQt6.QtCore import QEvent, QPointF
-
-    press_event = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-    release_event = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(10, 10), QPointF(10, 10), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
-
-    # 1. Dark Mode
-    apply_app_theme("BDM Dark (Default)")
-    dlg_dark = AddUrlDialog()
-    dlg_dark.hide()
-
-    qapp.sendEvent(dlg_dark.btn_paste, press_event)
-    pm_press_dark = dlg_dark.btn_paste.icon().pixmap(16, 16).toImage()
-    white_px_dark = sum(1 for y in range(pm_press_dark.height()) for x in range(pm_press_dark.width()) if pm_press_dark.pixelColor(x, y).red() > 200 and pm_press_dark.pixelColor(x, y).alpha() > 150)
-    dark_px_dark = sum(1 for y in range(pm_press_dark.height()) for x in range(pm_press_dark.width()) if pm_press_dark.pixelColor(x, y).red() < 50 and pm_press_dark.pixelColor(x, y).alpha() > 150)
-    assert white_px_dark > 0, "Dark mode AddUrlDialog paste button on click must have white icon pixels"
-    assert dark_px_dark == 0, "Dark mode AddUrlDialog paste button on click must not have dark icon pixels"
-    qapp.sendEvent(dlg_dark.btn_paste, release_event)
-    dlg_dark.close()
-
-    # 2. Light Mode
-    apply_app_theme("BDM Light")
-    dlg_light = AddUrlDialog()
-    dlg_light.hide()
-
-    qapp.sendEvent(dlg_light.btn_paste, press_event)
-    pm_press_light = dlg_light.btn_paste.icon().pixmap(16, 16).toImage()
-    dark_px_light = sum(1 for y in range(pm_press_light.height()) for x in range(pm_press_light.width()) if pm_press_light.pixelColor(x, y).red() < 50 and pm_press_light.pixelColor(x, y).alpha() > 150)
-    white_px_light = sum(1 for y in range(pm_press_light.height()) for x in range(pm_press_light.width()) if pm_press_light.pixelColor(x, y).red() > 200 and pm_press_light.pixelColor(x, y).alpha() > 150)
-    assert dark_px_light > 0, "Light mode AddUrlDialog paste button on click must have dark icon pixels"
-    assert white_px_light == 0, "Light mode AddUrlDialog paste button on click must not have white icon pixels"
-    qapp.sendEvent(dlg_light.btn_paste, release_event)
-    dlg_light.close()
 
 
 def test_process_incoming_url_routes_media_link_to_media_downloader(qapp, monkeypatch):

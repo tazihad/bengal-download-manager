@@ -49,11 +49,9 @@ class TestNotifications(unittest.TestCase):
 
     @patch("core.notifications._send_portal_notification", return_value=True)
     def test_send_system_notification_portal(self, mock_portal):
-        send_system_notification("Title", "Body")
-        # Give thread a brief moment to run
-        import time
-        time.sleep(0.05)
-        mock_portal.assert_called_once()
+        with patch("threading.Thread", side_effect=lambda target, **kw: MagicMock(start=lambda: target())):
+            send_system_notification("Title", "Body")
+            mock_portal.assert_called_once()
 
     def test_options_dialog_notification_checkbox(self):
         from ui.dialogs.options import OptionsDialog
