@@ -42,7 +42,20 @@ runs:
       shell: bash
       run: |
         mkdir -p dist
-        if [ -n "${{ steps.snapcraft.outputs.snap }}" ] && [ -f "${{ steps.snapcraft.outputs.snap }}" ]; then
-          cp "${{ steps.snapcraft.outputs.snap }}" dist/
+        VERSION="${{ inputs.version }}"
+        if [ -z "$VERSION" ]; then
+          VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "1.0.0")
         fi
-        find . -maxdepth 1 -name "*.snap" -exec cp {} dist/ \; 2>/dev/null || true
+        VERSION="${VERSION#v}"
+        ARCH="${{ inputs.arch }}"
+
+        SNAP_SRC="${{ steps.snapcraft.outputs.snap }}"
+        if [ -z "$SNAP_SRC" ] || [ ! -f "$SNAP_SRC" ]; then
+          SNAP_SRC=$(find . -maxdepth 1 -name "*.snap" -print -quit)
+        fi
+
+        if [ -n "$SNAP_SRC" ] && [ -f "$SNAP_SRC" ]; then
+          TARGET_SNAP="dist/bengal-download-manager-${VERSION}-${ARCH}.snap"
+          echo "Copying $SNAP_SRC to $TARGET_SNAP"
+          cp "$SNAP_SRC" "$TARGET_SNAP"
+        fi
