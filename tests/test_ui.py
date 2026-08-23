@@ -1505,7 +1505,7 @@ def test_options_dialog_proxy_tab(qapp, tmp_path, monkeypatch):
 
     dlg = OptionsDialog()
     tab_names = [dlg.tabs.tabText(i) for i in range(dlg.tabs.count())]
-    assert "Proxy" in tab_names
+    assert any("Proxy" in name for name in tab_names)
     assert "Downloads" in tab_names
 
     # Set manual HTTP proxy with auth

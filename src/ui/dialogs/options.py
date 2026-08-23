@@ -5,9 +5,9 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
-    QApplication
+    QApplication, QStackedWidget, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
+from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal
 from core.utils import (
     load_proxy_config, save_proxy_config, get_aria2_proxy_url,
     load_extension_config, save_extension_config, call_aria2_rpc,
@@ -16,6 +16,151 @@ from core.utils import (
 )
 from core.config import load_category_config, save_category_config
 from core.memory_guard import MemoryGuard
+
+class TwoRowTabWidget(QWidget):
+    """Two-row tab bar widget matching IDM design aesthetics across themes."""
+    currentChanged = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._widgets = []
+        self._buttons = []
+        self._button_group = QButtonGroup(self)
+        self._button_group.setExclusive(True)
+        self._button_group.idClicked.connect(self._on_button_clicked)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # 2-Row Tab Bars
+        tabs_layout = QVBoxLayout()
+        tabs_layout.setContentsMargins(0, 0, 0, 0)
+        tabs_layout.setSpacing(2)
+
+        self.row1_layout = QHBoxLayout()
+        self.row1_layout.setContentsMargins(0, 0, 0, 0)
+        self.row1_layout.setSpacing(2)
+
+        self.row2_layout = QHBoxLayout()
+        self.row2_layout.setContentsMargins(0, 0, 0, 0)
+        self.row2_layout.setSpacing(2)
+
+        tabs_layout.addLayout(self.row1_layout)
+        tabs_layout.addLayout(self.row2_layout)
+        main_layout.addLayout(tabs_layout)
+
+        # Content container
+        self.container_frame = QFrame()
+        self.container_frame.setObjectName("twoRowTabContainer")
+        self.container_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        self.stack = QStackedWidget(self.container_frame)
+
+        container_layout = QVBoxLayout(self.container_frame)
+        container_layout.setContentsMargins(4, 4, 4, 4)
+        container_layout.addWidget(self.stack)
+
+        main_layout.addWidget(self.container_frame, 1)
+
+        self.setStyleSheet("""
+            QFrame#twoRowTabContainer {
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                background-color: palette(window);
+            }
+            QPushButton.twoRowTabBtn {
+                border: 1px solid palette(mid);
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
+                padding: 4px 6px;
+                font-size: 12px;
+                background-color: palette(button);
+                color: palette(button-text);
+                min-height: 20px;
+            }
+            QPushButton.twoRowTabBtn:hover {
+                background-color: palette(light);
+            }
+            QPushButton.twoRowTabBtn:checked {
+                font-weight: bold;
+                background-color: palette(window);
+                border-top: 2px solid palette(highlight);
+                color: palette(window-text);
+            }
+        """)
+
+    def addTab(self, widget, label, row=2):
+        idx = len(self._widgets)
+        self._widgets.append((widget, label, row))
+        self.stack.addWidget(widget)
+
+        btn = QPushButton(label)
+        btn.setProperty("class", "twoRowTabBtn")
+        btn.setCheckable(True)
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._buttons.append(btn)
+        self._button_group.addButton(btn, idx)
+
+        if row == 1:
+            self.row1_layout.addWidget(btn)
+        else:
+            self.row2_layout.addWidget(btn)
+
+        if idx == 0:
+            btn.setChecked(True)
+            self.stack.setCurrentIndex(0)
+        return idx
+
+    def _on_button_clicked(self, idx):
+        self.setCurrentIndex(idx)
+
+    def setCurrentIndex(self, idx):
+        if 0 <= idx < len(self._widgets):
+            self.stack.setCurrentIndex(idx)
+            btn = self._button_group.button(idx)
+            if btn and not btn.isChecked():
+                btn.setChecked(True)
+            self.currentChanged.emit(idx)
+
+    def setCurrentWidget(self, widget):
+        for idx, (w, _, _) in enumerate(self._widgets):
+            if w == widget:
+                self.setCurrentIndex(idx)
+                break
+
+    def currentIndex(self):
+        return self.stack.currentIndex()
+
+    def currentWidget(self):
+        return self.stack.currentWidget()
+
+    def widget(self, idx):
+        return self.stack.widget(idx)
+
+    def indexOf(self, widget):
+        for idx, (w, _, _) in enumerate(self._widgets):
+            if w == widget:
+                return idx
+        return -1
+
+    def count(self):
+        return len(self._widgets)
+
+    def tabText(self, idx):
+        if 0 <= idx < len(self._widgets):
+            return self._widgets[idx][1]
+        return ""
+
+    def setTabText(self, idx, text):
+        if 0 <= idx < len(self._widgets):
+            w, _, r = self._widgets[idx]
+            self._widgets[idx] = (w, text, r)
+            if idx < len(self._buttons):
+                self._buttons[idx].setText(text)
 
 class OptionsDialog(QDialog):
     def __init__(self, main_window=None, parent=None):
@@ -46,38 +191,43 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        self.tabs = QTabWidget()
+        self.tabs = TwoRowTabWidget()
         layout.addWidget(self.tabs)
         
-        self.general_tab = QWidget()
-        self.setup_general_tab()
-        self.tabs.addTab(self.general_tab, "General")
-
-        self.startup_tab = QWidget()
-        self.setup_startup_tab()
-        self.tabs.addTab(self.startup_tab, "Startup")
-
-        self.saveto_tab = QWidget()
-        self.setup_saveto_tab()
-        self.tabs.addTab(self.saveto_tab, "Save To")
-
-        self.downloads_tab = QWidget()
-        self.setup_downloads_tab()
-        self.tabs.addTab(self.downloads_tab, "Downloads")
-        
+        # Row 1 (Top)
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
-        self.tabs.addTab(self.proxy_tab, "Proxy")
+        self.tabs.addTab(self.proxy_tab, "Proxy / Socks", row=1)
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "Extensions")
+        self.tabs.addTab(self.extension_tab, "Extensions", row=1)
 
         self.media_tab = QWidget()
         self.setup_media_tab()
-        self.tabs.addTab(self.media_tab, "Media")
+        self.tabs.addTab(self.media_tab, "Media", row=1)
 
-        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if self.tabs.tabText(idx) == "Downloads" else None)
+        self.startup_tab = QWidget()
+        self.setup_startup_tab()
+        self.tabs.addTab(self.startup_tab, "Startup", row=1)
+
+        # Row 2 (Bottom)
+        self.general_tab = QWidget()
+        self.setup_general_tab()
+        self.tabs.addTab(self.general_tab, "General", row=2)
+
+        self.saveto_tab = QWidget()
+        self.setup_saveto_tab()
+        self.tabs.addTab(self.saveto_tab, "Save To", row=2)
+
+        self.downloads_tab = QWidget()
+        self.setup_downloads_tab()
+        self.tabs.addTab(self.downloads_tab, "Downloads", row=2)
+
+        # Default to General tab in Row 2
+        self.tabs.setCurrentWidget(self.general_tab)
+
+        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if "Downloads" in self.tabs.tabText(idx) else None)
         if hasattr(self, 'spin_aria_port'):
             self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
         if hasattr(self, 'txt_aria_token'):
