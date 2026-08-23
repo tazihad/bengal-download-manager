@@ -1,0 +1,95 @@
+name: bengal-download-manager
+base: core26
+version: '1.0.0'
+summary: High-speed multi-threaded download manager powered by Aria2
+description: |
+  Bengal Download Manager is a high-performance, open-source download accelerator
+  featuring multi-threaded segment downloads, Aria2 engine acceleration, modern UI,
+  browser extension integration, scheduled download queues, and media capture.
+
+  Key Features:
+  - Multi-threaded segment download acceleration
+  - Aria2 engine integration with custom chunk splits
+  - Clean Qt6 / Kirigami desktop interfaces
+  - Browser extension capture for Chrome, Edge, and Firefox
+  - Scheduled queues, proxy manager, and speed limiter
+  - Media stream detection and conversion via FFmpeg
+
+grade: stable
+confinement: strict
+license: MIT
+icon: assets/icons/512x512.png
+website: https://github.com/tazihad/bengal-download-manager
+source-code: https://github.com/tazihad/bengal-download-manager
+issues: https://github.com/tazihad/bengal-download-manager/issues
+
+platforms:
+  amd64:
+    build-on: [amd64]
+    build-for: [amd64]
+  arm64:
+    build-on: [arm64]
+    build-for: [arm64]
+
+apps:
+  bengal-download-manager:
+    command: bin/bengal-wrapper
+    desktop: usr/share/applications/io.github.tazihad.bengal-download-manager.desktop
+    extensions: [ gnome ]
+    plugs:
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+      - home
+      - network
+      - network-bind
+      - removable-media
+      - audio-playback
+      - unity7
+    environment:
+      PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$PYTHONPATH
+      QT_PLUGIN_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/qt6/plugins:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/plugins:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/plugins:$QT_PLUGIN_PATH
+      QML2_IMPORT_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/qt6/qml:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/qml:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/qml:$QML2_IMPORT_PATH
+      PATH: $SNAP/usr/bin:$SNAP/bin:$PATH
+
+parts:
+  bengal-download-manager:
+    plugin: python
+    source: .
+    python-requirements:
+      - requirements.txt
+    stage-packages:
+      - aria2
+      - ffmpeg
+      - libgl1-mesa-dri
+      - libgl1
+      - libegl1
+      - libxkbcommon0
+      - libdbus-1-3
+      - ca-certificates
+      - xdg-utils
+    override-build: |
+      craftctl default
+
+      # 1. Install app sources and assets
+      install -d "$CRAFT_PART_INSTALL/share/bengal-download-manager"
+      cp -r src assets "$CRAFT_PART_INSTALL/share/bengal-download-manager/"
+
+      # 2. Install desktop entry & AppStream metadata
+      install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.desktop "$CRAFT_PART_INSTALL/usr/share/applications/io.github.tazihad.bengal-download-manager.desktop"
+      install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$CRAFT_PART_INSTALL/usr/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml"
+
+      # 3. Install hicolor icons
+      for s in 16 32 64 128 256 512; do
+        if [ -f "assets/icons/${s}x${s}.png" ]; then
+          install -D -m 644 "assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/io.github.tazihad.bengal-download-manager.png"
+        fi
+      done
+      if [ -f assets/logo.svg ]; then
+        install -D -m 644 assets/logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg"
+      fi
+
+      # 4. Install launcher wrapper
+      install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"

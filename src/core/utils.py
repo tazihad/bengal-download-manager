@@ -465,10 +465,21 @@ def find_aria2():
             if os.path.exists(candidate) and os.access(candidate, os.X_OK):
                 return candidate
 
-    # 2. Flatpak sandbox location
+    # 2. Flatpak & Snap sandbox locations
+    snap_root = os.environ.get("SNAP")
+    snap_candidates = []
+    if snap_root:
+        snap_candidates = [
+            os.path.join(snap_root, "usr", "bin", "aria2c"),
+            os.path.join(snap_root, "bin", "aria2c"),
+            os.path.join(snap_root, "share", "bengal-download-manager", "assets", "bin", arch, "aria2c"),
+            os.path.join(snap_root, "assets", "bin", arch, "aria2c"),
+        ]
+
     for candidate in [
         "/app/bin/aria2c",
-        f"/app/share/bengal-download-manager/assets/bin/{arch}/aria2c"
+        f"/app/share/bengal-download-manager/assets/bin/{arch}/aria2c",
+        *snap_candidates
     ]:
         if os.path.exists(candidate) and os.access(candidate, os.X_OK):
             return candidate

@@ -68,3 +68,20 @@ The Chrome/Firefox extension requires:
 ## 5. Development Utilities
 
 - **xdg-utils**: Used for "Open Folder" and "Open File" functionality on Linux to interact with your file manager (Nautilus, Dolphin, etc.).
+
+---
+
+## 6. Snap Package Build (core26)
+
+To build the Snap package targeting Ubuntu `core26` (multi-arch `amd64` / `arm64`):
+
+```bash
+# Install Snapcraft
+sudo snap install snapcraft --classic
+
+# Build using the automated script
+bash scripts/build_snap.sh
+
+# Or build directly via Snapcraft
+snapcraft --destructive-mode  # (or snapcraft for container build)
+```
