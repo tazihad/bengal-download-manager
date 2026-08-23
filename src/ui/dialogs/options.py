@@ -60,6 +60,10 @@ class OptionsDialog(QDialog):
         self.saveto_tab = QWidget()
         self.setup_saveto_tab()
         self.tabs.addTab(self.saveto_tab, "Save To")
+
+        self.downloads_tab = QWidget()
+        self.setup_downloads_tab()
+        self.tabs.addTab(self.downloads_tab, "Downloads")
         
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
@@ -250,24 +254,20 @@ class OptionsDialog(QDialog):
         row_scale.addStretch()
         vbox_ui.addLayout(row_scale)
 
-        self.chk_system_notifications = QCheckBox("Show system notification when download completes")
-        current_notif = False
-        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
-            current_notif = self.main_win.settings.get("system_notifications", False)
-        elif self.main_win and hasattr(self.main_win, "system_notifications"):
-            current_notif = bool(getattr(self.main_win, "system_notifications", False))
-        self.chk_system_notifications.setChecked(current_notif)
-        self.chk_system_notifications.setToolTip("Send an XDG standard desktop notification when a download completes")
-        vbox_ui.addWidget(self.chk_system_notifications)
-
         grp_ui.setLayout(vbox_ui)
         layout.addWidget(grp_ui)
+        layout.addStretch()
 
-        # Dialog and Popup Windows (IDM-style)
+    def setup_downloads_tab(self):
+        layout = QVBoxLayout(self.downloads_tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        # 1. Dialog and Popup Windows (IDM-style)
         grp_dialogs = QGroupBox("Download Dialogs")
         vbox_dialogs = QVBoxLayout()
-        vbox_dialogs.setContentsMargins(10, 8, 10, 8)
-        vbox_dialogs.setSpacing(6)
+        vbox_dialogs.setContentsMargins(10, 10, 10, 10)
+        vbox_dialogs.setSpacing(8)
 
         def _get_setting(key, default):
             if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
@@ -297,10 +297,29 @@ class OptionsDialog(QDialog):
         grp_dialogs.setLayout(vbox_dialogs)
         layout.addWidget(grp_dialogs)
 
+        # 2. Desktop Notifications
+        grp_notif = QGroupBox("Notifications")
+        vbox_notif = QVBoxLayout()
+        vbox_notif.setContentsMargins(10, 10, 10, 10)
+        vbox_notif.setSpacing(8)
+
+        self.chk_system_notifications = QCheckBox("Show system notification when download completes")
+        current_notif = False
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            current_notif = self.main_win.settings.get("system_notifications", False)
+        elif self.main_win and hasattr(self.main_win, "system_notifications"):
+            current_notif = bool(getattr(self.main_win, "system_notifications", False))
+        self.chk_system_notifications.setChecked(current_notif)
+        self.chk_system_notifications.setToolTip("Send an XDG standard desktop notification when a download completes")
+        vbox_notif.addWidget(self.chk_system_notifications)
+
+        grp_notif.setLayout(vbox_notif)
+        layout.addWidget(grp_notif)
+
         # 3. Engine Settings
-        grp_engine = QGroupBox("Engine Settings")
+        grp_engine = QGroupBox("Engine and Connection Settings")
         vbox_engine = QVBoxLayout()
-        vbox_engine.setContentsMargins(10, 8, 10, 8)
+        vbox_engine.setContentsMargins(10, 10, 10, 10)
         vbox_engine.setSpacing(8)
         
         # Engine status label

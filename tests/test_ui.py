@@ -1504,7 +1504,9 @@ def test_options_dialog_proxy_tab(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr("ui.dialogs.options.call_aria2_rpc", lambda *a, **kw: None)
 
     dlg = OptionsDialog()
-    assert dlg.tabs.tabText(3) == "Proxy"
+    tab_names = [dlg.tabs.tabText(i) for i in range(dlg.tabs.count())]
+    assert "Proxy" in tab_names
+    assert "Downloads" in tab_names
 
     # Set manual HTTP proxy with auth
     dlg.rb_manual.setChecked(True)
