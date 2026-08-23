@@ -218,6 +218,9 @@ class MainWindow(QMainWindow):
         # Auto-start local Aria2 daemon for accelerated downloading
         self.aria2_process = self.start_aria2_daemon()
         self.is_quitting = False
+        
+        # Check and start queues configured to run on application startup
+        QTimer.singleShot(100, self._check_startup_queues)
 
     def _handle_options_accepted(self):
         # Clean restart aria2 daemon
@@ -786,7 +789,7 @@ class MainWindow(QMainWindow):
         db_queues = get_all_queues()
         self._queues_data = [dict(q) for q in (db_queues if db_queues else DEFAULT_QUEUES)]
         for q in self._queues_data:
-            q["daily_days"] = list(q["daily_days"])
+            q["daily_days"] = list(q.get("daily_days", [True, True, True, True, True, True, True]))
         self._sidebar_queue_names = []
         for q in self._queues_data:
             child = QTreeWidgetItem(self.queues_header, [q["name"]])
@@ -1413,13 +1416,128 @@ class MainWindow(QMainWindow):
                     self._scheduler_dlg.queue_list.setCurrentRow(i)
                     break
 
+    def _check_startup_queues(self):
+        """Starts any queues configured to run on application startup."""
+        db_queues = get_all_queues()
+        queues = db_queues if db_queues else getattr(self, "_queues_data", [])
+        for q in queues:
+            if isinstance(q, dict) and q.get("start_on_startup", False):
+                qname = q.get("name", "Main download queue")
+                max_c = q.get("max_concurrent", 4)
+                self._start_queue_downloads(qname, max_concurrent=max_c, show_dialog=False)
+
+    def _start_queue_downloads(self, queue_name: str, max_concurrent: int = 4, show_dialog: bool = False):
+        """Starts incomplete downloads belonging to the specified queue."""
+        active_in_queue = 0
+        for r in range(self.download_table.rowCount()):
+            item_name = self.download_table.item(r, 0)
+            if not item_name:
+                continue
+            row_q = item_name.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+            if row_q != queue_name:
+                continue
+
+            status_item = self.download_table.item(r, 2)
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            is_completed = (logic_status in ["Complete", "Finished"] or status_text in ["Complete", "Finished"] or (item_name.data(Qt.ItemDataRole.UserRole + 11) == "Complete"))
+            if is_completed:
+                continue
+
+            key = self._get_item_key(item_name)
+            if key in self.active_downloads and self._is_download_active(item_name):
+                active_in_queue += 1
+                continue
+
+            url = item_name.data(Qt.ItemDataRole.UserRole)
+            if not url:
+                continue
+
+            if active_in_queue < max_concurrent and len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS:
+                active_in_queue += 1
+                filename = item_name.text()
+                self._set_status_text(r, "Resuming...", logic_status="Resuming...")
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                new_timestamp = str(time.time())
+                item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                self._set_row_bold(r, True)
+
+                # Check media vs HTTP
+                format_spec = item_name.data(Qt.ItemDataRole.UserRole + 6)
+                if format_spec is not None:
+                    from core.media_downloader import YtDlpDownloadWorker
+                    save_dir = os.path.dirname(item_name.data(Qt.ItemDataRole.UserRole + 1) or "")
+                    is_audio_only = bool(item_name.data(Qt.ItemDataRole.UserRole + 7))
+                    cookies_browser = item_name.data(Qt.ItemDataRole.UserRole + 9)
+                    cookies_file = item_name.data(Qt.ItemDataRole.UserRole + 10)
+                    worker = YtDlpDownloadWorker(
+                        url=url,
+                        row_index=r,
+                        save_dir=save_dir,
+                        filename=filename,
+                        format_spec=format_spec,
+                        is_audio_only=is_audio_only,
+                        cookies_browser=cookies_browser,
+                        cookies_file=cookies_file
+                    )
+                    self.active_downloads[key] = worker
+                    worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
+                    worker.finished_signal.connect(lambda _, path, ref=item_name, k=key: self._on_media_download_finished(k, ref, path))
+                    self._set_status_text(r, "Downloading...")
+                    worker.start()
+                else:
+                    self._start_download_worker(url, item_name, resume_filename=filename, show_dialog=show_dialog)
+            else:
+                self._set_status_text(r, "Queued", logic_status="Queued")
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Queued")
+
+    def _stop_queue_downloads(self, queue_name: str):
+        """Pauses/stops active and queued downloads in the specified queue."""
+        for r in range(self.download_table.rowCount()):
+            item_name = self.download_table.item(r, 0)
+            if not item_name:
+                continue
+            row_q = item_name.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+            if row_q != queue_name:
+                continue
+
+            status_item = self.download_table.item(r, 2)
+            if status_item and status_item.text() == "Queued":
+                self._set_status_text(r, "Paused", logic_status="Paused")
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                continue
+
+            key = self._get_item_key(item_name)
+            if key in self.active_downloads:
+                dialog = self.active_downloads[key]
+                worker = getattr(dialog, 'worker', dialog)
+                if worker is not None and hasattr(worker, 'pause'):
+                    try:
+                        worker.pause()
+                    except Exception:
+                        pass
+                item_name.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                self._set_status_text(r, "Paused", logic_status="Paused")
+                self._set_row_bold(r, False)
+
     def _queue_action_start(self, queue_name):
-        """Placeholder: start downloads in the named queue."""
-        pass
+        """Starts downloads in the named queue."""
+        max_c = 4
+        if hasattr(self, "_queues_data"):
+            for q in self._queues_data:
+                if isinstance(q, dict) and q.get("name") == queue_name:
+                    max_c = q.get("max_concurrent", 4)
+                    break
+        self._start_queue_downloads(queue_name, max_concurrent=max_c, show_dialog=True)
 
     def _queue_action_stop(self, queue_name):
-        """Placeholder: stop downloads in the named queue."""
-        pass
+        """Stops downloads in the named queue."""
+        self._stop_queue_downloads(queue_name)
 
     def _delete_sidebar_queue(self, item):
         """Deletes a queue from the sidebar and from the scheduler if open."""

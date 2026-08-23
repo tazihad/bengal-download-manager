@@ -566,3 +566,56 @@ def test_download_context_menu_queue_operations(qapp, monkeypatch):
     win.close()
 
 
+def test_scheduler_start_download_on_app_startup(qapp, monkeypatch):
+    """Verify that queues configured with start_on_startup trigger downloads on startup."""
+    import time
+    import tempfile
+    from main import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from core.database import save_all_queues, save_all_downloads
+
+    db_file = os.path.join(tempfile.gettempdir(), f"bdm_test_startup_q_{time.time()}.db")
+    monkeypatch.setattr("core.database.get_db_path", lambda: db_file)
+
+    test_queues = [
+        {
+            "name": "Main download queue",
+            "default": True,
+            "mode": "onetime",
+            "start_on_startup": True,
+            "max_concurrent": 2,
+        }
+    ]
+    test_downloads = [
+        {
+            "url": "http://example.com/startup_test.zip",
+            "filename": "startup_test.zip",
+            "path": "/tmp/startup_test.zip",
+            "size": "10 MB",
+            "status": "Paused",
+            "time_left": "",
+            "rate": "",
+            "last_try": "",
+            "date_added": "",
+            "queue": "Main download queue",
+        }
+    ]
+    save_all_queues(test_queues, db_path=db_file)
+    save_all_downloads(test_downloads, db_path=db_file)
+
+    started_downloads = []
+    monkeypatch.setattr(MainWindow, "_start_download_worker", lambda self, url, item_ref, **kw: started_downloads.append((url, item_ref.text())))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    win._check_startup_queues()
+
+    assert len(started_downloads) == 1
+    assert started_downloads[0][0] == "http://example.com/startup_test.zip"
+    assert started_downloads[0][1] == "startup_test.zip"
+
+    win.close()
+
+
+
