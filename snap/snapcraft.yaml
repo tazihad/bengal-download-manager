@@ -35,6 +35,7 @@ apps:
   bengal-download-manager:
     command: bin/bengal-wrapper
     desktop: usr/share/applications/io.github.tazihad.bengal-download-manager.desktop
+    autostart: io.github.tazihad.bengal-download-manager.desktop
     extensions: [ gnome ]
     plugs:
       - desktop
