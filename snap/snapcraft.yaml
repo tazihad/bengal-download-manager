@@ -1,5 +1,5 @@
 name: bengal-download-manager
-base: core26
+base: core24
 version: '1.0.0'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
@@ -49,9 +49,7 @@ apps:
       - audio-playback
       - unity7
     environment:
-      PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$PYTHONPATH
-      QT_PLUGIN_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/qt6/plugins:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/plugins:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/plugins:$QT_PLUGIN_PATH
-      QML2_IMPORT_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/qt6/qml:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/qml:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/qml:$QML2_IMPORT_PATH
+      PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$PYTHONPATH
       PATH: $SNAP/usr/bin:$SNAP/bin:$PATH
 
 parts:

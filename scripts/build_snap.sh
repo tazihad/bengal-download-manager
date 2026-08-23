@@ -33,7 +33,7 @@ for arg in "$@"; do
 done
 
 echo "========================================================"
-echo " Building Bengal Download Manager Snap (core26)"
+echo " Building Bengal Download Manager Snap (core24)"
 echo "========================================================"
 
 if ! command -v snapcraft &>/dev/null; then
@@ -43,10 +43,22 @@ if ! command -v snapcraft &>/dev/null; then
 fi
 
 echo "--- 1. Validating Snapcraft Recipe Syntax ---"
-python3 -c "import yaml; d = yaml.safe_load(open('snap/snapcraft.yaml')); print(f'Validated snap: {d[\"name\"]} (base: {d[\"base\"]})')"
+PY_BIN="python3"
+if [ -f "venv/bin/python" ]; then
+    PY_BIN="venv/bin/python"
+fi
+
+$PY_BIN -c "
+try:
+    import yaml
+    d = yaml.safe_load(open('snap/snapcraft.yaml'))
+    print(f'Validated snap: {d[\"name\"]} (base: {d[\"base\"]})')
+except ImportError:
+    print('PyYAML not in environment, skipping pre-lint.')
+"
 
 echo "--- 2. Executing Snapcraft Build ---"
-snapcraft "${EXTRA_ARGS[@]}"
+snapcraft pack "${EXTRA_ARGS[@]}"
 
 echo "--- 3. Verifying Generated Snap Artifact ---"
 SNAP_FILE=$(find . -maxdepth 1 -name "bengal-download-manager_*.snap" -print -quit)
