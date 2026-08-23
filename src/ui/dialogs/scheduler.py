@@ -781,7 +781,7 @@ class SchedulerDialog(QDialog):
         menu.addSeparator()
 
         act_edit = menu.addAction("Edit queue")
-        act_edit.triggered.connect(lambda: self.queue_list.setCurrentRow(row))
+        act_edit.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self.tabs.setCurrentIndex(1)))
 
         act_schedule = menu.addAction("Schedule")
         act_schedule.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self.tabs.setCurrentIndex(0)))

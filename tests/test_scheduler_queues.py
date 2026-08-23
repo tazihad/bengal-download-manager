@@ -784,6 +784,36 @@ def test_queue_retry_option_on_failure(qapp, monkeypatch, tmp_path):
     win.close()
 
 
+def test_queue_edit_queue_activates_files_tab(qapp, monkeypatch, tmp_path):
+    """Verify Edit queue opens the Scheduler at 'Files in the queue' tab (index 1), and Schedule opens at index 0."""
+    from ui.dialogs.scheduler import DEFAULT_QUEUES
+    import copy
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win._queues_data = copy.deepcopy(DEFAULT_QUEUES)
+
+    queue_name = "Synchronization queue"
+
+    # 1. Edit Queue -> activates tab index 1 ("Files in the queue")
+    win._open_scheduler_for_queue(queue_name, tab_index=1)
+    dlg = win._scheduler_dlg
+    assert dlg is not None
+    assert dlg.queue_list.currentItem().text() == "Synchronization queue"
+    assert dlg.tabs.currentIndex() == 1
+    assert dlg.tabs.tabText(dlg.tabs.currentIndex()) == "Files in the queue"
+
+    # 2. Schedule -> activates tab index 0 ("Schedule")
+    win._open_scheduler_for_queue(queue_name, tab_index=0)
+    assert dlg.tabs.currentIndex() == 0
+    assert dlg.tabs.tabText(dlg.tabs.currentIndex()) == "Schedule"
+
+    dlg.close()
+    win.close()
+
+
 
 
 

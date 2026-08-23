@@ -1432,10 +1432,10 @@ class MainWindow(QMainWindow):
             menu.addSeparator()
 
             act_edit = menu.addAction("Edit queue")
-            act_edit.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name))
+            act_edit.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name, tab_index=1))
 
             act_schedule = menu.addAction("Schedule")
-            act_schedule.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name))
+            act_schedule.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name, tab_index=0))
 
             menu.addSeparator()
 
@@ -1451,8 +1451,8 @@ class MainWindow(QMainWindow):
 
         menu.exec(self.category_tree.viewport().mapToGlobal(pos))
 
-    def _open_scheduler_for_queue(self, queue_name):
-        """Opens the scheduler dialog and selects the given queue."""
+    def _open_scheduler_for_queue(self, queue_name, tab_index=0):
+        """Opens the scheduler dialog, selects the given queue, and activates the specified tab."""
         self.open_scheduler()
         if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
             # Find and select the queue by name
@@ -1460,6 +1460,8 @@ class MainWindow(QMainWindow):
                 if q["name"] == queue_name:
                     self._scheduler_dlg.queue_list.setCurrentRow(i)
                     break
+            if hasattr(self._scheduler_dlg, "tabs") and tab_index < self._scheduler_dlg.tabs.count():
+                self._scheduler_dlg.tabs.setCurrentIndex(tab_index)
 
     def _check_scheduled_queues(self):
         """Periodically checks queue schedules (start_at, stop_at, sync_interval)."""
