@@ -1460,6 +1460,7 @@ class MainWindow(QMainWindow):
 
             if active_in_queue < max_concurrent and len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS:
                 active_in_queue += 1
+                item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Mark as active queue batch execution
                 filename = item_name.text()
                 self._set_status_text(r, "Resuming...", logic_status="Resuming...")
                 if status_item:
@@ -2046,7 +2047,11 @@ class MainWindow(QMainWindow):
                 "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
                 "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
                 "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True,
-                "hide_categories": self.category_tree.isHidden() if hasattr(self, "category_tree") and self.category_tree else False
+                "hide_categories": self.category_tree.isHidden() if hasattr(self, "category_tree") and self.category_tree else False,
+                "show_start_dialog": getattr(self, "settings", {}).get("show_start_dialog", True),
+                "show_progress_dialog": getattr(self, "settings", {}).get("show_progress_dialog", True),
+                "show_complete_dialog": getattr(self, "settings", {}).get("show_complete_dialog", True),
+                "show_queue_complete_dialog": getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2294,6 +2299,10 @@ class MainWindow(QMainWindow):
         settings["table_style"] = settings.get("table_style", "classic")
         self.system_notifications = settings.get("system_notifications", False)
         settings["system_notifications"] = self.system_notifications
+        settings["show_start_dialog"] = settings.get("show_start_dialog", True)
+        settings["show_progress_dialog"] = settings.get("show_progress_dialog", True)
+        settings["show_complete_dialog"] = settings.get("show_complete_dialog", True)
+        settings["show_queue_complete_dialog"] = settings.get("show_queue_complete_dialog", False)
 
         apply_app_theme(
             settings["theme"],
@@ -2970,6 +2979,21 @@ class MainWindow(QMainWindow):
         self.on_file_info_fetched(file_info)
 
     def on_file_info_fetched(self, file_info):
+        if not getattr(self, "settings", {}).get("show_start_dialog", True):
+            # Bypass FileInfoDialog: auto-start immediately
+            filename = file_info.get("filename") or resolve_filename(file_info.get("url"), {})
+            show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True)
+            self.start_download(
+                url=file_info["url"], 
+                custom_filename=filename,
+                size_data=(file_info.get("size_str", "?"), file_info.get("size_bytes", 0)),
+                start_paused=False,
+                show_dialog=show_prog,
+                user_agent=file_info.get("user_agent"),
+                cookies=file_info.get("cookies")
+            )
+            return
+
         from ui.dialogs import DownloadFileInfoDialog
 
         def _canonical_fn(target_url):
@@ -3058,11 +3082,13 @@ class MainWindow(QMainWindow):
         # If "Start Download" was clicked, initiate the worker
         if results["action"] == 'start':
             self._set_status_text(row, "Starting...")
+            show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True)
             self._start_download_worker(
                 file_info["url"], 
                 item_ref, 
                 resume_filename=results["filename"],
                 custom_save_dir=os.path.dirname(results["save_path"]),
+                show_dialog=show_prog,
                 user_agent=file_info.get("user_agent")
             )
         elif results["action"] == 'later':
@@ -3966,17 +3992,24 @@ class MainWindow(QMainWindow):
             if key in self.active_file_info_dialogs:
                 return
 
-            # Show IDM-style Download Complete Dialog
-            file_data = {
-                "url": item_ref.data(Qt.ItemDataRole.UserRole),
-                "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
-                "size": self.download_table.item(row, 1).text() if row != -1 else "?"
-            }
-            # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
-            dialog = DownloadCompleteDialog(file_data, None)
-            self.active_complete_dialogs[key] = dialog
-            dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
-            dialog.show()
+            # Determine whether to show Download Complete Dialog (IDM style: suppressed in queues by default)
+            is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
+            show_comp = getattr(self, "settings", {}).get("show_complete_dialog", True)
+            show_q_comp = getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
+            should_show_complete = show_q_comp if is_queue_run else show_comp
+
+            if should_show_complete:
+                # Show IDM-style Download Complete Dialog
+                file_data = {
+                    "url": item_ref.data(Qt.ItemDataRole.UserRole),
+                    "path": item_ref.data(Qt.ItemDataRole.UserRole + 1),
+                    "size": self.download_table.item(row, 1).text() if row != -1 else "?"
+                }
+                # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
+                dialog = DownloadCompleteDialog(file_data, parent=None, main_window=self)
+                self.active_complete_dialogs[key] = dialog
+                dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
+                dialog.show()
             
         self.update_status_bar_speed()
         self.update_status_bar_items()
@@ -4179,16 +4212,23 @@ class MainWindow(QMainWindow):
                     except Exception:
                         pass
 
-                # Show IDM-style Download Complete Dialog
-                file_data = {
-                    "url": item_ref.data(Qt.ItemDataRole.UserRole),
-                    "path": path,
-                    "size": self.download_table.item(row, 1).text() if row != -1 else "?"
-                }
-                dialog = DownloadCompleteDialog(file_data, None)
-                self.active_complete_dialogs[key] = dialog
-                dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
-                dialog.show()
+                # Determine whether to show Download Complete Dialog (IDM style: suppressed in queues by default)
+                is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
+                show_comp = getattr(self, "settings", {}).get("show_complete_dialog", True)
+                show_q_comp = getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
+                should_show_complete = show_q_comp if is_queue_run else show_comp
+
+                if should_show_complete:
+                    # Show IDM-style Download Complete Dialog
+                    file_data = {
+                        "url": item_ref.data(Qt.ItemDataRole.UserRole),
+                        "path": path,
+                        "size": self.download_table.item(row, 1).text() if row != -1 else "?"
+                    }
+                    dialog = DownloadCompleteDialog(file_data, parent=None, main_window=self)
+                    self.active_complete_dialogs[key] = dialog
+                    dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
+                    dialog.show()
             else:
                 status_item = self.download_table.item(row, 2)
                 if status_item:

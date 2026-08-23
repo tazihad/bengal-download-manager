@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QFormLayout, QMessageBox, QApplication
+    QFormLayout, QMessageBox, QApplication, QCheckBox
 )
 from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtCore import Qt, QUrl
@@ -11,8 +11,9 @@ from core.utils import show_in_folder, open_with, open_file_generic
 from core.memory_guard import MemoryGuard
 
 class DownloadCompleteDialog(QDialog):
-    def __init__(self, file_data, parent=None):
+    def __init__(self, file_data, parent=None, main_window=None):
         super().__init__(parent)
+        self.main_window = main_window or (parent if hasattr(parent, "settings") else None)
         MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Download complete")
         self.setWindowIcon(QApplication.windowIcon())
@@ -60,6 +61,12 @@ class DownloadCompleteDialog(QDialog):
         form_layout_row = form.addRow("Size:", self.lbl_size)
         
         layout.addLayout(form)
+
+        # "Don't show this dialog again" checkbox (IDM-style)
+        self.chk_dont_show = QCheckBox("Don't show this dialog again")
+        self.chk_dont_show.setToolTip("Disable this completion dialog for future downloads")
+        self.chk_dont_show.toggled.connect(self._on_dont_show_toggled)
+        layout.addWidget(self.chk_dont_show)
         
         # Buttons
         btn_layout = QHBoxLayout()
@@ -95,6 +102,13 @@ class DownloadCompleteDialog(QDialog):
 
         # Ensure the window fits snugly vertically while maintaining its fixed width
         self.adjustSize()
+
+    def _on_dont_show_toggled(self, checked: bool):
+        target = self.main_window or self.parent()
+        if target and hasattr(target, "settings") and isinstance(target.settings, dict):
+            target.settings["show_complete_dialog"] = not checked
+            if hasattr(target, "save_settings") and callable(target.save_settings):
+                target.save_settings()
         
     def on_open(self):
         path = self.file_data.get('path')

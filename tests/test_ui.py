@@ -1603,6 +1603,104 @@ def test_tray_icon_context_menu_actions(qapp):
     win.close()
 
 
+def test_options_dialog_download_dialogs_controls(qapp, monkeypatch, tmp_path):
+    """Verify Options dialog provides checkboxes for start, progress, complete, and queue complete dialogs."""
+    from ui.dialogs.options import OptionsDialog
+    from main import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("ui.dialogs.options.call_aria2_rpc", lambda *a, **kw: None)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    dlg = OptionsDialog(main_window=win)
+    assert hasattr(dlg, "chk_show_start_dialog")
+    assert hasattr(dlg, "chk_show_progress_dialog")
+    assert hasattr(dlg, "chk_show_complete_dialog")
+    assert hasattr(dlg, "chk_show_queue_complete_dialog")
+
+    # Defaults
+    assert dlg.get_show_start_dialog() is True
+    assert dlg.get_show_progress_dialog() is True
+    assert dlg.get_show_complete_dialog() is True
+    assert dlg.get_show_queue_complete_dialog() is False
+
+    # Toggle settings and save
+    dlg.chk_show_start_dialog.setChecked(False)
+    dlg.chk_show_complete_dialog.setChecked(False)
+    dlg.chk_show_queue_complete_dialog.setChecked(True)
+    dlg.save_and_accept()
+
+    assert win.settings["show_start_dialog"] is False
+    assert win.settings["show_complete_dialog"] is False
+    assert win.settings["show_queue_complete_dialog"] is True
+
+    win.close()
+
+
+def test_download_complete_dialog_dont_show_again(qapp, monkeypatch, tmp_path):
+    """Verify DownloadCompleteDialog has 'Don't show this dialog again' checkbox that updates settings."""
+    from ui.dialogs.complete import DownloadCompleteDialog
+    from main import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.settings["show_complete_dialog"] = True
+
+    file_data = {
+        "url": "http://example.com/test.zip",
+        "path": "/tmp/test.zip",
+        "size": "5 MB"
+    }
+    dlg = DownloadCompleteDialog(file_data, main_window=win)
+    assert hasattr(dlg, "chk_dont_show")
+    assert dlg.chk_dont_show.isChecked() is False
+
+    # Check "Don't show this dialog again"
+    dlg.chk_dont_show.setChecked(True)
+    assert win.settings["show_complete_dialog"] is False
+
+    dlg.close()
+    win.close()
+
+
+def test_download_complete_suppression_in_queues(qapp, monkeypatch, tmp_path):
+    """Verify that downloads in queues do not show DownloadCompleteDialog by default."""
+    from main import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # Create table item for a queue download
+    win.download_table.insertRow(0)
+    item_name = QTableWidgetItem("queue_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "http://example.com/queue_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/queue_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Active queue execution
+    win.download_table.setItem(0, 0, item_name)
+
+    status_item = QTableWidgetItem("Downloading...")
+    win.download_table.setItem(0, 2, status_item)
+
+    # Complete the queue download
+    win.download_finished(item_name, "Finished")
+
+    # Verify active_complete_dialogs is empty (dialog suppressed)
+    key = win._get_item_key(item_name)
+    assert key not in win.active_complete_dialogs
+
+    win.close()
+
+
+
 
 
 

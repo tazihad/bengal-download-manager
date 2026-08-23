@@ -263,6 +263,40 @@ class OptionsDialog(QDialog):
         grp_ui.setLayout(vbox_ui)
         layout.addWidget(grp_ui)
 
+        # Dialog and Popup Windows (IDM-style)
+        grp_dialogs = QGroupBox("Download Dialogs")
+        vbox_dialogs = QVBoxLayout()
+        vbox_dialogs.setContentsMargins(10, 8, 10, 8)
+        vbox_dialogs.setSpacing(6)
+
+        def _get_setting(key, default):
+            if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+                return self.main_win.settings.get(key, default)
+            return default
+
+        self.chk_show_start_dialog = QCheckBox("Show start download dialog")
+        self.chk_show_start_dialog.setToolTip("Show confirmation and destination dialog before starting a download")
+        self.chk_show_start_dialog.setChecked(_get_setting("show_start_dialog", True))
+        vbox_dialogs.addWidget(self.chk_show_start_dialog)
+
+        self.chk_show_progress_dialog = QCheckBox("Show download progress dialog")
+        self.chk_show_progress_dialog.setToolTip("Show popup progress dialog during active file transfer")
+        self.chk_show_progress_dialog.setChecked(_get_setting("show_progress_dialog", True))
+        vbox_dialogs.addWidget(self.chk_show_progress_dialog)
+
+        self.chk_show_complete_dialog = QCheckBox("Show download complete dialog")
+        self.chk_show_complete_dialog.setToolTip("Show popup completion window when a file finishes downloading")
+        self.chk_show_complete_dialog.setChecked(_get_setting("show_complete_dialog", True))
+        vbox_dialogs.addWidget(self.chk_show_complete_dialog)
+
+        self.chk_show_queue_complete_dialog = QCheckBox("Show download complete dialog for downloads in queues")
+        self.chk_show_queue_complete_dialog.setToolTip("Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)")
+        self.chk_show_queue_complete_dialog.setChecked(_get_setting("show_queue_complete_dialog", False))
+        vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
+
+        grp_dialogs.setLayout(vbox_dialogs)
+        layout.addWidget(grp_dialogs)
+
         # 3. Engine Settings
         grp_engine = QGroupBox("Engine Settings")
         vbox_engine = QVBoxLayout()
@@ -989,11 +1023,22 @@ class OptionsDialog(QDialog):
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
-        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, and system_notifications to parent (MainWindow)
+        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, system_notifications, and dialog visibility to parent (MainWindow)
         if self.main_win:
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
+            
+            show_start = self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
+            show_prog = self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
+            show_comp = self.chk_show_complete_dialog.isChecked() if hasattr(self, "chk_show_complete_dialog") else True
+            show_q_comp = self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
+
+            setattr(self.main_win, "show_start_dialog", show_start)
+            setattr(self.main_win, "show_progress_dialog", show_prog)
+            setattr(self.main_win, "show_complete_dialog", show_comp)
+            setattr(self.main_win, "show_queue_complete_dialog", show_q_comp)
+
             if hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
                 self.main_win.settings["ui_scale"] = new_scale
                 self.main_win.settings["theme"] = new_theme
@@ -1001,6 +1046,11 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
                 self.main_win.settings["system_notifications"] = is_notif
+                self.main_win.settings["show_start_dialog"] = show_start
+                self.main_win.settings["show_progress_dialog"] = show_prog
+                self.main_win.settings["show_complete_dialog"] = show_comp
+                self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
                 apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon)
@@ -1008,7 +1058,6 @@ class OptionsDialog(QDialog):
                 save_fn = getattr(self.main_win, "save_settings", None)
                 if callable(save_fn):
                     save_fn()
-
 
         set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
         self.save_proxy_data()
@@ -1034,3 +1083,15 @@ class OptionsDialog(QDialog):
 
     def get_tray_icon(self):
         return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+
+    def get_show_start_dialog(self) -> bool:
+        return self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
+
+    def get_show_progress_dialog(self) -> bool:
+        return self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
+
+    def get_show_complete_dialog(self) -> bool:
+        return self.chk_show_complete_dialog.isChecked() if hasattr(self, "chk_show_complete_dialog") else True
+
+    def get_show_queue_complete_dialog(self) -> bool:
+        return self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
