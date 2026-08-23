@@ -76,6 +76,12 @@ class OptionsDialog(QDialog):
         self.media_tab = QWidget()
         self.setup_media_tab()
         self.tabs.addTab(self.media_tab, "Media")
+
+        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if self.tabs.tabText(idx) == "Downloads" else None)
+        if hasattr(self, 'spin_aria_port'):
+            self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
+        if hasattr(self, 'txt_aria_token'):
+            self.txt_aria_token.textChanged.connect(self.refresh_engine_status)
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
