@@ -1501,6 +1501,7 @@ def test_options_dialog_proxy_tab(qapp, tmp_path, monkeypatch):
     from core.utils import load_proxy_config
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("ui.dialogs.options.call_aria2_rpc", lambda *a, **kw: None)
 
     dlg = OptionsDialog()
     assert dlg.tabs.tabText(3) == "Proxy"

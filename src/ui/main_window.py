@@ -251,13 +251,18 @@ class MainWindow(QMainWindow):
             token = ext_data.get("token", "")
             max_conn = str(ext_data.get("max_connections", 8))
 
-            # If an Aria2 instance is already responding on this port, don't spawn a duplicate that will immediately crash
+            # If an Aria2 instance is already responding on this port, synchronize proxy options and return
             try:
                 import socket
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(0.2)
                     if s.connect_ex(("127.0.0.1", port)) == 0:
-                        # Existing daemon is already active on the port
+                        # Existing daemon is already active on the port - synchronize proxy setting
+                        try:
+                            from core.utils import call_aria2_rpc
+                            call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": get_aria2_proxy_url()}], port=port, token=token)
+                        except Exception:
+                            pass
                         return None
             except Exception:
                 pass
