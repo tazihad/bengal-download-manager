@@ -1583,6 +1583,26 @@ def test_view_menu_hide_categories_and_help_menu_links(qapp, monkeypatch):
     win.close()
 
 
+def test_tray_icon_context_menu_actions(qapp):
+    """Verify tray context menu contains Show/Hide, Add URL, Media Downloader, Options, and Exit."""
+    from main import MainWindow
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    if win.tray_icon and win.tray_icon.contextMenu():
+        tray_menu = win.tray_icon.contextMenu()
+        action_texts = [act.text() for act in tray_menu.actions() if act.text()]
+        assert "Hide" in action_texts or "Show" in action_texts
+        assert "Add URL" in action_texts
+        assert "Media Downloader" in action_texts
+        assert "Options" in action_texts
+        assert "Exit" in action_texts
+
+    win.close()
+
+
+
 
 
 

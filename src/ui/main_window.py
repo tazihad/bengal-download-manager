@@ -1116,6 +1116,9 @@ class MainWindow(QMainWindow):
             self.action_tray_toggle.triggered.connect(self.toggle_window)
             
             tray_menu.addAction(self.action_tray_toggle)
+            tray_menu.addSeparator()
+            tray_menu.addAction(self.action_add_url)
+            tray_menu.addAction(self.action_media_downloader)
             tray_menu.addAction(self.action_options)
             tray_menu.addSeparator()
             tray_menu.addAction(self.action_exit)
