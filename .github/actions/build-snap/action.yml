@@ -22,14 +22,14 @@ runs:
         fi
         VERSION="${VERSION#v}"
         python3 - << 'EOF' "$VERSION"
-import sys, re
-ver = sys.argv[1]
-with open('snap/snapcraft.yaml', 'r') as f:
-    content = f.read()
-content = re.sub(r"version:\s*['\"][^'\"]+['\"]", f"version: '{ver}'", content)
-with open('snap/snapcraft.yaml', 'w') as f:
-    f.write(content)
-EOF
+        import sys, re
+        ver = sys.argv[1]
+        with open('snap/snapcraft.yaml', 'r') as f:
+            content = f.read()
+        content = re.sub(r"version:\s*['\"][^'\"]+['\"]", f"version: '{ver}'", content)
+        with open('snap/snapcraft.yaml', 'w') as f:
+            f.write(content)
+        EOF
         grep "^version:" snap/snapcraft.yaml
 
     - name: Build Snap Package
