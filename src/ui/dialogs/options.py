@@ -5,17 +5,162 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
-    QApplication
+    QApplication, QStackedWidget, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
+from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal
 from core.utils import (
-    load_proxy_config, save_proxy_config, 
+    load_proxy_config, save_proxy_config, get_aria2_proxy_url,
     load_extension_config, save_extension_config, call_aria2_rpc,
     find_aria2, choose_portal_save_path, choose_portal_folder_path, choose_portal_open_file_path,
     is_autostart_enabled, set_autostart_enabled
 )
 from core.config import load_category_config, save_category_config
 from core.memory_guard import MemoryGuard
+
+class TwoRowTabWidget(QWidget):
+    """Two-row tab bar widget matching IDM design aesthetics across themes."""
+    currentChanged = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._widgets = []
+        self._buttons = []
+        self._button_group = QButtonGroup(self)
+        self._button_group.setExclusive(True)
+        self._button_group.idClicked.connect(self._on_button_clicked)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # 2-Row Tab Bars
+        tabs_layout = QVBoxLayout()
+        tabs_layout.setContentsMargins(0, 0, 0, 0)
+        tabs_layout.setSpacing(2)
+
+        self.row1_layout = QHBoxLayout()
+        self.row1_layout.setContentsMargins(0, 0, 0, 0)
+        self.row1_layout.setSpacing(2)
+
+        self.row2_layout = QHBoxLayout()
+        self.row2_layout.setContentsMargins(0, 0, 0, 0)
+        self.row2_layout.setSpacing(2)
+
+        tabs_layout.addLayout(self.row1_layout)
+        tabs_layout.addLayout(self.row2_layout)
+        main_layout.addLayout(tabs_layout)
+
+        # Content container
+        self.container_frame = QFrame()
+        self.container_frame.setObjectName("twoRowTabContainer")
+        self.container_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        self.stack = QStackedWidget(self.container_frame)
+
+        container_layout = QVBoxLayout(self.container_frame)
+        container_layout.setContentsMargins(4, 4, 4, 4)
+        container_layout.addWidget(self.stack)
+
+        main_layout.addWidget(self.container_frame, 1)
+
+        self.setStyleSheet("""
+            QFrame#twoRowTabContainer {
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                background-color: palette(window);
+            }
+            QPushButton.twoRowTabBtn {
+                border: 1px solid palette(mid);
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
+                padding: 4px 6px;
+                font-size: 12px;
+                background-color: palette(button);
+                color: palette(button-text);
+                min-height: 20px;
+            }
+            QPushButton.twoRowTabBtn:hover {
+                background-color: palette(light);
+            }
+            QPushButton.twoRowTabBtn:checked {
+                font-weight: bold;
+                background-color: palette(window);
+                border-top: 2px solid palette(highlight);
+                color: palette(window-text);
+            }
+        """)
+
+    def addTab(self, widget, label, row=2):
+        idx = len(self._widgets)
+        self._widgets.append((widget, label, row))
+        self.stack.addWidget(widget)
+
+        btn = QPushButton(label)
+        btn.setProperty("class", "twoRowTabBtn")
+        btn.setCheckable(True)
+        btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._buttons.append(btn)
+        self._button_group.addButton(btn, idx)
+
+        if row == 1:
+            self.row1_layout.addWidget(btn)
+        else:
+            self.row2_layout.addWidget(btn)
+
+        if idx == 0:
+            btn.setChecked(True)
+            self.stack.setCurrentIndex(0)
+        return idx
+
+    def _on_button_clicked(self, idx):
+        self.setCurrentIndex(idx)
+
+    def setCurrentIndex(self, idx):
+        if 0 <= idx < len(self._widgets):
+            self.stack.setCurrentIndex(idx)
+            btn = self._button_group.button(idx)
+            if btn and not btn.isChecked():
+                btn.setChecked(True)
+            self.currentChanged.emit(idx)
+
+    def setCurrentWidget(self, widget):
+        for idx, (w, _, _) in enumerate(self._widgets):
+            if w == widget:
+                self.setCurrentIndex(idx)
+                break
+
+    def currentIndex(self):
+        return self.stack.currentIndex()
+
+    def currentWidget(self):
+        return self.stack.currentWidget()
+
+    def widget(self, idx):
+        return self.stack.widget(idx)
+
+    def indexOf(self, widget):
+        for idx, (w, _, _) in enumerate(self._widgets):
+            if w == widget:
+                return idx
+        return -1
+
+    def count(self):
+        return len(self._widgets)
+
+    def tabText(self, idx):
+        if 0 <= idx < len(self._widgets):
+            return self._widgets[idx][1]
+        return ""
+
+    def setTabText(self, idx, text):
+        if 0 <= idx < len(self._widgets):
+            w, _, r = self._widgets[idx]
+            self._widgets[idx] = (w, text, r)
+            if idx < len(self._buttons):
+                self._buttons[idx].setText(text)
 
 class OptionsDialog(QDialog):
     def __init__(self, main_window=None, parent=None):
@@ -46,32 +191,47 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        self.tabs = QTabWidget()
+        self.tabs = TwoRowTabWidget()
         layout.addWidget(self.tabs)
         
-        self.general_tab = QWidget()
-        self.setup_general_tab()
-        self.tabs.addTab(self.general_tab, "General")
-
-        self.startup_tab = QWidget()
-        self.setup_startup_tab()
-        self.tabs.addTab(self.startup_tab, "Startup")
-
-        self.saveto_tab = QWidget()
-        self.setup_saveto_tab()
-        self.tabs.addTab(self.saveto_tab, "Save To")
-        
+        # Row 1 (Top)
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
-        self.tabs.addTab(self.proxy_tab, "Proxy / Socks")
+        self.tabs.addTab(self.proxy_tab, "Proxy / Socks", row=1)
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "Extensions")
+        self.tabs.addTab(self.extension_tab, "Extensions", row=1)
 
         self.media_tab = QWidget()
         self.setup_media_tab()
-        self.tabs.addTab(self.media_tab, "Media")
+        self.tabs.addTab(self.media_tab, "Media", row=1)
+
+        self.startup_tab = QWidget()
+        self.setup_startup_tab()
+        self.tabs.addTab(self.startup_tab, "Startup", row=1)
+
+        # Row 2 (Bottom)
+        self.general_tab = QWidget()
+        self.setup_general_tab()
+        self.tabs.addTab(self.general_tab, "General", row=2)
+
+        self.saveto_tab = QWidget()
+        self.setup_saveto_tab()
+        self.tabs.addTab(self.saveto_tab, "Save To", row=2)
+
+        self.downloads_tab = QWidget()
+        self.setup_downloads_tab()
+        self.tabs.addTab(self.downloads_tab, "Downloads", row=2)
+
+        # Default to General tab in Row 2
+        self.tabs.setCurrentWidget(self.general_tab)
+
+        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if "Downloads" in self.tabs.tabText(idx) else None)
+        if hasattr(self, 'spin_aria_port'):
+            self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
+        if hasattr(self, 'txt_aria_token'):
+            self.txt_aria_token.textChanged.connect(self.refresh_engine_status)
         
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -250,6 +410,79 @@ class OptionsDialog(QDialog):
         row_scale.addStretch()
         vbox_ui.addLayout(row_scale)
 
+        grp_ui.setLayout(vbox_ui)
+        layout.addWidget(grp_ui)
+        layout.addStretch()
+
+    def setup_downloads_tab(self):
+        layout = QVBoxLayout(self.downloads_tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        def _get_setting(key, default):
+            if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+                return self.main_win.settings.get(key, default)
+            return default
+
+        # 1. Dialog and Popup Windows (IDM-style)
+        grp_dialogs = QGroupBox("Download Dialogs")
+        vbox_dialogs = QVBoxLayout()
+        vbox_dialogs.setContentsMargins(10, 10, 10, 10)
+        vbox_dialogs.setSpacing(8)
+
+        self.chk_silent_download = QCheckBox("Silent download mode (start immediately without showing any dialogs)")
+        self.chk_silent_download.setToolTip("When enabled, downloads start and finish silently in the background without showing Start, Progress, or Complete popup dialogs")
+        self.chk_silent_download.setChecked(_get_setting("silent_download", False))
+        vbox_dialogs.addWidget(self.chk_silent_download)
+
+        line_silent = QFrame()
+        line_silent.setFrameShape(QFrame.Shape.HLine)
+        line_silent.setFrameShadow(QFrame.Shadow.Sunken)
+        vbox_dialogs.addWidget(line_silent)
+
+        self.chk_show_start_dialog = QCheckBox("Show start download dialog")
+        self.chk_show_start_dialog.setToolTip("Show confirmation and destination dialog before starting a download")
+        self.chk_show_start_dialog.setChecked(_get_setting("show_start_dialog", True))
+        vbox_dialogs.addWidget(self.chk_show_start_dialog)
+
+        self.chk_show_progress_dialog = QCheckBox("Show download progress dialog")
+        self.chk_show_progress_dialog.setToolTip("Show popup progress dialog during active file transfer")
+        self.chk_show_progress_dialog.setChecked(_get_setting("show_progress_dialog", True))
+        vbox_dialogs.addWidget(self.chk_show_progress_dialog)
+
+        self.chk_show_complete_dialog = QCheckBox("Show download complete dialog")
+        self.chk_show_complete_dialog.setToolTip("Show popup completion window when a file finishes downloading")
+        self.chk_show_complete_dialog.setChecked(_get_setting("show_complete_dialog", True))
+        vbox_dialogs.addWidget(self.chk_show_complete_dialog)
+
+        self.chk_show_queue_complete_dialog = QCheckBox("Show download complete dialog for downloads in queues")
+        self.chk_show_queue_complete_dialog.setToolTip("Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)")
+        self.chk_show_queue_complete_dialog.setChecked(_get_setting("show_queue_complete_dialog", False))
+        vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
+
+        def _on_silent_toggled(checked):
+            if checked:
+                self.chk_show_start_dialog.setChecked(False)
+                self.chk_show_progress_dialog.setChecked(False)
+                self.chk_show_complete_dialog.setChecked(False)
+            self.chk_show_start_dialog.setEnabled(not checked)
+            self.chk_show_progress_dialog.setEnabled(not checked)
+            self.chk_show_complete_dialog.setEnabled(not checked)
+            self.chk_show_queue_complete_dialog.setEnabled(not checked)
+
+        self.chk_silent_download.toggled.connect(_on_silent_toggled)
+        if self.chk_silent_download.isChecked():
+            _on_silent_toggled(True)
+
+        grp_dialogs.setLayout(vbox_dialogs)
+        layout.addWidget(grp_dialogs)
+
+        # 2. Desktop Notifications
+        grp_notif = QGroupBox("Notifications")
+        vbox_notif = QVBoxLayout()
+        vbox_notif.setContentsMargins(10, 10, 10, 10)
+        vbox_notif.setSpacing(8)
+
         self.chk_system_notifications = QCheckBox("Show system notification when download completes")
         current_notif = False
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
@@ -258,21 +491,21 @@ class OptionsDialog(QDialog):
             current_notif = bool(getattr(self.main_win, "system_notifications", False))
         self.chk_system_notifications.setChecked(current_notif)
         self.chk_system_notifications.setToolTip("Send an XDG standard desktop notification when a download completes")
-        vbox_ui.addWidget(self.chk_system_notifications)
+        vbox_notif.addWidget(self.chk_system_notifications)
 
-        grp_ui.setLayout(vbox_ui)
-        layout.addWidget(grp_ui)
+        grp_notif.setLayout(vbox_notif)
+        layout.addWidget(grp_notif)
 
         # 3. Engine Settings
-        grp_engine = QGroupBox("Engine Settings")
+        grp_engine = QGroupBox("Engine and Connection Settings")
         vbox_engine = QVBoxLayout()
-        vbox_engine.setContentsMargins(10, 8, 10, 8)
+        vbox_engine.setContentsMargins(10, 10, 10, 10)
         vbox_engine.setSpacing(8)
         
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_engine.setToolTip("Connection status of backend Aria2 download engine")
+        self.lbl_engine.setToolTip("Connection status and backend binary for Aria2 download engine")
         vbox_engine.addWidget(self.lbl_engine)
         
         # Max Split Connections (threads)
@@ -338,24 +571,31 @@ class OptionsDialog(QDialog):
         self.lbl_engine.setText("Active Engine: <span style='color: #3498db;'>●</span> Checking...")
         
         def check():
-            proxy = load_proxy_config()
             engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
             try:
-                # This is a blocking network call (3s timeout)
                 result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
-                if result:
+                if result and isinstance(result, dict) and "version" in result:
                     version = result.get('version', 'Unknown')
                     engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
-                elif proxy.get("mode") == "manual":
-                    engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting (via Proxychains)..."
-            except:
+                else:
+                    aria2_bin = find_aria2()
+                    if not aria2_bin:
+                        engine_status = "<span style='color: red;'>●</span> Aria2 Not Installed (Python Engine Active)"
+                    else:
+                        engine_status = "<span style='color: orange;'>●</span> Offline (Python Fallback Active)"
+            except Exception:
                 pass
             
             aria2_bin = find_aria2() or "Not found"
             final_text = f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>"
             
             # Update UI safely from background thread
-            QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
+            try:
+                from PyQt6 import sip
+                if hasattr(self, 'lbl_engine') and not sip.isdeleted(self.lbl_engine):
+                    QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
+            except Exception:
+                pass
 
         threading.Thread(target=check, daemon=True).start()
 
@@ -458,11 +698,13 @@ class OptionsDialog(QDialog):
         self.bg_mode = QButtonGroup(self)
         
         self.rb_no_proxy = QRadioButton("No proxy / Get from system")
+        self.rb_no_proxy.setToolTip("Connect directly to the internet without using a custom proxy")
         self.rb_no_proxy.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_no_proxy)
         self.bg_mode.addButton(self.rb_no_proxy)
         
         self.rb_manual = QRadioButton("Manual proxy configuration")
+        self.rb_manual.setToolTip("Route all download traffic through a custom HTTP or HTTPS proxy server")
         self.rb_manual.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_manual)
         self.bg_mode.addButton(self.rb_manual)
@@ -478,35 +720,41 @@ class OptionsDialog(QDialog):
         self.bg_type = QButtonGroup(self)
         
         self.rb_http = QRadioButton("HTTP")
+        self.rb_http.setToolTip("Use HTTP proxy protocol")
         self.rb_http.toggled.connect(self.on_proxy_toggle)
-        self.rb_socks4 = QRadioButton("SOCKS4")
-        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
-        self.rb_socks5 = QRadioButton("SOCKS5")
-        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
+        self.rb_https = QRadioButton("HTTPS")
+        self.rb_https.setToolTip("Use secure HTTPS proxy protocol")
+        self.rb_https.toggled.connect(self.on_proxy_toggle)
         
         self.bg_type.addButton(self.rb_http)
-        self.bg_type.addButton(self.rb_socks4)
-        self.bg_type.addButton(self.rb_socks5)
+        self.bg_type.addButton(self.rb_https)
         
-        type_layout.addWidget(QLabel("Type:"))
+        lbl_type = QLabel("Type:")
+        lbl_type.setToolTip("Select proxy protocol type")
+        type_layout.addWidget(lbl_type)
         type_layout.addWidget(self.rb_http)
-        type_layout.addWidget(self.rb_socks4)
-        type_layout.addWidget(self.rb_socks5)
+        type_layout.addWidget(self.rb_https)
         type_layout.addStretch()
         manual_layout.addLayout(type_layout)
         
         # Host / Port
         addr_layout = QHBoxLayout()
-        addr_layout.addWidget(QLabel("Proxy/Socks host:"))
+        lbl_host = QLabel("Proxy host:")
+        lbl_host.setToolTip("Hostname or IP address of the proxy server")
+        addr_layout.addWidget(lbl_host)
         self.txt_host = QLineEdit()
+        self.txt_host.setToolTip("Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)")
         self.txt_host.textChanged.connect(self.save_proxy_data)
         self.txt_host.textChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.txt_host)
         
-        addr_layout.addWidget(QLabel("Port:"))
+        lbl_port = QLabel("Port:")
+        lbl_port.setToolTip("Port number of the proxy server (1-65535)")
+        addr_layout.addWidget(lbl_port)
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
         self.spin_port.setValue(8080)
+        self.spin_port.setToolTip("Port number of proxy server (1-65535)")
         self.spin_port.valueChanged.connect(self.save_proxy_data)
         self.spin_port.valueChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.spin_port)
@@ -514,21 +762,28 @@ class OptionsDialog(QDialog):
         
         # Auth
         self.chk_auth = QCheckBox("Authentication required")
+        self.chk_auth.setToolTip("Enable username and password credentials for proxy authentication")
         self.chk_auth.toggled.connect(self.update_proxy_ui)
         self.chk_auth.toggled.connect(self.save_proxy_data)
         self.chk_auth.toggled.connect(self.refresh_engine_status)
         manual_layout.addWidget(self.chk_auth)
         
         auth_layout = QGridLayout()
-        auth_layout.addWidget(QLabel("Username:"), 0, 0)
+        lbl_user = QLabel("Username:")
+        lbl_user.setToolTip("Username for proxy authentication")
+        auth_layout.addWidget(lbl_user, 0, 0)
         self.txt_user = QLineEdit()
+        self.txt_user.setToolTip("Username for proxy server authentication")
         self.txt_user.textChanged.connect(self.save_proxy_data)
         self.txt_user.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_user, 0, 1)
         
-        auth_layout.addWidget(QLabel("Password:"), 1, 0)
+        lbl_pass = QLabel("Password:")
+        lbl_pass.setToolTip("Password for proxy authentication")
+        auth_layout.addWidget(lbl_pass, 1, 0)
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.setToolTip("Password for proxy server authentication")
         self.txt_pass.textChanged.connect(self.save_proxy_data)
         self.txt_pass.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_pass, 1, 1)
@@ -542,8 +797,7 @@ class OptionsDialog(QDialog):
         self.rb_manual.blockSignals(True)
         self.rb_no_proxy.blockSignals(True)
         self.rb_http.blockSignals(True)
-        self.rb_socks4.blockSignals(True)
-        self.rb_socks5.blockSignals(True)
+        self.rb_https.blockSignals(True)
         self.txt_host.blockSignals(True)
         self.spin_port.blockSignals(True)
         self.chk_auth.blockSignals(True)
@@ -555,10 +809,11 @@ class OptionsDialog(QDialog):
         else:
             self.rb_no_proxy.setChecked(True)
             
-        ptype = self.proxy_data.get("type", "http")
-        if ptype == "socks4": self.rb_socks4.setChecked(True)
-        elif ptype == "socks5": self.rb_socks5.setChecked(True)
-        else: self.rb_http.setChecked(True)
+        ptype = str(self.proxy_data.get("type", "http")).lower()
+        if ptype == "https":
+            self.rb_https.setChecked(True)
+        else:
+            self.rb_http.setChecked(True)
         
         self.txt_host.setText(self.proxy_data.get("host", ""))
         self.spin_port.setValue(self.proxy_data.get("port", 8080))
@@ -569,8 +824,7 @@ class OptionsDialog(QDialog):
         self.rb_manual.blockSignals(False)
         self.rb_no_proxy.blockSignals(False)
         self.rb_http.blockSignals(False)
-        self.rb_socks4.blockSignals(False)
-        self.rb_socks5.blockSignals(False)
+        self.rb_https.blockSignals(False)
         self.txt_host.blockSignals(False)
         self.spin_port.blockSignals(False)
         self.chk_auth.blockSignals(False)
@@ -729,8 +983,11 @@ class OptionsDialog(QDialog):
         vbox_cookies.setSpacing(10)
 
         row_cookies_config = QHBoxLayout()
-        row_cookies_config.addWidget(QLabel("Cookie:"))
+        lbl_cookie = QLabel("Cookie:")
+        lbl_cookie.setToolTip("Select cookie authentication strategy for media sites")
+        row_cookies_config.addWidget(lbl_cookie)
         self.cmb_opt_cookies_mode = QComboBox()
+        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file, browser auto-extract, or none)")
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
             "Browser Auto-Extraction",
@@ -741,8 +998,10 @@ class OptionsDialog(QDialog):
         row_cookies_config.addWidget(self.cmb_opt_cookies_mode, stretch=1)
 
         self.lbl_opt_cookies_browser = QLabel("Browser:")
+        self.lbl_opt_cookies_browser.setToolTip("Select installed web browser to extract cookies from")
         row_cookies_config.addWidget(self.lbl_opt_cookies_browser)
         self.cmb_opt_cookies_browser = QComboBox()
+        self.cmb_opt_cookies_browser.setToolTip("Select web browser to automatically extract authenticated cookies")
         self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
         saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
         idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
@@ -753,10 +1012,12 @@ class OptionsDialog(QDialog):
 
         # Full-width cookies path input with Browse / Clear buttons below
         self.lbl_opt_cookies_path = QLabel("Netscape cookies.txt Path:")
+        self.lbl_opt_cookies_path.setToolTip("File path to exported Netscape format cookies.txt")
         vbox_cookies.addWidget(self.lbl_opt_cookies_path)
 
         self.txt_opt_cookies_path = QLineEdit()
         self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
+        self.txt_opt_cookies_path.setToolTip("Path to exported Netscape format cookies.txt file on disk")
         saved_cpath = self.config_data.get("media_downloader_cookies_path", media_defaults.get("cookies_path", ""))
         self.txt_opt_cookies_path.setText(saved_cpath)
         vbox_cookies.addWidget(self.txt_opt_cookies_path)
@@ -766,11 +1027,13 @@ class OptionsDialog(QDialog):
 
         self.btn_opt_browse_c = QPushButton("Browse...")
         self.btn_opt_browse_c.setFixedWidth(90)
+        self.btn_opt_browse_c.setToolTip("Browse filesystem for exported cookies.txt file")
         self.btn_opt_browse_c.clicked.connect(self._browse_opt_cookies_file)
         row_cbuttons.addWidget(self.btn_opt_browse_c)
 
         self.btn_opt_clear_c = QPushButton("Clear")
         self.btn_opt_clear_c.setFixedWidth(80)
+        self.btn_opt_clear_c.setToolTip("Clear current cookies.txt file path")
         self.btn_opt_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
         row_cbuttons.addWidget(self.btn_opt_clear_c)
 
@@ -859,9 +1122,7 @@ class OptionsDialog(QDialog):
 
     def save_proxy_data(self):
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
-        ptype = "http"
-        if self.rb_socks4.isChecked(): ptype = "socks4"
-        if self.rb_socks5.isChecked(): ptype = "socks5"
+        ptype = "https" if self.rb_https.isChecked() else "http"
         
         self.proxy_data = {
             "mode": mode,
@@ -873,6 +1134,15 @@ class OptionsDialog(QDialog):
             "password": self.txt_pass.text()
         }
         save_proxy_config(self.proxy_data)
+
+        # Dynamically update running Aria2 daemon proxy settings via RPC
+        proxy_url = get_aria2_proxy_url(self.proxy_data)
+        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        try:
+            call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": proxy_url}], port=rpc_port, token=token)
+        except Exception:
+            pass
 
     def save_extension_data(self):
         max_c = 8
@@ -987,11 +1257,24 @@ class OptionsDialog(QDialog):
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
 
-        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, and system_notifications to parent (MainWindow)
+        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, system_notifications, and dialog visibility to parent (MainWindow)
         if self.main_win:
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
+            
+            silent_dl = self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
+            show_start = self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
+            show_prog = self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
+            show_comp = self.chk_show_complete_dialog.isChecked() if hasattr(self, "chk_show_complete_dialog") else True
+            show_q_comp = self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
+
+            setattr(self.main_win, "silent_download", silent_dl)
+            setattr(self.main_win, "show_start_dialog", show_start)
+            setattr(self.main_win, "show_progress_dialog", show_prog)
+            setattr(self.main_win, "show_complete_dialog", show_comp)
+            setattr(self.main_win, "show_queue_complete_dialog", show_q_comp)
+
             if hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
                 self.main_win.settings["ui_scale"] = new_scale
                 self.main_win.settings["theme"] = new_theme
@@ -999,6 +1282,12 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
                 self.main_win.settings["system_notifications"] = is_notif
+                self.main_win.settings["silent_download"] = silent_dl
+                self.main_win.settings["show_start_dialog"] = show_start
+                self.main_win.settings["show_progress_dialog"] = show_prog
+                self.main_win.settings["show_complete_dialog"] = show_comp
+                self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
                 apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon)
@@ -1006,7 +1295,6 @@ class OptionsDialog(QDialog):
                 save_fn = getattr(self.main_win, "save_settings", None)
                 if callable(save_fn):
                     save_fn()
-
 
         set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
         self.save_proxy_data()
@@ -1032,3 +1320,18 @@ class OptionsDialog(QDialog):
 
     def get_tray_icon(self):
         return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+
+    def get_silent_download(self) -> bool:
+        return self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
+
+    def get_show_start_dialog(self) -> bool:
+        return self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
+
+    def get_show_progress_dialog(self) -> bool:
+        return self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
+
+    def get_show_complete_dialog(self) -> bool:
+        return self.chk_show_complete_dialog.isChecked() if hasattr(self, "chk_show_complete_dialog") else True
+
+    def get_show_queue_complete_dialog(self) -> bool:
+        return self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False

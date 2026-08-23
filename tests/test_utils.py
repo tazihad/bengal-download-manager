@@ -389,3 +389,26 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     assert len(opened_cmds) == 0
 
 
+def test_get_aria2_proxy_url():
+    from core.utils import get_aria2_proxy_url
+
+    # 1. No proxy mode
+    assert get_aria2_proxy_url({"mode": "no_proxy"}) == ""
+    assert get_aria2_proxy_url(None) == ""
+
+    # 2. Manual HTTP proxy without auth
+    conf_http = {"mode": "manual", "type": "http", "host": "127.0.0.1", "port": 8080, "auth": False}
+    assert get_aria2_proxy_url(conf_http) == "http://127.0.0.1:8080"
+
+    # 3. Manual HTTPS proxy with auth
+    conf_https_auth = {
+        "mode": "manual", "type": "https", "host": "proxy.example.com", "port": 8443,
+        "auth": True, "user": "admin", "password": "secret!password"
+    }
+    assert get_aria2_proxy_url(conf_https_auth) == "https://admin:secret%21password@proxy.example.com:8443"
+
+    # 4. Manual without host returns empty
+    assert get_aria2_proxy_url({"mode": "manual", "host": ""}) == ""
+
+
+

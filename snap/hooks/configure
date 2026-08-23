@@ -1,0 +1,6 @@
+#!/bin/sh
+# Bengal Download Manager - Snap Configure Hook
+# Handles dynamic snap configuration options if requested.
+
+set -e
+exit 0

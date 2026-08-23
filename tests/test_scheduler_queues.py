@@ -210,14 +210,6 @@ def test_scheduler_dialog_all_schedule_options_save_and_load(qapp):
     dlg.chk_retries.setChecked(True)
     dlg.spin_retries.setValue(25)
 
-    dlg.chk_open_file.setChecked(True)
-    dlg.txt_open_file.setText("/path/to/script.sh")
-
-    dlg.chk_exit_app.setChecked(True)
-    dlg.chk_turn_off.setChecked(True)
-    dlg.combo_turn_off.setCurrentText("Hibernate")
-    dlg.chk_force.setChecked(True)
-
     # Save UI to queue
     dlg._save_ui_to_queue(2)
 
@@ -233,12 +225,6 @@ def test_scheduler_dialog_all_schedule_options_save_and_load(qapp):
     assert saved_q["stop_at_time"] == "18:45:30"
     assert saved_q["retries_enabled"] is True
     assert saved_q["retries_count"] == 25
-    assert saved_q["open_file_enabled"] is True
-    assert saved_q["open_file_path"] == "/path/to/script.sh"
-    assert saved_q["exit_app_when_done"] is True
-    assert saved_q["turn_off_enabled"] is True
-    assert saved_q["turn_off_action"] == "Hibernate"
-    assert saved_q["force_terminate"] is True
 
     # Switch away to queue 0, then switch back to queue 2 to test _load_queue_to_ui
     dlg.queue_list.setCurrentRow(0)
@@ -257,49 +243,20 @@ def test_scheduler_dialog_all_schedule_options_save_and_load(qapp):
     assert dlg.time_stop_at.time() == QTime(18, 45, 30)
     assert dlg.chk_retries.isChecked() is True
     assert dlg.spin_retries.value() == 25
-    assert dlg.chk_open_file.isChecked() is True
-    assert dlg.txt_open_file.text() == "/path/to/script.sh"
-    assert dlg.chk_exit_app.isChecked() is True
-    assert dlg.chk_turn_off.isChecked() is True
-    assert dlg.combo_turn_off.currentText() == "Hibernate"
-    assert dlg.chk_force.isChecked() is True
 
 
-def test_scheduler_dialog_turn_off_interactions(qapp):
-    """Test turn off checkbox enabling/disabling combo and force terminate."""
+def test_scheduler_dialog_removed_options(qapp):
+    """Verify open_file, exit_app, turn_off, and force_terminate are removed."""
     dlg = SchedulerDialog()
     dlg.hide()
 
-    # Initially unchecked
-    assert not dlg.chk_turn_off.isChecked()
-    assert not dlg.combo_turn_off.isEnabled()
-    assert not dlg.chk_force.isEnabled()
-
-    # Check turn_off
-    dlg.chk_turn_off.setChecked(True)
-    assert dlg.combo_turn_off.isEnabled()
-    assert dlg.chk_force.isEnabled()
-
-    dlg.chk_force.setChecked(True)
-    assert dlg.chk_force.isChecked()
-
-    # Unchecking turn_off disables and unchecks force
-    dlg.chk_turn_off.setChecked(False)
-    assert not dlg.combo_turn_off.isEnabled()
-    assert not dlg.chk_force.isEnabled()
-    assert not dlg.chk_force.isChecked()
-
-
-def test_scheduler_dialog_browse_file(qapp, monkeypatch):
-    """Test browse open file button dialog integration."""
-    dlg = SchedulerDialog()
-    dlg.hide()
-
-    from PyQt6.QtWidgets import QFileDialog
-    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: ("/usr/bin/custom_cmd", "All Files (*)"))
-
-    dlg._browse_open_file()
-    assert dlg.txt_open_file.text() == "/usr/bin/custom_cmd"
+    assert not hasattr(dlg, "chk_open_file")
+    assert not hasattr(dlg, "txt_open_file")
+    assert not hasattr(dlg, "btn_browse_file")
+    assert not hasattr(dlg, "chk_exit_app")
+    assert not hasattr(dlg, "chk_turn_off")
+    assert not hasattr(dlg, "combo_turn_off")
+    assert not hasattr(dlg, "chk_force")
 
 
 def test_scheduler_dialog_files_tab_and_table_population(qapp):
@@ -496,4 +453,367 @@ def test_queue_context_menu_stylesheet_and_disabled_delete(qapp, monkeypatch):
     sb_actions = {act.text(): act for act in captured_menus[1].actions()}
     assert "Delete" in sb_actions
     assert sb_actions["Delete"].isEnabled() is False
+
+
+def test_download_context_menu_queue_operations(qapp, monkeypatch):
+    """Verify Move to queue submenu, Delete from queue, and creating a new queue from context menu."""
+    from PyQt6.QtWidgets import QTableWidgetItem, QInputDialog
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.download_table.setRowCount(0)
+
+    # Insert 2 test downloads
+    win.download_table.insertRow(0)
+    item0 = QTableWidgetItem("fileA.zip")
+    item0.setData(Qt.ItemDataRole.UserRole, "http://example.com/fileA.zip")
+    item0.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(0, 0, item0)
+    win.download_table.setItem(0, 2, QTableWidgetItem("Complete"))
+
+    win.download_table.insertRow(1)
+    item1 = QTableWidgetItem("fileB.zip")
+    item1.setData(Qt.ItemDataRole.UserRole, "http://example.com/fileB.zip")
+    item1.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(1, 0, item1)
+    win.download_table.setItem(1, 2, QTableWidgetItem("Complete"))
+
+    # Select item0 and inspect context menu
+    captured_menus = []
+    monkeypatch.setattr(QMenu, "exec", lambda self, pos: captured_menus.append(self))
+
+    win.download_table.selectRow(0)
+    win.show_context_menu(QPoint(10, 10))
+
+    assert len(captured_menus) == 1
+    ctx_menu = captured_menus[0]
+
+    action_texts = [act.text() for act in ctx_menu.actions()]
+    assert "Delete" in action_texts
+    assert "Move to queue" in action_texts
+    assert "Delete from queue" in action_texts
+    assert "Properties" in action_texts
+
+    idx_delete = action_texts.index("Delete")
+    idx_move = action_texts.index("Move to queue")
+    idx_del_q = action_texts.index("Delete from queue")
+    idx_props = action_texts.index("Properties")
+
+    # Assert queue options are below Delete and above Properties
+    assert idx_delete < idx_move < idx_del_q < idx_props
+
+    # Move to Synchronization queue
+    win.download_table.selectRow(0)
+    win._move_selected_to_queue("Synchronization queue")
+    assert item0.data(Qt.ItemDataRole.UserRole + 8) == "Synchronization queue"
+
+    # Delete from queue
+    win._delete_selected_from_queue()
+    assert item0.data(Qt.ItemDataRole.UserRole + 8) == ""
+
+    # Create new queue via dialog mock and move selected
+    monkeypatch.setattr(QInputDialog, "getText", lambda parent, title, label: ("Nightly Queue", True))
+    win.download_table.selectRow(1)
+    win._create_new_queue_and_move_selected()
+
+    assert item1.data(Qt.ItemDataRole.UserRole + 8) == "Nightly Queue"
+    assert any(q.get("name") == "Nightly Queue" for q in win._queues_data)
+    assert "Nightly Queue" in win._sidebar_queue_names
+
+    win.close()
+
+
+def test_scheduler_start_download_on_app_startup(qapp, monkeypatch):
+    """Verify that queues configured with start_on_startup trigger downloads on startup."""
+    import time
+    import tempfile
+    from main import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from core.database import save_all_queues, save_all_downloads
+
+    db_file = os.path.join(tempfile.gettempdir(), f"bdm_test_startup_q_{time.time()}.db")
+    monkeypatch.setattr("core.database.get_db_path", lambda: db_file)
+
+    test_queues = [
+        {
+            "name": "Main download queue",
+            "default": True,
+            "mode": "onetime",
+            "start_on_startup": True,
+            "max_concurrent": 2,
+        }
+    ]
+    test_downloads = [
+        {
+            "url": "http://example.com/startup_test.zip",
+            "filename": "startup_test.zip",
+            "path": "/tmp/startup_test.zip",
+            "size": "10 MB",
+            "status": "Paused",
+            "time_left": "",
+            "rate": "",
+            "last_try": "",
+            "date_added": "",
+            "queue": "Main download queue",
+        }
+    ]
+    save_all_queues(test_queues, db_path=db_file)
+    save_all_downloads(test_downloads, db_path=db_file)
+
+    started_downloads = []
+    monkeypatch.setattr(MainWindow, "_start_download_worker", lambda self, url, item_ref, **kw: started_downloads.append((url, item_ref.text())))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    win._check_startup_queues()
+
+    assert len(started_downloads) == 1
+    assert started_downloads[0][0] == "http://example.com/startup_test.zip"
+    assert started_downloads[0][1] == "startup_test.zip"
+
+    win.close()
+
+
+def test_queue_context_menu_start_stop_activation(qapp, monkeypatch, tmp_path):
+    """Verify Start and Stop actions toggle their enabled states based on whether the queue is actively downloading."""
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    queue_name = "Main download queue"
+
+    # Initially empty / paused: queue is not active
+    assert win._is_queue_active(queue_name) is False
+
+    # Insert an incomplete active download into the queue
+    win.download_table.insertRow(0)
+    item_name = QTableWidgetItem("active_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "http://example.com/active_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/active_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 8, queue_name)
+    win.download_table.setItem(0, 0, item_name)
+
+    status_item = QTableWidgetItem("Downloading...")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
+    win.download_table.setItem(0, 2, status_item)
+
+    # Queue should now be active
+    assert win._is_queue_active(queue_name) is True
+
+    # Mark complete: queue is no longer active
+    status_item.setText("Complete")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
+    assert win._is_queue_active(queue_name) is False
+
+    # Mark Paused: queue is not active
+    status_item.setText("Paused")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+    assert win._is_queue_active(queue_name) is False
+
+    # Mark Queued: queue is active (waiting in queue)
+    status_item.setText("Queued")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Queued")
+    assert win._is_queue_active(queue_name) is True
+
+    win.close()
+
+
+def test_queue_start_download_at_timer_trigger(qapp, monkeypatch, tmp_path):
+    """Test start_at timer triggering after a short delay (e.g. 3-second simulation)."""
+    from PyQt6.QtCore import QDateTime, QTime
+    from PyQt6.QtWidgets import QTableWidgetItem
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    test_queues = [
+        {
+            "name": "Main download queue",
+            "default": True,
+            "mode": "onetime",
+            "start_at_enabled": True,
+            "start_at_time": "12:00:03",
+            "schedule_type": "daily",
+            "daily_days": [True] * 7,
+            "max_concurrent": 2,
+        }
+    ]
+
+    started_downloads = []
+    monkeypatch.setattr(MainWindow, "_start_download_worker", lambda self, url, item_ref, **kw: started_downloads.append((url, item_ref.text())))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.download_table.setRowCount(0)
+    win._queues_data = test_queues
+
+    win.download_table.insertRow(0)
+    item_name = QTableWidgetItem("timer_test.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "http://example.com/timer_test.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/timer_test.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(0, 0, item_name)
+    status_item = QTableWidgetItem("Paused")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+    win.download_table.setItem(0, 2, status_item)
+
+    # Time before scheduled tick: nothing started
+    monkeypatch.setattr(QDateTime, "currentDateTime", lambda: QDateTime(2026, 8, 23, 12, 0, 0))
+    win._check_scheduled_queues()
+    assert len(started_downloads) == 0
+
+    # 3 seconds later: matches target_time 12:00:03
+    monkeypatch.setattr(QDateTime, "currentDateTime", lambda: QDateTime(2026, 8, 23, 12, 0, 3))
+    win._check_scheduled_queues()
+    assert len(started_downloads) == 1
+    assert started_downloads[0][0] == "http://example.com/timer_test.zip"
+
+    win.close()
+
+
+def test_queue_stop_download_at_timer_trigger(qapp, monkeypatch, tmp_path):
+    """Test stop_at timer triggering after a short delay (e.g. 3-second simulation)."""
+    from PyQt6.QtCore import QDateTime
+    from PyQt6.QtWidgets import QTableWidgetItem
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    test_queues = [
+        {
+            "name": "Main download queue",
+            "default": True,
+            "mode": "onetime",
+            "stop_at_enabled": True,
+            "stop_at_time": "12:00:03",
+            "max_concurrent": 2,
+        }
+    ]
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.download_table.setRowCount(0)
+    win._queues_data = test_queues
+
+    win.download_table.insertRow(0)
+    item_name = QTableWidgetItem("stop_test.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "http://example.com/stop_test.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/stop_test.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(0, 0, item_name)
+    status_item = QTableWidgetItem("Downloading...")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
+    win.download_table.setItem(0, 2, status_item)
+
+    # Time before stop tick: queue remains active
+    monkeypatch.setattr(QDateTime, "currentDateTime", lambda: QDateTime(2026, 8, 23, 12, 0, 0))
+    win._check_scheduled_queues()
+    assert win.download_table.item(0, 2).data(Qt.ItemDataRole.UserRole + 1) == "Downloading..."
+
+    # 3 seconds later: matches target_stop_time 12:00:03
+    monkeypatch.setattr(QDateTime, "currentDateTime", lambda: QDateTime(2026, 8, 23, 12, 0, 3))
+    win._check_scheduled_queues()
+    assert win.download_table.item(0, 2).text() == "Paused"
+
+    win.close()
+
+
+def test_queue_retry_option_on_failure(qapp, monkeypatch, tmp_path):
+    """Test number of retries option auto-retries failed downloads up to retries_count."""
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+    from core.database import save_all_queues
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    db_file = os.path.join(str(tmp_path), "bengal-download-manager", "downloads.db")
+
+    test_queues = [
+        {
+            "name": "Main download queue",
+            "default": True,
+            "mode": "onetime",
+            "retries_enabled": True,
+            "retries_count": 3,
+        }
+    ]
+    save_all_queues(test_queues, db_path=db_file)
+
+    retried_calls = []
+    monkeypatch.setattr(MainWindow, "_start_download_worker", lambda self, url, item_ref, **kw: retried_calls.append(url))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win._queues_data = test_queues
+
+    win.download_table.insertRow(0)
+    item_name = QTableWidgetItem("retry_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "http://example.com/retry_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/retry_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(0, 0, item_name)
+
+    status_item = QTableWidgetItem("Downloading...")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
+    win.download_table.setItem(0, 2, status_item)
+
+    key = win._get_item_key(item_name)
+
+    # 1st Failure -> Retries count 1
+    win.download_finished(item_name, "Error")
+    assert win.download_retry_counts[key] == 1
+    assert "Retrying (1/3)" in win.download_table.item(0, 2).text()
+
+    # 2nd Failure -> Retries count 2
+    win.download_finished(item_name, "Error")
+    assert win.download_retry_counts[key] == 2
+    assert "Retrying (2/3)" in win.download_table.item(0, 2).text()
+
+    # 3rd Failure -> Retries count 3
+    win.download_finished(item_name, "Error")
+    assert win.download_retry_counts[key] == 3
+    assert "Retrying (3/3)" in win.download_table.item(0, 2).text()
+
+    # 4th Failure -> Exceeds max_retries (3), no more retries
+    win.download_finished(item_name, "Error")
+    assert win.download_retry_counts[key] == 3
+    assert win.download_table.item(0, 2).text() == "Error"
+
+    win.close()
+
+
+def test_queue_edit_queue_activates_files_tab(qapp, monkeypatch, tmp_path):
+    """Verify Edit queue opens the Scheduler at 'Files in the queue' tab (index 1), and Schedule opens at index 0."""
+    from ui.dialogs.scheduler import DEFAULT_QUEUES
+    import copy
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win._queues_data = copy.deepcopy(DEFAULT_QUEUES)
+
+    queue_name = "Synchronization queue"
+
+    # 1. Edit Queue -> activates tab index 1 ("Files in the queue")
+    win._open_scheduler_for_queue(queue_name, tab_index=1)
+    dlg = win._scheduler_dlg
+    assert dlg is not None
+    assert dlg.queue_list.currentItem().text() == "Synchronization queue"
+    assert dlg.tabs.currentIndex() == 1
+    assert dlg.tabs.tabText(dlg.tabs.currentIndex()) == "Files in the queue"
+
+    # 2. Schedule -> activates tab index 0 ("Schedule")
+    win._open_scheduler_for_queue(queue_name, tab_index=0)
+    assert dlg.tabs.currentIndex() == 0
+    assert dlg.tabs.tabText(dlg.tabs.currentIndex()) == "Schedule"
+
+    dlg.close()
+    win.close()
+
+
+
+
 

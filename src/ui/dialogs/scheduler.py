@@ -34,12 +34,6 @@ DEFAULT_QUEUES = [
         "stop_at_time": "07:30:00",
         "retries_enabled": False,
         "retries_count": 10,
-        "open_file_enabled": False,
-        "open_file_path": "",
-        "exit_app_when_done": False,
-        "turn_off_enabled": False,
-        "turn_off_action": "Shut down",
-        "force_terminate": False,
         "sync_interval_enabled": False,
         "sync_hours": 2,
         "sync_minutes": 0,
@@ -60,12 +54,6 @@ DEFAULT_QUEUES = [
         "stop_at_time": "07:30:00",
         "retries_enabled": False,
         "retries_count": 10,
-        "open_file_enabled": False,
-        "open_file_path": "",
-        "exit_app_when_done": False,
-        "turn_off_enabled": False,
-        "turn_off_action": "Shut down",
-        "force_terminate": False,
         "sync_interval_enabled": False,
         "sync_hours": 2,
         "sync_minutes": 0,
@@ -91,12 +79,6 @@ def _make_default_queue(name):
         "stop_at_time": "07:30:00",
         "retries_enabled": False,
         "retries_count": 10,
-        "open_file_enabled": False,
-        "open_file_path": "",
-        "exit_app_when_done": False,
-        "turn_off_enabled": False,
-        "turn_off_action": "Shut down",
-        "force_terminate": False,
         "sync_interval_enabled": False,
         "sync_hours": 2,
         "sync_minutes": 0,
@@ -445,52 +427,6 @@ class SchedulerDialog(QDialog):
         layout.addLayout(retries_row)
         self.chk_retries.toggled.connect(self.spin_retries.setEnabled)
 
-        # Open file when done
-        open_row = QHBoxLayout()
-        self.chk_open_file = QCheckBox("Open the following file when done:")
-        open_row.addWidget(self.chk_open_file)
-        layout.addLayout(open_row)
-
-        file_row = QHBoxLayout()
-        file_row.setContentsMargins(20, 0, 0, 0)
-        self.txt_open_file = QLineEdit()
-        self.txt_open_file.setEnabled(False)
-        file_row.addWidget(self.txt_open_file, 1)
-        self.btn_browse_file = QPushButton("...")
-        self.btn_browse_file.setFixedWidth(30)
-        self.btn_browse_file.setEnabled(False)
-        self.btn_browse_file.clicked.connect(self._browse_open_file)
-        file_row.addWidget(self.btn_browse_file)
-        layout.addLayout(file_row)
-        self.chk_open_file.toggled.connect(self.txt_open_file.setEnabled)
-        self.chk_open_file.toggled.connect(self.btn_browse_file.setEnabled)
-
-        # Exit app when done
-        self.chk_exit_app = QCheckBox("Exit Bengal Download Manager when done")
-        layout.addWidget(self.chk_exit_app)
-
-        # Turn off computer when done
-        turnoff_row = QHBoxLayout()
-        self.chk_turn_off = QCheckBox("Turn off computer when done")
-        turnoff_row.addWidget(self.chk_turn_off)
-        self.combo_turn_off = QComboBox()
-        self.combo_turn_off.addItems(["Shut down", "Hibernate", "Sleep", "Stand by"])
-        self.combo_turn_off.setEnabled(False)
-        turnoff_row.addWidget(self.combo_turn_off)
-        turnoff_row.addStretch()
-        layout.addLayout(turnoff_row)
-
-        # Force terminate — child of turn_off, disabled when turn_off is unchecked
-        self.chk_force = QCheckBox("Force processes to terminate")
-        self.chk_force.setEnabled(False)
-        self.chk_force.setContentsMargins(20, 0, 0, 0)
-        layout.addWidget(self.chk_force)
-
-        self.chk_turn_off.toggled.connect(self.combo_turn_off.setEnabled)
-        self.chk_turn_off.toggled.connect(self.chk_force.setEnabled)
-        # When turn_off is unchecked, also uncheck force
-        self.chk_turn_off.toggled.connect(lambda checked: self.chk_force.setChecked(False) if not checked else None)
-
         layout.addStretch()
 
     def _build_files_tab(self):
@@ -607,17 +543,6 @@ class SchedulerDialog(QDialog):
         self.chk_retries.setChecked(q.get("retries_enabled", False))
         self.spin_retries.setValue(q.get("retries_count", 10))
 
-        # Open file
-        self.chk_open_file.setChecked(q.get("open_file_enabled", False))
-        self.txt_open_file.setText(q.get("open_file_path", ""))
-
-        # Post-completion
-        self.chk_exit_app.setChecked(q.get("exit_app_when_done", False))
-        self.chk_turn_off.setChecked(q.get("turn_off_enabled", False))
-        idx = self.combo_turn_off.findText(q.get("turn_off_action", "Shut down"))
-        self.combo_turn_off.setCurrentIndex(max(0, idx))
-        self.chk_force.setChecked(q.get("force_terminate", False))
-
         # Concurrent downloads spinbox
         self.spin_concurrent.setValue(q.get("max_concurrent", 4))
 
@@ -628,6 +553,8 @@ class SchedulerDialog(QDialog):
         # Files table — populate if on that tab
         if self.tabs.currentIndex() == 1:
             self._refresh_files_table(index)
+
+        self._update_action_buttons()
 
     def _save_ui_to_queue(self, index):
         """Saves current right panel state back into the queue dict at index."""
@@ -659,14 +586,6 @@ class SchedulerDialog(QDialog):
 
         q["retries_enabled"] = self.chk_retries.isChecked()
         q["retries_count"] = self.spin_retries.value()
-
-        q["open_file_enabled"] = self.chk_open_file.isChecked()
-        q["open_file_path"] = self.txt_open_file.text()
-
-        q["exit_app_when_done"] = self.chk_exit_app.isChecked()
-        q["turn_off_enabled"] = self.chk_turn_off.isChecked()
-        q["turn_off_action"] = self.combo_turn_off.currentText()
-        q["force_terminate"] = self.chk_force.isChecked()
 
         q["max_concurrent"] = self.spin_concurrent.value()
 
@@ -792,11 +711,6 @@ class SchedulerDialog(QDialog):
         if self.queues:
             self.queue_list.setCurrentRow(min(row, len(self.queues) - 1))
 
-    def _browse_open_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Select file to open when done")
-        if path:
-            self.txt_open_file.setText(path)
-
     def _apply_changes(self):
         if self._selected_index >= 0:
             self._save_ui_to_queue(self._selected_index)
@@ -813,12 +727,32 @@ class SchedulerDialog(QDialog):
                 item.setText(q["name"])
 
     def _on_start_now(self):
-        """Placeholder: start the selected queue's downloads immediately."""
-        pass
+        """Start the selected queue's downloads immediately."""
+        mw = getattr(self, "_main_window", None)
+        if mw and self._selected_index >= 0 and self._selected_index < len(self.queues):
+            q_name = self.queues[self._selected_index].get("name", "Main download queue")
+            if hasattr(mw, "_queue_action_start"):
+                mw._queue_action_start(q_name)
+            self._update_action_buttons()
 
     def _on_stop(self):
-        """Placeholder: stop the selected queue's downloads."""
-        pass
+        """Stop the selected queue's downloads."""
+        mw = getattr(self, "_main_window", None)
+        if mw and self._selected_index >= 0 and self._selected_index < len(self.queues):
+            q_name = self.queues[self._selected_index].get("name", "Main download queue")
+            if hasattr(mw, "_queue_action_stop"):
+                mw._queue_action_stop(q_name)
+            self._update_action_buttons()
+
+    def _update_action_buttons(self):
+        mw = getattr(self, "_main_window", None)
+        if mw and hasattr(mw, "_is_queue_active") and self._selected_index >= 0 and self._selected_index < len(self.queues):
+            q_name = self.queues[self._selected_index].get("name", "")
+            is_active = mw._is_queue_active(q_name)
+            if hasattr(self, "btn_start"):
+                self.btn_start.setEnabled(not is_active)
+            if hasattr(self, "btn_stop"):
+                self.btn_stop.setEnabled(is_active)
 
     def _show_queue_context_menu(self, pos):
         item = self.queue_list.itemAt(pos)
@@ -830,18 +764,24 @@ class SchedulerDialog(QDialog):
         if not q:
             return
 
+        mw = getattr(self, "_main_window", None)
+        q_name = q.get("name", "")
+        queue_is_running = mw._is_queue_active(q_name) if mw and hasattr(mw, "_is_queue_active") else False
+
         menu = QMenu(self)
 
         act_start = menu.addAction("Start now")
-        act_start.triggered.connect(self._on_start_now)
+        act_start.setEnabled(not queue_is_running)
+        act_start.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self._on_start_now()))
 
         act_stop = menu.addAction("Stop")
-        act_stop.triggered.connect(self._on_stop)
+        act_stop.setEnabled(queue_is_running)
+        act_stop.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self._on_stop()))
 
         menu.addSeparator()
 
         act_edit = menu.addAction("Edit queue")
-        act_edit.triggered.connect(lambda: self.queue_list.setCurrentRow(row))
+        act_edit.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self.tabs.setCurrentIndex(1)))
 
         act_schedule = menu.addAction("Schedule")
         act_schedule.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self.tabs.setCurrentIndex(0)))

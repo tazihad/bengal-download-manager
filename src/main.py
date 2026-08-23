@@ -71,7 +71,7 @@ from ui.dialogs import (
 from core.workers import DownloadWorker, Aria2Worker
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
-    load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
+    load_proxy_config, load_extension_config, get_aria2_proxy_url,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
     is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory
 )

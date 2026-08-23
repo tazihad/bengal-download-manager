@@ -214,6 +214,13 @@ class DownloadProgressDialog(QDialog):
         self.btn_pause.clicked.connect(self.toggle_pause) 
         btn_layout.addWidget(self.btn_pause)
 
+        self.btn_hide = QPushButton("Hide")
+        self.btn_hide.setFixedWidth(80)
+        self.btn_hide.setFixedHeight(30)
+        self.btn_hide.setToolTip("Hide progress window and continue downloading in the background")
+        self.btn_hide.clicked.connect(self.hide)
+        btn_layout.addWidget(self.btn_hide)
+
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)

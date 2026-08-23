@@ -196,7 +196,6 @@ def test_thread_concurrency(tmp_path):
                     "queue": "Main download queue"
                 }]
                 save_all_downloads(d, db_path=db_file)
-                time.sleep(0.01)
         except Exception as e:
             errors.append(e)
 
@@ -205,7 +204,6 @@ def test_thread_concurrency(tmp_path):
             for _ in range(15):
                 get_all_downloads(db_path=db_file)
                 get_all_queues(db_path=db_file)
-                time.sleep(0.01)
         except Exception as e:
             errors.append(e)
 
