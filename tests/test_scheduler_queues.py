@@ -497,3 +497,62 @@ def test_queue_context_menu_stylesheet_and_disabled_delete(qapp, monkeypatch):
     assert "Delete" in sb_actions
     assert sb_actions["Delete"].isEnabled() is False
 
+
+def test_download_context_menu_queue_operations(qapp, monkeypatch):
+    """Verify Move to queue submenu, Delete from queue, and creating a new queue from context menu."""
+    from PyQt6.QtWidgets import QTableWidgetItem, QInputDialog
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.download_table.setRowCount(0)
+
+    # Insert 2 test downloads
+    win.download_table.insertRow(0)
+    item0 = QTableWidgetItem("fileA.zip")
+    item0.setData(Qt.ItemDataRole.UserRole, "http://example.com/fileA.zip")
+    item0.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(0, 0, item0)
+    win.download_table.setItem(0, 2, QTableWidgetItem("Complete"))
+
+    win.download_table.insertRow(1)
+    item1 = QTableWidgetItem("fileB.zip")
+    item1.setData(Qt.ItemDataRole.UserRole, "http://example.com/fileB.zip")
+    item1.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(1, 0, item1)
+    win.download_table.setItem(1, 2, QTableWidgetItem("Complete"))
+
+    # Select item0 and inspect context menu
+    captured_menus = []
+    monkeypatch.setattr(QMenu, "exec", lambda self, pos: captured_menus.append(self))
+
+    win.download_table.selectRow(0)
+    win.show_context_menu(QPoint(10, 10))
+
+    assert len(captured_menus) == 1
+    ctx_menu = captured_menus[0]
+
+    actions_dict = {act.text(): act for act in ctx_menu.actions()}
+    assert "Move to queue" in actions_dict
+    assert "Delete from queue" in actions_dict
+
+    # Move to Synchronization queue
+    win.download_table.selectRow(0)
+    win._move_selected_to_queue("Synchronization queue")
+    assert item0.data(Qt.ItemDataRole.UserRole + 8) == "Synchronization queue"
+
+    # Delete from queue
+    win._delete_selected_from_queue()
+    assert item0.data(Qt.ItemDataRole.UserRole + 8) == ""
+
+    # Create new queue via dialog mock and move selected
+    monkeypatch.setattr(QInputDialog, "getText", lambda parent, title, label: ("Nightly Queue", True))
+    win.download_table.selectRow(1)
+    win._create_new_queue_and_move_selected()
+
+    assert item1.data(Qt.ItemDataRole.UserRole + 8) == "Nightly Queue"
+    assert any(q.get("name") == "Nightly Queue" for q in win._queues_data)
+    assert "Nightly Queue" in win._sidebar_queue_names
+
+    win.close()
+
+

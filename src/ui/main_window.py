@@ -1553,7 +1553,7 @@ class MainWindow(QMainWindow):
                     "rate": safe_get(4),
                     "last_try": str(last_try_ts),   # Save raw timestamp
                     "date_added": str(date_added_ts), # Save raw timestamp
-                    "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue",
+                    "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) if item_name.data(Qt.ItemDataRole.UserRole + 8) is not None else "Main download queue",
                 }
                 downloads.append(dl_data)
             
@@ -1586,7 +1586,7 @@ class MainWindow(QMainWindow):
                 item_name.setData(Qt.ItemDataRole.UserRole + 1, d.get("path", ""))
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, last_try_ts)   # Raw Last Try TS
                 item_name.setData(Qt.ItemDataRole.UserRole + 3, date_added_ts) # Raw Date Added TS
-                item_name.setData(Qt.ItemDataRole.UserRole + 8, d.get("queue", "Main download queue"))  # Queue
+                item_name.setData(Qt.ItemDataRole.UserRole + 8, d.get("queue", "Main download queue") if d.get("queue") is not None else "Main download queue")  # Queue
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -2268,7 +2268,9 @@ class MainWindow(QMainWindow):
         item = self.download_table.itemAt(pos)
         if not item: return
 
-        self.download_table.selectRow(item.row())
+        selected_rows = set(it.row() for it in self.download_table.selectedItems())
+        if item.row() not in selected_rows:
+            self.download_table.selectRow(item.row())
         
         row_index = item.row()
         item_0 = self.download_table.item(row_index, 0)
@@ -2309,11 +2311,44 @@ class MainWindow(QMainWindow):
         act_resume.triggered.connect(self.resume_selected_download)
         act_resume.setEnabled(is_resumable)
         
-        act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
-        act_refresh = QAction(get_themed_icon("clear_completed"), "Refresh download address", self)
-        
         menu.addActions([act_resume, act_stop])
         menu.addSeparator()
+
+        # Queue Management: Move to queue & Delete from queue (IDM Style)
+        menu_queue = menu.addMenu(get_themed_icon("scheduler"), "Move to queue")
+        
+        existing_queues = []
+        if hasattr(self, "_queues_data") and self._queues_data:
+            for q in self._queues_data:
+                qname = q.get("name") if isinstance(q, dict) else str(q)
+                if qname and qname not in existing_queues:
+                    existing_queues.append(qname)
+        if "Main download queue" not in existing_queues:
+            existing_queues.insert(0, "Main download queue")
+        if "Synchronization queue" not in existing_queues:
+            existing_queues.append("Synchronization queue")
+
+        current_item_queue = item_0.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+
+        for qname in existing_queues:
+            act_q = menu_queue.addAction(qname)
+            if qname == current_item_queue:
+                act_q.setCheckable(True)
+                act_q.setChecked(True)
+            act_q.triggered.connect(lambda checked=False, qn=qname: self._move_selected_to_queue(qn))
+
+        menu_queue.addSeparator()
+        act_create_queue = menu_queue.addAction(get_themed_icon("add_url"), "Create new queue...")
+        act_create_queue.triggered.connect(self._create_new_queue_and_move_selected)
+
+        act_del_from_queue = QAction(get_themed_icon("clear"), "Delete from queue", self)
+        act_del_from_queue.triggered.connect(self._delete_selected_from_queue)
+        act_del_from_queue.setEnabled(bool(item_0.data(Qt.ItemDataRole.UserRole + 8)))
+        menu.addAction(act_del_from_queue)
+        menu.addSeparator()
+
+        act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
+        act_refresh = QAction(get_themed_icon("clear_completed"), "Refresh download address", self)
         menu.addActions([act_redownload, act_refresh])
         menu.addSeparator()
         
@@ -2494,6 +2529,63 @@ class MainWindow(QMainWindow):
         # Keep reference
         self._prop_dlg = PropertiesDialog(data, self)
         self._prop_dlg.show()
+
+    def _move_selected_to_queue(self, queue_name: str):
+        """Assigns selected download items to the specified queue."""
+        selected_rows = set(it.row() for it in self.download_table.selectedItems())
+        if not selected_rows:
+            return
+        for r in selected_rows:
+            item_0 = self.download_table.item(r, 0)
+            if item_0:
+                item_0.setData(Qt.ItemDataRole.UserRole + 8, queue_name)
+        self.save_data()
+        current_cat = self.category_tree.currentItem()
+        if current_cat:
+            self.filter_downloads(current_cat, 0)
+
+    def _delete_selected_from_queue(self):
+        """Removes selected download items from any queue."""
+        selected_rows = set(it.row() for it in self.download_table.selectedItems())
+        if not selected_rows:
+            return
+        for r in selected_rows:
+            item_0 = self.download_table.item(r, 0)
+            if item_0:
+                item_0.setData(Qt.ItemDataRole.UserRole + 8, "")
+        self.save_data()
+        current_cat = self.category_tree.currentItem()
+        if current_cat:
+            self.filter_downloads(current_cat, 0)
+
+    def _create_new_queue_and_move_selected(self):
+        """Prompts for a new queue name, creates it, and moves selected items to it."""
+        from PyQt6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "New Queue", "Enter queue name:")
+        if ok and name.strip():
+            queue_name = name.strip()
+            from ui.dialogs.scheduler import _make_default_queue
+            if not hasattr(self, "_queues_data") or not self._queues_data:
+                self._queues_data = []
+
+            if not any(q.get("name") == queue_name for q in self._queues_data):
+                new_q = _make_default_queue(queue_name)
+                self._queues_data.append(new_q)
+                try:
+                    upsert_queue(new_q)
+                except Exception:
+                    pass
+
+                if hasattr(self, "queues_header") and self.queues_header:
+                    child = QTreeWidgetItem(self.queues_header, [queue_name])
+                    child.setIcon(0, get_themed_icon("scheduler"))
+                    child.setToolTip(0, f"Queue: {queue_name}")
+                    child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+                    if not hasattr(self, "_sidebar_queue_names"):
+                        self._sidebar_queue_names = []
+                    self._sidebar_queue_names.append(queue_name)
+
+            self._move_selected_to_queue(queue_name)
 
     def open_add_url(self, paste_clipboard=False):
         from ui.dialogs import AddUrlDialog
