@@ -565,11 +565,11 @@ class MainWindow(QMainWindow):
 
         # 5. Help
         help_menu = menu_bar.addMenu("&Help")
-        self.action_homepage = QAction(get_themed_icon("browse"), "BDM &Homepage", self)
+        self.action_homepage = QAction("BDM &Homepage", self)
         self.action_homepage.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager")))
         help_menu.addAction(self.action_homepage)
 
-        self.action_bug_report = QAction(get_themed_icon("clear"), "&File bug report", self)
+        self.action_bug_report = QAction("&File bug report", self)
         self.action_bug_report.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/issues")))
         help_menu.addAction(self.action_bug_report)
 

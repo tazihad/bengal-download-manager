@@ -1563,9 +1563,11 @@ def test_view_menu_hide_categories_and_help_menu_links(qapp, monkeypatch):
     assert not win.category_tree.isHidden()
     assert win.action_hide_categories.isChecked() is False
 
-    # 2. Help menu actions
+    # 2. Help menu actions (text-only, no icons)
     assert hasattr(win, "action_homepage")
     assert hasattr(win, "action_bug_report")
+    assert win.action_homepage.icon().isNull() is True
+    assert win.action_bug_report.icon().isNull() is True
 
     opened_urls = []
     monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened_urls.append(url.toString() if hasattr(url, "toString") else str(url)))
