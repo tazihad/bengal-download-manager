@@ -324,11 +324,53 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor("#000000"))
     pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor("#000000"))
 
+    # ── Structural derived roles ───────────────────────────────────────────────
+    # QPalette() constructor copies unset roles from the CURRENT app palette,
+    # not from Qt Fusion defaults. On Snap the GNOME extension (gnome-46-2404
+    # content snap) injects a GTK3 *light* palette before Python starts:
+    #   Midlight ≈ #efefec (near-white) → toolbar hover appears white
+    #   PlaceholderText = rgb(0,0,0) α=127 (black) → sidebar headers unreadable
+    # Flatpak/AppImage/native don't see this because their pre-existing app
+    # palette is already dark.  Fix: set every role we depend on explicitly so
+    # no platform palette can bleed through.
+    bg_c  = QColor(bg)
+    btn_c = QColor(btn)
+    is_dark = bg_c.value() < 128
+
+    if is_dark:
+        midlight      = bg_c.lighter(120)   # subtly brighter than Window
+        mid           = bg_c.darker(115)    # subtly darker than Window
+        dark_c        = bg_c.darker(140)
+        light_c       = bg_c.lighter(150)
+        shadow        = QColor(0, 0, 0, 180)
+        placeholder_c = QColor(text)
+        placeholder_c.setAlpha(100)         # muted light text on dark bg
+    else:
+        midlight      = bg_c.lighter(110)
+        mid           = bg_c.darker(110)
+        dark_c        = bg_c.darker(130)
+        light_c       = bg_c.lighter(120)
+        shadow        = QColor(0, 0, 0, 80)
+        placeholder_c = QColor(text)
+        placeholder_c.setAlpha(120)         # muted dark text on light bg
+
+    pal.setColor(QPalette.ColorRole.Midlight,        midlight)
+    pal.setColor(QPalette.ColorRole.Mid,             mid)
+    pal.setColor(QPalette.ColorRole.Dark,            dark_c)
+    pal.setColor(QPalette.ColorRole.Light,           light_c)
+    pal.setColor(QPalette.ColorRole.Shadow,          shadow)
+    pal.setColor(QPalette.ColorRole.Link,            QColor(link))
+    pal.setColor(QPalette.ColorRole.LinkVisited,     QColor(link))
+    pal.setColor(QPalette.ColorRole.PlaceholderText, placeholder_c)
+    pal.setColor(QPalette.ColorGroup.Active,   QPalette.ColorRole.Button, btn_c)
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Button, btn_c)
+
     dis_text = QColor(text)
     dis_text.setAlpha(90)
-    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, dis_text)
-    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, dis_text)
-    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, dis_text)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText,      dis_text)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText,      dis_text)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text,            dis_text)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.PlaceholderText, dis_text)
     return pal
 
 

@@ -58,6 +58,13 @@ parts:
     source: .
     python-requirements:
       - requirements.txt
+    # Do NOT add librsvg2-2 or librsvg2-common to stage-packages.
+    # The gnome-46-2404 content snap provides librsvg-2.so.2 v2.61.1, which
+    # libpixbufloader_svg.so was compiled against and requires the symbol
+    # rsvg_handle_get_pixbuf_and_error.  Staging the older v2.50.0 (pulled
+    # in transitively by ffmpeg/libgl) places it earlier in LD_LIBRARY_PATH
+    # and causes:
+    #   g_module_open() failed … undefined symbol: rsvg_handle_get_pixbuf_and_error
     stage-packages:
       - aria2
       - ffmpeg
@@ -91,3 +98,12 @@ parts:
 
       # 4. Install launcher wrapper
       install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+    stage:
+      # Exclude staged librsvg2 so the GNOME platform's newer v2.61.1 is used
+      # at runtime.  Without this, the older v2.50.0 (transitively pulled by
+      # ffmpeg) shadows it and breaks the gdk-pixbuf SVG loader with:
+      #   undefined symbol: rsvg_handle_get_pixbuf_and_error
+      - -usr/lib/*/librsvg*
+      - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
+      - "*"
+
