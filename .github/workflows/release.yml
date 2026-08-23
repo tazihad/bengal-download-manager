@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'main'
+      - 'feat/**'
     tags:
       - 'v*'
     paths-ignore:
@@ -162,6 +163,12 @@ jobs:
           version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
+      - name: Build Snap Package
+        uses: ./.github/actions/build-snap
+        with:
+          version: ${{ needs.prepare.outputs.version }}
+          arch: ${{ matrix.arch }}
+
       - name: Stage Release Artifacts
         run: |
           mkdir -p release_artifacts
@@ -169,6 +176,7 @@ jobs:
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage.zsync release_artifacts/ 2>/dev/null || true
           cp dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
+          cp dist/*.snap release_artifacts/ 2>/dev/null || cp *.snap release_artifacts/ 2>/dev/null || true
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
             cp extension-chromium.crx release_artifacts/ 2>/dev/null || true
             cp extension-firefox.xpi release_artifacts/ 2>/dev/null || true
@@ -253,15 +261,18 @@ jobs:
               elif filename.endswith(".flatpak"):
                   arch = "ARM64" if "aarch64" in filename else "x86_64"
                   return (2, f"📦 **Flatpak Bundle ({arch})**", filename)
+              elif filename.endswith(".snap"):
+                  arch = "ARM64" if "arm64" in filename or "aarch64" in filename else "x86_64"
+                  return (3, f"🛍️ **Snap Package ({arch})**", filename)
               elif filename.endswith(".crx"):
-                  return (3, "🌐 **Chrome / Chromium Extension**", filename)
+                  return (4, "🌐 **Chrome / Chromium Extension**", filename)
               elif filename.endswith(".xpi"):
-                  return (4, "🌐 **Firefox Extension**", filename)
+                  return (5, "🌐 **Firefox Extension**", filename)
               elif filename.endswith(".zsync"):
-                  return (6, "🔄 **AppImage ZSync Delta**", filename)
+                  return (7, "🔄 **AppImage ZSync Delta**", filename)
               else:
                   arch = "ARM64" if "aarch64" in filename else "x86_64"
-                  return (5, f"⚙️ **Standalone Binary ({arch})**", filename)
+                  return (6, f"⚙️ **Standalone Binary ({arch})**", filename)
 
           categorized = [categorize(f) for f in files]
           categorized.sort(key=lambda x: (x[0], x[2]))

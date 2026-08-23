@@ -34,6 +34,21 @@ runs:
         ' "$VER" "$TODAY"
             cat flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml
           fi
+
+          if [ -f "snap/snapcraft.yaml" ]; then
+            echo "Updating snapcraft.yaml with version: $VER"
+            python3 -c '
+        import sys, re
+        ver = sys.argv[1]
+        path = "snap/snapcraft.yaml"
+        with open(path, "r") as f:
+            content = f.read()
+        content = re.sub(r"version:\s*[\x27\"][^\x27\"]+[\x27\"]", f"version: \x27{ver}\x27", content)
+        with open(path, "w") as f:
+            f.write(content)
+        ' "$VER"
+            grep "^version:" snap/snapcraft.yaml
+          fi
         else
           echo "No version provided to update-version action."
         fi

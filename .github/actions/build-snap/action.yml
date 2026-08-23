@@ -1,0 +1,41 @@
+name: 'Build Snap'
+description: 'Builds the Snap package using Snapcraft'
+inputs:
+  version:
+    description: 'Version string (without leading v)'
+    required: false
+    default: ''
+  arch:
+    description: 'Target architecture (x86_64 or aarch64)'
+    required: false
+    default: 'x86_64'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update Snapcraft Version
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ -z "$VERSION" ]; then
+          VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "1.0.0")
+        fi
+        VERSION="${VERSION#v}"
+        echo "Setting snapcraft.yaml version to: $VERSION"
+        python3 -c "import sys, re; f=open('snap/snapcraft.yaml', 'r'); c=f.read(); f.close(); c=re.sub(r\"version:\s*['\"][^'\"]+['\"]\", f\"version: '{sys.argv[1]}'\", c); f=open('snap/snapcraft.yaml', 'w'); f.write(c); f.close()" "$VERSION"
+        grep "^version:" snap/snapcraft.yaml
+
+    - name: Build Snap Package
+      uses: snapcore/action-build@v1
+      id: snapcraft
+      with:
+        path: .
+
+    - name: Move Snap Artifact
+      shell: bash
+      run: |
+        mkdir -p dist
+        if [ -n "${{ steps.snapcraft.outputs.snap }}" ] && [ -f "${{ steps.snapcraft.outputs.snap }}" ]; then
+          cp "${{ steps.snapcraft.outputs.snap }}" dist/
+        fi
+        find . -maxdepth 1 -name "*.snap" -exec cp {} dist/ \; 2>/dev/null || true
