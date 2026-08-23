@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QMetaObject, Q_ARG
 from core.utils import (
-    load_proxy_config, save_proxy_config, 
+    load_proxy_config, save_proxy_config, get_aria2_proxy_url,
     load_extension_config, save_extension_config, call_aria2_rpc,
     find_aria2, choose_portal_save_path, choose_portal_folder_path, choose_portal_open_file_path,
     is_autostart_enabled, set_autostart_enabled
@@ -63,7 +63,7 @@ class OptionsDialog(QDialog):
         
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
-        self.tabs.addTab(self.proxy_tab, "Proxy / Socks")
+        self.tabs.addTab(self.proxy_tab, "Proxy")
 
         self.extension_tab = QWidget()
         self.setup_extension_tab()
@@ -347,7 +347,7 @@ class OptionsDialog(QDialog):
                     version = result.get('version', 'Unknown')
                     engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
                 elif proxy.get("mode") == "manual":
-                    engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting (via Proxychains)..."
+                    engine_status = "<span style='color: #3498db;'>●</span> Aria2 Starting..."
             except:
                 pass
             
@@ -479,25 +479,21 @@ class OptionsDialog(QDialog):
         
         self.rb_http = QRadioButton("HTTP")
         self.rb_http.toggled.connect(self.on_proxy_toggle)
-        self.rb_socks4 = QRadioButton("SOCKS4")
-        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
-        self.rb_socks5 = QRadioButton("SOCKS5")
-        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
+        self.rb_https = QRadioButton("HTTPS")
+        self.rb_https.toggled.connect(self.on_proxy_toggle)
         
         self.bg_type.addButton(self.rb_http)
-        self.bg_type.addButton(self.rb_socks4)
-        self.bg_type.addButton(self.rb_socks5)
+        self.bg_type.addButton(self.rb_https)
         
         type_layout.addWidget(QLabel("Type:"))
         type_layout.addWidget(self.rb_http)
-        type_layout.addWidget(self.rb_socks4)
-        type_layout.addWidget(self.rb_socks5)
+        type_layout.addWidget(self.rb_https)
         type_layout.addStretch()
         manual_layout.addLayout(type_layout)
         
         # Host / Port
         addr_layout = QHBoxLayout()
-        addr_layout.addWidget(QLabel("Proxy/Socks host:"))
+        addr_layout.addWidget(QLabel("Proxy host:"))
         self.txt_host = QLineEdit()
         self.txt_host.textChanged.connect(self.save_proxy_data)
         self.txt_host.textChanged.connect(self.refresh_engine_status)
@@ -542,8 +538,7 @@ class OptionsDialog(QDialog):
         self.rb_manual.blockSignals(True)
         self.rb_no_proxy.blockSignals(True)
         self.rb_http.blockSignals(True)
-        self.rb_socks4.blockSignals(True)
-        self.rb_socks5.blockSignals(True)
+        self.rb_https.blockSignals(True)
         self.txt_host.blockSignals(True)
         self.spin_port.blockSignals(True)
         self.chk_auth.blockSignals(True)
@@ -555,10 +550,11 @@ class OptionsDialog(QDialog):
         else:
             self.rb_no_proxy.setChecked(True)
             
-        ptype = self.proxy_data.get("type", "http")
-        if ptype == "socks4": self.rb_socks4.setChecked(True)
-        elif ptype == "socks5": self.rb_socks5.setChecked(True)
-        else: self.rb_http.setChecked(True)
+        ptype = str(self.proxy_data.get("type", "http")).lower()
+        if ptype == "https":
+            self.rb_https.setChecked(True)
+        else:
+            self.rb_http.setChecked(True)
         
         self.txt_host.setText(self.proxy_data.get("host", ""))
         self.spin_port.setValue(self.proxy_data.get("port", 8080))
@@ -569,8 +565,7 @@ class OptionsDialog(QDialog):
         self.rb_manual.blockSignals(False)
         self.rb_no_proxy.blockSignals(False)
         self.rb_http.blockSignals(False)
-        self.rb_socks4.blockSignals(False)
-        self.rb_socks5.blockSignals(False)
+        self.rb_https.blockSignals(False)
         self.txt_host.blockSignals(False)
         self.spin_port.blockSignals(False)
         self.chk_auth.blockSignals(False)
@@ -859,9 +854,7 @@ class OptionsDialog(QDialog):
 
     def save_proxy_data(self):
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
-        ptype = "http"
-        if self.rb_socks4.isChecked(): ptype = "socks4"
-        if self.rb_socks5.isChecked(): ptype = "socks5"
+        ptype = "https" if self.rb_https.isChecked() else "http"
         
         self.proxy_data = {
             "mode": mode,
@@ -873,6 +866,15 @@ class OptionsDialog(QDialog):
             "password": self.txt_pass.text()
         }
         save_proxy_config(self.proxy_data)
+
+        # Dynamically update running Aria2 daemon proxy settings via RPC
+        proxy_url = get_aria2_proxy_url(self.proxy_data)
+        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        try:
+            call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": proxy_url}], port=rpc_port, token=token)
+        except Exception:
+            pass
 
     def save_extension_data(self):
         max_c = 8

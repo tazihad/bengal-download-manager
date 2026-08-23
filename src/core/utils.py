@@ -329,48 +329,43 @@ def save_extension_config(data):
             json.dump(data, f, indent=4)
     except: pass
 
-def get_proxychains_bin():
-    return shutil.which("proxychains4") or shutil.which("proxychains")
-
-def generate_proxychains_config():
-    proxy = load_proxy_config()
-    if proxy.get("mode") != "manual" or not proxy.get("host"):
-        return None
+def get_aria2_proxy_url(proxy_config=None) -> str:
+    """
+    Returns native proxy URI for Aria2 (--all-proxy option), or empty string if no proxy configured.
+    Format: [http|https]://[user:password@]host:port
+    """
+    if proxy_config is None:
+        proxy_config = load_proxy_config()
     
-    config_path = os.path.join(get_config_dir(), "proxychains.conf")
-    ptype = proxy.get("type", "http")
-    host = proxy.get("host")
-    port = proxy.get("port")
-    user = proxy.get("user")
-    password = proxy.get("password")
-    
-    # proxychains supports: http, socks4, socks5
-    # Format: type host port [user pass]
-    
-    content = [
-        "strict_chain",
-        "proxy_dns",
-        "quiet_mode",
-        "remote_dns_subnet 224",
-        "tcp_read_time_out 15000",
-        "tcp_connect_time_out 8000",
-        "localnet 127.0.0.0",
-        "[ProxyList]"
-    ]
-    
-    # proxychains expects 'socks4' or 'socks5' (no 'socks')
-    proxy_line = f"{ptype} {host} {port}"
-    if proxy.get("auth") and user and password:
-        proxy_line += f" {user} {password}"
-    
-    content.append(proxy_line)
-    
+    if not isinstance(proxy_config, dict):
+        return ""
+        
+    if proxy_config.get("mode") != "manual":
+        return ""
+        
+    host = str(proxy_config.get("host") or "").strip()
+    if not host:
+        return ""
+        
+    ptype = str(proxy_config.get("type") or "http").lower()
+    if ptype not in ("http", "https"):
+        ptype = "http"
+        
     try:
-        with open(config_path, "w") as f:
-            f.write("\n".join(content))
-        return config_path
-    except:
-        return None
+        port = int(proxy_config.get("port") or 8080)
+    except (ValueError, TypeError):
+        port = 8080
+        
+    user = str(proxy_config.get("user") or "")
+    password = str(proxy_config.get("password") or "")
+    
+    if proxy_config.get("auth") and user and password:
+        from urllib.parse import quote
+        encoded_user = quote(user, safe="")
+        encoded_pass = quote(password, safe="")
+        return f"{ptype}://{encoded_user}:{encoded_pass}@{host}:{port}"
+    else:
+        return f"{ptype}://{host}:{port}"
 
 def call_aria2_rpc(method, params=None, port=56800, token=""):
     """

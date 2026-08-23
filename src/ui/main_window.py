@@ -66,7 +66,7 @@ from ui.dialogs import (
 from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
-    load_proxy_config, load_extension_config, generate_proxychains_config, get_proxychains_bin,
+    load_proxy_config, load_extension_config, get_aria2_proxy_url,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
     is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory
 )
@@ -269,23 +269,17 @@ class MainWindow(QMainWindow):
             ]
             if token: cmd.append(f"--rpc-secret={token}")
 
-            # --- APPLY PROXY SETTINGS VIA PROXYCHAINS ---
-            proxy_conf = generate_proxychains_config()
-            proxychains_bin = get_proxychains_bin()
+            # --- APPLY PROXY SETTINGS NATIVELY ---
+            proxy_url = get_aria2_proxy_url()
+            if proxy_url:
+                cmd.append(f"--all-proxy={proxy_url}")
 
-            popen_kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "env": get_clean_env()}
-
-            if proxy_conf and proxychains_bin:
-                if "proxychains4" in proxychains_bin:
-                    # Wrap aria2 command with proxychains v4 (supports -f)
-                    cmd = [proxychains_bin, "-f", proxy_conf] + cmd
-                else:
-                    # Wrap with proxychains v3 (no -f support)
-                    # It looks for proxychains.conf in the current working directory.
-                    cmd = [proxychains_bin] + cmd
-                    popen_kwargs["cwd"] = get_config_dir()
-
-            proc = subprocess.Popen(cmd, **popen_kwargs)
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=get_clean_env()
+            )
             return proc
         except Exception:
             return None

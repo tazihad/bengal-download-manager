@@ -1828,6 +1828,49 @@ def test_show_in_folder_single_nautilus(monkeypatch, tmp_path):
     assert nautilus_calls[0] == ["nautilus", "--select", str(dummy_file)]
 
 
+def test_options_dialog_proxy_tab(qapp, tmp_path, monkeypatch):
+    from ui.dialogs.options import OptionsDialog
+    from core.utils import load_proxy_config
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    dlg = OptionsDialog()
+    assert dlg.tabs.tabText(3) == "Proxy"
+
+    # Set manual HTTP proxy with auth
+    dlg.rb_manual.setChecked(True)
+    dlg.rb_http.setChecked(True)
+    dlg.txt_host.setText("192.168.1.100")
+    dlg.spin_port.setValue(8888)
+    dlg.chk_auth.setChecked(True)
+    dlg.txt_user.setText("proxyuser")
+    dlg.txt_pass.setText("proxypass")
+    dlg.save_proxy_data()
+
+    saved = load_proxy_config()
+    assert saved["mode"] == "manual"
+    assert saved["type"] == "http"
+    assert saved["host"] == "192.168.1.100"
+    assert saved["port"] == 8888
+    assert saved["auth"] is True
+    assert saved["user"] == "proxyuser"
+    assert saved["password"] == "proxypass"
+
+    # Switch to HTTPS without auth
+    dlg.rb_https.setChecked(True)
+    dlg.chk_auth.setChecked(False)
+    dlg.save_proxy_data()
+
+    saved2 = load_proxy_config()
+    assert saved2["mode"] == "manual"
+    assert saved2["type"] == "https"
+    assert saved2["auth"] is False
+
+    dlg.close()
+    dlg.deleteLater()
+
+
+
 
 
 

@@ -15,7 +15,7 @@
     <p>
       Bengal Download Manager is a lightweight, open-source download manager
       built with PyQt6, KDE Kirigami, and Aria2. It features multi-threaded segment
-      acceleration, browser extension integration, proxy/socks support, and
+      acceleration, browser extension integration, proxy support, and
       category organization.
     </p>
   </description>

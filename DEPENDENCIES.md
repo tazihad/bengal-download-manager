@@ -9,22 +9,21 @@ Before installing Python packages, ensure your system has the following installe
 - **Python 3.10+**: The core language runtime.
 - **Qt6 Libraries**: Required by PyQt6 for the GUI.
 - **Aria2**: The high-performance download engine (optional but highly recommended).
-- **Proxychains-ng** (Optional): If you plan to use the manual proxy feature via Proxychains.
 
 ### Installation on Ubuntu/Debian:
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-venv aria2 proxychains4 libqt6gui6
+sudo apt install python3 python3-pip python3-venv aria2 libqt6gui6
 ```
 
 ### Installation on Fedora:
 ```bash
-sudo dnf install python3 python3-pip aria2 proxychains-ng qt6-qtbase-gui
+sudo dnf install python3 python3-pip aria2 qt6-qtbase-gui
 ```
 
 ### Installation on Arch Linux:
 ```bash
-sudo pacman -S python python-pip aria2 proxychains-ng qt6-base
+sudo pacman -S python python-pip aria2 qt6-base
 ```
 
 ---
