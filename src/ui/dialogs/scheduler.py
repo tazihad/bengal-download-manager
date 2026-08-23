@@ -629,6 +629,8 @@ class SchedulerDialog(QDialog):
         if self.tabs.currentIndex() == 1:
             self._refresh_files_table(index)
 
+        self._update_action_buttons()
+
     def _save_ui_to_queue(self, index):
         """Saves current right panel state back into the queue dict at index."""
         if index < 0 or index >= len(self.queues):
@@ -813,12 +815,32 @@ class SchedulerDialog(QDialog):
                 item.setText(q["name"])
 
     def _on_start_now(self):
-        """Placeholder: start the selected queue's downloads immediately."""
-        pass
+        """Start the selected queue's downloads immediately."""
+        mw = getattr(self, "_main_window", None)
+        if mw and self._selected_index >= 0 and self._selected_index < len(self.queues):
+            q_name = self.queues[self._selected_index].get("name", "Main download queue")
+            if hasattr(mw, "_queue_action_start"):
+                mw._queue_action_start(q_name)
+            self._update_action_buttons()
 
     def _on_stop(self):
-        """Placeholder: stop the selected queue's downloads."""
-        pass
+        """Stop the selected queue's downloads."""
+        mw = getattr(self, "_main_window", None)
+        if mw and self._selected_index >= 0 and self._selected_index < len(self.queues):
+            q_name = self.queues[self._selected_index].get("name", "Main download queue")
+            if hasattr(mw, "_queue_action_stop"):
+                mw._queue_action_stop(q_name)
+            self._update_action_buttons()
+
+    def _update_action_buttons(self):
+        mw = getattr(self, "_main_window", None)
+        if mw and hasattr(mw, "_is_queue_active") and self._selected_index >= 0 and self._selected_index < len(self.queues):
+            q_name = self.queues[self._selected_index].get("name", "")
+            is_active = mw._is_queue_active(q_name)
+            if hasattr(self, "btn_start"):
+                self.btn_start.setEnabled(not is_active)
+            if hasattr(self, "btn_stop"):
+                self.btn_stop.setEnabled(is_active)
 
     def _show_queue_context_menu(self, pos):
         item = self.queue_list.itemAt(pos)
@@ -830,13 +852,19 @@ class SchedulerDialog(QDialog):
         if not q:
             return
 
+        mw = getattr(self, "_main_window", None)
+        q_name = q.get("name", "")
+        queue_is_running = mw._is_queue_active(q_name) if mw and hasattr(mw, "_is_queue_active") else False
+
         menu = QMenu(self)
 
         act_start = menu.addAction("Start now")
-        act_start.triggered.connect(self._on_start_now)
+        act_start.setEnabled(not queue_is_running)
+        act_start.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self._on_start_now()))
 
         act_stop = menu.addAction("Stop")
-        act_stop.triggered.connect(self._on_stop)
+        act_stop.setEnabled(queue_is_running)
+        act_stop.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self._on_stop()))
 
         menu.addSeparator()
 

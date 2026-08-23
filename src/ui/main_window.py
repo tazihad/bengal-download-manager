@@ -1364,8 +1364,36 @@ class MainWindow(QMainWindow):
             item.setExpanded(not item.isExpanded())
             return
 
-    def _show_sidebar_context_menu(self, pos):
+    def _is_queue_active(self, queue_name: str) -> bool:
+        """Returns True if any incomplete download in the queue is actively downloading, resuming, connecting, or queued."""
+        for r in range(self.download_table.rowCount()):
+            item_name = self.download_table.item(r, 0)
+            if not item_name:
+                continue
+            row_q = item_name.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+            if row_q != queue_name:
+                continue
 
+            status_item = self.download_table.item(r, 2)
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            is_completed = (
+                logic_status in ["Complete", "Finished"] or
+                status_text in ["Complete", "Finished"] or
+                (item_name.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
+            )
+            if is_completed:
+                continue
+
+            if self._is_download_active(item_name):
+                return True
+            if logic_status in ("Downloading", "Downloading...", "Resuming...", "Connecting...", "Queued"):
+                return True
+            if status_text in ("Downloading", "Downloading...", "Resuming...", "Connecting...", "Queued"):
+                return True
+        return False
+
+    def _show_sidebar_context_menu(self, pos):
         """Shows a context menu for queue items in the sidebar tree."""
         item = self.category_tree.itemAt(pos)
         if not item:
@@ -1382,11 +1410,14 @@ class MainWindow(QMainWindow):
 
         if is_queue_child:
             queue_name = item.text(0)
+            queue_is_running = self._is_queue_active(queue_name)
 
             act_start = menu.addAction("Start now")
+            act_start.setEnabled(not queue_is_running)
             act_start.triggered.connect(lambda: self._queue_action_start(queue_name))
 
             act_stop = menu.addAction("Stop")
+            act_stop.setEnabled(queue_is_running)
             act_stop.triggered.connect(lambda: self._queue_action_stop(queue_name))
 
             menu.addSeparator()

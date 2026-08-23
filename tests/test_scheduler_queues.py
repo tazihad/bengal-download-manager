@@ -618,4 +618,53 @@ def test_scheduler_start_download_on_app_startup(qapp, monkeypatch):
     win.close()
 
 
+def test_queue_context_menu_start_stop_activation(qapp, monkeypatch, tmp_path):
+    """Verify Start and Stop actions toggle their enabled states based on whether the queue is actively downloading."""
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    queue_name = "Main download queue"
+
+    # Initially empty / paused: queue is not active
+    assert win._is_queue_active(queue_name) is False
+
+    # Insert an incomplete active download into the queue
+    win.download_table.insertRow(0)
+    item_name = QTableWidgetItem("active_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "http://example.com/active_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/active_file.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 8, queue_name)
+    win.download_table.setItem(0, 0, item_name)
+
+    status_item = QTableWidgetItem("Downloading...")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
+    win.download_table.setItem(0, 2, status_item)
+
+    # Queue should now be active
+    assert win._is_queue_active(queue_name) is True
+
+    # Mark complete: queue is no longer active
+    status_item.setText("Complete")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
+    assert win._is_queue_active(queue_name) is False
+
+    # Mark Paused: queue is not active
+    status_item.setText("Paused")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+    assert win._is_queue_active(queue_name) is False
+
+    # Mark Queued: queue is active (waiting in queue)
+    status_item.setText("Queued")
+    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Queued")
+    assert win._is_queue_active(queue_name) is True
+
+    win.close()
+
+
+
 
