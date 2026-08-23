@@ -2048,6 +2048,7 @@ class MainWindow(QMainWindow):
                 "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
                 "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True,
                 "hide_categories": self.category_tree.isHidden() if hasattr(self, "category_tree") and self.category_tree else False,
+                "silent_download": getattr(self, "settings", {}).get("silent_download", False),
                 "show_start_dialog": getattr(self, "settings", {}).get("show_start_dialog", True),
                 "show_progress_dialog": getattr(self, "settings", {}).get("show_progress_dialog", True),
                 "show_complete_dialog": getattr(self, "settings", {}).get("show_complete_dialog", True),
@@ -2299,6 +2300,7 @@ class MainWindow(QMainWindow):
         settings["table_style"] = settings.get("table_style", "classic")
         self.system_notifications = settings.get("system_notifications", False)
         settings["system_notifications"] = self.system_notifications
+        settings["silent_download"] = settings.get("silent_download", False)
         settings["show_start_dialog"] = settings.get("show_start_dialog", True)
         settings["show_progress_dialog"] = settings.get("show_progress_dialog", True)
         settings["show_complete_dialog"] = settings.get("show_complete_dialog", True)
@@ -2979,10 +2981,12 @@ class MainWindow(QMainWindow):
         self.on_file_info_fetched(file_info)
 
     def on_file_info_fetched(self, file_info):
-        if not getattr(self, "settings", {}).get("show_start_dialog", True):
+        silent = getattr(self, "settings", {}).get("silent_download", False)
+        show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        if silent or not show_start:
             # Bypass FileInfoDialog: auto-start immediately
             filename = file_info.get("filename") or resolve_filename(file_info.get("url"), {})
-            show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True)
+            show_prog = False if silent else getattr(self, "settings", {}).get("show_progress_dialog", True)
             self.start_download(
                 url=file_info["url"], 
                 custom_filename=filename,
@@ -3993,10 +3997,11 @@ class MainWindow(QMainWindow):
                 return
 
             # Determine whether to show Download Complete Dialog (IDM style: suppressed in queues by default)
+            silent = getattr(self, "settings", {}).get("silent_download", False)
             is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
             show_comp = getattr(self, "settings", {}).get("show_complete_dialog", True)
             show_q_comp = getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
-            should_show_complete = show_q_comp if is_queue_run else show_comp
+            should_show_complete = False if silent else (show_q_comp if is_queue_run else show_comp)
 
             if should_show_complete:
                 # Show IDM-style Download Complete Dialog
@@ -4213,10 +4218,11 @@ class MainWindow(QMainWindow):
                         pass
 
                 # Determine whether to show Download Complete Dialog (IDM style: suppressed in queues by default)
+                silent = getattr(self, "settings", {}).get("silent_download", False)
                 is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
                 show_comp = getattr(self, "settings", {}).get("show_complete_dialog", True)
                 show_q_comp = getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
-                should_show_complete = show_q_comp if is_queue_run else show_comp
+                should_show_complete = False if silent else (show_q_comp if is_queue_run else show_comp)
 
                 if should_show_complete:
                     # Show IDM-style Download Complete Dialog

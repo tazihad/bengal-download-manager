@@ -263,16 +263,26 @@ class OptionsDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
+        def _get_setting(key, default):
+            if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+                return self.main_win.settings.get(key, default)
+            return default
+
         # 1. Dialog and Popup Windows (IDM-style)
         grp_dialogs = QGroupBox("Download Dialogs")
         vbox_dialogs = QVBoxLayout()
         vbox_dialogs.setContentsMargins(10, 10, 10, 10)
         vbox_dialogs.setSpacing(8)
 
-        def _get_setting(key, default):
-            if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
-                return self.main_win.settings.get(key, default)
-            return default
+        self.chk_silent_download = QCheckBox("Silent download mode (start immediately without showing any dialogs)")
+        self.chk_silent_download.setToolTip("When enabled, downloads start and finish silently in the background without showing Start, Progress, or Complete popup dialogs")
+        self.chk_silent_download.setChecked(_get_setting("silent_download", False))
+        vbox_dialogs.addWidget(self.chk_silent_download)
+
+        line_silent = QFrame()
+        line_silent.setFrameShape(QFrame.Shape.HLine)
+        line_silent.setFrameShadow(QFrame.Shadow.Sunken)
+        vbox_dialogs.addWidget(line_silent)
 
         self.chk_show_start_dialog = QCheckBox("Show start download dialog")
         self.chk_show_start_dialog.setToolTip("Show confirmation and destination dialog before starting a download")
@@ -293,6 +303,20 @@ class OptionsDialog(QDialog):
         self.chk_show_queue_complete_dialog.setToolTip("Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)")
         self.chk_show_queue_complete_dialog.setChecked(_get_setting("show_queue_complete_dialog", False))
         vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
+
+        def _on_silent_toggled(checked):
+            if checked:
+                self.chk_show_start_dialog.setChecked(False)
+                self.chk_show_progress_dialog.setChecked(False)
+                self.chk_show_complete_dialog.setChecked(False)
+            self.chk_show_start_dialog.setEnabled(not checked)
+            self.chk_show_progress_dialog.setEnabled(not checked)
+            self.chk_show_complete_dialog.setEnabled(not checked)
+            self.chk_show_queue_complete_dialog.setEnabled(not checked)
+
+        self.chk_silent_download.toggled.connect(_on_silent_toggled)
+        if self.chk_silent_download.isChecked():
+            _on_silent_toggled(True)
 
         grp_dialogs.setLayout(vbox_dialogs)
         layout.addWidget(grp_dialogs)
@@ -325,7 +349,7 @@ class OptionsDialog(QDialog):
         # Engine status label
         self.lbl_engine = QLabel("Active Engine: Checking...")
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_engine.setToolTip("Connection status of backend Aria2 download engine")
+        self.lbl_engine.setToolTip("Connection status and backend binary for Aria2 download engine")
         vbox_engine.addWidget(self.lbl_engine)
         
         # Max Split Connections (threads)
@@ -408,7 +432,12 @@ class OptionsDialog(QDialog):
             final_text = f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>"
             
             # Update UI safely from background thread
-            QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
+            try:
+                import sip
+                if hasattr(self, 'lbl_engine') and not sip.isdeleted(self.lbl_engine):
+                    QMetaObject.invokeMethod(self.lbl_engine, "setText", Qt.ConnectionType.QueuedConnection, Q_ARG(str, final_text))
+            except Exception:
+                pass
 
         threading.Thread(target=check, daemon=True).start()
 
@@ -511,11 +540,13 @@ class OptionsDialog(QDialog):
         self.bg_mode = QButtonGroup(self)
         
         self.rb_no_proxy = QRadioButton("No proxy / Get from system")
+        self.rb_no_proxy.setToolTip("Connect directly to the internet without using a custom proxy")
         self.rb_no_proxy.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_no_proxy)
         self.bg_mode.addButton(self.rb_no_proxy)
         
         self.rb_manual = QRadioButton("Manual proxy configuration")
+        self.rb_manual.setToolTip("Route all download traffic through a custom HTTP or HTTPS proxy server")
         self.rb_manual.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_manual)
         self.bg_mode.addButton(self.rb_manual)
@@ -531,14 +562,18 @@ class OptionsDialog(QDialog):
         self.bg_type = QButtonGroup(self)
         
         self.rb_http = QRadioButton("HTTP")
+        self.rb_http.setToolTip("Use HTTP proxy protocol")
         self.rb_http.toggled.connect(self.on_proxy_toggle)
         self.rb_https = QRadioButton("HTTPS")
+        self.rb_https.setToolTip("Use secure HTTPS proxy protocol")
         self.rb_https.toggled.connect(self.on_proxy_toggle)
         
         self.bg_type.addButton(self.rb_http)
         self.bg_type.addButton(self.rb_https)
         
-        type_layout.addWidget(QLabel("Type:"))
+        lbl_type = QLabel("Type:")
+        lbl_type.setToolTip("Select proxy protocol type")
+        type_layout.addWidget(lbl_type)
         type_layout.addWidget(self.rb_http)
         type_layout.addWidget(self.rb_https)
         type_layout.addStretch()
@@ -546,16 +581,22 @@ class OptionsDialog(QDialog):
         
         # Host / Port
         addr_layout = QHBoxLayout()
-        addr_layout.addWidget(QLabel("Proxy host:"))
+        lbl_host = QLabel("Proxy host:")
+        lbl_host.setToolTip("Hostname or IP address of the proxy server")
+        addr_layout.addWidget(lbl_host)
         self.txt_host = QLineEdit()
+        self.txt_host.setToolTip("Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)")
         self.txt_host.textChanged.connect(self.save_proxy_data)
         self.txt_host.textChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.txt_host)
         
-        addr_layout.addWidget(QLabel("Port:"))
+        lbl_port = QLabel("Port:")
+        lbl_port.setToolTip("Port number of the proxy server (1-65535)")
+        addr_layout.addWidget(lbl_port)
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
         self.spin_port.setValue(8080)
+        self.spin_port.setToolTip("Port number of proxy server (1-65535)")
         self.spin_port.valueChanged.connect(self.save_proxy_data)
         self.spin_port.valueChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.spin_port)
@@ -563,21 +604,28 @@ class OptionsDialog(QDialog):
         
         # Auth
         self.chk_auth = QCheckBox("Authentication required")
+        self.chk_auth.setToolTip("Enable username and password credentials for proxy authentication")
         self.chk_auth.toggled.connect(self.update_proxy_ui)
         self.chk_auth.toggled.connect(self.save_proxy_data)
         self.chk_auth.toggled.connect(self.refresh_engine_status)
         manual_layout.addWidget(self.chk_auth)
         
         auth_layout = QGridLayout()
-        auth_layout.addWidget(QLabel("Username:"), 0, 0)
+        lbl_user = QLabel("Username:")
+        lbl_user.setToolTip("Username for proxy authentication")
+        auth_layout.addWidget(lbl_user, 0, 0)
         self.txt_user = QLineEdit()
+        self.txt_user.setToolTip("Username for proxy server authentication")
         self.txt_user.textChanged.connect(self.save_proxy_data)
         self.txt_user.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_user, 0, 1)
         
-        auth_layout.addWidget(QLabel("Password:"), 1, 0)
+        lbl_pass = QLabel("Password:")
+        lbl_pass.setToolTip("Password for proxy authentication")
+        auth_layout.addWidget(lbl_pass, 1, 0)
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_pass.setToolTip("Password for proxy server authentication")
         self.txt_pass.textChanged.connect(self.save_proxy_data)
         self.txt_pass.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_pass, 1, 1)
@@ -777,8 +825,11 @@ class OptionsDialog(QDialog):
         vbox_cookies.setSpacing(10)
 
         row_cookies_config = QHBoxLayout()
-        row_cookies_config.addWidget(QLabel("Cookie:"))
+        lbl_cookie = QLabel("Cookie:")
+        lbl_cookie.setToolTip("Select cookie authentication strategy for media sites")
+        row_cookies_config.addWidget(lbl_cookie)
         self.cmb_opt_cookies_mode = QComboBox()
+        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file, browser auto-extract, or none)")
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
             "Browser Auto-Extraction",
@@ -789,8 +840,10 @@ class OptionsDialog(QDialog):
         row_cookies_config.addWidget(self.cmb_opt_cookies_mode, stretch=1)
 
         self.lbl_opt_cookies_browser = QLabel("Browser:")
+        self.lbl_opt_cookies_browser.setToolTip("Select installed web browser to extract cookies from")
         row_cookies_config.addWidget(self.lbl_opt_cookies_browser)
         self.cmb_opt_cookies_browser = QComboBox()
+        self.cmb_opt_cookies_browser.setToolTip("Select web browser to automatically extract authenticated cookies")
         self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
         saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
         idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
@@ -801,10 +854,12 @@ class OptionsDialog(QDialog):
 
         # Full-width cookies path input with Browse / Clear buttons below
         self.lbl_opt_cookies_path = QLabel("Netscape cookies.txt Path:")
+        self.lbl_opt_cookies_path.setToolTip("File path to exported Netscape format cookies.txt")
         vbox_cookies.addWidget(self.lbl_opt_cookies_path)
 
         self.txt_opt_cookies_path = QLineEdit()
         self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
+        self.txt_opt_cookies_path.setToolTip("Path to exported Netscape format cookies.txt file on disk")
         saved_cpath = self.config_data.get("media_downloader_cookies_path", media_defaults.get("cookies_path", ""))
         self.txt_opt_cookies_path.setText(saved_cpath)
         vbox_cookies.addWidget(self.txt_opt_cookies_path)
@@ -814,11 +869,13 @@ class OptionsDialog(QDialog):
 
         self.btn_opt_browse_c = QPushButton("Browse...")
         self.btn_opt_browse_c.setFixedWidth(90)
+        self.btn_opt_browse_c.setToolTip("Browse filesystem for exported cookies.txt file")
         self.btn_opt_browse_c.clicked.connect(self._browse_opt_cookies_file)
         row_cbuttons.addWidget(self.btn_opt_browse_c)
 
         self.btn_opt_clear_c = QPushButton("Clear")
         self.btn_opt_clear_c.setFixedWidth(80)
+        self.btn_opt_clear_c.setToolTip("Clear current cookies.txt file path")
         self.btn_opt_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
         row_cbuttons.addWidget(self.btn_opt_clear_c)
 
@@ -1048,11 +1105,13 @@ class OptionsDialog(QDialog):
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
             
+            silent_dl = self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
             show_start = self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
             show_prog = self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
             show_comp = self.chk_show_complete_dialog.isChecked() if hasattr(self, "chk_show_complete_dialog") else True
             show_q_comp = self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
 
+            setattr(self.main_win, "silent_download", silent_dl)
             setattr(self.main_win, "show_start_dialog", show_start)
             setattr(self.main_win, "show_progress_dialog", show_prog)
             setattr(self.main_win, "show_complete_dialog", show_comp)
@@ -1065,6 +1124,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
                 self.main_win.settings["system_notifications"] = is_notif
+                self.main_win.settings["silent_download"] = silent_dl
                 self.main_win.settings["show_start_dialog"] = show_start
                 self.main_win.settings["show_progress_dialog"] = show_prog
                 self.main_win.settings["show_complete_dialog"] = show_comp
@@ -1102,6 +1162,9 @@ class OptionsDialog(QDialog):
 
     def get_tray_icon(self):
         return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+
+    def get_silent_download(self) -> bool:
+        return self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
 
     def get_show_start_dialog(self) -> bool:
         return self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True

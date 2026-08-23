@@ -1698,8 +1698,82 @@ def test_download_complete_suppression_in_queues(qapp, monkeypatch, tmp_path):
     # Verify active_complete_dialogs is empty (dialog suppressed)
     key = win._get_item_key(item_name)
     assert key not in win.active_complete_dialogs
+    win.close()
+
+
+def test_options_dialog_silent_download_mode(qapp, monkeypatch, tmp_path):
+    """Verify silent download mode checkbox toggles and disables individual popup options."""
+    from ui.dialogs.options import OptionsDialog
+    from main import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("ui.dialogs.options.call_aria2_rpc", lambda *a, **kw: None)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    dlg = OptionsDialog(main_window=win)
+    assert hasattr(dlg, "chk_silent_download")
+    assert dlg.get_silent_download() is False
+
+    # Check silent download mode
+    dlg.chk_silent_download.setChecked(True)
+    assert dlg.chk_show_start_dialog.isEnabled() is False
+    assert dlg.chk_show_progress_dialog.isEnabled() is False
+    assert dlg.chk_show_complete_dialog.isEnabled() is False
+    assert dlg.chk_show_queue_complete_dialog.isEnabled() is False
+
+    dlg.save_and_accept()
+    assert win.settings["silent_download"] is True
 
     win.close()
+
+
+def test_options_dialog_tooltips_presence(qapp, monkeypatch, tmp_path):
+    """Verify all key controls in OptionsDialog have descriptive tooltips."""
+    from ui.dialogs.options import OptionsDialog
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("ui.dialogs.options.call_aria2_rpc", lambda *a, **kw: None)
+
+    dlg = OptionsDialog()
+    
+    # Check tooltips across tabs
+    assert bool(dlg.combo_theme.toolTip())
+    assert bool(dlg.combo_accent.toolTip())
+    assert bool(dlg.combo_icon_theme.toolTip())
+    assert bool(dlg.combo_tray_icon.toolTip())
+    assert bool(dlg.combo_scale.toolTip())
+
+    assert bool(dlg.chk_startup.toolTip())
+    assert bool(dlg.chk_start_minimized.toolTip())
+
+    assert bool(dlg.combo_cat.toolTip())
+    assert bool(dlg.txt_extensions.toolTip())
+    assert bool(dlg.txt_save_path.toolTip())
+    assert bool(dlg.chk_last_selected.toolTip())
+    assert bool(dlg.txt_temp_path.toolTip())
+
+    assert bool(dlg.chk_silent_download.toolTip())
+    assert bool(dlg.chk_show_start_dialog.toolTip())
+    assert bool(dlg.chk_show_progress_dialog.toolTip())
+    assert bool(dlg.chk_show_complete_dialog.toolTip())
+    assert bool(dlg.chk_show_queue_complete_dialog.toolTip())
+    assert bool(dlg.chk_system_notifications.toolTip())
+    assert bool(dlg.spin_max_conn.toolTip())
+
+    assert bool(dlg.rb_no_proxy.toolTip())
+    assert bool(dlg.rb_manual.toolTip())
+    assert bool(dlg.rb_http.toolTip())
+    assert bool(dlg.rb_https.toolTip())
+    assert bool(dlg.txt_host.toolTip())
+    assert bool(dlg.spin_port.toolTip())
+    assert bool(dlg.chk_auth.toolTip())
+    assert bool(dlg.txt_user.toolTip())
+    assert bool(dlg.txt_pass.toolTip())
+
+    dlg.close()
+
 
 
 
