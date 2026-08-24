@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-version: '1.0.0'
+version: '0.2.10'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -10,10 +10,9 @@ description: |
   Key Features:
   - Multi-threaded segment download acceleration
   - Aria2 engine integration with custom chunk splits
-  - Clean Qt6 / Kirigami desktop interfaces
   - Browser extension capture for Chrome, Edge, and Firefox
   - Scheduled queues, proxy manager, and speed limiter
-  - Media stream detection and conversion via FFmpeg
+  - Media Downloader
 
 grade: stable
 confinement: strict
