@@ -882,62 +882,90 @@ def make_faded_icon(icon: QIcon, opacity: float = 0.30) -> QIcon:
 
 def get_app_icon() -> QIcon:
     """Robustly finds and returns the application icon across snap, Flatpak, AppImage, and local environments."""
-    _snap      = os.environ.get("SNAP", "")
-    _snap_root = os.environ.get("SNAP_APP_ROOT", os.path.join(_snap, "share", "bengal-download-manager") if _snap else "")
-    _appdir    = os.environ.get("APPDIR", "")
+    _meipass   = getattr(sys, "_MEIPASS", None)
+    _snap      = os.environ.get("SNAP")
+    _snap_root = os.environ.get("SNAP_APP_ROOT") or (os.path.join(_snap, "share", "bengal-download-manager") if _snap else None)
+    _appdir    = os.environ.get("APPDIR")
     # sys.argv[0]-relative: set by the OS at exec() time, never baked into .pyc bytecode.
-    # snap:  argv[0] = $SNAP/share/bengal-download-manager/src/main.py → root = $SNAP/share/bengal-download-manager
-    # dev:   argv[0] = <repo>/src/main.py                              → root = <repo>
-    _argv0_src  = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv else ""
-    _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else ""
+    _argv0_src  = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else None
+    _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else None
+    # Module relative (src/core/services -> repo root): safe fallback for local dev & pytest
+    _module_dir  = os.path.dirname(os.path.abspath(__file__)) if __file__ else None
+    _module_root = os.path.dirname(os.path.dirname(os.path.dirname(_module_dir))) if _module_dir else None
 
     icon_locations = [
-        # 1. PyInstaller bundle (_MEIPASS set at runtime by bootloader, not baked into .pyc)
-        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "icons", "256x256.png"),
-        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "icons", "512x512.png"),
-        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "logo.svg"),
-        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "logo.png"),
+        # 1. PyInstaller bundle (_MEIPASS set at runtime by bootloader, only when frozen)
+        *([
+            os.path.join(_meipass, "assets", "icons", "256x256.png"),
+            os.path.join(_meipass, "assets", "icons", "512x512.png"),
+            os.path.join(_meipass, "assets", "logo.svg"),
+            os.path.join(_meipass, "assets", "logo.png"),
+        ] if _meipass else []),
+
         # 2. Snap — $SNAP hicolor icons (installed by snapcraft override-build)
-        os.path.join(_snap, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
-        os.path.join(_snap, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
-        os.path.join(_snap, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+        *([
+            os.path.join(_snap, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
+            os.path.join(_snap, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
+            os.path.join(_snap, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+        ] if _snap else []),
+
         # 3. Snap — $SNAP_APP_ROOT bundled assets (exported by bengal-wrapper.sh)
-        os.path.join(_snap_root, "assets", "icons", "256x256.png"),
-        os.path.join(_snap_root, "assets", "icons", "512x512.png"),
-        os.path.join(_snap_root, "assets", "logo.svg"),
-        os.path.join(_snap_root, "assets", "logo.png"),
+        *([
+            os.path.join(_snap_root, "assets", "icons", "256x256.png"),
+            os.path.join(_snap_root, "assets", "icons", "512x512.png"),
+            os.path.join(_snap_root, "assets", "logo.svg"),
+            os.path.join(_snap_root, "assets", "logo.png"),
+        ] if _snap_root else []),
+
         # 4. Flatpak — /app hicolor (fixed path per Flatpak spec)
         "/app/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
         "/app/share/icons/hicolor/512x512/apps/io.github.tazihad.bengal-download-manager.png",
         "/app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
         "/app/share/icons/hicolor/128x128/apps/io.github.tazihad.bengal-download-manager.png",
+
         # 5. AppImage — $APPDIR hicolor
-        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
-        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
-        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
-        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
-        os.path.join(_appdir, "io.github.tazihad.bengal-download-manager.png"),
+        *([
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
+            os.path.join(_appdir, "io.github.tazihad.bengal-download-manager.png"),
+        ] if _appdir else []),
+
         # 6. Standard system hicolor (deb / rpm / manual install)
         "/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
         "/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
         "/usr/local/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
         "/usr/local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
+
         # 7. User XDG local icons
         os.path.expanduser("~/.local/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg"),
         os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png"),
+
         # 8. sys.argv[0]-relative fallback (runtime-stable; works for snap, dev, any install layout)
-        os.path.join(_argv0_root, "assets", "icons", "256x256.png"),
-        os.path.join(_argv0_root, "assets", "icons", "512x512.png"),
-        os.path.join(_argv0_root, "assets", "logo.svg"),
-        os.path.join(_argv0_root, "assets", "logo.png"),
-        # 9. User data dir (manually placed assets)
+        *([
+            os.path.join(_argv0_root, "assets", "icons", "256x256.png"),
+            os.path.join(_argv0_root, "assets", "icons", "512x512.png"),
+            os.path.join(_argv0_root, "assets", "logo.svg"),
+            os.path.join(_argv0_root, "assets", "logo.png"),
+        ] if _argv0_root else []),
+
+        # 9. Module directory relative (for pytest runner and local development)
+        *([
+            os.path.join(_module_root, "assets", "icons", "256x256.png"),
+            os.path.join(_module_root, "assets", "icons", "512x512.png"),
+            os.path.join(_module_root, "assets", "logo.svg"),
+            os.path.join(_module_root, "assets", "logo.png"),
+        ] if _module_root else []),
+
+        # 10. User data dir (manually placed assets)
         os.path.join(get_data_dir(), "assets", "icons", "256x256.png"),
         os.path.join(get_data_dir(), "assets", "logo.svg"),
         os.path.join(get_data_dir(), "assets", "logo.png"),
     ]
 
     for loc in icon_locations:
-        if loc and os.path.exists(loc):
+        if loc and os.path.isabs(loc) and os.path.exists(loc):
             icon = QIcon(loc)
             if not icon.isNull():
                 return icon
@@ -983,33 +1011,41 @@ def get_monochrome_app_icon(color=None, size=24) -> QIcon:
 
 def _resolve_tray_asset(filename: str) -> str:
     """Finds tray icon asset path across snap, Flatpak, AppImage, and local environments."""
-    _snap      = os.environ.get("SNAP", "")
-    _snap_root = os.environ.get("SNAP_APP_ROOT", os.path.join(_snap, "share", "bengal-download-manager") if _snap else "")
-    _appdir    = os.environ.get("APPDIR", "")
+    _meipass   = getattr(sys, "_MEIPASS", None)
+    _snap      = os.environ.get("SNAP")
+    _snap_root = os.environ.get("SNAP_APP_ROOT") or (os.path.join(_snap, "share", "bengal-download-manager") if _snap else None)
+    _appdir    = os.environ.get("APPDIR")
     # sys.argv[0]-relative: set by OS at exec() time, never baked into .pyc bytecode.
-    _argv0_src  = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv else ""
-    _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else ""
+    _argv0_src  = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else None
+    _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else None
+    # Module relative (src/core/services -> repo root): safe fallback for local dev & pytest
+    _module_dir  = os.path.dirname(os.path.abspath(__file__)) if __file__ else None
+    _module_root = os.path.dirname(os.path.dirname(os.path.dirname(_module_dir))) if _module_dir else None
 
     candidates = [
         # 1. PyInstaller
-        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", filename),
+        *([os.path.join(_meipass, "assets", filename)] if _meipass else []),
         # 2. Snap — $SNAP_APP_ROOT bundled assets (exported by bengal-wrapper.sh)
-        os.path.join(_snap_root, "assets", filename),
+        *([os.path.join(_snap_root, "assets", filename)] if _snap_root else []),
         # 3. Flatpak
         f"/app/share/bengal-download-manager/assets/{filename}",
         # 4. AppImage
-        os.path.join(_appdir, "usr", "lib", "bengal-download-manager", "_internal", "assets", filename),
-        os.path.join(_appdir, "assets", filename),
+        *([
+            os.path.join(_appdir, "usr", "lib", "bengal-download-manager", "_internal", "assets", filename),
+            os.path.join(_appdir, "assets", filename),
+        ] if _appdir else []),
         # 5. Standard system install (deb / rpm / manual)
         f"/usr/share/bengal-download-manager/assets/{filename}",
         f"/usr/local/share/bengal-download-manager/assets/{filename}",
         # 6. sys.argv[0]-relative fallback (runtime-stable)
-        os.path.join(_argv0_root, "assets", filename),
-        # 7. User data dir
+        *([os.path.join(_argv0_root, "assets", filename)] if _argv0_root else []),
+        # 7. Module directory relative (for pytest runner and local development)
+        *([os.path.join(_module_root, "assets", filename)] if _module_root else []),
+        # 8. User data dir
         os.path.join(get_data_dir(), "assets", filename),
     ]
     for c in candidates:
-        if c and os.path.exists(c):
+        if c and os.path.isabs(c) and os.path.exists(c):
             return c
     return ""
 
