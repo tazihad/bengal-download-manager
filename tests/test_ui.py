@@ -1794,6 +1794,136 @@ def test_options_dialog_tooltips_presence(qapp, monkeypatch, tmp_path):
     dlg.close()
 
 
+def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, tmp_path):
+    """Verify silent or hidden progress dialogs can be restored from tray menu, tray activation, and table double-click."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QSystemTrayIcon, QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: True)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    class MockWorker:
+        def __init__(self):
+            self.filename = "test_archive.zip"
+            self.url = "http://example.com/test_archive.zip"
+            self.target_path = str(tmp_path / "test_archive.zip")
+            self.total_bytes = 1000000
+            self.is_paused = False
+            self.is_pause_requested = False
+            self.row_index = 0
+
+            # Mock PyQt signals
+            from PyQt6.QtCore import QObject, pyqtSignal
+            class SignalEmitter(QObject):
+                log_signal = pyqtSignal(str)
+                main_bar_signal = pyqtSignal(int, int)
+                main_progress_signal = pyqtSignal(int, tuple)
+                finished_signal = pyqtSignal(int, str)
+                init_segments_signal = pyqtSignal(int)
+                segment_update_signal = pyqtSignal(int, tuple)
+            
+            self._signals = SignalEmitter()
+            self.log_signal = self._signals.log_signal
+            self.main_bar_signal = self._signals.main_bar_signal
+            self.main_progress_signal = self._signals.main_progress_signal
+            self.finished_signal = self._signals.finished_signal
+            self.init_segments_signal = self._signals.init_segments_signal
+            self.segment_update_signal = self._signals.segment_update_signal
+
+        def format_bytes(self, b, precision=2, pad=False):
+            return f"{b} B"
+
+        def isRunning(self):
+            return True
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+    worker = MockWorker()
+
+    win.download_table.setRowCount(1)
+    item_name = QTableWidgetItem(worker.filename)
+    item_size = QTableWidgetItem("1 MB")
+    item_status = QTableWidgetItem("Downloading (50%)")
+    item_status.setData(Qt.ItemDataRole.UserRole + 1, "Downloading")
+    item_time = QTableWidgetItem("10s")
+    item_speed = QTableWidgetItem("2.5 MB/s")
+    item_try = QTableWidgetItem("Now")
+    item_date = QTableWidgetItem("Today")
+
+    win.download_table.setItem(0, 0, item_name)
+    win.download_table.setItem(0, 1, item_size)
+    win.download_table.setItem(0, 2, item_status)
+    win.download_table.setItem(0, 3, item_time)
+    win.download_table.setItem(0, 4, item_speed)
+    win.download_table.setItem(0, 5, item_try)
+    win.download_table.setItem(0, 6, item_date)
+
+    key = win._get_item_key(item_name)
+    win.active_downloads[key] = worker
+
+    # 1. Dynamic tray menu test
+    win._rebuild_tray_menu()
+    actions = win.tray_menu.actions()
+    matching_actions = [a for a in actions if "test_archive.zip" in a.text()]
+    assert len(matching_actions) == 1
+    assert "Downloading (50%)" in matching_actions[0].text() or "2.5 MB/s" in matching_actions[0].text()
+
+    # 2. Clicking tray action restores/creates progress dialog
+    matching_actions[0].trigger()
+    assert key in win.active_downloads
+    dlg = win.active_downloads[key]
+    assert dlg.isVisible() is True
+    assert "test_archive.zip" in dlg.windowTitle()
+
+    # Hide dialog
+    dlg.hide()
+    assert dlg.isVisible() is False
+
+    # 3. show_all_active_progress_dialogs
+    win.show_all_active_progress_dialogs()
+    assert dlg.isVisible() is True
+
+    dlg.hide()
+
+    # 4. Table cellDoubleClicked
+    win._on_table_cell_double_clicked(0, 0)
+    assert dlg.isVisible() is True
+
+    # 5. Tray icon activation when window visible brings dialog to front
+    dlg.hide()
+    win.show()
+    win.on_tray_icon_activated(QSystemTrayIcon.ActivationReason.Trigger)
+    assert dlg.isVisible() is True
+
+    # 6. Context menu "Show progress window"
+    dlg.hide()
+    from PyQt6.QtCore import QPoint
+    from PyQt6.QtWidgets import QMenu
+    captured_menus = []
+    real_exec = QMenu.exec
+    monkeypatch.setattr(QMenu, "exec", lambda m, *a, **k: captured_menus.append(m))
+    win.show_context_menu(QPoint(5, 5))
+    if captured_menus:
+        ctx_acts = captured_menus[-1].actions()
+        prog_acts = [a for a in ctx_acts if "Show progress window" in a.text()]
+        assert len(prog_acts) == 1
+        assert prog_acts[0].isEnabled() is True
+        prog_acts[0].trigger()
+        assert dlg.isVisible() is True
+
+    dlg.close()
+    win.close()
+
+
+
 
 
 

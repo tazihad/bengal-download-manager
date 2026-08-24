@@ -847,6 +847,7 @@ class MainWindow(QMainWindow):
         
         self.download_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.download_table.customContextMenuRequested.connect(self.show_context_menu)
+        self.download_table.cellDoubleClicked.connect(self._on_table_cell_double_clicked)
         
         header_labels_info = [
             ("File Name", "Name of the downloaded file"),
@@ -1110,23 +1111,12 @@ class MainWindow(QMainWindow):
             if icon.isNull():
                 icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
             self.tray_icon.setIcon(icon)        
-            # Create tray menu
-            tray_menu = QMenu(self)
-            
-            # Show/Hide Action
-            self.action_tray_toggle = QAction("Hide", self) # Default to Hide as window starts visible
-            self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
-            self.action_tray_toggle.triggered.connect(self.toggle_window)
-            
-            tray_menu.addAction(self.action_tray_toggle)
-            tray_menu.addSeparator()
-            tray_menu.addAction(self.action_add_url)
-            tray_menu.addAction(self.action_media_downloader)
-            tray_menu.addAction(self.action_options)
-            tray_menu.addSeparator()
-            tray_menu.addAction(self.action_exit)
-            
-            self.tray_icon.setContextMenu(tray_menu)
+            # Create dynamic tray menu
+            self.tray_menu = QMenu(self)
+            self.tray_menu.aboutToShow.connect(self._rebuild_tray_menu)
+            self._rebuild_tray_menu()
+
+            self.tray_icon.setContextMenu(self.tray_menu)
             self.tray_icon.setToolTip("Bengal Download Manager")
             self.tray_icon.show()
             
@@ -1136,9 +1126,134 @@ class MainWindow(QMainWindow):
             print(f"Warning: System tray icon initialization failed ({e})")
             self.tray_icon = None
 
+    def _find_row_by_key(self, key):
+        """Finds table row index corresponding to a persistent item key."""
+        if not key or not hasattr(self, "download_table"):
+            return -1
+        for r in range(self.download_table.rowCount()):
+            item_0 = self.download_table.item(r, 0)
+            if item_0 and self._get_item_key(item_0) == key:
+                return r
+        return -1
+
+    def show_download_progress_dialog(self, target):
+        """
+        Brings the DownloadProgressDialog for an active download to the foreground.
+        Creates and connects the dialog on-the-fly if running in headless/silent mode.
+        """
+        key = None
+        if isinstance(target, str):
+            key = target
+        elif isinstance(target, int):
+            row = target
+            if 0 <= row < self.download_table.rowCount():
+                item_ref = self.download_table.item(row, 0)
+                if item_ref:
+                    key = self._get_item_key(item_ref)
+        elif isinstance(target, QTableWidgetItem):
+            key = self._get_item_key(target)
+
+        if not key or key not in getattr(self, "active_downloads", {}):
+            return None
+
+        entry = self.active_downloads[key]
+        dialog = None
+        if isinstance(entry, DownloadProgressDialog) and MemoryGuard.is_widget_alive(entry):
+            dialog = entry
+        else:
+            worker = getattr(entry, "worker", entry)
+            if worker:
+                dialog = DownloadProgressDialog(worker, None)
+                dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                dialog.finished.connect(self._try_start_queued)
+                self.active_downloads[key] = dialog
+
+        if dialog and MemoryGuard.is_widget_alive(dialog):
+            if dialog.isMinimized():
+                dialog.setWindowState(dialog.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+            dialog.show()
+            dialog.showNormal()
+            dialog.raise_()
+            dialog.activateWindow()
+            return dialog
+        return None
+
+    def show_all_active_progress_dialogs(self):
+        """Brings all active download progress dialogs to the front."""
+        active_keys = list(getattr(self, "active_downloads", {}).keys())
+        for key in active_keys:
+            self.show_download_progress_dialog(key)
+
+    def _rebuild_tray_menu(self):
+        """Dynamically populates the system tray context menu with active downloads and actions."""
+        if not hasattr(self, "tray_menu") or self.tray_menu is None:
+            return
+
+        self.tray_menu.clear()
+
+        # 1. Active Downloads Section
+        active_entries = []
+        for key in list(getattr(self, "active_downloads", {}).keys()):
+            row = self._find_row_by_key(key)
+            if row >= 0:
+                item_0 = self.download_table.item(row, 0)
+                if item_0 and self._is_download_active(item_0):
+                    filename = item_0.text()
+                    status_item = self.download_table.item(row, 2)
+                    speed_item = self.download_table.item(row, 4)
+                    status_str = status_item.text() if status_item else ""
+                    speed_str = speed_item.text() if speed_item else ""
+                    active_entries.append((key, filename, status_str, speed_str))
+
+        if active_entries:
+            for key, filename, status_str, speed_str in active_entries:
+                display_name = filename if len(filename) <= 30 else (filename[:27] + "...")
+                desc_parts = []
+                if status_str and status_str not in ["Downloading", "Running"]:
+                    desc_parts.append(status_str)
+                if speed_str and speed_str not in ["0 B/s", "0.00 B/s"]:
+                    desc_parts.append(speed_str)
+                suffix = f" ({' — '.join(desc_parts)})" if desc_parts else ""
+                
+                label = f"{display_name}{suffix}"
+                act = QAction(get_themed_icon("resume"), label, self)
+                act.setToolTip(f"Bring progress window to front: {filename}")
+                act.triggered.connect(lambda _, k=key: self.show_download_progress_dialog(k))
+                self.tray_menu.addAction(act)
+
+            if len(active_entries) > 1:
+                act_all = QAction(get_themed_icon("show_hide"), "Show All Active Downloads", self)
+                act_all.triggered.connect(self.show_all_active_progress_dialogs)
+                self.tray_menu.addAction(act_all)
+
+            self.tray_menu.addSeparator()
+
+        # 2. Main Window Show/Hide Toggle
+        if not hasattr(self, "action_tray_toggle") or self.action_tray_toggle is None:
+            self.action_tray_toggle = QAction("Hide", self)
+            self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
+            self.action_tray_toggle.triggered.connect(self.toggle_window)
+        self.update_tray_action()
+        self.tray_menu.addAction(self.action_tray_toggle)
+
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction(self.action_add_url)
+        self.tray_menu.addAction(self.action_media_downloader)
+        self.tray_menu.addAction(self.action_options)
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction(self.action_exit)
+
     def on_tray_icon_activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
-            self.toggle_window()
+            if not self.isVisible() or self.isMinimized():
+                self.restore_window()
+                self.show_all_active_progress_dialogs()
+            else:
+                if getattr(self, "active_downloads", {}):
+                    self.show_all_active_progress_dialogs()
+                else:
+                    self.toggle_window()
 
     def restore_window(self):
         """Restores the window from minimized or hidden state and brings it to the foreground."""
@@ -2528,6 +2643,30 @@ class MainWindow(QMainWindow):
             self.download_table.setColumnHidden(logical_idx, not col["visible"])
             self.download_table.setColumnWidth(logical_idx, col["width"])
 
+    def _on_table_cell_double_clicked(self, row: int, column: int):
+        """Restores progress dialog on double click if download is active, or opens file if complete."""
+        if row < 0 or row >= self.download_table.rowCount():
+            return
+        item_0 = self.download_table.item(row, 0)
+        if not item_0:
+            return
+
+        if self._is_download_active(item_0):
+            self.show_download_progress_dialog(item_0)
+        else:
+            status_item = self.download_table.item(row, 2)
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            is_completed = (logic_status in ["Complete", "Finished"] or status_text in ["Complete", "Finished"] or (item_0.data(Qt.ItemDataRole.UserRole + 11) == "Complete"))
+            if is_completed:
+                path = item_0.data(Qt.ItemDataRole.UserRole + 1)
+                if path and os.path.exists(path):
+                    open_file_generic(path)
+                else:
+                    self.ctx_properties(item_0)
+            elif logic_status in ["Paused", "Cancelled", "Error"]:
+                self.resume_selected_download()
+
     def show_context_menu(self, pos):
         item = self.download_table.itemAt(pos)
         if not item: return
@@ -2574,8 +2713,12 @@ class MainWindow(QMainWindow):
         act_resume = QAction(_fi(get_themed_icon("resume")), "Resume download", self)
         act_resume.triggered.connect(self.resume_selected_download)
         act_resume.setEnabled(is_resumable)
+
+        act_show_progress = QAction(_fi(get_themed_icon("resume")), "Show progress window", self)
+        act_show_progress.triggered.connect(lambda _, it=item_0: self.show_download_progress_dialog(it))
+        act_show_progress.setEnabled(is_active)
         
-        menu.addActions([act_resume, act_stop])
+        menu.addActions([act_resume, act_stop, act_show_progress])
         menu.addSeparator()
 
         act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
