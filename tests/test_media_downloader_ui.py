@@ -135,13 +135,24 @@ def test_media_downloader_thumbnail_support(qapp):
     assert rounded.width() == 160
     assert rounded.height() == 90
 
-    # 3. Dialog thumbnail label hookup
+    # 3. Dialog single video thumbnail hookup with QPixmap and QImage
     dlg = MediaDownloaderDialog()
     assert hasattr(dlg, "lbl_thumbnail")
     assert not dlg.lbl_thumbnail.pixmap().isNull()
 
     dlg._on_thumbnail_loaded(raw_pm)
     assert dlg.lbl_thumbnail.pixmap().width() == 160
+
+    from PyQt6.QtGui import QImage
+    raw_img = raw_pm.toImage()
+    dlg._on_thumbnail_loaded(raw_img)
+    assert dlg.lbl_thumbnail.pixmap().width() == 160
+
+    # 4. Playlist thumbnail placeholder and loading
+    assert hasattr(dlg, "lbl_playlist_thumbnail")
+    assert not dlg.lbl_playlist_thumbnail.pixmap().isNull()
+    dlg._on_playlist_thumbnail_loaded(raw_img)
+    assert dlg.lbl_playlist_thumbnail.pixmap().width() == 160
     dlg.close()
 
 

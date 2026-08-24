@@ -563,12 +563,16 @@ class MediaExtractorWorker(QThread):
 
         formats.sort(key=format_sort_key)
 
+        thumb = raw_data.get("thumbnail") or ""
+        if not thumb and isinstance(raw_data.get("thumbnails"), list) and raw_data.get("thumbnails"):
+            thumb = raw_data["thumbnails"][-1].get("url", "")
+
         return {
             "title": raw_data.get("title") or "Untitled Media",
             "id": raw_data.get("id", ""),
             "uploader": raw_data.get("uploader") or raw_data.get("channel") or "Unknown",
             "duration": raw_data.get("duration", 0),
-            "thumbnail": raw_data.get("thumbnail", ""),
+            "thumbnail": thumb,
             "webpage_url": raw_data.get("webpage_url") or self.url,
             "formats": formats
         }
@@ -582,17 +586,28 @@ class MediaExtractorWorker(QThread):
             if not isinstance(entry, dict):
                 continue
             item_url = entry.get("webpage_url") or entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
+            entry_thumb = entry.get("thumbnail") or ""
+            if not entry_thumb and isinstance(entry.get("thumbnails"), list) and entry.get("thumbnails"):
+                entry_thumb = entry["thumbnails"][-1].get("url", "")
             entries.append({
                 "index": idx,
                 "id": entry.get("id", ""),
                 "title": entry.get("title") or f"Item {idx}",
                 "duration": entry.get("duration", 0),
-                "url": item_url
+                "url": item_url,
+                "thumbnail": entry_thumb
             })
+
+        pl_thumb = raw_data.get("thumbnail") or ""
+        if not pl_thumb and isinstance(raw_data.get("thumbnails"), list) and raw_data.get("thumbnails"):
+            pl_thumb = raw_data["thumbnails"][-1].get("url", "")
+        if not pl_thumb and entries and entries[0].get("thumbnail"):
+            pl_thumb = entries[0]["thumbnail"]
 
         return {
             "title": raw_data.get("title") or "Playlist",
             "total_items": len(entries),
+            "thumbnail": pl_thumb,
             "entries": entries
         }
 
