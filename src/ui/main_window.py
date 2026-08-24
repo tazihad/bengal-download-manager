@@ -68,7 +68,8 @@ from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, get_aria2_proxy_url,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
-    is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory
+    is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory,
+    get_user_downloads_dir
 )
 from core.memory_guard import MemoryGuard
 
@@ -846,6 +847,7 @@ class MainWindow(QMainWindow):
         
         self.download_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.download_table.customContextMenuRequested.connect(self.show_context_menu)
+        self.download_table.cellDoubleClicked.connect(self._on_table_cell_double_clicked)
         
         header_labels_info = [
             ("File Name", "Name of the downloaded file"),
@@ -1135,6 +1137,55 @@ class MainWindow(QMainWindow):
             print(f"Warning: System tray icon initialization failed ({e})")
             self.tray_icon = None
 
+    def show_download_progress_dialog(self, target):
+        """
+        Brings the DownloadProgressDialog for an active download to the foreground.
+        Creates and connects the dialog on-the-fly if running in headless/silent mode.
+        """
+        key = None
+        if isinstance(target, str):
+            key = target
+        elif isinstance(target, int):
+            row = target
+            if 0 <= row < self.download_table.rowCount():
+                item_ref = self.download_table.item(row, 0)
+                if item_ref:
+                    key = self._get_item_key(item_ref)
+        elif isinstance(target, QTableWidgetItem):
+            key = self._get_item_key(target)
+
+        if not key or key not in getattr(self, "active_downloads", {}):
+            return None
+
+        entry = self.active_downloads[key]
+        dialog = None
+        if isinstance(entry, DownloadProgressDialog) and MemoryGuard.is_widget_alive(entry):
+            dialog = entry
+        else:
+            worker = getattr(entry, "worker", entry)
+            if worker:
+                dialog = DownloadProgressDialog(worker, None)
+                dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                dialog.finished.connect(self._try_start_queued)
+                self.active_downloads[key] = dialog
+
+        if dialog and MemoryGuard.is_widget_alive(dialog):
+            if dialog.isMinimized():
+                dialog.setWindowState(dialog.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+            dialog.show()
+            dialog.showNormal()
+            dialog.raise_()
+            dialog.activateWindow()
+            return dialog
+        return None
+
+    def show_all_active_progress_dialogs(self):
+        """Brings all active download progress dialogs to the front."""
+        active_keys = list(getattr(self, "active_downloads", {}).keys())
+        for key in active_keys:
+            self.show_download_progress_dialog(key)
+
     def on_tray_icon_activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
             self.toggle_window()
@@ -1261,13 +1312,16 @@ class MainWindow(QMainWindow):
                     selection_has_active = True
                 
                 is_complete = status in ["Complete", "Finished"] or (item.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
+                is_resuming_or_connecting = logic_status in ["Resuming...", "Starting...", "Pending...", "Connecting..."] or status in ["Resuming...", "Starting...", "Pending...", "Connecting..."]
                 
-                if not is_complete:
+                if not is_complete and not is_resuming_or_connecting:
                     if is_active:
                         selection_has_active = True
                         selection_has_pausable = True
                     else:
                         selection_has_resumable = True
+                elif is_active:
+                    selection_has_pausable = True
         
         # STOP action is for pausing an active download
         self.action_stop.setEnabled(selection_has_pausable)
@@ -2527,6 +2581,30 @@ class MainWindow(QMainWindow):
             self.download_table.setColumnHidden(logical_idx, not col["visible"])
             self.download_table.setColumnWidth(logical_idx, col["width"])
 
+    def _on_table_cell_double_clicked(self, row: int, column: int):
+        """Restores progress dialog on double click if download is active, or opens file if complete."""
+        if row < 0 or row >= self.download_table.rowCount():
+            return
+        item_0 = self.download_table.item(row, 0)
+        if not item_0:
+            return
+
+        if self._is_download_active(item_0):
+            self.show_download_progress_dialog(item_0)
+        else:
+            status_item = self.download_table.item(row, 2)
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            is_completed = (logic_status in ["Complete", "Finished"] or status_text in ["Complete", "Finished"] or (item_0.data(Qt.ItemDataRole.UserRole + 11) == "Complete"))
+            if is_completed:
+                path = item_0.data(Qt.ItemDataRole.UserRole + 1)
+                if path and os.path.exists(path):
+                    open_file_generic(path)
+                else:
+                    self.ctx_properties(item_0)
+            elif logic_status in ["Paused", "Cancelled", "Error"]:
+                self.resume_selected_download()
+
     def show_context_menu(self, pos):
         item = self.download_table.itemAt(pos)
         if not item: return
@@ -2573,8 +2651,12 @@ class MainWindow(QMainWindow):
         act_resume = QAction(_fi(get_themed_icon("resume")), "Resume download", self)
         act_resume.triggered.connect(self.resume_selected_download)
         act_resume.setEnabled(is_resumable)
+
+        act_show_progress = QAction(_fi(get_themed_icon("resume")), "Show progress window", self)
+        act_show_progress.triggered.connect(lambda _, it=item_0: self.show_download_progress_dialog(it))
+        act_show_progress.setEnabled(is_active)
         
-        menu.addActions([act_resume, act_stop])
+        menu.addActions([act_resume, act_stop, act_show_progress])
         menu.addSeparator()
 
         act_redownload = QAction(get_themed_icon("unfinished"), "Redownload", self)
@@ -2661,7 +2743,7 @@ class MainWindow(QMainWindow):
         show_in_folder(path)
 
     def open_downloads_folder_generic(self):
-        path = os.path.join(os.path.expanduser("~"), "Downloads")
+        path = get_user_downloads_dir()
         show_in_folder(path)
 
     def ctx_move(self, item):
@@ -3306,7 +3388,7 @@ class MainWindow(QMainWindow):
         save_dir = custom_save_dir if custom_save_dir else categories[final_category]["path"]
         if not os.path.exists(save_dir):
             try: os.makedirs(save_dir)
-            except: save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+            except: save_dir = get_user_downloads_dir()
 
         temp_dir = config.get("temp_dir")
 
@@ -3390,49 +3472,43 @@ class MainWindow(QMainWindow):
                 item_name = self.download_table.item(row, 0)
                 if not item_name:
                     continue
-                
-                # If already active, bring dialog to front or resume if paused
+                # If already active, bring dialog to front (or create/restore if silent/hidden) and resume if paused
                 key = self._get_item_key(item_name)
-                if key in self.active_downloads:
-                    dialog = self.active_downloads[key]
-                    if not MemoryGuard.is_widget_alive(dialog) and not hasattr(dialog, 'isRunning'):
-                        self.active_downloads.pop(key, None)
-                        dialog = None
-
+                if key in self.active_downloads or self._is_download_active(item_name):
+                    dialog = self.show_download_progress_dialog(item_name)
+                    status_item = self.download_table.item(row, 2)
+                    logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                    
+                    worker = None
                     if dialog:
-                        status_item = self.download_table.item(row, 2)
-                        logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-                        
-                        worker = getattr(dialog, 'worker', dialog)
-                        if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
-                            gen = (item_name.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
-                            item_name.setData(Qt.ItemDataRole.UserRole + 13, gen)
-                            item_name.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
-                            worker.generation = gen
-                            # Forward resume to existing worker
-                            try:
-                                if hasattr(worker, 'resume'):
-                                    worker.resume()
-                            except (RuntimeError, Exception):
-                                pass
-                            if hasattr(dialog, 'lbl_main_status'):
-                                try:
-                                    dialog.lbl_main_status.setText("Resuming...")
-                                    dialog.btn_pause.setText("Pause")
-                                    dialog.btn_cancel.setText("Cancel")
-                                except Exception:
-                                    pass
-                            self._set_status_text(row, "Resuming...", logic_status="Resuming...")
-                            if status_item:
-                                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
-                            self._set_row_bold(row, True)
-                        
+                        worker = getattr(dialog, 'worker', None)
+                    elif key in self.active_downloads:
+                        entry = self.active_downloads[key]
+                        worker = getattr(entry, 'worker', entry)
+
+                    if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
+                        gen = (item_name.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+                        item_name.setData(Qt.ItemDataRole.UserRole + 13, gen)
+                        item_name.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+                        worker.generation = gen
+                        # Forward resume to existing worker
                         try:
-                            dialog.activateWindow()
-                            dialog.raise_()
+                            if hasattr(worker, 'resume'):
+                                worker.resume()
                         except (RuntimeError, Exception):
                             pass
-                        continue
+                        if dialog and hasattr(dialog, 'lbl_main_status'):
+                            try:
+                                dialog.lbl_main_status.setText("Resuming...")
+                                dialog.btn_pause.setText("Pause")
+                                dialog.btn_cancel.setText("Cancel")
+                            except Exception:
+                                pass
+                        self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                        if status_item:
+                            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                        self._set_row_bold(row, True)
+                    continue
                 
                 # Start/Resume download
                 url = item_name.data(Qt.ItemDataRole.UserRole)
@@ -4215,7 +4291,7 @@ class MainWindow(QMainWindow):
             try:
                 os.makedirs(save_dir, exist_ok=True)
             except Exception:
-                save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+                save_dir = get_user_downloads_dir()
 
         from core.utils import sanitize_media_filename, get_unique_media_filepath
         base_name, ext = os.path.splitext(filename)

@@ -12,7 +12,7 @@ from core.utils import (
     load_proxy_config, save_proxy_config, get_aria2_proxy_url,
     load_extension_config, save_extension_config, call_aria2_rpc,
     find_aria2, choose_portal_save_path, choose_portal_folder_path, choose_portal_open_file_path,
-    is_autostart_enabled, set_autostart_enabled
+    is_autostart_enabled, set_autostart_enabled, get_user_downloads_dir, get_user_home_dir
 )
 from core.config import load_category_config, save_category_config
 from core.memory_guard import MemoryGuard
@@ -461,10 +461,6 @@ class OptionsDialog(QDialog):
         vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
 
         def _on_silent_toggled(checked):
-            if checked:
-                self.chk_show_start_dialog.setChecked(False)
-                self.chk_show_progress_dialog.setChecked(False)
-                self.chk_show_complete_dialog.setChecked(False)
             self.chk_show_start_dialog.setEnabled(not checked)
             self.chk_show_progress_dialog.setEnabled(not checked)
             self.chk_show_complete_dialog.setEnabled(not checked)
@@ -1092,7 +1088,7 @@ class OptionsDialog(QDialog):
 
     def _browse_opt_cookies_file(self):
         current_path = self.txt_opt_cookies_path.text().strip()
-        folder = os.path.dirname(current_path) if (current_path and os.path.exists(current_path)) else os.path.expanduser("~")
+        folder = os.path.dirname(current_path) if (current_path and os.path.exists(current_path)) else get_user_home_dir()
         file_path = choose_portal_open_file_path(title="Select Netscape Cookies File", folder=folder)
         if file_path is None:
             from PyQt6.QtWidgets import QFileDialog
@@ -1199,7 +1195,7 @@ class OptionsDialog(QDialog):
 
     def browse_folder(self, line_edit):
         current_path = line_edit.text().strip()
-        folder = current_path if os.path.exists(current_path) else os.path.expanduser("~/Downloads")
+        folder = current_path if os.path.exists(current_path) else get_user_downloads_dir()
         path = choose_portal_folder_path("Select Directory", folder)
         if path:
             line_edit.setText(path)

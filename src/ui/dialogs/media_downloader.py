@@ -983,14 +983,14 @@ class MediaDownloaderDialog(QDialog):
             self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
 
     def _on_browse_cookies_clicked(self):
-        from core.utils import choose_portal_open_file_path
+        from core.utils import choose_portal_open_file_path, get_user_home_dir
 
-        file_path = choose_portal_open_file_path(title="Select Cookies File", folder=os.path.expanduser("~"))
+        file_path = choose_portal_open_file_path(title="Select Cookies File", folder=get_user_home_dir())
         if file_path is None:
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
                 "Select Cookies File",
-                os.path.expanduser("~"),
+                get_user_home_dir(),
                 "Text Files (*.txt);;All Files (*)"
             )
         if file_path:

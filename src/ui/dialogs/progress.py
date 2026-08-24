@@ -42,7 +42,16 @@ class DownloadProgressDialog(QDialog):
         ext_data = load_extension_config()
         initial_conn = ext_data.get("max_connections", 8)
         self.init_segment_table(int(initial_conn) if isinstance(initial_conn, (int, float, str)) and str(initial_conn).isdigit() else 8)
-        self.worker.start()
+        if hasattr(self.worker, 'isRunning'):
+            if not self.worker.isRunning():
+                self.worker.start()
+        elif hasattr(self.worker, 'start'):
+            self.worker.start()
+
+        tb = getattr(self.worker, 'total_bytes', None)
+        if isinstance(tb, (int, float)) and tb > 0:
+            self.total_bytes = tb
+            self.lbl_size.setText(self.worker.format_bytes(tb, precision=2, pad=False))
 
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)
@@ -535,6 +544,8 @@ class DownloadProgressDialog(QDialog):
     def closeEvent(self, event):
         if not getattr(self, "is_completed", False):
             if hasattr(self, "worker") and self.worker:
-                self.worker.stop()
-                self.worker.finished_signal.emit(self.worker.row_index, "Paused")
+                if hasattr(self.worker, "stop") and callable(self.worker.stop):
+                    self.worker.stop()
+                if hasattr(self.worker, "finished_signal"):
+                    self.worker.finished_signal.emit(getattr(self.worker, "row_index", 0), "Paused")
         self.reject()

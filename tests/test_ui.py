@@ -1716,13 +1716,32 @@ def test_options_dialog_silent_download_mode(qapp, monkeypatch, tmp_path):
     assert hasattr(dlg, "chk_silent_download")
     assert dlg.get_silent_download() is False
 
-    # Check silent download mode
+    # Initial states should be enabled and checked
+    assert dlg.chk_show_start_dialog.isChecked() is True
+    assert dlg.chk_show_progress_dialog.isChecked() is True
+    assert dlg.chk_show_complete_dialog.isChecked() is True
+
+    # Check silent download mode (should disable controls without clearing their checked state)
     dlg.chk_silent_download.setChecked(True)
     assert dlg.chk_show_start_dialog.isEnabled() is False
     assert dlg.chk_show_progress_dialog.isEnabled() is False
     assert dlg.chk_show_complete_dialog.isEnabled() is False
     assert dlg.chk_show_queue_complete_dialog.isEnabled() is False
+    assert dlg.chk_show_start_dialog.isChecked() is True
+    assert dlg.chk_show_progress_dialog.isChecked() is True
+    assert dlg.chk_show_complete_dialog.isChecked() is True
 
+    # Uncheck silent download mode (should re-enable controls while preserving checked state)
+    dlg.chk_silent_download.setChecked(False)
+    assert dlg.chk_show_start_dialog.isEnabled() is True
+    assert dlg.chk_show_progress_dialog.isEnabled() is True
+    assert dlg.chk_show_complete_dialog.isEnabled() is True
+    assert dlg.chk_show_queue_complete_dialog.isEnabled() is True
+    assert dlg.chk_show_start_dialog.isChecked() is True
+    assert dlg.chk_show_progress_dialog.isChecked() is True
+    assert dlg.chk_show_complete_dialog.isChecked() is True
+
+    dlg.chk_silent_download.setChecked(True)
     dlg.save_and_accept()
     assert win.settings["silent_download"] is True
 
@@ -1773,6 +1792,152 @@ def test_options_dialog_tooltips_presence(qapp, monkeypatch, tmp_path):
     assert bool(dlg.txt_pass.toolTip())
 
     dlg.close()
+
+
+def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, tmp_path):
+    """Verify silent or hidden progress dialogs can be restored from tray menu, tray activation, and table double-click."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QSystemTrayIcon, QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: True)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    class MockWorker:
+        def __init__(self):
+            self.filename = "test_archive.zip"
+            self.url = "http://example.com/test_archive.zip"
+            self.target_path = str(tmp_path / "test_archive.zip")
+            self.total_bytes = 1000000
+            self.is_paused = False
+            self.is_pause_requested = False
+            self.row_index = 0
+
+            # Mock PyQt signals
+            from PyQt6.QtCore import QObject, pyqtSignal
+            class SignalEmitter(QObject):
+                log_signal = pyqtSignal(str)
+                main_bar_signal = pyqtSignal(int, int)
+                main_progress_signal = pyqtSignal(int, tuple)
+                finished_signal = pyqtSignal(int, str)
+                init_segments_signal = pyqtSignal(int)
+                segment_update_signal = pyqtSignal(int, tuple)
+            
+            self._signals = SignalEmitter()
+            self.log_signal = self._signals.log_signal
+            self.main_bar_signal = self._signals.main_bar_signal
+            self.main_progress_signal = self._signals.main_progress_signal
+            self.finished_signal = self._signals.finished_signal
+            self.init_segments_signal = self._signals.init_segments_signal
+            self.segment_update_signal = self._signals.segment_update_signal
+
+        def format_bytes(self, b, precision=2, pad=False):
+            return f"{b} B"
+
+        def isRunning(self):
+            return True
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+    worker = MockWorker()
+
+    win.download_table.setRowCount(1)
+    item_name = QTableWidgetItem(worker.filename)
+    item_size = QTableWidgetItem("1 MB")
+    item_status = QTableWidgetItem("Downloading (50%)")
+    item_status.setData(Qt.ItemDataRole.UserRole + 1, "Downloading")
+    item_time = QTableWidgetItem("10s")
+    item_speed = QTableWidgetItem("2.5 MB/s")
+    item_try = QTableWidgetItem("Now")
+    item_date = QTableWidgetItem("Today")
+
+    win.download_table.setItem(0, 0, item_name)
+    win.download_table.setItem(0, 1, item_size)
+    win.download_table.setItem(0, 2, item_status)
+    win.download_table.setItem(0, 3, item_time)
+    win.download_table.setItem(0, 4, item_speed)
+    win.download_table.setItem(0, 5, item_try)
+    win.download_table.setItem(0, 6, item_date)
+
+    key = win._get_item_key(item_name)
+    win.active_downloads[key] = worker
+
+    # 1. show_download_progress_dialog restores/creates progress dialog
+    dlg = win.show_download_progress_dialog(key)
+    assert key in win.active_downloads
+    assert dlg is not None
+    assert dlg.isVisible() is True
+    assert "test_archive.zip" in dlg.windowTitle()
+
+    # Hide dialog
+    dlg.hide()
+    assert dlg.isVisible() is False
+
+    # 2. show_all_active_progress_dialogs
+    win.show_all_active_progress_dialogs()
+    assert dlg.isVisible() is True
+
+    dlg.hide()
+
+    # 3. Table cellDoubleClicked
+    win._on_table_cell_double_clicked(0, 0)
+    assert dlg.isVisible() is True
+
+    # 4. Context menu "Show progress window"
+    dlg.hide()
+    from PyQt6.QtCore import QPoint
+    from PyQt6.QtWidgets import QMenu
+    captured_menus = []
+    real_exec = QMenu.exec
+    monkeypatch.setattr(QMenu, "exec", lambda m, *a, **k: captured_menus.append(m))
+    win.show_context_menu(QPoint(5, 5))
+    if captured_menus:
+        ctx_acts = captured_menus[-1].actions()
+        prog_acts = [a for a in ctx_acts if "Show progress window" in a.text()]
+        assert len(prog_acts) == 1
+        assert prog_acts[0].isEnabled() is True
+        prog_acts[0].trigger()
+        assert dlg.isVisible() is True
+
+    dlg.close()
+    win.close()
+
+
+def test_toolbar_resume_disabled_when_already_resuming(qapp, monkeypatch, tmp_path):
+    """Verify that toolbar Resume action is disabled when a download is actively in Resuming state."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    win.download_table.setRowCount(1)
+    item_name = QTableWidgetItem("resuming_file.iso")
+    item_status = QTableWidgetItem("Resuming...")
+    item_status.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+
+    win.download_table.setItem(0, 0, item_name)
+    win.download_table.setItem(0, 1, QTableWidgetItem("100 MB"))
+    win.download_table.setItem(0, 2, item_status)
+
+    win.download_table.selectRow(0)
+    win.update_ui_states()
+
+    # Toolbar Resume should be disabled because the download is already resuming
+    assert win.action_resume.isEnabled() is False
+
+    win.close()
+
 
 
 

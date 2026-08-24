@@ -421,4 +421,76 @@ def test_get_aria2_proxy_url():
     assert get_aria2_proxy_url({"mode": "manual", "host": ""}) == ""
 
 
+def test_user_home_and_downloads_dir_in_snap(monkeypatch, tmp_path):
+    from core.utils import get_user_home_dir, get_user_downloads_dir
+    from core.config import get_default_categories, load_category_config, save_category_config
+
+    real_user_home = tmp_path / "home_user"
+    real_user_home.mkdir()
+    real_downloads = real_user_home / "Downloads"
+    real_downloads.mkdir()
+
+    snap_user_data = tmp_path / "snap" / "bengal-download-manager" / "x1"
+    snap_user_data.mkdir(parents=True)
+    snap_downloads = snap_user_data / "Downloads"
+    snap_downloads.mkdir()
+
+    # Simulate standard environment
+    monkeypatch.delenv("SNAP_REAL_HOME", raising=False)
+    monkeypatch.delenv("SNAP_USER_DATA", raising=False)
+    monkeypatch.setenv("HOME", str(real_user_home))
+    assert get_user_home_dir() == str(real_user_home)
+    assert get_user_downloads_dir() == str(real_downloads)
+
+    # Simulate Snap confinement environment
+    monkeypatch.setenv("SNAP_REAL_HOME", str(real_user_home))
+    monkeypatch.setenv("SNAP_USER_DATA", str(snap_user_data))
+    monkeypatch.setenv("HOME", str(snap_user_data))
+
+    assert get_user_home_dir() == str(real_user_home)
+    assert get_user_downloads_dir() == str(real_downloads)
+
+    # Test XDG user-dirs custom download directory in Snap
+    custom_down = real_user_home / "MyCustomDownloads"
+    custom_down.mkdir()
+    config_dir = real_user_home / ".config"
+    config_dir.mkdir()
+    (config_dir / "user-dirs.dirs").write_text(f'XDG_DOWNLOAD_DIR="{custom_down}"\n')
+    assert get_user_downloads_dir() == str(custom_down)
+
+    # Reset config_dir user-dirs.dirs
+    (config_dir / "user-dirs.dirs").unlink()
+    assert get_user_downloads_dir() == str(real_downloads)
+
+    # Test default categories reflect real downloads folder
+    cats = get_default_categories()
+    assert cats["General"]["path"] == str(real_downloads)
+    assert cats["Compressed"]["path"] == str(real_downloads / "Compressed")
+
+    # Test load_category_config migrates snap user data paths to real home
+    fake_config_dir = tmp_path / "app_config"
+    monkeypatch.setattr("core.config.get_config_dir", lambda: str(fake_config_dir))
+    fake_config_dir.mkdir()
+
+    old_snap_categories = {
+        "categories": {
+            "General": {
+                "path": str(snap_downloads),
+                "extensions": "plj"
+            },
+            "Compressed": {
+                "path": str(snap_downloads / "Compressed"),
+                "extensions": "7z zip"
+            }
+        },
+        "temp_dir": "/tmp"
+    }
+    save_category_config(old_snap_categories)
+
+    loaded = load_category_config()
+    assert loaded["categories"]["General"]["path"] == str(real_downloads)
+    assert loaded["categories"]["Compressed"]["path"] == str(real_downloads / "Compressed")
+
+
+
 

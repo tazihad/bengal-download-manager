@@ -251,6 +251,47 @@ def get_unique_filepath(filepath, existing_paths=None, existing_names=None, forc
     return os.path.join(base_dir, candidate_name)
 
 
+def get_user_home_dir() -> str:
+    """
+    Returns the real host user home directory.
+    Under Snap confinement, $HOME points to $SNAP_USER_DATA (/home/<user>/snap/<snap>/<rev>).
+    $SNAP_REAL_HOME contains the real host user home directory (/home/<user>).
+    """
+    real_home = os.environ.get("SNAP_REAL_HOME")
+    if real_home and os.path.isdir(real_home):
+        return real_home
+    return os.path.expanduser("~")
+
+
+def get_user_downloads_dir() -> str:
+    """
+    Returns the user's default Downloads directory.
+    Checks XDG user dirs (~/.config/user-dirs.dirs) with real home support for Snap/Flatpak,
+    falling back to ~/Downloads under the real user home.
+    """
+    home = get_user_home_dir()
+
+    # 1. Check XDG user-dirs configuration in user's real home
+    user_dirs_file = os.path.join(home, ".config", "user-dirs.dirs")
+    if os.path.isfile(user_dirs_file):
+        try:
+            with open(user_dirs_file, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("XDG_DOWNLOAD_DIR"):
+                        parts = line.split("=", 1)
+                        if len(parts) == 2:
+                            val = parts[1].strip().strip('"').strip("'")
+                            val = val.replace("$HOME", home).replace("${HOME}", home)
+                            if val:
+                                return os.path.abspath(val)
+        except Exception:
+            pass
+
+    # 2. Fallback to ~/Downloads under real home
+    return os.path.join(home, "Downloads")
+
+
 def get_data_dir():
     home = os.path.expanduser("~")
     base = os.environ.get('XDG_DATA_HOME') or os.path.join(home, '.local', 'share')
