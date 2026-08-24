@@ -881,41 +881,61 @@ def make_faded_icon(icon: QIcon, opacity: float = 0.30) -> QIcon:
 
 
 def get_app_icon() -> QIcon:
-    """Robustly finds and returns the application icon across local, AppImage, and Flatpak environments."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    
+    """Robustly finds and returns the application icon across snap, Flatpak, AppImage, and local environments."""
+    _snap      = os.environ.get("SNAP", "")
+    _snap_root = os.environ.get("SNAP_APP_ROOT", os.path.join(_snap, "share", "bengal-download-manager") if _snap else "")
+    _appdir    = os.environ.get("APPDIR", "")
+    # sys.argv[0]-relative: set by the OS at exec() time, never baked into .pyc bytecode.
+    # snap:  argv[0] = $SNAP/share/bengal-download-manager/src/main.py → root = $SNAP/share/bengal-download-manager
+    # dev:   argv[0] = <repo>/src/main.py                              → root = <repo>
+    _argv0_src  = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv else ""
+    _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else ""
+
     icon_locations = [
-        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "icons", "256x256.png"),
-        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "icons", "512x512.png"),
-        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.svg"),
-        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "logo.png"),
-        # Flatpak specific icon paths
+        # 1. PyInstaller bundle (_MEIPASS set at runtime by bootloader, not baked into .pyc)
+        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "icons", "256x256.png"),
+        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "icons", "512x512.png"),
+        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "logo.svg"),
+        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", "logo.png"),
+        # 2. Snap — $SNAP hicolor icons (installed by snapcraft override-build)
+        os.path.join(_snap, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
+        os.path.join(_snap, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
+        os.path.join(_snap, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+        # 3. Snap — $SNAP_APP_ROOT bundled assets (exported by bengal-wrapper.sh)
+        os.path.join(_snap_root, "assets", "icons", "256x256.png"),
+        os.path.join(_snap_root, "assets", "icons", "512x512.png"),
+        os.path.join(_snap_root, "assets", "logo.svg"),
+        os.path.join(_snap_root, "assets", "logo.png"),
+        # 4. Flatpak — /app hicolor (fixed path per Flatpak spec)
         "/app/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
         "/app/share/icons/hicolor/512x512/apps/io.github.tazihad.bengal-download-manager.png",
         "/app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
         "/app/share/icons/hicolor/128x128/apps/io.github.tazihad.bengal-download-manager.png",
-        "/app/share/icons/hicolor/256x256/apps/bengal-download-manager.png",
+        # 5. AppImage — $APPDIR hicolor
+        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
+        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
+        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+        os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
+        os.path.join(_appdir, "io.github.tazihad.bengal-download-manager.png"),
+        # 6. Standard system hicolor (deb / rpm / manual install)
+        "/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
+        "/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
+        "/usr/local/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
+        "/usr/local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
+        # 7. User XDG local icons
+        os.path.expanduser("~/.local/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg"),
         os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png"),
-        # AppImage specific locations
-        os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
-        os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
-        os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
-        os.path.join(os.environ.get('APPDIR', ''), "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
-        os.path.join(os.environ.get('APPDIR', ''), "io.github.tazihad.bengal-download-manager.png"),
-        os.path.join(os.environ.get('APPDIR', ''), "bengal-download-manager.png"),
-        # Development and local paths
-        os.path.join(os.path.dirname(os.path.dirname(current_dir)), "assets", "icons", "256x256.png"),
-        os.path.join(os.path.dirname(os.path.dirname(current_dir)), "assets", "icons", "512x512.png"),
-        os.path.join(os.path.dirname(os.path.dirname(current_dir)), "assets", "logo.svg"),
-        os.path.join(os.path.dirname(os.path.dirname(current_dir)), "assets", "logo.png"),
-        os.path.join(current_dir, "assets", "icons", "256x256.png"),
-        os.path.join(current_dir, "assets", "logo.svg"),
-        os.path.join(current_dir, "assets", "logo.png"),
+        # 8. sys.argv[0]-relative fallback (runtime-stable; works for snap, dev, any install layout)
+        os.path.join(_argv0_root, "assets", "icons", "256x256.png"),
+        os.path.join(_argv0_root, "assets", "icons", "512x512.png"),
+        os.path.join(_argv0_root, "assets", "logo.svg"),
+        os.path.join(_argv0_root, "assets", "logo.png"),
+        # 9. User data dir (manually placed assets)
         os.path.join(get_data_dir(), "assets", "icons", "256x256.png"),
         os.path.join(get_data_dir(), "assets", "logo.svg"),
         os.path.join(get_data_dir(), "assets", "logo.png"),
     ]
-    
+
     for loc in icon_locations:
         if loc and os.path.exists(loc):
             icon = QIcon(loc)
@@ -962,19 +982,31 @@ def get_monochrome_app_icon(color=None, size=24) -> QIcon:
 
 
 def _resolve_tray_asset(filename: str) -> str:
-    """Finds tray icon asset path across development, PyInstaller, Flatpak, and AppImage environments."""
-    services_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(services_dir)))
-    src_dir = os.path.dirname(os.path.dirname(services_dir))
+    """Finds tray icon asset path across snap, Flatpak, AppImage, and local environments."""
+    _snap      = os.environ.get("SNAP", "")
+    _snap_root = os.environ.get("SNAP_APP_ROOT", os.path.join(_snap, "share", "bengal-download-manager") if _snap else "")
+    _appdir    = os.environ.get("APPDIR", "")
+    # sys.argv[0]-relative: set by OS at exec() time, never baked into .pyc bytecode.
+    _argv0_src  = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv else ""
+    _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else ""
 
     candidates = [
-        os.path.join(getattr(sys, '_MEIPASS', ''), "assets", filename),
-        os.path.join(repo_root, "assets", filename),
-        os.path.join(src_dir, "assets", filename),
-        os.path.join(get_data_dir(), "assets", filename),
+        # 1. PyInstaller
+        os.path.join(getattr(sys, "_MEIPASS", ""), "assets", filename),
+        # 2. Snap — $SNAP_APP_ROOT bundled assets (exported by bengal-wrapper.sh)
+        os.path.join(_snap_root, "assets", filename),
+        # 3. Flatpak
         f"/app/share/bengal-download-manager/assets/{filename}",
-        os.path.join(os.environ.get('APPDIR', ''), "usr", "lib", "bengal-download-manager", "_internal", "assets", filename),
-        os.path.join(os.environ.get('APPDIR', ''), "assets", filename),
+        # 4. AppImage
+        os.path.join(_appdir, "usr", "lib", "bengal-download-manager", "_internal", "assets", filename),
+        os.path.join(_appdir, "assets", filename),
+        # 5. Standard system install (deb / rpm / manual)
+        f"/usr/share/bengal-download-manager/assets/{filename}",
+        f"/usr/local/share/bengal-download-manager/assets/{filename}",
+        # 6. sys.argv[0]-relative fallback (runtime-stable)
+        os.path.join(_argv0_root, "assets", filename),
+        # 7. User data dir
+        os.path.join(get_data_dir(), "assets", filename),
     ]
     for c in candidates:
         if c and os.path.exists(c):
