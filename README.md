@@ -11,7 +11,15 @@
 [![Latest Release](https://img.shields.io/github/v/release/tazihad/bengal-download-manager?style=flat-square&color=06b6d4&label=release)](https://github.com/tazihad/bengal-download-manager/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tazihad/bengal-download-manager/total?style=flat-square&color=22c55e)](https://github.com/tazihad/bengal-download-manager/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Flatpak%20%7C%20AppImage-8b5cf6?style=flat-square)](#build-instructions)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Snap%20%7C%20Flatpak%20%7C%20AppImage-8b5cf6?style=flat-square)](#build-instructions)
+
+### Get App
+
+[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/bengal-download-manager)
+
+### Get Addon
+
+[![Firefox](https://img.shields.io/badge/-Firefox-orange?logo=firefox-browser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module)
 
 </div>
 
@@ -75,6 +83,7 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 
 | Format | Supported Architectures | Quick Command / Link |
 | :--- | :--- | :--- |
+| **Snap Store** | `x86_64`, `arm64` | `sudo snap install bengal-download-manager` / [Snapcraft](https://snapcraft.io/bengal-download-manager) |
 | **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 | **Flatpak** | `x86_64`, `aarch64` | `flatpak install io.github.tazihad.bengal-download-manager.flatpak` |
 | **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
