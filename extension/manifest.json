@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bengal DM Integration Module",
-  "version": "0.3",
+  "version": "0.4",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
     "16": "assets/icon-16.png",
@@ -43,7 +43,8 @@
     "cookies",
     "notifications",
     "activeTab",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",

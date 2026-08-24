@@ -32,6 +32,53 @@ let cachedFilterRules = {
   blacklistExts: []
 };
 
+// --- APP CONNECTION & TOOLBAR ICON BADGE STATE ---
+let cachedAppOnline = false;
+
+function getActionAPI() {
+  if (typeof chrome !== 'undefined') {
+    if (chrome.action) return chrome.action;
+    if (chrome.browserAction) return chrome.browserAction;
+  }
+  if (typeof browser !== 'undefined') {
+    if (browser.action) return browser.action;
+    if (browser.browserAction) return browser.browserAction;
+  }
+  return null;
+}
+
+async function updateAppConnectionBadge(isOnline) {
+  cachedAppOnline = Boolean(isOnline);
+  const action = getActionAPI();
+  if (!action) return;
+
+  try {
+    if (cachedAppOnline) {
+      if (action.setBadgeText) {
+        await action.setBadgeText({ text: '' });
+      }
+      if (action.setTitle) {
+        await action.setTitle({ title: 'Bengal DM' });
+      }
+    } else {
+      if (action.setBadgeText) {
+        await action.setBadgeText({ text: '!' });
+      }
+      if (action.setBadgeBackgroundColor) {
+        await action.setBadgeBackgroundColor({ color: '#FFB300' });
+      }
+      if (action.setBadgeTextColor) {
+        try { await action.setBadgeTextColor({ color: '#000000' }); } catch {}
+      }
+      if (action.setTitle) {
+        await action.setTitle({ title: 'Bengal DM (App Disconnected)' });
+      }
+    }
+  } catch (e) {
+    console.warn("Could not update extension toolbar badge:", e);
+  }
+}
+
 function refreshFilterRules() {
   chrome.storage.local.get(cachedFilterRules, (items) => {
     cachedFilterRules = { ...cachedFilterRules, ...items };
@@ -159,6 +206,11 @@ function matchesExtension(extOrFilename, extList) {
 
 function shouldInterceptDownloadSync(url, filename, referrer) {
   if (!url || isIgnoredServiceUrl(url)) return false;
+
+  // If Bengal DM app is disconnected, do NOT intercept — let browser handle download seamlessly
+  if (!cachedAppOnline) {
+    return false;
+  }
 
   const rules = cachedFilterRules;
   if (rules.enableInterception === false) {
@@ -344,6 +396,7 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
 
 // --- CHECK BENGAL DM APP CONNECTION ---
 async function isBengalDMOnline() {
+  let online = false;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -352,7 +405,7 @@ async function isBengalDMOnline() {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
-    return response.ok;
+    online = response.ok;
   } catch {
     try {
       const controller = new AbortController();
@@ -362,11 +415,13 @@ async function isBengalDMOnline() {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-      return response.ok;
+      online = response.ok;
     } catch {
-      return false;
+      online = false;
     }
   }
+  await updateAppConnectionBadge(online);
+  return online;
 }
 
 // --- SEND DOWNLOAD TO BENGAL DM ---
@@ -520,7 +575,7 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
 
         // Synchronous blacklist & interception check
         const shouldIntercept = shouldInterceptDownloadSync(details.url, filenameFromHeader, referrer);
-        if (!shouldIntercept) {
+        if (!shouldIntercept || !cachedAppOnline) {
           return; // Bypassed to native browser! NEVER cancel or redirect!
         }
 
@@ -557,7 +612,7 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
             });
           })();
 
-          if (extraSpec.includes("blocking")) {
+          if (extraSpec.includes("blocking") && cachedAppOnline) {
             return { cancel: true };
           }
         }
@@ -604,11 +659,6 @@ function cancelAndEraseDownload(downloadId) {
   setTimeout(() => eraseDownloadRecord(downloadId), 500);
 }
 
-// Disable download shelf UI if supported by browser build
-if (chrome.downloads && typeof chrome.downloads.setShelfEnabled === 'function') {
-  try { chrome.downloads.setShelfEnabled(false); } catch {}
-}
-
 // 1. Hook onDeterminingFilename (Chrome/Edge): Cancels before Save-As dialog opens and before download animation triggers
 if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
   chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
@@ -616,7 +666,7 @@ if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
 
     const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
     const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
-    if (!shouldIntercept) {
+    if (!shouldIntercept || !cachedAppOnline) {
       return; // Leave download to native browser!
     }
 
@@ -637,7 +687,7 @@ if (chrome.downloads && chrome.downloads.onCreated) {
     const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
     // Check Whitelist & Blacklist rules
     const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
-    if (!shouldIntercept) {
+    if (!shouldIntercept || !cachedAppOnline) {
       return; // Leave download to native browser!
     }
 
@@ -892,7 +942,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       sendResponse({
         online: isOnline,
-        enableInterception: rules.enableInterception !== false,
+        enableInterception: rules.enableInterception !== false && isOnline,
         blacklisted,
         whitelistedUrl,
         whitelistedExt
@@ -900,4 +950,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true;
   }
+
+  if (request.action === "update_connection_status") {
+    updateAppConnectionBadge(Boolean(request.online));
+    sendResponse({ success: true, online: cachedAppOnline });
+    return true;
+  }
 });
+
+// --- PERIODIC CONNECTION POLLING & STARTUP ---
+async function checkAndUpdateConnection() {
+  const online = await isBengalDMOnline();
+  return online;
+}
+
+try {
+  if (chrome.alarms) {
+    chrome.alarms.create("bengal_connection_poll", { periodInMinutes: 0.25 });
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      if (alarm && alarm.name === "bengal_connection_poll") {
+        checkAndUpdateConnection();
+      }
+    });
+  }
+} catch (e) {}
+
+if (chrome.runtime && chrome.runtime.onStartup) {
+  chrome.runtime.onStartup.addListener(() => {
+    checkAndUpdateConnection();
+  });
+}
+
+// Initial status check
+checkAndUpdateConnection();
+
