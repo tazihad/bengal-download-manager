@@ -1317,6 +1317,7 @@ class MainWindow(QMainWindow):
                     if is_active:
                         selection_has_active = True
                         selection_has_pausable = True
+                        selection_has_resumable = True
                     else:
                         selection_has_resumable = True
         
@@ -3469,49 +3470,43 @@ class MainWindow(QMainWindow):
                 item_name = self.download_table.item(row, 0)
                 if not item_name:
                     continue
-                
-                # If already active, bring dialog to front or resume if paused
+                # If already active, bring dialog to front (or create/restore if silent/hidden) and resume if paused
                 key = self._get_item_key(item_name)
-                if key in self.active_downloads:
-                    dialog = self.active_downloads[key]
-                    if not MemoryGuard.is_widget_alive(dialog) and not hasattr(dialog, 'isRunning'):
-                        self.active_downloads.pop(key, None)
-                        dialog = None
-
+                if key in self.active_downloads or self._is_download_active(item_name):
+                    dialog = self.show_download_progress_dialog(item_name)
+                    status_item = self.download_table.item(row, 2)
+                    logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+                    
+                    worker = None
                     if dialog:
-                        status_item = self.download_table.item(row, 2)
-                        logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
-                        
-                        worker = getattr(dialog, 'worker', dialog)
-                        if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
-                            gen = (item_name.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
-                            item_name.setData(Qt.ItemDataRole.UserRole + 13, gen)
-                            item_name.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
-                            worker.generation = gen
-                            # Forward resume to existing worker
-                            try:
-                                if hasattr(worker, 'resume'):
-                                    worker.resume()
-                            except (RuntimeError, Exception):
-                                pass
-                            if hasattr(dialog, 'lbl_main_status'):
-                                try:
-                                    dialog.lbl_main_status.setText("Resuming...")
-                                    dialog.btn_pause.setText("Pause")
-                                    dialog.btn_cancel.setText("Cancel")
-                                except Exception:
-                                    pass
-                            self._set_status_text(row, "Resuming...", logic_status="Resuming...")
-                            if status_item:
-                                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
-                            self._set_row_bold(row, True)
-                        
+                        worker = getattr(dialog, 'worker', None)
+                    elif key in self.active_downloads:
+                        entry = self.active_downloads[key]
+                        worker = getattr(entry, 'worker', entry)
+
+                    if worker and (getattr(worker, 'is_paused', False) or getattr(worker, 'is_pause_requested', False) or logic_status in ["Paused", "Cancelled", "Error"]):
+                        gen = (item_name.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+                        item_name.setData(Qt.ItemDataRole.UserRole + 13, gen)
+                        item_name.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+                        worker.generation = gen
+                        # Forward resume to existing worker
                         try:
-                            dialog.activateWindow()
-                            dialog.raise_()
+                            if hasattr(worker, 'resume'):
+                                worker.resume()
                         except (RuntimeError, Exception):
                             pass
-                        continue
+                        if dialog and hasattr(dialog, 'lbl_main_status'):
+                            try:
+                                dialog.lbl_main_status.setText("Resuming...")
+                                dialog.btn_pause.setText("Pause")
+                                dialog.btn_cancel.setText("Cancel")
+                            except Exception:
+                                pass
+                        self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                        if status_item:
+                            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                        self._set_row_bold(row, True)
+                    continue
                 
                 # Start/Resume download
                 url = item_name.data(Qt.ItemDataRole.UserRole)
