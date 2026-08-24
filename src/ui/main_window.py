@@ -1305,25 +1305,23 @@ class MainWindow(QMainWindow):
                 
                 status_item = self.download_table.item(r, 2)
                 logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else None
-                status_text = status_item.text() if status_item else ""
-                status = logic_status if logic_status else status_text
+                status = logic_status if logic_status else (status_item.text() if status_item else "")
                 
                 is_active = self._is_download_active(item)
                 if is_active:
                     selection_has_active = True
                 
                 is_complete = status in ["Complete", "Finished"] or (item.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
-                is_resuming = logic_status == "Resuming..." or status == "Resuming..." or status_text == "Resuming..."
+                is_resuming_or_connecting = logic_status in ["Resuming...", "Starting...", "Pending...", "Connecting..."] or status in ["Resuming...", "Starting...", "Pending...", "Connecting..."]
                 
-                if not is_complete:
+                if not is_complete and not is_resuming_or_connecting:
                     if is_active:
                         selection_has_active = True
                         selection_has_pausable = True
-                        if not is_resuming:
-                            selection_has_resumable = True
                     else:
-                        if not is_resuming:
-                            selection_has_resumable = True
+                        selection_has_resumable = True
+                elif is_active:
+                    selection_has_pausable = True
         
         # STOP action is for pausing an active download
         self.action_stop.setEnabled(selection_has_pausable)

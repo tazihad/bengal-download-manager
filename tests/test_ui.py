@@ -1337,7 +1337,7 @@ def test_pause_resume_multi_interface_lifecycle(qapp, monkeypatch):
     assert window.download_table.item(row, 2).text() == "50.00%"
     assert window._is_row_active(row) is True
     assert window.action_stop.isEnabled() is True
-    assert window.action_resume.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
 
     # 1. TOOLBAR PAUSE & RESUME
     window.action_stop.trigger()
@@ -1905,15 +1905,6 @@ def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, t
         assert prog_acts[0].isEnabled() is True
         prog_acts[0].trigger()
         assert dlg.isVisible() is True
-
-    # 5. Toolbar Resume action brings back progress dialog like IDM
-    dlg.hide()
-    assert dlg.isVisible() is False
-    win.download_table.selectRow(0)
-    win.update_ui_states()
-    assert win.action_resume.isEnabled() is True
-    win.action_resume.trigger()
-    assert dlg.isVisible() is True
 
     dlg.close()
     win.close()
