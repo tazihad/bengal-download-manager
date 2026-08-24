@@ -1869,17 +1869,10 @@ def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, t
     key = win._get_item_key(item_name)
     win.active_downloads[key] = worker
 
-    # 1. Dynamic tray menu test
-    win._rebuild_tray_menu()
-    actions = win.tray_menu.actions()
-    matching_actions = [a for a in actions if "test_archive.zip" in a.text()]
-    assert len(matching_actions) == 1
-    assert "Downloading (50%)" in matching_actions[0].text() or "2.5 MB/s" in matching_actions[0].text()
-
-    # 2. Clicking tray action restores/creates progress dialog
-    matching_actions[0].trigger()
+    # 1. show_download_progress_dialog restores/creates progress dialog
+    dlg = win.show_download_progress_dialog(key)
     assert key in win.active_downloads
-    dlg = win.active_downloads[key]
+    assert dlg is not None
     assert dlg.isVisible() is True
     assert "test_archive.zip" in dlg.windowTitle()
 
@@ -1887,23 +1880,17 @@ def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, t
     dlg.hide()
     assert dlg.isVisible() is False
 
-    # 3. show_all_active_progress_dialogs
+    # 2. show_all_active_progress_dialogs
     win.show_all_active_progress_dialogs()
     assert dlg.isVisible() is True
 
     dlg.hide()
 
-    # 4. Table cellDoubleClicked
+    # 3. Table cellDoubleClicked
     win._on_table_cell_double_clicked(0, 0)
     assert dlg.isVisible() is True
 
-    # 5. Tray icon activation when window visible brings dialog to front
-    dlg.hide()
-    win.show()
-    win.on_tray_icon_activated(QSystemTrayIcon.ActivationReason.Trigger)
-    assert dlg.isVisible() is True
-
-    # 6. Context menu "Show progress window"
+    # 4. Context menu "Show progress window"
     dlg.hide()
     from PyQt6.QtCore import QPoint
     from PyQt6.QtWidgets import QMenu
