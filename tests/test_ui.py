@@ -1361,7 +1361,7 @@ def test_pause_resume_multi_interface_lifecycle(qapp, monkeypatch):
     assert item0.data(Qt.ItemDataRole.UserRole + 11) == "Normal"
     assert window._is_row_active(row) is True
     assert window.action_stop.isEnabled() is True
-    assert window.action_resume.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
 
     # 2. DOWNLOAD WINDOW (DIALOG) PAUSE & RESUME
     dlg.btn_pause.setText("Pause")
@@ -1376,7 +1376,7 @@ def test_pause_resume_multi_interface_lifecycle(qapp, monkeypatch):
     assert mock_worker.is_paused is False
     assert window._is_row_active(row) is True
     assert window.action_stop.isEnabled() is True
-    assert window.action_resume.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
 
     # 3. RIGHT-CLICK CONTEXT MENU PAUSE & RESUME
     window.stop_selected_download()
@@ -1389,7 +1389,7 @@ def test_pause_resume_multi_interface_lifecycle(qapp, monkeypatch):
     assert mock_worker.is_paused is False
     assert window._is_row_active(row) is True
     assert window.action_stop.isEnabled() is True
-    assert window.action_resume.isEnabled() is True
+    assert window.action_resume.isEnabled() is False
 
     # 4. CROSS-INTERFACE ALTERNATING SWITCHES
     # Toolbar Pause -> Window Resume
@@ -1916,6 +1916,35 @@ def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, t
     assert dlg.isVisible() is True
 
     dlg.close()
+    win.close()
+
+
+def test_toolbar_resume_disabled_when_already_resuming(qapp, monkeypatch, tmp_path):
+    """Verify that toolbar Resume action is disabled when a download is actively in Resuming state."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    win.download_table.setRowCount(1)
+    item_name = QTableWidgetItem("resuming_file.iso")
+    item_status = QTableWidgetItem("Resuming...")
+    item_status.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+
+    win.download_table.setItem(0, 0, item_name)
+    win.download_table.setItem(0, 1, QTableWidgetItem("100 MB"))
+    win.download_table.setItem(0, 2, item_status)
+
+    win.download_table.selectRow(0)
+    win.update_ui_states()
+
+    # Toolbar Resume should be disabled because the download is already resuming
+    assert win.action_resume.isEnabled() is False
+
     win.close()
 
 
