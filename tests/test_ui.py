@@ -1716,13 +1716,32 @@ def test_options_dialog_silent_download_mode(qapp, monkeypatch, tmp_path):
     assert hasattr(dlg, "chk_silent_download")
     assert dlg.get_silent_download() is False
 
-    # Check silent download mode
+    # Initial states should be enabled and checked
+    assert dlg.chk_show_start_dialog.isChecked() is True
+    assert dlg.chk_show_progress_dialog.isChecked() is True
+    assert dlg.chk_show_complete_dialog.isChecked() is True
+
+    # Check silent download mode (should disable controls without clearing their checked state)
     dlg.chk_silent_download.setChecked(True)
     assert dlg.chk_show_start_dialog.isEnabled() is False
     assert dlg.chk_show_progress_dialog.isEnabled() is False
     assert dlg.chk_show_complete_dialog.isEnabled() is False
     assert dlg.chk_show_queue_complete_dialog.isEnabled() is False
+    assert dlg.chk_show_start_dialog.isChecked() is True
+    assert dlg.chk_show_progress_dialog.isChecked() is True
+    assert dlg.chk_show_complete_dialog.isChecked() is True
 
+    # Uncheck silent download mode (should re-enable controls while preserving checked state)
+    dlg.chk_silent_download.setChecked(False)
+    assert dlg.chk_show_start_dialog.isEnabled() is True
+    assert dlg.chk_show_progress_dialog.isEnabled() is True
+    assert dlg.chk_show_complete_dialog.isEnabled() is True
+    assert dlg.chk_show_queue_complete_dialog.isEnabled() is True
+    assert dlg.chk_show_start_dialog.isChecked() is True
+    assert dlg.chk_show_progress_dialog.isChecked() is True
+    assert dlg.chk_show_complete_dialog.isChecked() is True
+
+    dlg.chk_silent_download.setChecked(True)
     dlg.save_and_accept()
     assert win.settings["silent_download"] is True
 

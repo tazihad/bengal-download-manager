@@ -68,7 +68,8 @@ from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, get_aria2_proxy_url,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
-    is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory
+    is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory,
+    get_user_downloads_dir
 )
 from core.memory_guard import MemoryGuard
 
@@ -2661,7 +2662,7 @@ class MainWindow(QMainWindow):
         show_in_folder(path)
 
     def open_downloads_folder_generic(self):
-        path = os.path.join(os.path.expanduser("~"), "Downloads")
+        path = get_user_downloads_dir()
         show_in_folder(path)
 
     def ctx_move(self, item):
@@ -3306,7 +3307,7 @@ class MainWindow(QMainWindow):
         save_dir = custom_save_dir if custom_save_dir else categories[final_category]["path"]
         if not os.path.exists(save_dir):
             try: os.makedirs(save_dir)
-            except: save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+            except: save_dir = get_user_downloads_dir()
 
         temp_dir = config.get("temp_dir")
 
@@ -4215,7 +4216,7 @@ class MainWindow(QMainWindow):
             try:
                 os.makedirs(save_dir, exist_ok=True)
             except Exception:
-                save_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+                save_dir = get_user_downloads_dir()
 
         from core.utils import sanitize_media_filename, get_unique_media_filepath
         base_name, ext = os.path.splitext(filename)

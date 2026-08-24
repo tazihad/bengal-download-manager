@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from core.utils import get_unique_filepath, choose_portal_save_path
+from core.utils import get_unique_filepath, choose_portal_save_path, get_user_downloads_dir
 from core.config import load_category_config
 from core.memory_guard import MemoryGuard
 
@@ -136,7 +136,7 @@ class DownloadFileInfoDialog(QDialog):
         if cat in categories:
             base_dir = categories[cat]["path"]
         else:
-            base_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+            base_dir = get_user_downloads_dir()
         
         try: os.makedirs(base_dir, exist_ok=True)
         except: pass
@@ -155,7 +155,7 @@ class DownloadFileInfoDialog(QDialog):
         
     def browse_save_path(self):
         current_text = self.save_input.text().strip()
-        folder = os.path.dirname(current_text) if current_text else os.path.expanduser("~/Downloads")
+        folder = os.path.dirname(current_text) if current_text else get_user_downloads_dir()
         filename = os.path.basename(current_text) if current_text else self.file_info.get("filename", "")
         path = choose_portal_save_path("Save File As", filename, folder)
         if path:
