@@ -8,6 +8,7 @@ import os
 import sys
 import re
 import urllib.request
+import ssl
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
@@ -15,7 +16,10 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QToolButton, QToolTip, QFileDialog
 )
 from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QIcon, QKeySequence, QShortcut, QPixmap, QPainter, QPainterPath, QColor, QPen, QLinearGradient, QPalette
+from PyQt6.QtGui import (
+    QFont, QIcon, QKeySequence, QShortcut, QPixmap, QImage, QPainter,
+    QPainterPath, QColor, QPen, QLinearGradient, QPalette
+)
 from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
 from core.memory_guard import MemoryGuard
 
@@ -81,21 +85,40 @@ def create_thumbnail_placeholder(width: int = 160, height: int = 90, radius: int
 
 
 class ThumbnailLoaderWorker(QThread):
-    """Background worker to fetch thumbnail bytes without freezing Qt GUI."""
-    thumbnail_loaded = pyqtSignal(QPixmap)
+    """Background worker to fetch thumbnail image bytes without freezing Qt GUI."""
+    thumbnail_loaded = pyqtSignal(object)
 
     def __init__(self, url: str):
         super().__init__()
         self.url = url
+        _keep_thread_alive(self)
 
     def run(self):
+        if not self.url or self.isInterruptionRequested():
+            return
+        data = None
         try:
             req = urllib.request.Request(self.url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0)"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = resp.read()
-                pm = QPixmap()
-                if pm.loadFromData(data) and not pm.isNull():
-                    self.thumbnail_loaded.emit(pm)
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    if self.isInterruptionRequested():
+                        return
+                    data = resp.read()
+            except Exception:
+                if self.isInterruptionRequested():
+                    return
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+                    if self.isInterruptionRequested():
+                        return
+                    data = resp.read()
+
+            if data and not self.isInterruptionRequested():
+                img = QImage()
+                if img.loadFromData(data) and not img.isNull():
+                    self.thumbnail_loaded.emit(img)
         except Exception:
             pass
 
@@ -1070,8 +1093,9 @@ class MediaDownloaderDialog(QDialog):
             if thumb_url:
                 if hasattr(self, "_thumb_worker") and self._thumb_worker and self._thumb_worker.isRunning():
                     try:
-                        self._thumb_worker.terminate()
-                        self._thumb_worker.wait(100)
+                        self._thumb_worker.requestInterruption()
+                        self._thumb_worker.quit()
+                        self._thumb_worker.wait(150)
                     except Exception:
                         pass
                 self._thumb_worker = ThumbnailLoaderWorker(thumb_url)
@@ -1139,9 +1163,15 @@ class MediaDownloaderDialog(QDialog):
                     self.cmb_quality_preset.setCurrentIndex(matched_idx)
             self._on_download_clicked()
 
-    def _on_thumbnail_loaded(self, pixmap: QPixmap):
-        if hasattr(self, "lbl_thumbnail") and not pixmap.isNull():
-            self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pixmap, 160, 90, radius=8))
+    def _on_thumbnail_loaded(self, image_or_pixmap):
+        if hasattr(self, "lbl_thumbnail") and image_or_pixmap:
+            if isinstance(image_or_pixmap, QImage):
+                if not image_or_pixmap.isNull():
+                    pm = QPixmap.fromImage(image_or_pixmap)
+                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pm, 160, 90, radius=8))
+            elif isinstance(image_or_pixmap, QPixmap):
+                if not image_or_pixmap.isNull():
+                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 160, 90, radius=8))
 
     def _update_preset_availability(self, data: dict):
         formats = data.get("formats", [])
@@ -1352,6 +1382,24 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.itemChanged.connect(self._update_playlist_selection_count)
         self._update_playlist_selection_count()
 
+        # Async Playlist Thumbnail Acquisition
+        if hasattr(self, "lbl_playlist_thumbnail"):
+            self.lbl_playlist_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8, is_playlist=True))
+            pl_thumb_url = data.get("thumbnail") or ""
+            if not pl_thumb_url and entries:
+                pl_thumb_url = entries[0].get("thumbnail") or ""
+            if pl_thumb_url:
+                if hasattr(self, "_pl_thumb_worker") and self._pl_thumb_worker and self._pl_thumb_worker.isRunning():
+                    try:
+                        self._pl_thumb_worker.requestInterruption()
+                        self._pl_thumb_worker.quit()
+                        self._pl_thumb_worker.wait(150)
+                    except Exception:
+                        pass
+                self._pl_thumb_worker = ThumbnailLoaderWorker(pl_thumb_url)
+                self._pl_thumb_worker.thumbnail_loaded.connect(self._on_playlist_thumbnail_loaded)
+                self._pl_thumb_worker.start()
+
         self.stack.setCurrentWidget(self.page_playlist)
         self.btn_download.setEnabled(True)
 
@@ -1365,6 +1413,16 @@ class MediaDownloaderDialog(QDialog):
                         break
             self._set_all_playlist_checked(True)
             self._on_download_clicked()
+
+    def _on_playlist_thumbnail_loaded(self, image_or_pixmap):
+        if hasattr(self, "lbl_playlist_thumbnail") and image_or_pixmap:
+            if isinstance(image_or_pixmap, QImage):
+                if not image_or_pixmap.isNull():
+                    pm = QPixmap.fromImage(image_or_pixmap)
+                    self.lbl_playlist_thumbnail.setPixmap(make_rounded_thumbnail(pm, 160, 90, radius=8))
+            elif isinstance(image_or_pixmap, QPixmap):
+                if not image_or_pixmap.isNull():
+                    self.lbl_playlist_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 160, 90, radius=8))
 
     def _on_url_text_changed(self, text: str):
         self._current_video_data = None
@@ -1787,4 +1845,13 @@ class MediaDownloaderDialog(QDialog):
                     self._dep_worker.wait(2000)
             except Exception:
                 pass
+        for attr in ("_thumb_worker", "_pl_thumb_worker"):
+            w = getattr(self, attr, None)
+            if w and w.isRunning():
+                try:
+                    w.requestInterruption()
+                    w.quit()
+                    w.wait(500)
+                except Exception:
+                    pass
         super().closeEvent(event)
