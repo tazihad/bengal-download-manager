@@ -1223,11 +1223,16 @@ def get_executable_command(start_minimized=False):
         flatpak_id = os.environ.get("FLATPAK_ID", "io.github.tazihad.bengal-download-manager")
         return f'flatpak run {flatpak_id}{min_flag}'
 
-    # 3. Check if running as PyInstaller binary / frozen executable
+    # 3. Check if running inside Snap
+    if os.environ.get("SNAP") or os.environ.get("SNAP_NAME"):
+        snap_name = os.environ.get("SNAP_NAME", "bengal-download-manager")
+        return f'{snap_name}{min_flag}'
+
+    # 4. Check if running as PyInstaller binary / frozen executable
     if getattr(sys, 'frozen', False):
         return f'"{sys.executable}"{min_flag}'
 
-    # 4. Standard Python / dev environment
+    # 5. Standard Python / dev environment
     main_py = os.path.abspath(sys.argv[0])
     return f'"{sys.executable}" "{main_py}"{min_flag}'
 

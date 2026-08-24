@@ -100,6 +100,16 @@ def test_autostart_environment_command_and_file_management(monkeypatch, tmp_path
     assert "flatpak run io.github.tazihad.bengal-download-manager" in cmd_flatpak
     monkeypatch.delenv("FLATPAK_ID", raising=False)
 
+    # Test Snap environment detection
+    monkeypatch.setenv("SNAP", "/snap/bengal-download-manager/current")
+    monkeypatch.setenv("SNAP_NAME", "bengal-download-manager")
+    cmd_snap = get_executable_command(start_minimized=True)
+    assert cmd_snap == "bengal-download-manager --minimized"
+    cmd_snap_normal = get_executable_command(start_minimized=False)
+    assert cmd_snap_normal == "bengal-download-manager"
+    monkeypatch.delenv("SNAP", raising=False)
+    monkeypatch.delenv("SNAP_NAME", raising=False)
+
     # Test autostart creation and removal with custom path
     test_autostart_file = str(tmp_path / "autostart" / "bengal-download-manager.desktop")
     monkeypatch.setattr("core.utils.get_autostart_filepath", lambda: test_autostart_file)
