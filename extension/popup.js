@@ -266,9 +266,11 @@ chrome.storage.local.get({
         }
         const formatted = formatAppVersion(ver);
         statusText.textContent = formatted ? `Bengal DM Running (${formatted})` : "Bengal DM Running";
+        chrome.runtime.sendMessage({ action: "update_connection_status", online: true }).catch(() => {});
       } else {
         dot.className = "dot offline";
         statusText.textContent = items.token ? "Auth Error / Out of Sync" : "Ports Out of Sync";
+        chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
       }
     } else {
       throw new Error("Invalid Response");
@@ -276,5 +278,6 @@ chrome.storage.local.get({
   } catch (error) {
     dot.className = "dot offline";
     statusText.textContent = "App Not Running";
+    chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
   }
 });

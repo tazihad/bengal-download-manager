@@ -160,10 +160,12 @@ async function testConnection(port, token) {
       if (aboutAppVer) {
         aboutAppVer.textContent = formattedVersion || "Connected (Active)";
       }
+      chrome.runtime.sendMessage({ action: "update_connection_status", online: true }).catch(() => {});
     } else if (ariaData && ariaData.error) {
       dot.className = "dot offline";
       connText.textContent = "Auth Error";
       if (aboutAppVer) aboutAppVer.textContent = "Authentication Error (Invalid Token)";
+      chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
     } else {
       throw new Error("Invalid response");
     }
@@ -171,6 +173,7 @@ async function testConnection(port, token) {
     dot.className = "dot offline";
     connText.textContent = error.name === 'AbortError' ? "Timeout" : "Disconnected";
     if (aboutAppVer) aboutAppVer.textContent = "Disconnected (App Not Running)";
+    chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
   } finally {
     refreshBtn.classList.remove('spinning');
   }
