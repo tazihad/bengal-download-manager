@@ -578,9 +578,15 @@ def get_clean_env(extra_paths=None):
                 if "_MEI" in part or "_mei" in part:
                     mei_dirs.add(os.path.abspath(part))
 
-    # 2. Hard clear PyInstaller, loader, and Qt specific environment keys
+    # 2. Hard clear PyInstaller, loader, and Qt specific environment keys.
+    # Exception: inside a snap, LD_LIBRARY_PATH contains only $SNAP/… paths (set by
+    # snapd and the GNOME extension). aria2c and other snap-packaged binaries are
+    # dynamically linked against these snap-internal libs (libaria2.so.0, libstdc++,
+    # etc.) and will exit with code 127 if LD_LIBRARY_PATH is stripped.
+    # The step-4 MEI-path scrub below still removes any stray _MEI entries.
+    _in_snap = bool(os.environ.get("SNAP"))
     keys_to_clear = [
-        "LD_LIBRARY_PATH", "LD_LIBRARY_PATH_ORIG", "ORIG_LD_LIBRARY_PATH",
+        *([] if _in_snap else ["LD_LIBRARY_PATH", "LD_LIBRARY_PATH_ORIG", "ORIG_LD_LIBRARY_PATH"]),
         "LD_PRELOAD", "LD_AUDIT",
         "DYLD_LIBRARY_PATH", "DYLD_LIBRARY_PATH_ORIG", "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
         "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QML_IMPORT_PATH", "QML2_IMPORT_PATH",
