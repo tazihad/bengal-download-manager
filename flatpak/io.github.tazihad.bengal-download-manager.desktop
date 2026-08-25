@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Bengal Download Manager
-Comment=Fast multi-threaded download manager powered by Aria2 and PyQt6 / Kirigami
+Comment=Fast multi-threaded download manager powered by Aria2
 Exec=bengal-download-manager %u
 Icon=io.github.tazihad.bengal-download-manager
 Terminal=false
