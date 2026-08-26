@@ -50,7 +50,7 @@ apps:
       - unity7
     environment:
       PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$PYTHONPATH
-      PATH: $SNAP/usr/bin:$SNAP/bin:$PATH
+      PATH: $SNAP/bin:$SNAP/usr/bin:$PATH
 
 parts:
   bengal-download-manager:
@@ -98,6 +98,9 @@ parts:
 
       # 4. Install launcher wrapper
       install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+
+      # 5. Install portal-aware xdg-open wrapper (matching Flatpak)
+      install -D -m 755 snap/local/xdg-open "$CRAFT_PART_INSTALL/bin/xdg-open"
     stage:
       # Exclude staged librsvg2 so the GNOME platform's newer v2.61.1 is used
       # at runtime.  Without this, the older v2.50.0 (transitively pulled by
