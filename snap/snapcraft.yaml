@@ -55,7 +55,7 @@ apps:
 parts:
   bengal-download-manager:
     plugin: python
-    source: https://github.com/tazihad/bengal-download-manager/archive/refs/tags/v0.2.12.tar.gz
+    source: .
     python-requirements:
       - requirements.txt
     # Do NOT add librsvg2-2 or librsvg2-common to stage-packages.
@@ -97,10 +97,18 @@ parts:
       fi
 
       # 4. Install launcher wrapper
-      install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      if [ -f "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" ]; then
+        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      elif [ -f snap/local/bengal-wrapper.sh ]; then
+        install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      fi
 
       # 5. Install portal-aware xdg-open wrapper (matching Flatpak)
-      install -D -m 755 snap/local/xdg-open "$CRAFT_PART_INSTALL/bin/xdg-open"
+      if [ -f "$CRAFT_PROJECT_DIR/snap/local/xdg-open" ]; then
+        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/xdg-open" "$CRAFT_PART_INSTALL/bin/xdg-open"
+      elif [ -f snap/local/xdg-open ]; then
+        install -D -m 755 snap/local/xdg-open "$CRAFT_PART_INSTALL/bin/xdg-open"
+      fi
     stage:
       # Exclude staged librsvg2 so the GNOME platform's newer v2.61.1 is used
       # at runtime.  Without this, the older v2.50.0 (transitively pulled by
