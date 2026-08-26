@@ -40,6 +40,9 @@ runs:
         if manual_tag:
             tag = manual_tag if manual_tag.startswith("v") else f"v{manual_tag}"
             version = tag[1:] if tag.startswith("v") else tag
+        elif ref.startswith("refs/tags/"):
+            tag = ref.replace("refs/tags/", "")
+            version = tag[1:] if tag.startswith("v") else tag
         else:
             try:
                 raw_tags = subprocess.check_output(["git", "tag", "-l"]).decode("utf-8").split("\n")
