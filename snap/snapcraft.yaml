@@ -55,7 +55,7 @@ apps:
 parts:
   bengal-download-manager:
     plugin: python
-    source: .
+    source: https://github.com/tazihad/bengal-download-manager/archive/refs/tags/v0.2.12.tar.gz
     python-requirements:
       - requirements.txt
     # Do NOT add librsvg2-2 or librsvg2-common to stage-packages.
