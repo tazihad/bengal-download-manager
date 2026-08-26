@@ -1891,12 +1891,25 @@ def test_restore_silent_or_hidden_progress_dialog_from_tray(qapp, monkeypatch, t
     assert dlg.isVisible() is True
 
     # 4. Context menu "Show progress window"
-    dlg.hide()
+    # 4a. When dialog is visible (not hidden), action is disabled
     from PyQt6.QtCore import QPoint
     from PyQt6.QtWidgets import QMenu
     captured_menus = []
     real_exec = QMenu.exec
     monkeypatch.setattr(QMenu, "exec", lambda m, *a, **k: captured_menus.append(m))
+
+    assert dlg.isVisible() is True
+    win.show_context_menu(QPoint(5, 5))
+    if captured_menus:
+        ctx_acts = captured_menus[-1].actions()
+        prog_acts = [a for a in ctx_acts if "Show progress window" in a.text()]
+        assert len(prog_acts) == 1
+        assert prog_acts[0].isEnabled() is False
+
+    # 4b. When dialog is hidden, action is enabled
+    dlg.hide()
+    assert dlg.isVisible() is False
+    captured_menus.clear()
     win.show_context_menu(QPoint(5, 5))
     if captured_menus:
         ctx_acts = captured_menus[-1].actions()

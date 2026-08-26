@@ -47,7 +47,7 @@ runs:
         with open(path, "w") as f:
             f.write(content)
         ' "$VER"
-            grep "^version:" snap/snapcraft.yaml
+            grep -E "^(version:|adopt-info:)" snap/snapcraft.yaml || true
           fi
         else
           echo "No version provided to update-version action."

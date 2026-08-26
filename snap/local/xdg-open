@@ -1,0 +1,43 @@
+#!/bin/sh
+# XDG Open Portal Wrapper for Bengal Download Manager (Snap)
+# Delegates file & URL opening to the host XDG Desktop Portal (matching Flatpak behavior).
+
+TARGET="$1"
+if [ -z "$TARGET" ]; then
+    echo "Usage: xdg-open URL_OR_FILE" >&2
+    exit 1
+fi
+
+# 1. Local file path -> XDG Desktop Portal OpenFile (passes file descriptor via stdin)
+if [ -e "$TARGET" ]; then
+    REAL_PATH="$(readlink -f "$TARGET" 2>/dev/null || realpath "$TARGET" 2>/dev/null || echo "$TARGET")"
+    if command -v gdbus >/dev/null 2>&1; then
+        gdbus call --session \
+            --dest org.freedesktop.portal.Desktop \
+            --object-path /org/freedesktop/portal/desktop \
+            --method org.freedesktop.portal.OpenURI.OpenFile "" 0 "{}" < "$REAL_PATH" >/dev/null 2>&1 && exit 0
+    fi
+fi
+
+# 2. URL or URI Fallback -> XDG Desktop Portal OpenURI
+case "$TARGET" in
+    http://*|https://*|file://*|mailto:*)
+        URI="$TARGET"
+        ;;
+    *)
+        URI="file://$(readlink -f "$TARGET" 2>/dev/null || echo "$TARGET")"
+        ;;
+esac
+
+if command -v gdbus >/dev/null 2>&1; then
+    gdbus call --session \
+        --dest org.freedesktop.portal.Desktop \
+        --object-path /org/freedesktop/portal/desktop \
+        --method org.freedesktop.portal.OpenURI.OpenURI "" "$URI" "{}" >/dev/null 2>&1 && exit 0
+fi
+
+if command -v snapctl >/dev/null 2>&1; then
+    snapctl user-open "$TARGET" 2>/dev/null && exit 0
+fi
+
+exit 1

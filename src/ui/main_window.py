@@ -2652,9 +2652,20 @@ class MainWindow(QMainWindow):
         act_resume.triggered.connect(self.resume_selected_download)
         act_resume.setEnabled(is_resumable)
 
+        # Check if progress dialog is currently visible or hidden
+        is_progress_hidden = True
+        key = self._get_item_key(item_0)
+        if key and key in getattr(self, "active_downloads", {}):
+            entry = self.active_downloads.get(key)
+            if isinstance(entry, DownloadProgressDialog) and MemoryGuard.is_widget_alive(entry):
+                if entry.isVisible() and not entry.isMinimized() and not entry.isHidden():
+                    is_progress_hidden = False
+        elif not is_active:
+            is_progress_hidden = False
+
         act_show_progress = QAction(_fi(get_themed_icon("resume")), "Show progress window", self)
-        act_show_progress.triggered.connect(lambda _, it=item_0: self.show_download_progress_dialog(it))
-        act_show_progress.setEnabled(is_active)
+        act_show_progress.triggered.connect(lambda _, it=item_0: self.ctx_show_progress_dialog(it))
+        act_show_progress.setEnabled(bool(is_active and is_progress_hidden))
         
         menu.addActions([act_resume, act_stop, act_show_progress])
         menu.addSeparator()
@@ -2715,6 +2726,17 @@ class MainWindow(QMainWindow):
         act_props.triggered.connect(lambda: self.ctx_properties(item))
 
         menu.exec(self.download_table.viewport().mapToGlobal(pos))
+
+    def ctx_show_progress_dialog(self, item):
+        if not item:
+            return
+        row = item.row() if hasattr(item, "row") else -1
+        if row >= 0:
+            item_0 = self.download_table.item(row, 0)
+            if item_0:
+                self.show_download_progress_dialog(item_0)
+                return
+        self.show_download_progress_dialog(item)
 
     def ctx_open_file(self, item):
         row = item.row()
