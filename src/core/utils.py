@@ -9,7 +9,8 @@ import tarfile
 import subprocess
 import re
 import logging
-from urllib.parse import urlparse, unquote
+import mimetypes
+from urllib.parse import urlparse, unquote, parse_qs
 
 def setup_logging(debug=False):
     """
@@ -107,40 +108,74 @@ def get_process_memory() -> int:
 def resolve_filename(url, headers):
     """
     JDownloader-style robust filename resolution:
-    1. Content-Disposition (RFC 5987 filename* > filename)
-    2. URL path (last segment)
-    3. Extension correction (replace .php/.asp etc. with real extension from MIME)
-    4. Fallback to 'downloaded_file'
+    1. Content-Disposition header (RFC 5987 filename* > filename)
+    2. URL query parameters (response-content-disposition, rscd, filename, file, name)
+    3. URL path (last segment, filtering out raw UUIDs/hashes)
+    4. Extension correction (replace script extensions or missing extensions with MIME type)
+    5. Unknown MIME types and valid filenames preserved as-is
+    6. Fallback to 'downloaded_file'
     """
     filename = None
     
-    # --- 1. Content-Disposition (Highest Priority for Generic Links) ---
-    cd = headers.get("Content-Disposition")
-    if cd:
+    def _parse_cd(cd_str):
+        if not cd_str or not isinstance(cd_str, str):
+            return None
         # RFC 5987 filename*
-        cd_match = re.search(r"filename\*=UTF-8''([^\"';]+)", cd, re.IGNORECASE)
+        cd_match = re.search(r"filename\*=UTF-8''([^\"';]+)", cd_str, re.IGNORECASE)
         if not cd_match:
             # Standard filename
-            cd_match = re.search(r'filename=["\']?([^"\';]+)[\"\']?', cd, re.IGNORECASE)
-        
+            cd_match = re.search(r'filename=["\']?([^"\';\r\n]+)', cd_str, re.IGNORECASE)
         if cd_match:
-            filename = unquote(cd_match.group(1).strip())
-            filename = os.path.basename(filename) # Sanitization
-            # Filter out UUIDs/Hashes which JD2 also ignores if better name available
-            if filename and (
-                re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', filename, re.I) or
-                re.match(r'^[0-9a-f]{32,64}$', filename, re.I)
+            fn = unquote(cd_match.group(1).strip())
+            fn = os.path.basename(fn) # Sanitization
+            if fn and not (
+                re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', fn, re.I) or
+                re.match(r'^[0-9a-f]{32,64}$', fn, re.I)
             ):
-                filename = None
+                return fn
+        return None
 
-    # --- 2. URL Path Extraction ---
-    if not filename:
+    # --- 1. Content-Disposition Header (Highest Priority) ---
+    cd = headers.get("Content-Disposition")
+    if cd:
+        filename = _parse_cd(cd)
+
+    # --- 2. Query Parameters (Cloud Storage / Presigned URL / S3 / Azure CDN) ---
+    effective_url = headers.get("Location") or url
+    if not filename and effective_url:
         try:
-            # Check for location header if present (for manual redirect analysis)
-            effective_url = headers.get("Location") or url
+            parsed = urlparse(effective_url)
+            if parsed.query:
+                qs = parse_qs(parsed.query)
+                for key in ["response-content-disposition", "rscd", "content-disposition"]:
+                    for val in qs.get(key, []):
+                        fn = _parse_cd(val)
+                        if fn:
+                            filename = fn
+                            break
+                    if filename:
+                        break
+                if not filename:
+                    for key in ["filename", "file", "name", "file_name"]:
+                        for val in qs.get(key, []):
+                            val_clean = os.path.basename(unquote(val.strip()))
+                            if val_clean and val_clean not in ["", "/", "."] and not (
+                                re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', val_clean, re.I) or
+                                re.match(r'^[0-9a-f]{32,64}$', val_clean, re.I) or
+                                val_clean.isdigit()
+                            ):
+                                filename = val_clean
+                                break
+                        if filename:
+                            break
+        except Exception:
+            pass
+
+    # --- 3. URL Path Extraction ---
+    if not filename and effective_url:
+        try:
             parsed = urlparse(effective_url)
             path = unquote(parsed.path)
-            # Remove trailing slashes
             path = path.rstrip('/')
             basename = os.path.basename(path)
             
@@ -150,15 +185,15 @@ def resolve_filename(url, headers):
                 basename.isdigit()
             ):
                 filename = basename
-        except:
+        except Exception:
             pass
 
-    # --- 3. JDownloader-style Extension Correction ---
-    # Determine the "Real" extension from Content-Type
+    # --- 4. MIME-type Extension Detection / Correction ---
     content_type = headers.get("Content-Type", "").split(';')[0].strip().lower()
     real_extension = None
     if content_type:
         mime_map = {
+            'application/vnd.android.package-archive': '.apk',
             'application/x-msdownload': '.exe',
             'application/octet-stream': '.bin',
             'application/x-executable': '.exe',
@@ -167,30 +202,48 @@ def resolve_filename(url, headers):
             'application/zip': '.zip',
             'application/x-7z-compressed': '.7z',
             'application/x-rar-compressed': '.rar',
+            'application/x-tar': '.tar',
+            'application/gzip': '.tar.gz',
+            'application/x-gzip': '.tar.gz',
+            'application/x-bzip2': '.tar.bz2',
+            'application/x-xz': '.tar.xz',
             'application/pdf': '.pdf',
+            'application/json': '.json',
+            'application/xml': '.xml',
             'image/jpeg': '.jpg',
             'image/png': '.png',
+            'image/webp': '.webp',
+            'image/gif': '.gif',
+            'image/svg+xml': '.svg',
             'video/mp4': '.mp4',
-            'audio/mpeg': '.mp3'
+            'video/x-matroska': '.mkv',
+            'video/webm': '.webm',
+            'audio/mpeg': '.mp3',
+            'audio/ogg': '.ogg',
+            'audio/flac': '.flac',
+            'audio/wav': '.wav'
         }
         real_extension = mime_map.get(content_type)
         if not real_extension:
-            exts = mimetypes.guess_all_extensions(content_type)
-            if exts:
-                # Preference list
-                if '.exe' in exts: real_extension = '.exe'
-                elif '.zip' in exts: real_extension = '.zip'
-                elif '.jpg' in exts: real_extension = '.jpg'
-                else: real_extension = exts[0]
+            try:
+                exts = mimetypes.guess_all_extensions(content_type)
+                if exts:
+                    if '.apk' in exts: real_extension = '.apk'
+                    elif '.exe' in exts: real_extension = '.exe'
+                    elif '.zip' in exts: real_extension = '.zip'
+                    elif '.jpg' in exts: real_extension = '.jpg'
+                    else: real_extension = exts[0]
+            except Exception:
+                pass
 
     if not filename:
         filename = "downloaded_file"
-        if real_extension:
+        if real_extension and real_extension != '.bin':
             filename += real_extension
     else:
         # CORRECTION LOGIC:
         # If we have a filename but its extension is a script (.php, .asp) or missing, 
-        # replace/append with the real one.
+        # replace/append with the real one. Unknown MIME types leave filename as is.
         script_exts = ['.php', '.asp', '.aspx', '.jsp', '.cfm', '.cgi', '.pl', '.html', '.htm']
         base, current_ext = os.path.splitext(filename)
         current_ext = current_ext.lower()
