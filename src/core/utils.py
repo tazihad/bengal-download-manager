@@ -262,6 +262,135 @@ def resolve_filename(url, headers):
 
     return filename
 
+def get_file_type_description(filename: str, content_type: str = None) -> str:
+    """
+    Returns a human-friendly file type description based on file extension and MIME type.
+    Example: 'ChromePublic.apk' -> 'APK File'
+             'archive.zip' -> 'ZIP Archive'
+             'setup.exe' -> 'Executable Application'
+    """
+    if not filename:
+        return "Unknown Type"
+
+    clean_name = filename.split("?")[0].split("#")[0].strip()
+    ext = os.path.splitext(clean_name)[1].lower()
+
+    if clean_name.lower().endswith(".tar.gz") or clean_name.lower().endswith(".tgz"):
+        return "TAR GZ Archive"
+    if clean_name.lower().endswith(".tar.bz2") or clean_name.lower().endswith(".tbz2"):
+        return "TAR BZ2 Archive"
+    if clean_name.lower().endswith(".tar.xz") or clean_name.lower().endswith(".txz"):
+        return "TAR XZ Archive"
+
+    type_map = {
+        # Programs & Installers
+        ".apk": "APK File",
+        ".exe": "Executable Application",
+        ".msi": "Windows Installer Package",
+        ".deb": "Debian Package",
+        ".rpm": "RPM Package",
+        ".appimage": "AppImage Package",
+        ".flatpak": "Flatpak Bundle",
+        ".snap": "Snap Package",
+        ".sh": "Shell Script",
+        ".bin": "Binary File",
+        ".bat": "Batch File",
+        ".cmd": "Command Script",
+        ".dmg": "macOS Disk Image",
+        ".pkg": "macOS Installer Package",
+        ".jar": "Java Executable Archive",
+        ".iso": "Disc Image File",
+        ".img": "Disk Image File",
+
+        # Archives
+        ".zip": "ZIP Archive",
+        ".rar": "RAR Archive",
+        ".7z": "7-Zip Archive",
+        ".tar": "TAR Archive",
+        ".gz": "GZ Compressed Archive",
+        ".bz2": "BZip2 Compressed Archive",
+        ".xz": "XZ Compressed Archive",
+
+        # Documents
+        ".pdf": "PDF Document",
+        ".doc": "Word Document",
+        ".docx": "Word Document",
+        ".xls": "Excel Spreadsheet",
+        ".xlsx": "Excel Spreadsheet",
+        ".ppt": "PowerPoint Presentation",
+        ".pptx": "PowerPoint Presentation",
+        ".txt": "Text Document",
+        ".csv": "CSV Document",
+        ".rtf": "Rich Text Document",
+        ".odt": "OpenDocument Text",
+        ".ods": "OpenDocument Spreadsheet",
+
+        # Audio
+        ".mp3": "MP3 Audio",
+        ".wav": "WAV Audio",
+        ".flac": "FLAC Audio",
+        ".aac": "AAC Audio",
+        ".ogg": "Ogg Audio",
+        ".m4a": "M4A Audio",
+        ".wma": "WMA Audio",
+        ".opus": "Opus Audio",
+
+        # Video
+        ".mp4": "MP4 Video",
+        ".mkv": "MKV Video",
+        ".avi": "AVI Video",
+        ".mov": "QuickTime Video",
+        ".webm": "WebM Video",
+        ".flv": "FLV Video",
+        ".wmv": "WMV Video",
+        ".m4v": "M4V Video",
+
+        # Images
+        ".png": "PNG Image",
+        ".jpg": "JPEG Image",
+        ".jpeg": "JPEG Image",
+        ".gif": "GIF Image",
+        ".webp": "WebP Image",
+        ".svg": "SVG Vector Image",
+        ".bmp": "Bitmap Image",
+        ".ico": "Icon File",
+
+        # Code & Web
+        ".json": "JSON File",
+        ".xml": "XML File",
+        ".html": "HTML Document",
+        ".htm": "HTML Document",
+        ".css": "CSS Stylesheet",
+        ".js": "JavaScript File",
+        ".ts": "TypeScript File",
+        ".py": "Python Script",
+        ".torrent": "BitTorrent File",
+    }
+
+    if ext in type_map:
+        return type_map[ext]
+
+    if ext and len(ext) > 1 and len(ext) <= 6 and ext[1:].isalnum():
+        return f"{ext[1:].upper()} File"
+
+    if content_type:
+        clean_mime = content_type.split(";")[0].strip().lower()
+        mime_desc_map = {
+            "application/vnd.android.package-archive": "APK File",
+            "application/octet-stream": "Binary File",
+            "application/pdf": "PDF Document",
+            "application/zip": "ZIP Archive",
+            "application/x-tar": "TAR Archive",
+            "application/x-rar-compressed": "RAR Archive",
+            "application/x-7z-compressed": "7-Zip Archive",
+            "text/plain": "Text Document",
+            "text/html": "HTML Document",
+        }
+        if clean_mime in mime_desc_map:
+            return mime_desc_map[clean_mime]
+
+    return "Unknown Type"
+
 def get_unique_filepath(filepath, existing_paths=None, existing_names=None, force_suffix=False):
     """
     Returns a unique file path by appending (1), (2), etc. if the file exists on disk

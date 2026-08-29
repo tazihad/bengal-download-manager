@@ -1982,6 +1982,28 @@ def test_properties_dialog_referer(qapp, tmp_path):
     dlg.close()
 
 
+def test_download_file_info_dialog_file_type_display(qapp):
+    from ui.dialogs.file_info import DownloadFileInfoDialog
+
+    file_info = {
+        "url": "http://example.com/app/ChromePublic.apk",
+        "filename": "ChromePublic.apk",
+        "size_str": "388.45 MB",
+        "size_bytes": 407332864
+    }
+
+    dlg = DownloadFileInfoDialog(file_info)
+    dlg.hide()
+
+    assert dlg.lbl_size.text() == "388.45 MB,  File type: APK File"
+
+    # User modifies filename in save_input
+    dlg.save_input.setText("/downloads/archive.zip")
+    assert dlg.lbl_size.text() == "388.45 MB,  File type: ZIP Archive"
+
+    dlg.close()
+
+
 
 
 
