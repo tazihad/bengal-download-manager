@@ -71,6 +71,20 @@ def test_resolve_filename():
     script_url = "https://example.com/get.php?id=1"
     assert resolve_filename(script_url, {"Content-Type": "application/pdf"}) == "get.pdf"
 
+def test_get_file_type_description():
+    from core.utils import get_file_type_description
+
+    assert get_file_type_description("ChromePublic.apk") == "APK File"
+    assert get_file_type_description("installer.exe") == "Executable Application"
+    assert get_file_type_description("archive.zip") == "ZIP Archive"
+    assert get_file_type_description("package.tar.gz") == "TAR GZ Archive"
+    assert get_file_type_description("video.mp4") == "MP4 Video"
+    assert get_file_type_description("song.mp3") == "MP3 Audio"
+    assert get_file_type_description("document.pdf") == "PDF Document"
+    assert get_file_type_description("image.png") == "PNG Image"
+    assert get_file_type_description("custom.xyz") == "XYZ File"
+    assert get_file_type_description("stream", "application/vnd.android.package-archive") == "APK File"
+
 def test_parse_size_to_bytes():
     assert parse_size_to_bytes("1.50 MB") == int(1.50 * 1024 * 1024)
     assert parse_size_to_bytes("100 KB") == 100 * 1024
@@ -324,6 +338,7 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     from core.utils import show_in_folder
     import platform
     import subprocess
+    import shutil
 
     target_file = tmp_path / "archive.tar.gz"
     target_file.write_text("dummy archive content")
@@ -332,22 +347,26 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
 
     monkeypatch.setattr(platform, "system", lambda: "Linux")
 
-    # 1. Directory path -> opens directory directly
-    opened_cmds = []
-    def mock_popen_dir(cmd, *args, **kwargs):
-        opened_cmds.append(cmd)
-        class MockProc:
-            def communicate(self): return ("", "")
-        return MockProc()
+    # 1. Directory path -> DBus ShowFolders success
+    run_cmds = []
+    def mock_run_dbus(cmd, *a, **k):
+        run_cmds.append(cmd)
+        return subprocess.CompletedProcess(cmd, returncode=0)
 
-    monkeypatch.setattr(subprocess, "Popen", mock_popen_dir)
+    monkeypatch.setattr(subprocess, "run", mock_run_dbus)
     show_in_folder(str(target_dir))
-    assert len(opened_cmds) == 1
-    assert opened_cmds[0] == ["xdg-open", str(target_dir)]
+    assert len(run_cmds) >= 1
+    assert "ShowFolders" in str(run_cmds[0])
 
-    # 2. File path -> Nautilus with --select
-    monkeypatch.setattr("PyQt6.QtDBus.QDBusConnection.sessionBus", lambda: (_ for _ in ()).throw(RuntimeError("no dbus")))
+    # 2. File path -> DBus ShowItems success
+    run_cmds.clear()
+    show_in_folder(str(target_file))
+    assert len(run_cmds) >= 1
+    assert "ShowItems" in str(run_cmds[0])
+
+    # 3. File path -> Nautilus with --select when DBus fails
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, returncode=1))
+    opened_cmds = []
     def mock_popen_nautilus(cmd, *args, **kwargs):
         opened_cmds.append(cmd)
         class MockProc:
@@ -357,12 +376,13 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
                 return ("", "")
         return MockProc()
 
+    monkeypatch.setattr(shutil, "which", lambda cmd: True)
     opened_cmds.clear()
     monkeypatch.setattr(subprocess, "Popen", mock_popen_nautilus)
     show_in_folder(str(target_file))
     assert ["nautilus", "--select", str(target_file)] in opened_cmds
 
-    # 3. File path -> Dolphin with --select
+    # 4. File path -> Dolphin with --select when DBus fails
     def mock_popen_dolphin(cmd, *args, **kwargs):
         opened_cmds.append(cmd)
         class MockProc:
@@ -377,7 +397,7 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     show_in_folder(str(target_file))
     assert ["dolphin", "--select", str(target_file)] in opened_cmds
 
-    # 4. File path -> Nemo with --select
+    # 5. File path -> Nemo with --select when DBus fails
     def mock_popen_nemo(cmd, *args, **kwargs):
         opened_cmds.append(cmd)
         class MockProc:
@@ -392,8 +412,8 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     show_in_folder(str(target_file))
     assert ["nemo", "--select", str(target_file)] in opened_cmds
 
-    # 5. File path -> Generic/Unknown fallback -> xdg-open parent dir
-    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "unknown")
+    # 6. File path -> Generic fallback to xdg-open / gio open parent dir
+    monkeypatch.setattr(shutil, "which", lambda cmd: cmd == "xdg-open")
     def mock_popen_generic(cmd, *args, **kwargs):
         opened_cmds.append(cmd)
         class MockProc:
@@ -408,28 +428,11 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     show_in_folder(str(target_file))
     assert ["xdg-open", str(tmp_path)] in opened_cmds
 
-
-    # 6. File path -> dbus-send fallback success
-    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "unknown")
-    def mock_popen_generic2(cmd, *args, **kwargs):
-        class MockProc:
-            def communicate(self):
-                return ("", "")
-        return MockProc()
-    monkeypatch.setattr(subprocess, "Popen", mock_popen_generic2)
-
-    run_cmds = []
-    def mock_run_dbus(cmd, *a, **k):
-        run_cmds.append(cmd)
-        return subprocess.CompletedProcess(cmd, returncode=0)
-    
-    monkeypatch.setattr(subprocess, "run", mock_run_dbus)
+    # 7. Non-existent file with existing parent directory -> opens parent directory
+    non_existent_file = tmp_path / "downloads" / "does_not_exist.bin"
     opened_cmds.clear()
-    show_in_folder(str(target_file))
-    assert len(run_cmds) == 1
-    assert run_cmds[0][0] == "dbus-send"
-    assert f"array:string:file://{target_file}" in run_cmds[0]
-    assert len(opened_cmds) == 0
+    show_in_folder(str(non_existent_file))
+    assert ["xdg-open", str(target_dir)] in opened_cmds
 
 
 def test_get_aria2_proxy_url():
@@ -523,6 +526,51 @@ def test_user_home_and_downloads_dir_in_snap(monkeypatch, tmp_path):
     loaded = load_category_config()
     assert loaded["categories"]["General"]["path"] == str(real_downloads)
     assert loaded["categories"]["Compressed"]["path"] == str(real_downloads / "Compressed")
+
+
+def test_portal_open_directory_and_single_invocation(monkeypatch, tmp_path):
+    from core.utils import _portal_open_directory, show_in_folder
+    import subprocess
+    import shutil
+    import platform
+
+    target_dir = tmp_path / "sandbox_test"
+    target_dir.mkdir()
+    target_file = target_dir / "item.pdf"
+    target_file.write_text("dummy")
+
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(shutil, "which", lambda cmd: cmd in ("gdbus", "xdg-open"))
+
+    portal_cmds = []
+    def mock_run_portal(cmd, *a, **k):
+        portal_cmds.append(cmd)
+        cmd_str = " ".join(cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
+        if "org.freedesktop.FileManager1" in cmd_str:
+            return subprocess.CompletedProcess(cmd, returncode=1)
+        if "OpenDirectory" in cmd_str:
+            return subprocess.CompletedProcess(cmd, returncode=0)
+        return subprocess.CompletedProcess(cmd, returncode=1)
+
+    popen_cmds = []
+    monkeypatch.setattr(subprocess, "Popen", lambda cmd, *a, **k: popen_cmds.append(cmd))
+    monkeypatch.setattr(subprocess, "run", mock_run_portal)
+
+    # Portal OpenDirectory helper directly
+    assert _portal_open_directory(str(target_dir)) is True
+
+    # Show in folder for directory triggers Portal OpenDirectory and stops (no popen fallback)
+    show_in_folder(str(target_dir))
+    assert len(popen_cmds) == 0
+
+    # Show in folder for file triggers Portal OpenDirectory fallback and stops (no file manager spawned via popen)
+    portal_cmds.clear()
+    popen_cmds.clear()
+    show_in_folder(str(target_file))
+    fm_spawns = [c for c in popen_cmds if c[0] in ("xdg-open", "gio", "dolphin", "nautilus", "nemo", "caja", "thunar", "pcmanfm")]
+    assert len(fm_spawns) == 0
+    assert any("OpenDirectory" in " ".join(cmd) for cmd in portal_cmds)
+
 
 
 

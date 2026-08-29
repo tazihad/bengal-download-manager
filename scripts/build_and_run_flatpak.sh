@@ -105,6 +105,7 @@ filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg
 devices=dri;
 
 [Session Bus Policy]
+org.freedesktop.FileManager1=talk
 org.freedesktop.portal.Desktop=talk
 org.freedesktop.portal.Settings=talk
 org.freedesktop.Notifications=talk

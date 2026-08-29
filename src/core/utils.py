@@ -262,6 +262,135 @@ def resolve_filename(url, headers):
 
     return filename
 
+def get_file_type_description(filename: str, content_type: str = None) -> str:
+    """
+    Returns a human-friendly file type description based on file extension and MIME type.
+    Example: 'ChromePublic.apk' -> 'APK File'
+             'archive.zip' -> 'ZIP Archive'
+             'setup.exe' -> 'Executable Application'
+    """
+    if not filename:
+        return "Unknown Type"
+
+    clean_name = filename.split("?")[0].split("#")[0].strip()
+    ext = os.path.splitext(clean_name)[1].lower()
+
+    if clean_name.lower().endswith(".tar.gz") or clean_name.lower().endswith(".tgz"):
+        return "TAR GZ Archive"
+    if clean_name.lower().endswith(".tar.bz2") or clean_name.lower().endswith(".tbz2"):
+        return "TAR BZ2 Archive"
+    if clean_name.lower().endswith(".tar.xz") or clean_name.lower().endswith(".txz"):
+        return "TAR XZ Archive"
+
+    type_map = {
+        # Programs & Installers
+        ".apk": "APK File",
+        ".exe": "Executable Application",
+        ".msi": "Windows Installer Package",
+        ".deb": "Debian Package",
+        ".rpm": "RPM Package",
+        ".appimage": "AppImage Package",
+        ".flatpak": "Flatpak Bundle",
+        ".snap": "Snap Package",
+        ".sh": "Shell Script",
+        ".bin": "Binary File",
+        ".bat": "Batch File",
+        ".cmd": "Command Script",
+        ".dmg": "macOS Disk Image",
+        ".pkg": "macOS Installer Package",
+        ".jar": "Java Executable Archive",
+        ".iso": "Disc Image File",
+        ".img": "Disk Image File",
+
+        # Archives
+        ".zip": "ZIP Archive",
+        ".rar": "RAR Archive",
+        ".7z": "7-Zip Archive",
+        ".tar": "TAR Archive",
+        ".gz": "GZ Compressed Archive",
+        ".bz2": "BZip2 Compressed Archive",
+        ".xz": "XZ Compressed Archive",
+
+        # Documents
+        ".pdf": "PDF Document",
+        ".doc": "Word Document",
+        ".docx": "Word Document",
+        ".xls": "Excel Spreadsheet",
+        ".xlsx": "Excel Spreadsheet",
+        ".ppt": "PowerPoint Presentation",
+        ".pptx": "PowerPoint Presentation",
+        ".txt": "Text Document",
+        ".csv": "CSV Document",
+        ".rtf": "Rich Text Document",
+        ".odt": "OpenDocument Text",
+        ".ods": "OpenDocument Spreadsheet",
+
+        # Audio
+        ".mp3": "MP3 Audio",
+        ".wav": "WAV Audio",
+        ".flac": "FLAC Audio",
+        ".aac": "AAC Audio",
+        ".ogg": "Ogg Audio",
+        ".m4a": "M4A Audio",
+        ".wma": "WMA Audio",
+        ".opus": "Opus Audio",
+
+        # Video
+        ".mp4": "MP4 Video",
+        ".mkv": "MKV Video",
+        ".avi": "AVI Video",
+        ".mov": "QuickTime Video",
+        ".webm": "WebM Video",
+        ".flv": "FLV Video",
+        ".wmv": "WMV Video",
+        ".m4v": "M4V Video",
+
+        # Images
+        ".png": "PNG Image",
+        ".jpg": "JPEG Image",
+        ".jpeg": "JPEG Image",
+        ".gif": "GIF Image",
+        ".webp": "WebP Image",
+        ".svg": "SVG Vector Image",
+        ".bmp": "Bitmap Image",
+        ".ico": "Icon File",
+
+        # Code & Web
+        ".json": "JSON File",
+        ".xml": "XML File",
+        ".html": "HTML Document",
+        ".htm": "HTML Document",
+        ".css": "CSS Stylesheet",
+        ".js": "JavaScript File",
+        ".ts": "TypeScript File",
+        ".py": "Python Script",
+        ".torrent": "BitTorrent File",
+    }
+
+    if ext in type_map:
+        return type_map[ext]
+
+    if ext and len(ext) > 1 and len(ext) <= 6 and ext[1:].isalnum():
+        return f"{ext[1:].upper()} File"
+
+    if content_type:
+        clean_mime = content_type.split(";")[0].strip().lower()
+        mime_desc_map = {
+            "application/vnd.android.package-archive": "APK File",
+            "application/octet-stream": "Binary File",
+            "application/pdf": "PDF Document",
+            "application/zip": "ZIP Archive",
+            "application/x-tar": "TAR Archive",
+            "application/x-rar-compressed": "RAR Archive",
+            "application/x-7z-compressed": "7-Zip Archive",
+            "text/plain": "Text Document",
+            "text/html": "HTML Document",
+        }
+        if clean_mime in mime_desc_map:
+            return mime_desc_map[clean_mime]
+
+    return "Unknown Type"
+
 def get_unique_filepath(filepath, existing_paths=None, existing_names=None, force_suffix=False):
     """
     Returns a unique file path by appending (1), (2), etc. if the file exists on disk
@@ -838,125 +967,226 @@ def open_with(path):
 
     return False
 
+def _dbus_filemanager_show(path, is_dir=False, clean_env=None):
+    """Triggers default session file manager via DBus org.freedesktop.FileManager1."""
+    try:
+        from PyQt6.QtCore import QUrl
+        uri = QUrl.fromLocalFile(path).toString()
+        method = "ShowFolders" if is_dir else "ShowItems"
+
+        if shutil.which("gdbus"):
+            res = subprocess.run(
+                [
+                    "gdbus", "call", "--session",
+                    "--dest", "org.freedesktop.FileManager1",
+                    "--object-path", "/org/freedesktop/FileManager1",
+                    "--method", f"org.freedesktop.FileManager1.{method}",
+                    f"[\"{uri}\"]", ""
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=clean_env,
+                timeout=1.5
+            )
+            if res.returncode == 0:
+                return True
+
+        if shutil.which("dbus-send"):
+            res = subprocess.run(
+                [
+                    "dbus-send", "--session", "--dest=org.freedesktop.FileManager1",
+                    "--type=method_call", "/org/freedesktop/FileManager1",
+                    f"org.freedesktop.FileManager1.{method}",
+                    f"array:string:{uri}", "string:"
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=clean_env,
+                timeout=1.5
+            )
+            if res.returncode == 0:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _portal_open_directory(dir_path, clean_env=None):
+    """Opens directory via XDG Desktop Portal OpenDirectory method using file descriptor passing."""
+    if not shutil.which("gdbus") or not os.path.isdir(dir_path):
+        return False
+    try:
+        fd = os.open(dir_path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0))
+        try:
+            res = subprocess.run(
+                [
+                    "gdbus", "call", "--session",
+                    "--dest", "org.freedesktop.portal.Desktop",
+                    "--object-path", "/org/freedesktop/portal/desktop",
+                    "--method", "org.freedesktop.portal.OpenURI.OpenDirectory",
+                    "", "0", "{'ask': <false>}"
+                ],
+                stdin=fd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=clean_env,
+                timeout=2.0
+            )
+            return res.returncode == 0
+        finally:
+            os.close(fd)
+    except Exception:
+        return False
+
+
 def show_in_folder(path):
     """
-    If path is a file, opens the folder containing it and selects (highlights) it.
-    If path is a directory, just opens the directory.
-    Inspired by qBittorrent's implementation.
+    If path is a file, opens the folder containing it and selects (highlights) it in the default file manager.
+    If path is a directory, opens the directory in the default file manager.
+    If the file does not exist but its parent folder does, opens the parent folder.
+    Ensures only the user's default configured file manager is opened once without multiple spawns.
     """
-    if not path: return
+    if not path:
+        return
+
     path = os.path.abspath(path)
-    if not os.path.exists(path): return
+
+    # Determine target file and target folder
+    if not os.path.exists(path):
+        parent_dir = os.path.dirname(path) if os.path.dirname(path) else path
+        if os.path.exists(parent_dir):
+            path = parent_dir
+        else:
+            return
 
     clean_env = get_clean_env()
 
-    # If it's a directory, just open it normally
+    # Case A: Directory path
     if os.path.isdir(path):
         if platform.system() == 'Windows':
-            os.startfile(path)
-        elif platform.system() == 'Darwin':
-            subprocess.Popen(['open', path], env=clean_env)
-        else:
             try:
-                subprocess.Popen(['xdg-open', path], env=clean_env)
-            except:
+                os.startfile(path)
+            except Exception:
                 pass
+            return
+        elif platform.system() == 'Darwin':
+            try:
+                subprocess.Popen(['open', path], env=clean_env)
+            except Exception:
+                pass
+            return
+        else:
+            # Linux / Unix: Target ONLY the default file manager
+            # 1. DBus FileManager1 ShowFolders (default active session file manager)
+            if _dbus_filemanager_show(path, is_dir=True, clean_env=clean_env):
+                return
+
+            # 2. XDG Desktop Portal OpenDirectory (sandboxed Flatpak / Portal default handler)
+            if _portal_open_directory(path, clean_env=clean_env):
+                return
+
+            # 3. Default MIME handler via xdg-open / gio open
+            if shutil.which("gio"):
+                try:
+                    subprocess.Popen(['gio', 'open', path], env=clean_env)
+                    return
+                except Exception:
+                    pass
+
+            if shutil.which("xdg-open"):
+                try:
+                    subprocess.Popen(['xdg-open', path], env=clean_env)
+                    return
+                except Exception:
+                    pass
+
+            # 4. Final Qt fallback
+            try:
+                from PyQt6.QtCore import QUrl
+                from PyQt6.QtGui import QDesktopServices
+                QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            except Exception:
+                pass
+            return
+
+    # Case B: File path (highlight / select item in default file manager)
+    if platform.system() == 'Windows':
+        try:
+            win_path = os.path.normpath(path)
+            subprocess.Popen(['explorer.exe', '/select,', win_path])
+        except Exception:
+            pass
         return
 
-    # If it's a file, try to open parent and select it
-    if platform.system() == 'Windows':
-        win_path = os.path.normpath(path)
-        subprocess.Popen(['explorer.exe', '/select,', win_path]) 
-
     elif platform.system() == 'Darwin':
-        subprocess.Popen(['open', '-R', path], env=clean_env)
+        try:
+            subprocess.Popen(['open', '-R', path], env=clean_env)
+        except Exception:
+            pass
+        return
 
     else:
-        # Linux / Unix
-        # 1. Primary Method: Query user's default configured file manager via XDG MIME
+        # Linux / Unix: Target ONLY the default file manager
+        # 1. DBus FileManager1 ShowItems (highlights item in default session file manager)
+        if _dbus_filemanager_show(path, is_dir=False, clean_env=clean_env):
+            return
+
+        parent = os.path.dirname(path) if not os.path.isdir(path) else path
+
+        # 2. Query default configured file manager via XDG MIME and launch only that default binary
         try:
-            proc = subprocess.Popen(['xdg-mime', 'query', 'default', 'inode/directory'], 
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env)
+            proc = subprocess.Popen(
+                ['xdg-mime', 'query', 'default', 'inode/directory'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
+            )
             output, _ = proc.communicate()
             output = output.strip().lower()
-            
-            if "dolphin" in output:
-                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
-                return
-            elif "nautilus" in output:
-                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
-                return
-            elif "caja" in output:
-                subprocess.Popen(['caja', '--select', path], env=clean_env)
-                return
-            elif "nemo" in output:
-                subprocess.Popen(['nemo', '--select', path], env=clean_env)
-                return
-            elif "pcmanfm-qt" in output:
-                subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
-                return
-            elif "pcmanfm" in output:
-                subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
-                return
-            elif "konqueror" in output:
-                subprocess.Popen(['konqueror', '--select', path], env=clean_env)
-                return
+
+            fm_select_map = {
+                "dolphin": ['dolphin', '--select', path],
+                "nautilus": ['nautilus', '--select', path],
+                "caja": ['caja', '--select', path],
+                "nemo": ['nemo', '--select', path],
+                "thunar": ['thunar', parent],
+                "pcmanfm-qt": ['pcmanfm-qt', '--select', path],
+                "pcmanfm": ['pcmanfm', '--select', path],
+                "konqueror": ['konqueror', '--select', path],
+            }
+            for fm_key, fm_cmd in fm_select_map.items():
+                if fm_key in output and shutil.which(fm_cmd[0]):
+                    try:
+                        subprocess.Popen(fm_cmd, env=clean_env)
+                        return
+                    except Exception:
+                        pass
+                    break  # Stop if the user's default FM was found but failed to spawn
         except Exception:
             pass
 
-        # 2. Desktop Environment Detection Fallback
-        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
-        if "KDE" in desktop and shutil.which("dolphin"):
+        # 3. XDG Desktop Portal OpenDirectory on parent folder (sandboxed Flatpak / Portal fallback)
+        if _portal_open_directory(parent, clean_env=clean_env):
+            return
+
+        # 4. Open parent directory via default MIME tools
+        if shutil.which("gio"):
             try:
-                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
-        elif "GNOME" in desktop and shutil.which("nautilus"):
-            try:
-                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
-        elif "CINNAMON" in desktop and shutil.which("nemo"):
-            try:
-                subprocess.Popen(['nemo', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
-        elif "MATE" in desktop and shutil.which("caja"):
-            try:
-                subprocess.Popen(['caja', '--select', path], env=clean_env)
+                subprocess.Popen(['gio', 'open', parent], env=clean_env)
                 return
             except Exception:
                 pass
 
-        # 3. DBus FileManager1 Interface (for generic / sandbox environments)
+        if shutil.which("xdg-open"):
+            try:
+                subprocess.Popen(['xdg-open', parent], env=clean_env)
+                return
+            except Exception:
+                pass
+
+        # 5. Final Qt fallback
         try:
             from PyQt6.QtCore import QUrl
-            uri = QUrl.fromLocalFile(path).toString()
-            if shutil.which("dbus-send"):
-                res = subprocess.run(
-                    [
-                        "dbus-send", "--session", "--dest=org.freedesktop.FileManager1",
-                        "--type=method_call", "/org/freedesktop/FileManager1",
-                        "org.freedesktop.FileManager1.ShowItems",
-                        f"array:string:{uri}", "string:"
-                    ],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env=clean_env,
-                    timeout=1.5
-                )
-                if res.returncode == 0:
-                    return
-        except Exception:
-            pass
-
-        # 4. Final Fallback: Open directory with xdg-open
-        try:
-            parent = os.path.dirname(path)
-            subprocess.Popen(['xdg-open', parent], env=clean_env)
+            from PyQt6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(parent))
         except Exception:
             pass
 
