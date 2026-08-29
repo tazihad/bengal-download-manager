@@ -426,6 +426,7 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     # 6. File path -> dbus-send fallback success
     monkeypatch.setenv("XDG_CURRENT_DESKTOP", "unknown")
     def mock_popen_generic2(cmd, *args, **kwargs):
+        opened_cmds.append(cmd)
         class MockProc:
             def communicate(self):
                 return ("", "")
@@ -443,7 +444,14 @@ def test_show_in_folder_linux(monkeypatch, tmp_path):
     assert len(run_cmds) == 1
     assert run_cmds[0][0] == "dbus-send"
     assert f"array:string:file://{target_file}" in run_cmds[0]
-    assert len(opened_cmds) == 0
+    assert not any(c[0] == "xdg-open" for c in opened_cmds)
+
+    # 7. Non-existent file with existing parent directory -> opens parent directory
+    non_existent_file = tmp_path / "downloads" / "does_not_exist.bin"
+    opened_cmds.clear()
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, returncode=1))
+    show_in_folder(str(non_existent_file))
+    assert ["xdg-open", str(target_dir)] in opened_cmds
 
 
 def test_get_aria2_proxy_url():

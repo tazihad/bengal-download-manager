@@ -970,35 +970,96 @@ def open_with(path):
 def show_in_folder(path):
     """
     If path is a file, opens the folder containing it and selects (highlights) it.
-    If path is a directory, just opens the directory.
+    If path is a directory, opens the directory.
+    If the file does not exist but its parent folder does, opens the parent folder.
     Inspired by qBittorrent's implementation.
     """
-    if not path: return
+    if not path:
+        return
+
     path = os.path.abspath(path)
-    if not os.path.exists(path): return
+
+    # Determine target file and target folder
+    if not os.path.exists(path):
+        parent_dir = os.path.dirname(path) if os.path.dirname(path) else path
+        if os.path.exists(parent_dir):
+            path = parent_dir
+        else:
+            return
 
     clean_env = get_clean_env()
 
     # If it's a directory, just open it normally
     if os.path.isdir(path):
         if platform.system() == 'Windows':
-            os.startfile(path)
-        elif platform.system() == 'Darwin':
-            subprocess.Popen(['open', path], env=clean_env)
-        else:
             try:
-                subprocess.Popen(['xdg-open', path], env=clean_env)
-            except:
+                os.startfile(path)
+                return
+            except Exception:
+                pass
+        elif platform.system() == 'Darwin':
+            try:
+                subprocess.Popen(['open', path], env=clean_env)
+                return
+            except Exception:
+                pass
+        else:
+            # Linux / Unix
+            if shutil.which("xdg-open"):
+                try:
+                    subprocess.Popen(['xdg-open', path], env=clean_env)
+                    return
+                except Exception:
+                    pass
+
+            # XDG Portal OpenURI fallback
+            if shutil.which("gdbus"):
+                try:
+                    from PyQt6.QtCore import QUrl
+                    uri = QUrl.fromLocalFile(path).toString()
+                    res = subprocess.run(
+                        [
+                            "gdbus", "call", "--session",
+                            "--dest", "org.freedesktop.portal.Desktop",
+                            "--object-path", "/org/freedesktop/portal/desktop",
+                            "--method", "org.freedesktop.portal.OpenURI.OpenURI",
+                            "", uri, "{'ask': <false>}"
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        env=clean_env,
+                        timeout=1.5
+                    )
+                    if res.returncode == 0:
+                        return
+                except Exception:
+                    pass
+
+            # Final Qt fallback
+            try:
+                from PyQt6.QtCore import QUrl
+                from PyQt6.QtGui import QDesktopServices
+                if QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
+                    return
+            except Exception:
                 pass
         return
 
     # If it's a file, try to open parent and select it
     if platform.system() == 'Windows':
-        win_path = os.path.normpath(path)
-        subprocess.Popen(['explorer.exe', '/select,', win_path]) 
+        try:
+            win_path = os.path.normpath(path)
+            subprocess.Popen(['explorer.exe', '/select,', win_path])
+            return
+        except Exception:
+            pass
 
     elif platform.system() == 'Darwin':
-        subprocess.Popen(['open', '-R', path], env=clean_env)
+        try:
+            subprocess.Popen(['open', '-R', path], env=clean_env)
+            return
+        except Exception:
+            pass
 
     else:
         # Linux / Unix
@@ -1009,56 +1070,42 @@ def show_in_folder(path):
             output, _ = proc.communicate()
             output = output.strip().lower()
             
-            if "dolphin" in output:
-                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
-                return
-            elif "nautilus" in output:
-                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
-                return
-            elif "caja" in output:
-                subprocess.Popen(['caja', '--select', path], env=clean_env)
-                return
-            elif "nemo" in output:
-                subprocess.Popen(['nemo', '--select', path], env=clean_env)
-                return
-            elif "pcmanfm-qt" in output:
-                subprocess.Popen(['pcmanfm-qt', '--select', path], env=clean_env)
-                return
-            elif "pcmanfm" in output:
-                subprocess.Popen(['pcmanfm', '--select', path], env=clean_env)
-                return
-            elif "konqueror" in output:
-                subprocess.Popen(['konqueror', '--select', path], env=clean_env)
-                return
+            fm_map = {
+                "dolphin": ['dolphin', '--select', path],
+                "nautilus": ['nautilus', '--select', path],
+                "caja": ['caja', '--select', path],
+                "nemo": ['nemo', '--select', path],
+                "thunar": ['thunar', os.path.dirname(path)],
+                "pcmanfm-qt": ['pcmanfm-qt', '--select', path],
+                "pcmanfm": ['pcmanfm', '--select', path],
+                "konqueror": ['konqueror', '--select', path],
+            }
+            for fm_key, fm_cmd in fm_map.items():
+                if fm_key in output:
+                    try:
+                        subprocess.Popen(fm_cmd, env=clean_env)
+                        return
+                    except Exception:
+                        pass
         except Exception:
             pass
 
         # 2. Desktop Environment Detection Fallback
         desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
-        if "KDE" in desktop and shutil.which("dolphin"):
-            try:
-                subprocess.Popen(['dolphin', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
-        elif "GNOME" in desktop and shutil.which("nautilus"):
-            try:
-                subprocess.Popen(['nautilus', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
-        elif "CINNAMON" in desktop and shutil.which("nemo"):
-            try:
-                subprocess.Popen(['nemo', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
-        elif "MATE" in desktop and shutil.which("caja"):
-            try:
-                subprocess.Popen(['caja', '--select', path], env=clean_env)
-                return
-            except Exception:
-                pass
+        de_map = {
+            "KDE": ['dolphin', '--select', path],
+            "GNOME": ['nautilus', '--select', path],
+            "CINNAMON": ['nemo', '--select', path],
+            "MATE": ['caja', '--select', path],
+            "XFCE": ['thunar', os.path.dirname(path)],
+        }
+        for de_key, de_cmd in de_map.items():
+            if de_key in desktop:
+                try:
+                    subprocess.Popen(de_cmd, env=clean_env)
+                    return
+                except Exception:
+                    pass
 
         # 3. DBus FileManager1 Interface (for generic / sandbox environments)
         try:
@@ -1082,10 +1129,44 @@ def show_in_folder(path):
         except Exception:
             pass
 
-        # 4. Final Fallback: Open directory with xdg-open
+        # 4. Portal OpenURI Fallback
+        parent = os.path.dirname(path) if not os.path.isdir(path) else path
+        if shutil.which("gdbus"):
+            try:
+                from PyQt6.QtCore import QUrl
+                uri = QUrl.fromLocalFile(parent).toString()
+                res = subprocess.run(
+                    [
+                        "gdbus", "call", "--session",
+                        "--dest", "org.freedesktop.portal.Desktop",
+                        "--object-path", "/org/freedesktop/portal/desktop",
+                        "--method", "org.freedesktop.portal.OpenURI.OpenURI",
+                        "", uri, "{'ask': <false>}"
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env=clean_env,
+                    timeout=1.5
+                )
+                if res.returncode == 0:
+                    return
+            except Exception:
+                pass
+
+        # 5. Open directory with xdg-open
+        if shutil.which("xdg-open"):
+            try:
+                subprocess.Popen(['xdg-open', parent], env=clean_env)
+                return
+            except Exception:
+                pass
+
+        # 6. Final Qt guaranteed fallback
         try:
-            parent = os.path.dirname(path)
-            subprocess.Popen(['xdg-open', parent], env=clean_env)
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(parent))
+            return
         except Exception:
             pass
 
