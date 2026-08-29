@@ -450,10 +450,9 @@ class DownloadProgressDialog(QDialog):
         # Calculate percentage properly based on progress bar values
         if total_bytes > 0:
             percent = f"{(current_bytes / total_bytes) * 100:.2f}%"
+            self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
         else:
-            percent = "Unknown %" if current_bytes > 0 else "0.00%"
-            
-        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
+            self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} (Streaming)")
         
         # Map worker status to display status
         worker_status = data[2]

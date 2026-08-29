@@ -29,14 +29,14 @@ class SegmentWorker(QThread):
         self.speed_limit = 0 
         
         self.downloaded = initial_downloaded
-        self.total_size = (end_byte - start_byte) + 1
+        self.total_size = (end_byte - start_byte) + 1 if end_byte >= 0 else 0
 
     def set_speed_limit(self, limit):
         self.speed_limit = limit
 
     def run(self):
         try:
-            if self.downloaded >= self.total_size:
+            if self.total_size > 0 and self.downloaded >= self.total_size:
                 self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Complete")
                 self.finished_signal.emit(self.index, True)
                 return
@@ -49,7 +49,10 @@ class SegmentWorker(QThread):
             req.add_header('Accept', '*/*')
             req.add_header('Accept-Language', 'en-US,en;q=0.5')
             req.add_header('Connection', 'keep-alive')
-            req.add_header('Range', f"bytes={resume_offset}-{self.end_byte}")
+            if self.end_byte >= 0:
+                req.add_header('Range', f"bytes={resume_offset}-{self.end_byte}")
+            elif resume_offset > 0:
+                req.add_header('Range', f"bytes={resume_offset}-")
             
             if self.cookies:
                 req.add_header('Cookie', self.cookies)
@@ -67,7 +70,8 @@ class SegmentWorker(QThread):
             with opener.open(req, timeout=20) as response:
                 self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Receiving data...")
                 
-                with open(self.filepath, "r+b") as f:
+                mode = "r+b" if os.path.exists(self.filepath) and os.path.getsize(self.filepath) >= resume_offset else "wb"
+                with open(self.filepath, mode) as f:
                     f.seek(resume_offset)
                     
                     start_time = time.time()
@@ -112,14 +116,19 @@ class SegmentWorker(QThread):
                             last_emit_time = current_time
                             bytes_in_session = 0
 
-            if self.downloaded >= self.total_size:
+            if self.total_size > 0:
+                if self.downloaded >= self.total_size:
+                    self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Complete")
+                    self.finished_signal.emit(self.index, True)
+                else:
+                    raise Exception("Incomplete download")
+            else:
+                self.total_size = self.downloaded
                 self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Complete")
                 self.finished_signal.emit(self.index, True)
-            else:
-                raise Exception("Incomplete download")
 
         except Exception:
-            if self.downloaded >= self.total_size:
+            if (self.total_size > 0 and self.downloaded >= self.total_size) or (self.total_size == 0 and not self.is_running):
                  self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Complete")
                  self.finished_signal.emit(self.index, True)
             else:
@@ -233,10 +242,18 @@ class DownloadWorker(QThread):
                 req.add_header('Referer', f"{parsed.scheme}://{parsed.netloc}/")
 
             with self.opener.open(req) as response:
-                total_size = int(response.info().get('Content-Length', 0))
-                accept_ranges = response.info().get('Accept-Ranges', 'none')
+                resp_info = response.info()
+                cl_header = resp_info.get('Content-Length', '0')
+                total_size = int(cl_header) if str(cl_header).isdigit() else 0
+                accept_ranges = resp_info.get('Accept-Ranges', 'none')
+                if total_size == 0:
+                    import re
+                    cr = resp_info.get('Content-Range', '')
+                    cr_match = re.search(r'/(\d+)', cr)
+                    if cr_match:
+                        total_size = int(cr_match.group(1))
             
-            self.log_signal.emit(f"File size: {self.format_bytes(total_size)}")
+            self.log_signal.emit(f"File size: {self.format_bytes(total_size) if total_size > 0 else 'Unknown'}")
             
             segments_info = []
             is_resuming = False
@@ -258,26 +275,30 @@ class DownloadWorker(QThread):
                     self.log_signal.emit(f"State file corrupted, starting fresh: {e}")
             
             if not is_resuming:
-                if accept_ranges == 'none' or total_size < 1024 * 1024: 
+                if total_size == 0 or accept_ranges == 'none' or total_size < 1024 * 1024: 
                     num_threads = 1
                     self.log_signal.emit("Using 1 connection.")
                 else:
-
                     self.log_signal.emit(f"Splitting into {num_threads} connections.")
 
-                with open(self.save_path, "wb") as f:
-                    f.truncate(total_size) 
-                
-                part_size = total_size // num_threads
-                segments_info = []
-                for i in range(num_threads):
-                    start = i * part_size
-                    end = start + part_size - 1
-                    if i == num_threads - 1:
-                        end = total_size - 1
-                    segments_info.append({
-                        "index": i, "start": start, "end": end, "downloaded": 0
-                    })
+                if total_size > 0:
+                    with open(self.save_path, "wb") as f:
+                        f.truncate(total_size) 
+                    
+                    part_size = total_size // num_threads
+                    segments_info = []
+                    for i in range(num_threads):
+                        start = i * part_size
+                        end = start + part_size - 1
+                        if i == num_threads - 1:
+                            end = total_size - 1
+                        segments_info.append({
+                            "index": i, "start": start, "end": end, "downloaded": 0
+                        })
+                else:
+                    with open(self.save_path, "wb") as f:
+                        f.truncate(0)
+                    segments_info = [{"index": 0, "start": 0, "end": -1, "downloaded": 0}]
 
             self.init_segments_signal.emit(num_threads)
             
@@ -336,7 +357,7 @@ class DownloadWorker(QThread):
                     self.filename,
                     self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown",
                     "Receiving data..." if not self.is_paused else "Paused", 
-                    self.format_time(time_left),
+                    self.format_time(time_left) if total_size > 0 else "",
                     f"{self.format_bytes(total_speed, precision=2, pad=False)}/s",
                     total_dl,
                     total_size,
@@ -361,8 +382,10 @@ class DownloadWorker(QThread):
                          os.remove(self.target_path) 
                     shutil.move(self.save_path, self.target_path)
                     
+                    actual_size = os.path.getsize(self.target_path) if os.path.exists(self.target_path) else (total_size if total_size > 0 else total_dl)
                     self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size, 0))
+                    self.main_bar_signal.emit(actual_size, actual_size)
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(actual_size, precision=2, pad=False), "Complete", "", "", actual_size, actual_size, 0, getattr(self, 'generation', 0)))
                     self.finished_signal.emit(self.row_index, "Complete")
                     
                     if os.path.exists(self.state_file):

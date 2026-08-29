@@ -1,11 +1,12 @@
 import os
-from urllib.parse import urlparse, unquote
+import re
+from urllib.parse import urlparse, unquote, parse_qs
 import urllib.request
 import urllib.error
 import http.cookiejar
 import ssl
 from PyQt6.QtCore import QThread, pyqtSignal
-from core.utils import load_extension_config, resolve_filename
+from core.utils import load_extension_config, resolve_filename, format_bytes
 
 class FileInfoFetcherWorker(QThread):
     finished_signal = pyqtSignal(dict)
@@ -95,10 +96,64 @@ class FileInfoFetcherWorker(QThread):
                     result["referer"] = self.url if final_url != self.url else (self.referrer or self.url)
                     result["filename"] = resolve_filename(final_url, final_headers)
                     
+                    # 1. Content-Length check
+                    size_bytes = 0
                     content_length = final_headers.get("Content-Length")
-                    if content_length and content_length.isdigit():
-                        result["size_bytes"] = int(content_length)
-                        result["size_str"] = self.format_bytes(result["size_bytes"])
+                    if content_length and content_length.isdigit() and int(content_length) > 0:
+                        size_bytes = int(content_length)
+                    else:
+                        # 2. Content-Range header check (e.g., bytes 0-0/12345)
+                        content_range = final_headers.get("Content-Range", "")
+                        cr_match = re.search(r'/(\d+)', content_range)
+                        if cr_match:
+                            size_bytes = int(cr_match.group(1))
+
+                    if not size_bytes:
+                        # 3. Content-Disposition size parameter (e.g. size=12345)
+                        cd = final_headers.get("Content-Disposition", "")
+                        cd_match = re.search(r'size\s*=\s*(\d+)', cd, re.IGNORECASE)
+                        if cd_match:
+                            size_bytes = int(cd_match.group(1))
+
+                    if not size_bytes:
+                        # 4. URL Query parameters (e.g. ?size=12345, ?filesize=12345, ?length=12345)
+                        try:
+                            parsed_final = urlparse(final_url)
+                            if parsed_final.query:
+                                qs = parse_qs(parsed_final.query)
+                                for q_key in ["size", "filesize", "file_size", "length", "bytes", "total_bytes"]:
+                                    for v in qs.get(q_key, []):
+                                        if v.isdigit() and int(v) > 0:
+                                            size_bytes = int(v)
+                                            break
+                                    if size_bytes:
+                                        break
+                        except Exception:
+                            pass
+
+                    if not size_bytes:
+                        # 5. Secondary HEAD probe
+                        try:
+                            probe_headers = dict(headers)
+                            head_req = urllib.request.Request(final_url, method='HEAD', headers=probe_headers)
+                            with opener.open(head_req, timeout=5) as head_resp:
+                                head_cl = head_resp.headers.get("Content-Length")
+                                if head_cl and head_cl.isdigit() and int(head_cl) > 0:
+                                    size_bytes = int(head_cl)
+                                else:
+                                    head_cr = head_resp.headers.get("Content-Range", "")
+                                    head_cr_match = re.search(r'/(\d+)', head_cr)
+                                    if head_cr_match:
+                                        size_bytes = int(head_cr_match.group(1))
+                        except Exception:
+                            pass
+
+                    if size_bytes > 0:
+                        result["size_bytes"] = size_bytes
+                        result["size_str"] = format_bytes(size_bytes)
+                    else:
+                        result["size_bytes"] = 0
+                        result["size_str"] = "Unknown"
                     
                     resp.close()
                     self.finished_signal.emit(result)
