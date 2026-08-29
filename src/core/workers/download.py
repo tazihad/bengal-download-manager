@@ -11,7 +11,7 @@ class SegmentWorker(QThread):
     progress_signal = pyqtSignal(int, object, object, float, str)
     finished_signal = pyqtSignal(int, bool)
 
-    def __init__(self, index, url, start_byte, end_byte, filepath, initial_downloaded=0, opener=None, user_agent=None, cookies=None):
+    def __init__(self, index, url, start_byte, end_byte, filepath, initial_downloaded=0, opener=None, user_agent=None, cookies=None, referrer=None):
         super().__init__()
         self.index = index
         self.url = url
@@ -22,6 +22,7 @@ class SegmentWorker(QThread):
         self.opener = opener
         self.user_agent = user_agent
         self.cookies = cookies
+        self.referrer = referrer
         
         self.is_running = True
         self.is_paused = False
@@ -53,9 +54,11 @@ class SegmentWorker(QThread):
             if self.cookies:
                 req.add_header('Cookie', self.cookies)
             
-            # Add Referer if possible (use base domain)
-            parsed = urlparse(self.url)
-            req.add_header('Referer', f"{parsed.scheme}://{parsed.netloc}/")
+            if self.referrer:
+                req.add_header('Referer', self.referrer)
+            else:
+                parsed = urlparse(self.url)
+                req.add_header('Referer', f"{parsed.scheme}://{parsed.netloc}/")
             
             self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Resume GET...")
             
@@ -139,7 +142,7 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, allow_resume=True):
+    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -147,6 +150,7 @@ class DownloadWorker(QThread):
         self.temp_dir = temp_dir
         self.user_agent = user_agent
         self.cookies = cookies
+        self.referrer = referrer
         self.allow_resume = allow_resume
         self.is_running = True
         self.is_paused = False
@@ -222,6 +226,11 @@ class DownloadWorker(QThread):
                 req.add_header('Cookie', self.cookies)
             if self.user_agent:
                 req.add_header('User-Agent', self.user_agent)
+            if self.referrer:
+                req.add_header('Referer', self.referrer)
+            else:
+                parsed = urlparse(self.url)
+                req.add_header('Referer', f"{parsed.scheme}://{parsed.netloc}/")
 
             with self.opener.open(req) as response:
                 total_size = int(response.info().get('Content-Length', 0))
@@ -279,7 +288,7 @@ class DownloadWorker(QThread):
                 end = seg["end"]
                 initial_dl = seg.get("downloaded", 0)
                 
-                worker = SegmentWorker(idx, self.url, start, end, self.save_path, initial_dl, opener=self.opener, user_agent=self.user_agent, cookies=self.cookies)
+                worker = SegmentWorker(idx, self.url, start, end, self.save_path, initial_dl, opener=self.opener, user_agent=self.user_agent, cookies=self.cookies, referrer=self.referrer)
                 worker.progress_signal.connect(self.update_segment_stat)
                 self.workers.append(worker)
                 

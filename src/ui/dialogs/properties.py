@@ -31,6 +31,7 @@ class PropertiesDialog(QDialog):
             ("Size:", file_data.get('size', 'Unknown')),
             ("Saved To:", os.path.dirname(file_data.get('path', 'Unknown'))),
             ("Address:", file_data.get('url', '')),
+            ("Referer:", file_data.get('referer') or file_data.get('referrer') or file_data.get('url', '')),
             ("Date Added:", file_data.get('date_added', '')),
             ("Last Try:", file_data.get('last_try', ''))
         ]

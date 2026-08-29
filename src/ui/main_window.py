@@ -1857,6 +1857,9 @@ class MainWindow(QMainWindow):
                     "last_try": str(last_try_ts),   # Save raw timestamp
                     "date_added": str(date_added_ts), # Save raw timestamp
                     "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) if item_name.data(Qt.ItemDataRole.UserRole + 8) is not None else "Main download queue",
+                    "extra_data": {
+                        "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url
+                    }
                 }
                 downloads.append(dl_data)
             
@@ -1890,6 +1893,8 @@ class MainWindow(QMainWindow):
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, last_try_ts)   # Raw Last Try TS
                 item_name.setData(Qt.ItemDataRole.UserRole + 3, date_added_ts) # Raw Date Added TS
                 item_name.setData(Qt.ItemDataRole.UserRole + 8, d.get("queue", "Main download queue") if d.get("queue") is not None else "Main download queue")  # Queue
+                extra = d.get("extra_data", {})
+                item_name.setData(Qt.ItemDataRole.UserRole + 15, extra.get("referer", d.get("url", "")) if isinstance(extra, dict) else d.get("url", ""))
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -2126,6 +2131,7 @@ class MainWindow(QMainWindow):
                 data.append({
                     "filename": item0.text(),
                     "url": item0.data(Qt.ItemDataRole.UserRole) or "",
+                    "referer": item0.data(Qt.ItemDataRole.UserRole + 15) or item0.data(Qt.ItemDataRole.UserRole) or "",
                     "path": item0.data(Qt.ItemDataRole.UserRole + 1) or "",
                     "size": item1.text() if item1 else "",
                     "status": item2.text() if item2 else "",
@@ -2885,8 +2891,9 @@ class MainWindow(QMainWindow):
         data = {
             "row": row,
             "item": item_0,
-            "url": item_0.data(Qt.ItemDataRole.UserRole),
-            "path": item_0.data(Qt.ItemDataRole.UserRole + 1),
+            "url": item_0.data(Qt.ItemDataRole.UserRole) or "",
+            "referer": item_0.data(Qt.ItemDataRole.UserRole + 15) or item_0.data(Qt.ItemDataRole.UserRole) or "",
+            "path": item_0.data(Qt.ItemDataRole.UserRole + 1) or "",
             "filename": item_0.text(),
             "status": self.download_table.item(row, 2).text(),
             "size": self.download_table.item(row, 1).text(),
@@ -2970,10 +2977,11 @@ class MainWindow(QMainWindow):
 
     def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
-        parts = data.split("|", 2)
+        parts = data.split("|", 3)
         url = parts[0]
         user_agent = parts[1] if len(parts) > 1 else ""
         cookies = parts[2] if len(parts) > 2 else ""
+        referrer = parts[3] if len(parts) > 3 else ""
 
         if not url:
             return
@@ -3037,7 +3045,7 @@ class MainWindow(QMainWindow):
 
         # 4. Start the fetcher
         from core.workers import FileInfoFetcherWorker
-        fetcher = FileInfoFetcherWorker(url, user_agent=user_agent, cookies=cookies)
+        fetcher = FileInfoFetcherWorker(url, user_agent=user_agent, cookies=cookies, referrer=referrer)
         self.active_fetchers.append(fetcher)
         
         # Connect to a wrapper that cleans up the thread memory when done
@@ -3194,7 +3202,8 @@ class MainWindow(QMainWindow):
                 start_paused=False,
                 show_dialog=show_prog,
                 user_agent=file_info.get("user_agent"),
-                cookies=file_info.get("cookies")
+                cookies=file_info.get("cookies"),
+                referer=file_info.get("referer") or file_info.get("url")
             )
             return
 
@@ -3251,7 +3260,8 @@ class MainWindow(QMainWindow):
             start_paused=True,
             show_dialog=False,
             user_agent=file_info.get("user_agent"),
-            cookies=file_info.get("cookies")
+            cookies=file_info.get("cookies"),
+            referer=file_info.get("referer") or file_info.get("url")
         )
         
         # Track the dialog to prevent garbage collection and allow cleanup
@@ -3293,7 +3303,9 @@ class MainWindow(QMainWindow):
                 resume_filename=results["filename"],
                 custom_save_dir=os.path.dirname(results["save_path"]),
                 show_dialog=show_prog,
-                user_agent=file_info.get("user_agent")
+                user_agent=file_info.get("user_agent"),
+                cookies=file_info.get("cookies"),
+                referrer=file_info.get("referer") or item_ref.data(Qt.ItemDataRole.UserRole + 15)
             )
         elif results["action"] == 'later':
             self._set_status_text(row, "Paused")
@@ -3308,7 +3320,7 @@ class MainWindow(QMainWindow):
             self.download_table.removeRow(row)
         self.save_data()
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=True, user_agent=None, cookies=None):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=True, user_agent=None, cookies=None, referer=None):
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
@@ -3331,12 +3343,13 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole, url)
         item_name.setIcon(get_file_icon(filename_guess))
         
-        # Store raw timestamp data and cookies in the item
+        # Store raw timestamp data, cookies, and referer in the item
         item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts) # Date Added
         item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts) # Last Try
         item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent) # User-Agent
         item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)    # Cookies
         item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
+        item_name.setData(Qt.ItemDataRole.UserRole + 15, referer or url)  # Referer
         
         # Determine explicit metadata bindings
         size_str = size_data[0] if size_data else "?"
@@ -3375,7 +3388,7 @@ class MainWindow(QMainWindow):
         
         if not start_paused:
             if len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS:
-                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies)
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url)
             else:
                 # Slot full — mark as queued; _try_start_queued will pick it up
                 self._set_status_text(row, "Queued")
@@ -3383,11 +3396,13 @@ class MainWindow(QMainWindow):
         self.save_data()
         return item_name
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None, allow_resume=True):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None, referrer=None, allow_resume=True):
         if not user_agent:
             user_agent = item_ref.data(Qt.ItemDataRole.UserRole + 4)
         if not cookies:
             cookies = item_ref.data(Qt.ItemDataRole.UserRole + 5)
+        if not referrer:
+            referrer = item_ref.data(Qt.ItemDataRole.UserRole + 15) or url
         
         config = load_category_config()
         categories = config.get("categories", {})
@@ -3438,12 +3453,14 @@ class MainWindow(QMainWindow):
             worker = Aria2Worker(
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referrer,
                 allow_resume=allow_resume
             )
         else:
             worker = DownloadWorker(
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referrer,
                 allow_resume=allow_resume
             )
 

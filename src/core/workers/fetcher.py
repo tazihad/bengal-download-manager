@@ -10,9 +10,10 @@ from core.utils import load_extension_config, resolve_filename
 class FileInfoFetcherWorker(QThread):
     finished_signal = pyqtSignal(dict)
     
-    def __init__(self, url, user_agent=None, cookies=None):
+    def __init__(self, url, user_agent=None, cookies=None, referrer=None):
         super().__init__()
         self.url = url
+        self.referrer = referrer
         # Use Chrome UA by default as it's more widely accepted by WAFs
         self.user_agent = user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         self.cookies = cookies
@@ -42,6 +43,7 @@ class FileInfoFetcherWorker(QThread):
             "size_bytes": 0,
             "user_agent": self.user_agent,
             "cookies": self.cookies,
+            "referer": self.referrer or self.url,
             "error": None
         }
         
@@ -59,8 +61,11 @@ class FileInfoFetcherWorker(QThread):
             if self.cookies:
                 headers['Cookie'] = self.cookies
 
-            parsed_orig = urlparse(self.url)
-            headers['Referer'] = f"{parsed_orig.scheme}://{parsed_orig.netloc}/"
+            if self.referrer:
+                headers['Referer'] = self.referrer
+            else:
+                parsed_orig = urlparse(self.url)
+                headers['Referer'] = f"{parsed_orig.scheme}://{parsed_orig.netloc}/"
 
             opener = self.create_opener()
             
@@ -87,6 +92,7 @@ class FileInfoFetcherWorker(QThread):
 
                     # We found a binary or an explicit attachment!
                     result["url"] = final_url
+                    result["referer"] = self.url if final_url != self.url else (self.referrer or self.url)
                     result["filename"] = resolve_filename(final_url, final_headers)
                     
                     content_length = final_headers.get("Content-Length")
