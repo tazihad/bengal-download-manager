@@ -51,13 +51,18 @@ class DownloadCompleteDialog(QDialog):
         form.addRow("The file saved as:", self.path_input)
         
         # Size
-        self.lbl_size = QLabel(file_data.get('size', 'Unknown'))
+        from core.utils import get_file_type_description
+        raw_size = file_data.get('size', 'Unknown')
+        fn = os.path.basename(file_data.get('path', '')) or file_data.get('filename', '')
+        ft = get_file_type_description(fn)
+        display_size = f"{raw_size}, {ft}" if ft and ft != "Unknown Type" and ", " not in raw_size else raw_size
+        self.lbl_size = QLabel(display_size)
         font_size = QFont(self.lbl_size.font())
         font_size.setBold(True)
         font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.lbl_size.setFont(font_size)
         self.lbl_size.setStyleSheet("font-weight: bold;")
-        self.lbl_size.setToolTip(f"Downloaded file size: {file_data.get('size', 'Unknown')}")
+        self.lbl_size.setToolTip(f"Downloaded file size: {display_size}")
         form_layout_row = form.addRow("Size:", self.lbl_size)
         
         layout.addLayout(form)

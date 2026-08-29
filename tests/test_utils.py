@@ -71,6 +71,20 @@ def test_resolve_filename():
     script_url = "https://example.com/get.php?id=1"
     assert resolve_filename(script_url, {"Content-Type": "application/pdf"}) == "get.pdf"
 
+def test_get_file_type_description():
+    from core.utils import get_file_type_description
+
+    assert get_file_type_description("ChromePublic.apk") == "APK File"
+    assert get_file_type_description("installer.exe") == "Executable Application"
+    assert get_file_type_description("archive.zip") == "ZIP Archive"
+    assert get_file_type_description("package.tar.gz") == "TAR GZ Archive"
+    assert get_file_type_description("video.mp4") == "MP4 Video"
+    assert get_file_type_description("song.mp3") == "MP3 Audio"
+    assert get_file_type_description("document.pdf") == "PDF Document"
+    assert get_file_type_description("image.png") == "PNG Image"
+    assert get_file_type_description("custom.xyz") == "XYZ File"
+    assert get_file_type_description("stream", "application/vnd.android.package-archive") == "APK File"
+
 def test_parse_size_to_bytes():
     assert parse_size_to_bytes("1.50 MB") == int(1.50 * 1024 * 1024)
     assert parse_size_to_bytes("100 KB") == 100 * 1024

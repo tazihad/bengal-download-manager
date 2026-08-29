@@ -68,13 +68,19 @@ class DownloadFileInfoDialog(QDialog):
         save_layout.addWidget(self.btn_browse)
         form_layout.addRow("Save As:", save_layout)
         
-        self.lbl_size = QLabel(file_info.get("size_str", "Unknown"))
+        from core.utils import get_file_type_description
+        filename = file_info.get("filename", "")
+        file_type = get_file_type_description(filename, file_info.get("content_type"))
+        init_size_str = file_info.get("size_str", "Unknown")
+        display_size = f"{init_size_str}, {file_type}" if file_type and file_type != "Unknown Type" else init_size_str
+
+        self.lbl_size = QLabel(display_size)
         font_size = QFont(self.lbl_size.font())
         font_size.setBold(True)
         font_size.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.lbl_size.setFont(font_size)
         self.lbl_size.setStyleSheet("font-weight: bold;")
-        self.lbl_size.setToolTip("Detected content size from server header")
+        self.lbl_size.setToolTip("Detected content size and file type")
         form_layout.addRow("File Size:", self.lbl_size)
         
         self.layout.addLayout(form_layout)
@@ -133,10 +139,18 @@ class DownloadFileInfoDialog(QDialog):
             self.size_probe_worker.start()
             self.finished.connect(self._cleanup_probe)
 
+    def _refresh_size_label(self):
+        from core.utils import get_file_type_description
+        filename = self.file_info.get("filename") or os.path.basename(self.save_input.text().strip())
+        file_type = get_file_type_description(filename, self.file_info.get("content_type"))
+        size_str = self.file_info.get("size_str", "Unknown")
+        display_size = f"{size_str}, {file_type}" if file_type and file_type != "Unknown Type" else size_str
+        self.lbl_size.setText(display_size)
+
     def update_file_size(self, size_str, size_bytes):
         self.file_info["size_str"] = size_str
         self.file_info["size_bytes"] = size_bytes
-        self.lbl_size.setText(size_str)
+        self._refresh_size_label()
         self.size_updated_signal.emit(size_str, size_bytes)
 
     def _cleanup_probe(self):
@@ -167,6 +181,7 @@ class DownloadFileInfoDialog(QDialog):
         new_name = os.path.basename(text.strip())
         if new_name:
             self.file_info["filename"] = new_name
+            self._refresh_size_label()
         
     def auto_detect_category(self):
         filename = self.file_info.get("filename", "").lower()
@@ -212,6 +227,7 @@ class DownloadFileInfoDialog(QDialog):
             self.file_info["filename"] = os.path.basename(path)
             self.save_input.setText(path)
             self.save_input.setCursorPosition(0)
+            self._refresh_size_label()
             
     def get_results(self):
         return {

@@ -24,9 +24,12 @@ class PropertiesDialog(QDialog):
         grid.setColumnStretch(1, 1)
         grid.setSpacing(10)
         
+        from core.utils import get_file_type_description
+        fn = file_data.get('filename', '')
+        file_type = get_file_type_description(fn)
         labels = [
-            ("File Name:", file_data.get('filename', '')),
-            ("Type:", os.path.splitext(file_data.get('filename', ''))[1].upper() + " File"),
+            ("File Name:", fn),
+            ("Type:", file_type),
             ("Status:", file_data.get('status', 'Unknown')),
             ("Size:", file_data.get('size', 'Unknown')),
             ("Saved To:", os.path.dirname(file_data.get('path', 'Unknown'))),

@@ -51,7 +51,11 @@ class DownloadProgressDialog(QDialog):
         tb = getattr(self.worker, 'total_bytes', None)
         if isinstance(tb, (int, float)) and tb > 0:
             self.total_bytes = tb
-            self.lbl_size.setText(self.worker.format_bytes(tb, precision=2, pad=False))
+            from core.utils import get_file_type_description
+            fn = getattr(self.worker, 'filename', '')
+            ft = get_file_type_description(fn)
+            sz_str = self.worker.format_bytes(tb, precision=2, pad=False)
+            self.lbl_size.setText(f"{sz_str}, {ft}" if ft and ft != "Unknown Type" else sz_str)
 
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)
@@ -97,7 +101,6 @@ class DownloadProgressDialog(QDialog):
         font_size.setFeature(tnum_tag, 1)
         self.lbl_size.setFont(font_size)
         self.lbl_size.setStyleSheet("font-weight: bold;")
-        self.lbl_size.setFixedWidth(180)
         add_row("File size:", self.lbl_size, 1)
         
         self.lbl_downloaded = QLabel("0 bytes")
@@ -433,8 +436,14 @@ class DownloadProgressDialog(QDialog):
     def update_stats(self, row, data):
         # Only update size if it's not "Unknown" or if current is "Calculating..."
         new_size_text = data[1]
+        from core.utils import get_file_type_description
+        fn = getattr(self.worker, 'filename', '') or (data[0] if len(data) > 0 else '')
+        ft = get_file_type_description(fn)
         if new_size_text != "Unknown" or self.lbl_size.text() == "Calculating...":
-            self.lbl_size.setText(new_size_text)
+            if ft and ft != "Unknown Type" and ", " not in new_size_text:
+                self.lbl_size.setText(f"{new_size_text}, {ft}")
+            else:
+                self.lbl_size.setText(new_size_text)
             
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
