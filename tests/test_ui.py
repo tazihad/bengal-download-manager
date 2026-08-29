@@ -1995,7 +1995,7 @@ def test_download_file_info_dialog_background_size_update(qapp):
     dlg = DownloadFileInfoDialog(file_info)
     dlg.hide()
 
-    assert dlg.lbl_size.text() == "Unknown, Binary File"
+    assert dlg.lbl_size.text() == "Unknown,\tBinary File"
 
     received_signals = []
     dlg.size_updated_signal.connect(lambda s_str, s_bytes: received_signals.append((s_str, s_bytes)))
@@ -2003,7 +2003,7 @@ def test_download_file_info_dialog_background_size_update(qapp):
     # Real size arrives from background
     dlg.update_file_size("15.20 MB", 15938355)
 
-    assert dlg.lbl_size.text() == "15.20 MB, Binary File"
+    assert dlg.lbl_size.text() == "15.20 MB,\tBinary File"
     assert dlg.file_info["size_str"] == "15.20 MB"
     assert dlg.file_info["size_bytes"] == 15938355
     assert len(received_signals) == 1
@@ -2016,12 +2016,12 @@ def test_download_file_info_dialog_background_size_update(qapp):
     dlg.close()
 
 
-def test_download_progress_and_complete_dialog_file_type(qapp, tmp_path):
+def test_download_progress_and_complete_dialog_size(qapp, tmp_path):
     from ui.dialogs.progress import DownloadProgressDialog
     from ui.dialogs.complete import DownloadCompleteDialog
     from unittest.mock import MagicMock
 
-    # 1. DownloadProgressDialog
+    # 1. DownloadProgressDialog (clean size only)
     mock_worker = MagicMock()
     mock_worker.filename = "ChromePublic.apk"
     mock_worker.url = "http://example.com/ChromePublic.apk"
@@ -2032,14 +2032,14 @@ def test_download_progress_and_complete_dialog_file_type(qapp, tmp_path):
 
     prog_dlg = DownloadProgressDialog(mock_worker)
     prog_dlg.hide()
-    assert "388.46 MB, APK File" in prog_dlg.lbl_size.text()
+    assert prog_dlg.lbl_size.text() == "388.46 MB"
 
     # Update stats
     prog_dlg.update_stats(0, ("ChromePublic.apk", "388.46 MB", "Downloading", "10s", "1.2 MB/s", 1000, 407332864))
-    assert prog_dlg.lbl_size.text() == "388.46 MB, APK File"
+    assert prog_dlg.lbl_size.text() == "388.46 MB"
     prog_dlg.close()
 
-    # 2. DownloadCompleteDialog
+    # 2. DownloadCompleteDialog (clean size only)
     comp_data = {
         "url": "http://example.com/archive.zip",
         "path": str(tmp_path / "archive.zip"),
@@ -2047,7 +2047,7 @@ def test_download_progress_and_complete_dialog_file_type(qapp, tmp_path):
     }
     comp_dlg = DownloadCompleteDialog(comp_data)
     comp_dlg.hide()
-    assert comp_dlg.lbl_size.text() == "100.00 KB, ZIP Archive"
+    assert comp_dlg.lbl_size.text() == "100.00 KB"
     comp_dlg.close()
 
 

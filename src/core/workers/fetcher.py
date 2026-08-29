@@ -199,9 +199,12 @@ class BackgroundSizeProbeWorker(QThread):
             return
 
         try:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+            try:
+                ctx = ssl._create_unverified_context()
+            except AttributeError:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
 
             opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
             headers = {

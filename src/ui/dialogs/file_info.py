@@ -72,7 +72,7 @@ class DownloadFileInfoDialog(QDialog):
         filename = file_info.get("filename", "")
         file_type = get_file_type_description(filename, file_info.get("content_type"))
         init_size_str = file_info.get("size_str", "Unknown")
-        display_size = f"{init_size_str}, {file_type}" if file_type and file_type != "Unknown Type" else init_size_str
+        display_size = f"{init_size_str},\t{file_type}" if file_type and file_type != "Unknown Type" else init_size_str
 
         self.lbl_size = QLabel(display_size)
         font_size = QFont(self.lbl_size.font())
@@ -144,7 +144,7 @@ class DownloadFileInfoDialog(QDialog):
         filename = self.file_info.get("filename") or os.path.basename(self.save_input.text().strip())
         file_type = get_file_type_description(filename, self.file_info.get("content_type"))
         size_str = self.file_info.get("size_str", "Unknown")
-        display_size = f"{size_str}, {file_type}" if file_type and file_type != "Unknown Type" else size_str
+        display_size = f"{size_str},\t{file_type}" if file_type and file_type != "Unknown Type" else size_str
         self.lbl_size.setText(display_size)
 
     def update_file_size(self, size_str, size_bytes):
@@ -164,6 +164,9 @@ class DownloadFileInfoDialog(QDialog):
                     worker.wait(1500)
             except Exception:
                 pass
+
+    def __del__(self):
+        self._cleanup_probe()
 
     def closeEvent(self, event):
         self._cleanup_probe()
