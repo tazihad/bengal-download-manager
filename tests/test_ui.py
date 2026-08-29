@@ -1472,6 +1472,7 @@ def test_main_window_column_visibility(qapp):
 def test_show_in_folder_single_nautilus(monkeypatch, tmp_path):
     from core.utils import show_in_folder
     import subprocess
+    import shutil
 
     dummy_file = tmp_path / "test.txt"
     dummy_file.write_text("content")
@@ -1486,6 +1487,8 @@ def test_show_in_folder_single_nautilus(monkeypatch, tmp_path):
         return MockProc()
 
     monkeypatch.setattr(subprocess, "Popen", mock_popen)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, returncode=1))
+    monkeypatch.setattr(shutil, "which", lambda cmd: cmd == "nautilus")
     monkeypatch.setenv("XDG_CURRENT_DESKTOP", "GNOME")
 
     show_in_folder(str(dummy_file))
