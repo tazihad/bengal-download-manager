@@ -4,12 +4,14 @@ from PyQt6.QtWidgets import (
     QComboBox, QFormLayout, QApplication
 )
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from core.utils import get_unique_filepath, choose_portal_save_path, get_user_downloads_dir
 from core.config import load_category_config
 from core.memory_guard import MemoryGuard
 
 class DownloadFileInfoDialog(QDialog):
+    size_updated_signal = pyqtSignal(str, int)
+
     def __init__(self, file_info, parent=None, existing_paths=None, existing_names=None, force_copy=False):
         super().__init__(parent)
         MemoryGuard.auto_manage_dialog(self)
@@ -113,7 +115,53 @@ class DownloadFileInfoDialog(QDialog):
         
         self.adjustSize()
         
-        self.action_result = None 
+        self.action_result = None
+
+        # Background size probing if size was initially unknown
+        self.size_probe_worker = None
+        current_size_bytes = self.file_info.get("size_bytes", 0)
+        current_size_str = str(self.file_info.get("size_str", "")).strip()
+        if (not current_size_bytes or current_size_bytes <= 0 or current_size_str in ["Unknown", "Calculating...", "?", ""]) and self.file_info.get("url"):
+            from core.workers.fetcher import BackgroundSizeProbeWorker
+            self.size_probe_worker = BackgroundSizeProbeWorker(
+                url=self.file_info.get("url"),
+                user_agent=self.file_info.get("user_agent"),
+                cookies=self.file_info.get("cookies"),
+                referrer=self.file_info.get("referer") or self.file_info.get("referrer")
+            )
+            self.size_probe_worker.size_found_signal.connect(self.update_file_size)
+            self.size_probe_worker.start()
+            self.finished.connect(self._cleanup_probe)
+
+    def update_file_size(self, size_str, size_bytes):
+        self.file_info["size_str"] = size_str
+        self.file_info["size_bytes"] = size_bytes
+        self.lbl_size.setText(size_str)
+        self.size_updated_signal.emit(size_str, size_bytes)
+
+    def _cleanup_probe(self):
+        worker = getattr(self, "size_probe_worker", None)
+        if worker is not None:
+            self.size_probe_worker = None
+            try:
+                worker.stop()
+                if worker.isRunning():
+                    worker.quit()
+                    worker.wait(1500)
+            except Exception:
+                pass
+
+    def closeEvent(self, event):
+        self._cleanup_probe()
+        super().closeEvent(event)
+
+    def reject(self):
+        self._cleanup_probe()
+        super().reject()
+
+    def accept(self):
+        self._cleanup_probe()
+        super().accept() 
 
     def on_save_input_changed(self, text):
         new_name = os.path.basename(text.strip())

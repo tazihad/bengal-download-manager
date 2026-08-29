@@ -178,3 +178,81 @@ class FileInfoFetcherWorker(QThread):
             return f"{size:{width}.{precision}f}  {power_labels.get(n, '')}B"
         else:
             return f"{size:.{precision}f}  {power_labels.get(n, '')}B"
+
+
+class BackgroundSizeProbeWorker(QThread):
+    size_found_signal = pyqtSignal(str, int)  # size_str, size_bytes
+
+    def __init__(self, url, user_agent=None, cookies=None, referrer=None):
+        super().__init__()
+        self.url = url
+        self.user_agent = user_agent
+        self.cookies = cookies
+        self.referrer = referrer
+        self._is_running = True
+
+    def stop(self):
+        self._is_running = False
+
+    def run(self):
+        if not self.url or not self.url.startswith("http"):
+            return
+
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+            headers = {
+                'User-Agent': self.user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                'Accept': '*/*',
+                'Connection': 'close'
+            }
+            if self.cookies:
+                headers['Cookie'] = self.cookies
+            if self.referrer:
+                headers['Referer'] = self.referrer
+
+            size_bytes = 0
+
+            # 1. Probe with Range: bytes=0-1
+            if self._is_running:
+                try:
+                    range_headers = dict(headers)
+                    range_headers['Range'] = 'bytes=0-1'
+                    req_range = urllib.request.Request(self.url, headers=range_headers)
+                    with opener.open(req_range, timeout=6) as resp:
+                        cr = resp.headers.get("Content-Range", "")
+                        cr_match = re.search(r'/(\d+)', cr)
+                        if cr_match:
+                            size_bytes = int(cr_match.group(1))
+                        elif resp.headers.get("Content-Length", "").isdigit():
+                            cl = int(resp.headers.get("Content-Length"))
+                            if cl > 2:
+                                size_bytes = cl
+                except Exception:
+                    pass
+
+            # 2. Probe with HEAD
+            if not size_bytes and self._is_running:
+                try:
+                    head_req = urllib.request.Request(self.url, method='HEAD', headers=headers)
+                    with opener.open(head_req, timeout=6) as resp:
+                        cl = resp.headers.get("Content-Length")
+                        if cl and cl.isdigit() and int(cl) > 0:
+                            size_bytes = int(cl)
+                        else:
+                            cr = resp.headers.get("Content-Range", "")
+                            cr_match = re.search(r'/(\d+)', cr)
+                            if cr_match:
+                                size_bytes = int(cr_match.group(1))
+                except Exception:
+                    pass
+
+            if size_bytes > 0 and self._is_running:
+                size_str = format_bytes(size_bytes)
+                self.size_found_signal.emit(size_str, size_bytes)
+        except Exception:
+            pass
+

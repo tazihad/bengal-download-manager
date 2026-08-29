@@ -3272,11 +3272,21 @@ class MainWindow(QMainWindow):
         # Connect signals to handle the dialog result
         dialog.accepted.connect(lambda: self._handle_download_dialog_accepted(dialog, file_info, item_ref))
         dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_ref))
+        dialog.size_updated_signal.connect(lambda sz_str, sz_bytes, ref=item_ref: self._on_dialog_size_updated(ref, sz_str, sz_bytes))
         
         # Show and bring to foreground without stealing focus for the main app
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
+
+    def _on_dialog_size_updated(self, item_ref, size_str, size_bytes):
+        try:
+            row = self.download_table.row(item_ref)
+        except RuntimeError:
+            row = -1
+        if row != -1:
+            self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
+            self.save_data()
 
     def _handle_download_dialog_accepted(self, dialog, file_info, item_ref):
         results = dialog.get_results()

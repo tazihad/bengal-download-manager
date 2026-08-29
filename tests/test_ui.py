@@ -1982,6 +1982,41 @@ def test_properties_dialog_referer(qapp, tmp_path):
     dlg.close()
 
 
+def test_download_file_info_dialog_background_size_update(qapp):
+    from ui.dialogs.file_info import DownloadFileInfoDialog
+
+    file_info = {
+        "url": "http://example.com/stream.bin",
+        "filename": "stream.bin",
+        "size_str": "Unknown",
+        "size_bytes": 0
+    }
+
+    dlg = DownloadFileInfoDialog(file_info)
+    dlg.hide()
+
+    assert dlg.lbl_size.text() == "Unknown"
+
+    received_signals = []
+    dlg.size_updated_signal.connect(lambda s_str, s_bytes: received_signals.append((s_str, s_bytes)))
+
+    # Real size arrives from background
+    dlg.update_file_size("15.20 MB", 15938355)
+
+    assert dlg.lbl_size.text() == "15.20 MB"
+    assert dlg.file_info["size_str"] == "15.20 MB"
+    assert dlg.file_info["size_bytes"] == 15938355
+    assert len(received_signals) == 1
+    assert received_signals[0] == ("15.20 MB", 15938355)
+
+    results = dlg.get_results()
+    assert results["size_str"] == "15.20 MB"
+    assert results["size_bytes"] == 15938355
+
+    dlg.close()
+
+
+
 
 
 
