@@ -1995,7 +1995,7 @@ def test_download_file_info_dialog_background_size_update(qapp):
     dlg = DownloadFileInfoDialog(file_info)
     dlg.hide()
 
-    assert dlg.lbl_size.text() == "Unknown,\tBinary File"
+    assert dlg.lbl_size.text() == "Unknown,  File type: Binary File"
 
     received_signals = []
     dlg.size_updated_signal.connect(lambda s_str, s_bytes: received_signals.append((s_str, s_bytes)))
@@ -2003,7 +2003,7 @@ def test_download_file_info_dialog_background_size_update(qapp):
     # Real size arrives from background
     dlg.update_file_size("15.20 MB", 15938355)
 
-    assert dlg.lbl_size.text() == "15.20 MB,\tBinary File"
+    assert dlg.lbl_size.text() == "15.20 MB,  File type: Binary File"
     assert dlg.file_info["size_str"] == "15.20 MB"
     assert dlg.file_info["size_bytes"] == 15938355
     assert len(received_signals) == 1
