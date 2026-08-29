@@ -69,18 +69,20 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         url = ""
         user_agent = ""
         cookies = ""
+        referrer = ""
         
         try:
             payload = json.loads(body)
             url = payload.get("url", "")
             user_agent = payload.get("userAgent", "")
             cookies = payload.get("cookies", "")
+            referrer = payload.get("referrer", "")
         except json.JSONDecodeError:
             url = body
             
         if url and url.startswith("http"):
             # self.server.emitter is passed when initializing the server
-            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}")
+            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}")
             
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')

@@ -1952,6 +1952,37 @@ def test_toolbar_resume_disabled_when_already_resuming(qapp, monkeypatch, tmp_pa
     win.close()
 
 
+def test_properties_dialog_referer(qapp, tmp_path):
+    from ui.dialogs.properties import PropertiesDialog
+    from PyQt6.QtWidgets import QLineEdit
+
+    direct_url = "https://release-assets.githubusercontent.com/github-production-release-asset/1083868986/0562723c-f190-4894-b57c-2b2b2c955bfd?sp=r"
+    referer_url = "https://github.com/andrewginns/chromium-browser-snapshots-AndroidDesktop_arm64/releases/download/1687988/ChromePublic.apk"
+
+    file_data = {
+        "filename": "ChromePublic.apk",
+        "url": direct_url,
+        "referer": referer_url,
+        "path": str(tmp_path / "ChromePublic.apk"),
+        "status": "Complete",
+        "size": "388.45 MB",
+        "date_added": "2026-08-29 09:00:00",
+        "last_try": "2026-08-29 09:05:00"
+    }
+
+    dlg = PropertiesDialog(file_data)
+    dlg.hide()
+
+    line_edits = dlg.findChildren(QLineEdit)
+    texts = [le.text() for le in line_edits]
+
+    assert direct_url in texts
+    assert referer_url in texts
+
+    dlg.close()
+
+
+
 
 
 

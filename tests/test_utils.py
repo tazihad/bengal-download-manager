@@ -33,10 +33,43 @@ def test_is_media_downloader_url():
     assert is_media_downloader_url("") is False
 
 def test_resolve_filename():
+    # 1. Standard URL with MIME type
     url = "http://example.com/testfile.mp4"
     headers = {"Content-Type": "video/mp4"}
-    filename = resolve_filename(url, headers)
-    assert filename == "testfile.mp4"
+    assert resolve_filename(url, headers) == "testfile.mp4"
+
+    # 2. GitHub APK Release URL with Content-Disposition & Android APK MIME
+    apk_url = "https://github.com/andrewginns/chromium-browser-snapshots-AndroidDesktop_arm64/releases/download/1687988/ChromePublic.apk"
+    apk_headers = {
+        "Content-Disposition": "attachment; filename=ChromePublic.apk",
+        "Content-Type": "application/vnd.android.package-archive"
+    }
+    assert resolve_filename(apk_url, apk_headers) == "ChromePublic.apk"
+    assert resolve_filename(apk_url, {}) == "ChromePublic.apk"
+
+    # 3. Azure/S3 Redirect URL with UUID path and response-content-disposition query parameter
+    redirect_url = "https://release-assets.githubusercontent.com/github-production-release-asset/1083868986/0562723c-f190-4894-b57c-2b2b2c955bfd?sp=r&response-content-disposition=attachment%3B%20filename%3DChromePublic.apk"
+    assert resolve_filename(redirect_url, {}) == "ChromePublic.apk"
+
+    # 4. Unknown MIME type with filename in URL path (must download as-is)
+    unknown_mime_url = "https://example.com/builds/app_binary.customext"
+    assert resolve_filename(unknown_mime_url, {"Content-Type": "application/x-custom-unknown-type"}) == "app_binary.customext"
+
+    # 5. Unknown MIME type with Content-Disposition
+    cd_unknown_url = "https://example.com/api/v1/download?id=4928"
+    cd_unknown_headers = {
+        "Content-Disposition": "attachment; filename=\"special_package.pkgx\"",
+        "Content-Type": "application/x-unknown-mimetype"
+    }
+    assert resolve_filename(cd_unknown_url, cd_unknown_headers) == "special_package.pkgx"
+
+    # 6. Fallback when neither URL nor headers provide a filename
+    api_url = "https://example.com/api/get/987654321"
+    assert resolve_filename(api_url, {"Content-Type": "application/x-unknown-mimetype"}) == "downloaded_file"
+
+    # 7. Script extension replacement with recognized MIME
+    script_url = "https://example.com/get.php?id=1"
+    assert resolve_filename(script_url, {"Content-Type": "application/pdf"}) == "get.pdf"
 
 def test_parse_size_to_bytes():
     assert parse_size_to_bytes("1.50 MB") == int(1.50 * 1024 * 1024)
