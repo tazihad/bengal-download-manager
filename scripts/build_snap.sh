@@ -59,7 +59,7 @@ except ImportError:
 
 echo "--- 2. Executing Snapcraft Build ---"
 if [ -z "${APP_VERSION:-}" ]; then
-    APP_VERSION=$(git describe --tags --always 2>/dev/null | sed 's/^v//' | cut -d'-' -f1 || echo "0.2.13")
+    APP_VERSION=$(git describe --tags --always 2>/dev/null | sed 's/^v//' | cut -d'-' -f1 || echo "0.2.19")
     export APP_VERSION
 fi
 echo "Target snap version: $APP_VERSION"

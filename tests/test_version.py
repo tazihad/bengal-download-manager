@@ -44,4 +44,4 @@ class TestVersionResolution(unittest.TestCase):
     def test_fallback_when_git_fails(self):
         with patch.dict(os.environ, {}, clear=True), patch("subprocess.run", side_effect=Exception("No git")):
             ver = version_module._get_version()
-            self.assertEqual(ver, "0.2.13")
+            self.assertEqual(ver, "0.2.19")

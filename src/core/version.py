@@ -27,6 +27,6 @@ def _get_version():
             return ver
     except Exception:
         pass
-    return "0.2.13"
+    return "0.2.19"
 
 VERSION = _get_version()
