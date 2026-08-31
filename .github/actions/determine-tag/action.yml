@@ -84,53 +84,53 @@ runs:
                     parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
                     latest = parsed[-1]
 
-            x, y, z, is_stable, n, z_raw, suffix, latest_tag = latest
-            suffix = suffix or "alpha"
-            print(f"Latest tag found: {latest_tag}")
+                x, y, z, is_stable, n, z_raw, suffix, latest_tag = latest
+                suffix = suffix or "alpha"
+                print(f"Latest tag found: {latest_tag}")
 
-            is_main = (ref == "refs/heads/main")
+                is_main = (ref == "refs/heads/main")
 
-            if is_main:
-                if not is_stable:
-                    # Latest tag was pre-release vX.Y.Z-alpha.N -> stable release tag is vX.Y.Z
-                    tag = f"v{x}.{y}.{z:02d}"
-                else:
-                    # Latest tag was stable vX.Y.Z -> advance version
-                    nx, ny, nz = advance_version(x, y, z)
-                    tag = f"v{nx}.{ny}.{nz}"
-
-                # Ensure tag does not already exist
-                while tag in existing_tags:
-                    m = pattern.match(tag)
-                    if m:
-                        tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
-                        nx, ny, nz = advance_version(tx, ty, tz)
+                if is_main:
+                    if not is_stable:
+                        # Latest tag was pre-release vX.Y.Z-alpha.N -> stable release tag is vX.Y.Z
+                        tag = f"v{x}.{y}.{z:02d}"
+                    else:
+                        # Latest tag was stable vX.Y.Z -> advance version
+                        nx, ny, nz = advance_version(x, y, z)
                         tag = f"v{nx}.{ny}.{nz}"
-                    else:
-                        break
-            else:
-                # Pre-release (e.g. push to dev or feature branch)
-                if not is_stable:
-                    # Already in pre-release cycle vX.Y.Z-alpha.N -> increment N
-                    next_n = n + 1
-                    tag = f"v{x}.{y}.{z:02d}-{suffix}.{next_n}"
+
+                    # Ensure tag does not already exist
+                    while tag in existing_tags:
+                        m = pattern.match(tag)
+                        if m:
+                            tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                            nx, ny, nz = advance_version(tx, ty, tz)
+                            tag = f"v{nx}.{ny}.{nz}"
+                        else:
+                            break
                 else:
-                    # Latest tag was stable vX.Y.Z -> advance to upcoming pre-release (vX.Y.(Z+1)-alpha.1 or vX.(Y+1).00-alpha.1)
-                    nx, ny, nz = advance_version(x, y, z)
-                    tag = f"v{nx}.{ny}.{nz}-alpha.1"
-
-                # Ensure tag does not already exist
-                while tag in existing_tags:
-                    m = pattern.match(tag)
-                    if m:
-                        tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
-                        tsuffix = m.group(4) or "alpha"
-                        tn = int(m.group(5)) if m.group(5) else 0
-                        tag = f"v{tx}.{ty}.{tz:02d}-{tsuffix}.{tn + 1}"
+                    # Pre-release (e.g. push to dev or feature branch)
+                    if not is_stable:
+                        # Already in pre-release cycle vX.Y.Z-alpha.N -> increment N
+                        next_n = n + 1
+                        tag = f"v{x}.{y}.{z:02d}-{suffix}.{next_n}"
                     else:
-                        break
+                        # Latest tag was stable vX.Y.Z -> advance to upcoming pre-release (vX.Y.(Z+1)-alpha.1 or vX.(Y+1).00-alpha.1)
+                        nx, ny, nz = advance_version(x, y, z)
+                        tag = f"v{nx}.{ny}.{nz}-alpha.1"
 
-            version = tag[1:] if tag.startswith("v") else tag
+                    # Ensure tag does not already exist
+                    while tag in existing_tags:
+                        m = pattern.match(tag)
+                        if m:
+                            tx, ty, tz = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                            tsuffix = m.group(4) or "alpha"
+                            tn = int(m.group(5)) if m.group(5) else 0
+                            tag = f"v{tx}.{ty}.{tz:02d}-{tsuffix}.{tn + 1}"
+                        else:
+                            break
+
+                version = tag[1:] if tag.startswith("v") else tag
 
         print(f"Determined Tag: {tag}")
         print(f"Determined Version: {version}")
