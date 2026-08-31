@@ -17,6 +17,9 @@ esac
 
 # 1. Environment & Library paths
 export SNAP_APP_ROOT="$SNAP/share/bengal-download-manager"
+if [ -n "$SNAP_VERSION" ] && [ -z "$APP_VERSION" ]; then
+    export APP_VERSION="$SNAP_VERSION"
+fi
 export PYTHONPATH="$SNAP_APP_ROOT/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$SNAP/usr/lib/python3/dist-packages:$PYTHONPATH"
 export PATH="$SNAP/bin:$SNAP/usr/bin:$SNAP_APP_ROOT/assets/bin/$ARCH:$SNAP_APP_ROOT/assets/bin:$PATH"
 export LD_LIBRARY_PATH="$SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH"

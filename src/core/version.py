@@ -6,6 +6,8 @@ def _get_version():
         return os.environ.get("APP_VERSION")
     if os.environ.get("BENGAL_DM_VERSION"):
         return os.environ.get("BENGAL_DM_VERSION")
+    if os.environ.get("SNAP_VERSION"):
+        return os.environ.get("SNAP_VERSION")
     try:
         git_dir = os.path.join(os.path.dirname(__file__), "..", "..")
         res = subprocess.run(
@@ -25,6 +27,6 @@ def _get_version():
             return ver
     except Exception:
         pass
-    return "0.1.81"
+    return "0.2.13"
 
 VERSION = _get_version()
