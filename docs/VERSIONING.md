@@ -1,6 +1,6 @@
 # Version Management & Single Source of Truth (SSOT) Guide
 
-This document defines the authoritative versioning architecture and release lifecycle for Bengal Download Manager.
+This document defines the authoritative versioning architecture, release lifecycle, and manual developer procedures for Bengal Download Manager.
 
 ---
 
@@ -19,7 +19,7 @@ The root file **`VERSION`** is the single authoritative source of truth for the 
 ```
                               ┌─────────────────────────┐
                               │  Canonical SSOT:        │
-                              │  `VERSION` (e.g. 0.2.20)│
+                              │  `VERSION` (e.g. 0.2.25)│
                               └────────────┬────────────┘
                                            │
                            `python3 scripts/sync_version.py`
@@ -34,50 +34,85 @@ The root file **`VERSION`** is the single authoritative source of truth for the 
 
 ---
 
-## 2. The Version Synchronizer CLI (`scripts/sync_version.py`)
+## 2. Manual Developer Workflows
 
-A dedicated script [`scripts/sync_version.py`](file:///run/media/zihad/data/dev/bengal-download-manager/scripts/sync_version.py) automates version checks, bumps, manifest updates, and Git tagging.
+The repository provides [`scripts/sync_version.py`](file:///run/media/zihad/data/dev/bengal-download-manager/scripts/sync_version.py) to manage all version manifests atomically.
 
-### Common Commands
-
-#### 1. Check Consistency Across All Manifests
+### Option A: Set an Explicit Version (Recommended)
 ```bash
+# 1. Update VERSION, snapcraft.yaml, metainfo.xml, extension manifest, and runtime
+python3 scripts/sync_version.py --set 0.2.25
+
+# 2. Check that all files are 100% in sync
 python3 scripts/sync_version.py --check
-```
-*Validates that `VERSION`, `snapcraft.yaml`, `metainfo.xml`, `manifest.json`, and runtime files match. Used by CI to prevent accidental mismatches.*
 
-#### 2. Bump Version for a New Release
-```bash
-# Patch release (e.g., 0.2.20 -> 0.2.21)
-python3 scripts/sync_version.py --bump patch
-
-# Minor release (e.g., 0.2.20 -> 0.3.0)
-python3 scripts/sync_version.py --bump minor
-
-# Major release (e.g., 0.2.20 -> 1.0.0)
-python3 scripts/sync_version.py --bump major
-
-# Alpha / Pre-release (e.g., 0.2.20 -> 0.2.21-alpha.1)
-python3 scripts/sync_version.py --bump alpha
-```
-
-#### 3. Atomic Bump + Commit + Git Tag
-```bash
-# Bumps version, updates all manifests, creates git commit and annotated tag vX.Y.Z
-python3 scripts/sync_version.py --bump patch --commit --tag
-
-# Push release and tags to GitHub
-git push origin HEAD --tags
-```
-
-#### 4. Explicit Version Set
-```bash
-python3 scripts/sync_version.py --set 0.2.20-alpha.1
+# 3. Commit and push to GitHub
+git commit -am "chore(release): bump version to 0.2.25"
+git push origin main
 ```
 
 ---
 
-## 3. Release Lifecycle & CI/CD Pipeline
+### Option B: One-Shot Bump + Commit + Git Tag (Atomic Release)
+```bash
+# Automatically increments patch (e.g., 0.2.24 -> 0.2.25), updates manifests, creates commit & tag
+python3 scripts/sync_version.py --bump patch --commit --tag
+
+# Push the release commit and tag together
+git push origin main --tags
+```
+
+---
+
+### Option C: Create an Alpha / Pre-Release
+```bash
+# Automatically detects latest release tag in Git and advances to upcoming alpha (e.g. 0.2.26-alpha.1)
+python3 scripts/sync_version.py --bump alpha --commit --tag
+
+# Push branch and tag to GitHub
+git push origin <branch-name> --tags
+```
+
+---
+
+### Option D: If You Prefer Editing Files by Hand in Your Editor
+1. **Edit the `VERSION` file**:
+   ```bash
+   echo "0.2.25" > VERSION
+   ```
+
+2. **Sync the other manifest files with one command**:
+   ```bash
+   python3 scripts/sync_version.py --set $(cat VERSION)
+   ```
+   *(This automatically writes `0.2.25` to `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, `extension/manifest.json`, and `src/core/version.py`).*
+
+3. **Verify consistency**:
+   ```bash
+   python3 scripts/sync_version.py --check
+   ```
+
+4. **Commit and Push**:
+   ```bash
+   git add .
+   git commit -m "chore(release): bump version to 0.2.25"
+   git push origin main
+   ```
+
+---
+
+## 3. How Release Channels React to Your Push
+
+| Channel | What Happens When You Push to `main` |
+|---|---|
+| **GitHub Releases** | GitHub Actions reads `VERSION`, builds all binaries (`AppImage`, `Flatpak`, `Snap`, `Standalone Binary`, `Extensions`), creates the GitHub release and tags `v0.2.25`. |
+| **Snap Store (snapcraft.io)** | Snapcraft.io's build service clones `main`, reads `version: '0.2.25'` directly from `snap/snapcraft.yaml`, builds and publishes `0.2.25` to the Snap Store. |
+| **Flatpak / Flathub** | Uses the updated `<release version="0.2.25" .../>` in `io.github.tazihad.bengal-download-manager.metainfo.xml`. |
+| **In-App (Help -> About)** | Automatically displays `0.2.25` from `VERSION` and `SNAP_VERSION`. |
+
+---
+
+## 4. Release Lifecycle & CI/CD Pipeline
 
 1. **Pull Requests & Commits (`ci.yml`)**:
    - `python3 scripts/sync_version.py --check` automatically executes on every commit and PR.
@@ -92,8 +127,8 @@ python3 scripts/sync_version.py --set 0.2.20-alpha.1
 
 ---
 
-## 4. Guidelines for AI Agents and Contributors
+## 5. Guidelines for AI Agents and Contributors
 
 1. **Never edit version strings manually in individual manifest files**. Always use `scripts/sync_version.py --set <ver>` or `--bump <type>`.
 2. **Run `python3 scripts/sync_version.py --check` before committing** any changes related to versioning or packaging.
-3. **Keep extension manifest versions semver-compliant**: Extension manifests require numeric dot-separated integers (e.g. `0.2.20.1` for `0.2.20-alpha.1`); `scripts/sync_version.py` handles this conversion automatically.
+3. **Keep extension manifest versions semver-compliant**: Extension manifests require numeric dot-separated integers (e.g. `0.2.25.1` for `0.2.25-alpha.1`); `scripts/sync_version.py` handles this conversion automatically.
