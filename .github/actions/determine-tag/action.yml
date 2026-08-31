@@ -44,34 +44,45 @@ runs:
             tag = ref.replace("refs/tags/", "")
             version = tag[1:] if tag.startswith("v") else tag
         else:
+            root_version = ""
+            if os.path.exists("VERSION"):
+                try:
+                    with open("VERSION", "r", encoding="utf-8") as vf:
+                        root_version = vf.read().strip().lstrip("v")
+                except Exception:
+                    pass
+
             try:
                 raw_tags = subprocess.check_output(["git", "tag", "-l"]).decode("utf-8").split("\n")
             except Exception:
                 raw_tags = []
 
-            parsed = []
-            existing_tags = set()
-            for t in raw_tags:
-                t_clean = t.strip()
-                if not t_clean:
-                    continue
-                existing_tags.add(t_clean)
-                m = pattern.match(t_clean)
-                if m:
-                    x = int(m.group(1))
-                    y = int(m.group(2))
-                    z = int(m.group(3))
-                    z_raw = m.group(3)
-                    suffix = m.group(4) or ""
-                    is_stable = (suffix == "")
-                    n = int(m.group(5)) if m.group(5) else 0
-                    parsed.append((x, y, z, is_stable, n, z_raw, suffix, t_clean))
+            existing_tags = {t.strip() for t in raw_tags if t.strip()}
 
-            if not parsed:
-                latest = (0, 1, 0, False, 0, "00", "alpha", "v0.1.00-alpha.0")
+            # If VERSION file is present and not yet tagged in git:
+            if root_version and f"v{root_version}" not in existing_tags:
+                tag = f"v{root_version}"
+                version = root_version
+                print(f"Using untagged root VERSION file: {version} -> {tag}")
             else:
-                parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
-                latest = parsed[-1]
+                parsed = []
+                for t in existing_tags:
+                    m = pattern.match(t)
+                    if m:
+                        x = int(m.group(1))
+                        y = int(m.group(2))
+                        z = int(m.group(3))
+                        z_raw = m.group(3)
+                        suffix = m.group(4) or ""
+                        is_stable = (suffix == "")
+                        n = int(m.group(5)) if m.group(5) else 0
+                        parsed.append((x, y, z, is_stable, n, z_raw, suffix, t))
+
+                if not parsed:
+                    latest = (0, 1, 0, False, 0, "00", "alpha", "v0.1.00-alpha.0")
+                else:
+                    parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
+                    latest = parsed[-1]
 
             x, y, z, is_stable, n, z_raw, suffix, latest_tag = latest
             suffix = suffix or "alpha"

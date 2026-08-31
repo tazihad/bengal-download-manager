@@ -48,6 +48,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Validate Version Consistency Across Manifests
+        run: |
+          python3 scripts/sync_version.py --check
+
       - name: Validate Desktop Entry and Metainfo
         run: |
           desktop-file-validate flatpak/io.github.tazihad.bengal-download-manager.desktop

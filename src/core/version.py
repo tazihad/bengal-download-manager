@@ -22,6 +22,19 @@ def _get_version():
         if res.returncode == 0 and res.stdout.strip():
             ver = res.stdout.strip()
             return ver[1:] if ver.startswith("v") else ver
+    except Exception:
+        pass
+
+    try:
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        version_file = os.path.join(root_dir, "VERSION")
+        if os.path.exists(version_file):
+            with open(version_file, "r", encoding="utf-8") as f:
+                v = f.read().strip()
+                if v:
+                    return v
+    except Exception:
+        pass
 
         # 2. If on development/main branch with untagged commits, calculate upcoming release version
         try:
