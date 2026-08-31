@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-adopt-info: bengal-download-manager
+version: '0.2.13'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -75,16 +75,6 @@ parts:
       - libdbus-1-3
       - ca-certificates
       - xdg-utils
-    override-pull: |
-      craftctl default
-      if [ -n "${APP_VERSION:-}" ]; then
-        VER="$APP_VERSION"
-      elif [ -f src/core/version.py ]; then
-        VER=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.2.13")
-      else
-        VER="0.2.13"
-      fi
-      craftctl set version="$VER"
     override-build: |
       craftctl default
 

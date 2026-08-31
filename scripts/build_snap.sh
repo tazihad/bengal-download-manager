@@ -63,6 +63,15 @@ if [ -z "${APP_VERSION:-}" ]; then
     export APP_VERSION
 fi
 echo "Target snap version: $APP_VERSION"
+$PY_BIN -c "
+import re
+path = 'snap/snapcraft.yaml'
+with open(path, 'r') as f:
+    content = f.read()
+content = re.sub(r'version:\s*[\x27\"][^\x27\"]+[\x27\"]', f'version: \x27$APP_VERSION\x27', content)
+with open(path, 'w') as f:
+    f.write(content)
+"
 snapcraft pack "${EXTRA_ARGS[@]}"
 
 echo "--- 3. Verifying Generated Snap Artifact ---"
