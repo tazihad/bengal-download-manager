@@ -7,11 +7,10 @@ This document defines the authoritative versioning architecture, release lifecyc
 ## 1. Architectural Philosophy: Single Source of Truth (SSOT)
 
 Bengal Download Manager targets multiple distribution channels:
-* **GitHub Releases**: Linux Standalone Executable, AppImage + ZSync, Browser Extensions (.crx, .xpi).
 * **Canonical Snap Store**: Snap package built via Snapcraft (`snap/snapcraft.yaml`).
 * **Flatpak / Flathub**: Flatpak bundle and AppStream catalog metadata (`flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml`).
-* **Browser Extension Stores**: Chrome / Edge / Firefox extensions (`extension/manifest.json`).
 * **In-App Runtime**: Help -> About Dialog, CLI `--version`, and IPC daemon (`src/core/version.py`).
+* *(Note: Browser extension in `extension/manifest.json` is versioned independently, e.g. `0.4`).*
 
 ### The Canonical File
 The root file **`VERSION`** is the single authoritative source of truth for the application version. No other file should be edited manually to change versions.
@@ -24,23 +23,23 @@ The root file **`VERSION`** is the single authoritative source of truth for the 
                                            │
                            `python3 scripts/sync_version.py`
                                            │
-         ┌───────────────────┬─────────────┴─────────────┬───────────────────┐
-         ▼                   ▼                           ▼                   ▼
-  ┌──────────────┐    ┌──────────────┐            ┌──────────────┐    ┌──────────────┐
-  │  snapcraft   │    │   flatpak    │            │  extension   │    │  In-App UI   │
-  │    .yaml     │    │ metainfo.xml │            │manifest.json │    │ (version.py) │
-  └──────────────┘    └──────────────┘            └──────────────┘    └──────────────┘
+         ┌───────────────────┬─────────────┴─────────────────────────┐
+         ▼                   ▼                                       ▼
+  ┌──────────────┐    ┌──────────────┐                        ┌──────────────┐
+  │  snapcraft   │    │   flatpak    │                        │  In-App UI   │
+  │    .yaml     │    │ metainfo.xml │                        │ (version.py) │
+  └──────────────┘    └──────────────┘                        └──────────────┘
 ```
 
 ---
 
 ## 2. Manual Developer Workflows
 
-The repository provides [`scripts/sync_version.py`](file:///run/media/zihad/data/dev/bengal-download-manager/scripts/sync_version.py) to manage all version manifests atomically.
+The repository provides [`scripts/sync_version.py`](file:///run/media/zihad/data/dev/bengal-download-manager/scripts/sync_version.py) to manage application version manifests atomically.
 
 ### Option A: Set an Explicit Version (Recommended)
 ```bash
-# 1. Update VERSION, snapcraft.yaml, metainfo.xml, extension manifest, and runtime
+# 1. Update VERSION, snapcraft.yaml, metainfo.xml, and runtime
 python3 scripts/sync_version.py --set 0.2.25
 
 # 2. Check that all files are 100% in sync
@@ -85,7 +84,7 @@ git push origin <branch-name> --tags
    ```bash
    python3 scripts/sync_version.py --set $(cat VERSION)
    ```
-   *(This automatically writes `0.2.25` to `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, `extension/manifest.json`, and `src/core/version.py`).*
+   *(This automatically writes `0.2.25` to `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, and `src/core/version.py`).*
 
 3. **Verify consistency**:
    ```bash
@@ -129,6 +128,6 @@ git push origin <branch-name> --tags
 
 ## 5. Guidelines for AI Agents and Contributors
 
-1. **Never edit version strings manually in individual manifest files**. Always use `scripts/sync_version.py --set <ver>` or `--bump <type>`.
+1. **Never edit application version strings manually in individual package manifests**. Always use `scripts/sync_version.py --set <ver>` or `--bump <type>`.
 2. **Run `python3 scripts/sync_version.py --check` before committing** any changes related to versioning or packaging.
-3. **Keep extension manifest versions semver-compliant**: Extension manifests require numeric dot-separated integers (e.g. `0.2.25.1` for `0.2.25-alpha.1`); `scripts/sync_version.py` handles this conversion automatically.
+3. **Browser extension versioning is independent**: `extension/manifest.json` is decoupled from app version bumps and managed independently.

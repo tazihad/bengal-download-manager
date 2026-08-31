@@ -80,13 +80,3 @@ class TestVersionResolution(unittest.TestCase):
         with patch.object(sync_mod, "get_highest_git_version", return_value="0.2.21"):
             # Even if local VERSION was 0.2.19, bumping alpha advances past v0.2.21 to 0.2.22-alpha.1
             self.assertEqual(sync_mod.bump_version("0.2.19", "alpha"), "0.2.22-alpha.1")
-
-    def test_sanitize_extension_version(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("sync_version", "scripts/sync_version.py")
-        sync_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(sync_mod)
-
-        self.assertEqual(sync_mod.sanitize_extension_version("0.2.20"), "0.2.20")
-        self.assertEqual(sync_mod.sanitize_extension_version("0.2.20-alpha.1"), "0.2.20.1")
-        self.assertEqual(sync_mod.sanitize_extension_version("0.2.20-alpha.12"), "0.2.20.12")

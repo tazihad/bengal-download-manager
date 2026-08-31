@@ -100,4 +100,4 @@ bash scripts/build_and_run_flatpak.sh
 3. **Tabular Figures**: Ensure numeric UI labels (sizes, transfer rates, percentages, timestamps) use OpenType tabular numbers (`tnum`).
 4. **Theme Adaptability**: Do not hardcode static dark text colors (`#444`). Allow `QPalette` system colors to adapt cleanly across Light, Dark, and Automatic system themes.
 5. **Empirical Verification**: Always verify code changes by running `pytest` or testing binary builds before declaring completion.
-6. **Single Source of Truth Versioning**: Always use `scripts/sync_version.py` when changing or checking version numbers across `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, `extension/manifest.json`, and `src/core/version.py`. See `docs/VERSIONING.md` for details.
+6. **Single Source of Truth Versioning**: Always use `scripts/sync_version.py` when changing or checking version numbers across `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, and `src/core/version.py`. (Note: Browser extension in `extension/manifest.json` is versioned independently). See `docs/VERSIONING.md` for details.

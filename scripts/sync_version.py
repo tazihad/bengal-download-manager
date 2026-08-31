@@ -14,7 +14,6 @@ Usage:
 
 import argparse
 import datetime
-import json
 import os
 import re
 import subprocess
@@ -25,28 +24,12 @@ VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
 SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yaml")
 METAINFO_FILE = os.path.join(ROOT_DIR, "flatpak", "io.github.tazihad.bengal-download-manager.metainfo.xml")
 VERSION_PY_FILE = os.path.join(ROOT_DIR, "src", "core", "version.py")
-EXTENSION_MANIFEST_FILE = os.path.join(ROOT_DIR, "extension", "manifest.json")
 
 
 def read_root_version() -> str:
     if os.path.exists(VERSION_FILE):
         with open(VERSION_FILE, "r", encoding="utf-8") as f:
             return f.read().strip()
-    return "0.2.20"
-
-
-def sanitize_extension_version(ver: str) -> str:
-    """Extension manifest requires 1-4 dot-separated integers (e.g. 0.2.20 or 0.2.20.1)."""
-    # If ver is like 0.2.20-alpha.1 -> 0.2.20.1
-    m = re.match(r"^([0-9]+(?:\.[0-9]+){1,3})(?:-[a-zA-Z]+\.?([0-9]+))?", ver)
-    if m:
-        base = m.group(1)
-        suffix_num = m.group(2)
-        if suffix_num:
-            parts = base.split(".")
-            if len(parts) < 4:
-                return f"{base}.{suffix_num}"
-        return base
     return "0.2.20"
 
 
@@ -147,24 +130,11 @@ def update_metainfo(ver: str):
         f.write(content)
 
 
-def update_extension_manifest(ver: str):
-    if not os.path.exists(EXTENSION_MANIFEST_FILE):
-        return
-    ext_ver = sanitize_extension_version(ver)
-    with open(EXTENSION_MANIFEST_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    data["version"] = ext_ver
-    with open(EXTENSION_MANIFEST_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-
-
 def sync_all(ver: str):
     print(f"[*] Synchronizing SSOT version: {ver}")
     update_root_version(ver)
     update_snapcraft(ver)
     update_metainfo(ver)
-    update_extension_manifest(ver)
     print("[✓] All manifests synchronized successfully.")
 
 
@@ -189,14 +159,6 @@ def check_consistency() -> bool:
                 found = m.group(1) if m else "None"
                 errors.append(f"metainfo.xml version ({found}) != base VERSION ({clean_root})")
 
-    # 3. Extension check
-    if os.path.exists(EXTENSION_MANIFEST_FILE):
-        ext_ver = sanitize_extension_version(root_ver)
-        with open(EXTENSION_MANIFEST_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if data.get("version") != ext_ver:
-                errors.append(f"extension manifest version ({data.get('version')}) != ({ext_ver})")
-
     if errors:
         print("[!] Version consistency check FAILED:")
         for err in errors:
@@ -213,7 +175,6 @@ def create_git_tag_and_commit(ver: str):
         VERSION_FILE,
         SNAPCRAFT_FILE,
         METAINFO_FILE,
-        EXTENSION_MANIFEST_FILE,
     ]
     staged = [f for f in files_to_stage if os.path.exists(f)]
     subprocess.run(["git", "add"] + staged, check=True, cwd=ROOT_DIR)
