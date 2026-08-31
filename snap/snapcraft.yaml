@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-version: '0.2.20-alpha.1'
+version: '0.2.22-alpha.1'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator

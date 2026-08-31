@@ -42,7 +42,11 @@ class TestVersionResolution(unittest.TestCase):
             self.assertEqual(ver, "0.5.0")
 
     def test_root_version_file_reading(self):
-        with patch.dict(os.environ, {}, clear=True), patch("os.path.exists", return_value=True), patch("builtins.open", unittest.mock.mock_open(read_data="0.2.25\n")):
+        mock_res = MagicMock()
+        mock_res.returncode = 128  # not an exact tag
+        mock_res.stdout = ""
+
+        with patch.dict(os.environ, {}, clear=True), patch("os.path.exists", return_value=True), patch("builtins.open", unittest.mock.mock_open(read_data="0.2.25\n")), patch("subprocess.run", return_value=mock_res):
             ver = version_module._get_version()
             self.assertEqual(ver, "0.2.25")
 
@@ -57,12 +61,25 @@ class TestVersionResolution(unittest.TestCase):
         sync_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sync_mod)
 
-        self.assertEqual(sync_mod.bump_version("0.2.20", "patch"), "0.2.21")
-        self.assertEqual(sync_mod.bump_version("0.2.20", "minor"), "0.3.0")
-        self.assertEqual(sync_mod.bump_version("0.2.20", "major"), "1.0.0")
-        self.assertEqual(sync_mod.bump_version("0.2.20", "alpha"), "0.2.21-alpha.1")
-        self.assertEqual(sync_mod.bump_version("0.2.20-alpha.1", "alpha"), "0.2.20-alpha.2")
-        self.assertEqual(sync_mod.bump_version("0.2.20-alpha.1", "patch"), "0.2.20")
+        with patch.object(sync_mod, "get_highest_git_version", return_value="0.2.20"):
+            self.assertEqual(sync_mod.bump_version("0.2.20", "patch"), "0.2.21")
+            self.assertEqual(sync_mod.bump_version("0.2.20", "minor"), "0.3.0")
+            self.assertEqual(sync_mod.bump_version("0.2.20", "major"), "1.0.0")
+            self.assertEqual(sync_mod.bump_version("0.2.20", "alpha"), "0.2.21-alpha.1")
+
+        with patch.object(sync_mod, "get_highest_git_version", return_value="0.2.21-alpha.1"):
+            self.assertEqual(sync_mod.bump_version("0.2.21-alpha.1", "alpha"), "0.2.21-alpha.2")
+            self.assertEqual(sync_mod.bump_version("0.2.21-alpha.1", "patch"), "0.2.21")
+
+    def test_sync_version_bump_advances_past_higher_git_tag(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("sync_version", "scripts/sync_version.py")
+        sync_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sync_mod)
+
+        with patch.object(sync_mod, "get_highest_git_version", return_value="0.2.21"):
+            # Even if local VERSION was 0.2.19, bumping alpha advances past v0.2.21 to 0.2.22-alpha.1
+            self.assertEqual(sync_mod.bump_version("0.2.19", "alpha"), "0.2.22-alpha.1")
 
     def test_sanitize_extension_version(self):
         import importlib.util

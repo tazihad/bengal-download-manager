@@ -62,7 +62,46 @@ def parse_semver(ver: str) -> tuple[int, int, int, str, int]:
     return major, minor, patch_num, prerelease, pre_num
 
 
+def get_highest_git_version() -> str:
+    try:
+        raw = subprocess.check_output(["git", "tag", "-l"], cwd=ROOT_DIR, text=True).split("\n")
+        tags = [t.strip() for t in raw if t.strip()]
+        parsed = []
+        pattern = re.compile(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([a-zA-Z]+)\.([0-9]+))?$")
+        for t in tags:
+            m = pattern.match(t)
+            if m:
+                x, y, z = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                is_stable = 1 if not m.group(4) else 0
+                n = int(m.group(5)) if m.group(5) else 0
+                parsed.append((x, y, z, is_stable, n, t))
+        if parsed:
+            parsed.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
+            highest_tag = parsed[-1][5]
+            return highest_tag.lstrip("v")
+    except Exception:
+        pass
+    return ""
+
+
 def bump_version(ver: str, bump_type: str) -> str:
+    # Check if a higher tag already exists in Git
+    highest_git = get_highest_git_version()
+    if highest_git:
+        v_tuple = parse_semver(ver)
+        g_tuple = parse_semver(highest_git)
+        # Compare (major, minor, patch)
+        v_base = (v_tuple[0], v_tuple[1], v_tuple[2])
+        g_base = (g_tuple[0], g_tuple[1], g_tuple[2])
+        g_is_stable = (g_tuple[3] == "")
+        v_is_stable = (v_tuple[3] == "")
+
+        if g_base > v_base:
+            ver = highest_git
+        elif g_base == v_base and g_is_stable and not v_is_stable:
+            # If stable g was already released, we must base on g
+            ver = highest_git
+
     major, minor, patch_num, prerelease, pre_num = parse_semver(ver)
     if bump_type == "major":
         return f"{major + 1}.0.0"
