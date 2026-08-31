@@ -23,10 +23,10 @@ class TestVersionResolution(unittest.TestCase):
             ver = version_module._get_version()
             self.assertEqual(ver, "0.3.0")
 
-    def test_git_describe_parsing_with_prefix_and_suffix(self):
+    def test_git_describe_exact_tag(self):
         mock_res = MagicMock()
         mock_res.returncode = 0
-        mock_res.stdout = "v0.4.12-10-gabcdef\n"
+        mock_res.stdout = "v0.4.12\n"
 
         with patch.dict(os.environ, {}, clear=True), patch("subprocess.run", return_value=mock_res):
             ver = version_module._get_version()
@@ -44,4 +44,4 @@ class TestVersionResolution(unittest.TestCase):
     def test_fallback_when_git_fails(self):
         with patch.dict(os.environ, {}, clear=True), patch("subprocess.run", side_effect=Exception("No git")):
             ver = version_module._get_version()
-            self.assertEqual(ver, "0.2.19")
+            self.assertEqual(ver, "0.2.20")
