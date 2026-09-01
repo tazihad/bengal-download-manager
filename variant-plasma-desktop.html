@@ -1170,8 +1170,6 @@
         <button class="install-nav-btn active" onclick="switchTab('snap', this)">📦 Snap Store</button>
         <button class="install-nav-btn" onclick="switchTab('appimage', this)">🚀 AppImage</button>
         <button class="install-nav-btn" onclick="switchTab('flatpak', this)">📦 Flatpak</button>
-        <button class="install-nav-btn" onclick="switchTab('binary', this)">⚙️ Standalone Binary</button>
-        <button class="install-nav-btn" onclick="switchTab('source', this)">🐍 Python Source</button>
       </div>
 
       <!-- Snap Panel -->
@@ -1184,8 +1182,8 @@
         </div>
 
         <div class="cli-box font-mono">
-          <button class="copy-btn" onclick="copyCode('sudo snap install bengal-download-manager', this)">Copy</button>
-          <code>sudo snap install bengal-download-manager</code>
+          <button class="copy-btn" onclick="copyCode('snap install bengal-download-manager', this)">Copy</button>
+          <code>snap install bengal-download-manager</code>
         </div>
       </div>
 
@@ -1227,30 +1225,41 @@
         </div>
       </div>
 
-      <!-- Flatpak Panel -->
+      <!-- Flatpak Panel (Architecture Dropdown & Dynamic JS Resolver) -->
       <div id="tab-flatpak" class="install-body">
-        <div class="cli-box font-mono">
-          <button class="copy-btn" onclick="copyCode('flatpak install io.github.tazihad.bengal-download-manager.flatpak', this)">Copy</button>
-          <code>flatpak install io.github.tazihad.bengal-download-manager.flatpak</code>
+        <div style="margin-bottom: 18px;">
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Direct Flatpak Bundle Download (Latest Release)</div>
+          <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">Sandboxed desktop bundle. Installs cleanly on all Flatpak-enabled distributions.</div>
         </div>
-        <div style="font-size: 13px; color: var(--text-dim);">
-          <a href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener" style="color: var(--plasma-blue); font-weight: 600;">Download Flatpak Bundle &rarr;</a>
-        </div>
-      </div>
 
-      <!-- Binary Panel -->
-      <div id="tab-binary" class="install-body">
-        <div class="cli-box font-mono">
-          <button class="copy-btn" onclick="copyCode('tar -xvf bengal-download-manager-linux-x86_64.tar.gz\n./bengal-download-manager', this)">Copy</button>
-          <code>tar -xvf bengal-download-manager-linux-x86_64.tar.gz<br />./bengal-download-manager</code>
+        <!-- Architecture Selector directly above Download Button -->
+        <div style="margin-bottom: 16px; display: inline-flex; flex-direction: column; gap: 6px;">
+          <label for="arch-flatpak-select" style="font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px;">
+            <span>Select System Architecture:</span>
+          </label>
+          <select id="arch-flatpak-select" onchange="onFlatpakArchChange(this.value)" style="background: var(--plasma-bg); color: var(--text); border: 1px solid var(--plasma-border); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s; min-width: 260px;">
+            <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+            <option value="aarch64">aarch64 (64-bit ARM)</option>
+          </select>
         </div>
-      </div>
 
-      <!-- Source Panel -->
-      <div id="tab-source" class="install-body">
+        <!-- Authentic KDE Plasma Style Download Button -->
+        <div style="margin-bottom: 24px;">
+          <a id="flatpak-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="btn-kde-plasma">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            <span id="flatpak-main-label">Download Flatpak for x86_64 (v0.2.26)</span>
+          </a>
+        </div>
+
+        <!-- Dynamic Terminal Quick-Start -->
+        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;" id="flatpak-cmd-title">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
         <div class="cli-box font-mono">
-          <button class="copy-btn" onclick="copyCode('git clone https://github.com/tazihad/bengal-download-manager.git\ncd bengal-download-manager\npip install -r requirements.txt\npython3 src/main.py', this)">Copy</button>
-          <code>git clone https://github.com/tazihad/bengal-download-manager.git<br />cd bengal-download-manager<br />pip install -r requirements.txt<br />python3 src/main.py</code>
+          <button id="copy-flatpak-btn" class="copy-btn" onclick="copyFlatpakCmd(this)">Copy</button>
+          <code id="flatpak-main-cmd">curl -L -o bengal-download-manager-0.2.26-x86_64.flatpak https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak<br />flatpak install bengal-download-manager-0.2.26-x86_64.flatpak</code>
+        </div>
+
+        <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
+          <a href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener" style="color: var(--plasma-blue); font-weight: 600;">View All Release Assets on GitHub &rarr;</a>
         </div>
       </div>
     </section>
@@ -1311,7 +1320,7 @@
   <script>
         
 
-        // AppImage Architecture and GitHub Release State
+        // AppImage and Flatpak Architecture & Release State
     let appImageData = {
       version: "v0.2.26",
       x86_64: {
@@ -1321,6 +1330,18 @@
       aarch64: {
         filename: "bengal-download-manager-0.2.26-aarch64.AppImage",
         url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage"
+      }
+    };
+
+    let flatpakData = {
+      version: "v0.2.26",
+      x86_64: {
+        filename: "bengal-download-manager-0.2.26-x86_64.flatpak",
+        url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak"
+      },
+      aarch64: {
+        filename: "bengal-download-manager-0.2.26-aarch64.flatpak",
+        url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.flatpak"
       }
     };
 
@@ -1351,44 +1372,92 @@
       copyCode(raw, btn);
     }
 
-    // Dynamic GitHub Releases AppImage auto-resolver
-    (async function resolveAppImages() {
+    function renderFlatpakUI(arch) {
+      const current = flatpakData[arch] || flatpakData.x86_64;
+      const btn = document.getElementById("flatpak-main-btn");
+      const label = document.getElementById("flatpak-main-label");
+      const title = document.getElementById("flatpak-cmd-title");
+      const cmd = document.getElementById("flatpak-main-cmd");
+
+      if (btn) btn.href = current.url;
+      if (label) label.textContent = "Download Flatpak for " + arch + " (" + flatpakData.version + ")";
+      if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
+      if (cmd) {
+        cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />flatpak install " + current.filename;
+      }
+    }
+
+    function onFlatpakArchChange(arch) {
+      renderFlatpakUI(arch);
+    }
+
+    function copyFlatpakCmd(btn) {
+      const archSelect = document.getElementById("arch-flatpak-select");
+      const arch = archSelect ? archSelect.value : "x86_64";
+      const current = flatpakData[arch] || flatpakData.x86_64;
+      const raw = "curl -L -o " + current.filename + " " + current.url + " && flatpak install " + current.filename;
+      copyCode(raw, btn);
+    }
+
+    // Dynamic GitHub Releases Auto-Resolver for AppImage & Flatpak
+    (async function resolveReleases() {
       try {
         const res = await fetch("https://api.github.com/repos/tazihad/bengal-download-manager/releases/latest");
         if (!res.ok) return;
         const data = await res.json();
         const tag = data.tag_name || "v0.2.26";
         appImageData.version = tag;
+        flatpakData.version = tag;
 
-        // Find x86_64 AppImage asset
-        const assetX86 = data.assets && data.assets.find(a => 
+        // Resolve AppImage assets
+        const assetAppImageX86 = data.assets && data.assets.find(a => 
           a.name.endsWith(".AppImage") && (a.name.includes("x86_64") || a.name.includes("amd64"))
         );
-
-        // Find aarch64 AppImage asset
-        const assetArm = data.assets && data.assets.find(a => 
+        const assetAppImageArm = data.assets && data.assets.find(a => 
           a.name.endsWith(".AppImage") && (a.name.includes("aarch64") || a.name.includes("arm64"))
         );
 
-        if (assetX86) {
+        if (assetAppImageX86) {
           appImageData.x86_64 = {
-            filename: assetX86.name,
-            url: assetX86.browser_download_url
+            filename: assetAppImageX86.name,
+            url: assetAppImageX86.browser_download_url
           };
         }
-
-        if (assetArm) {
+        if (assetAppImageArm) {
           appImageData.aarch64 = {
-            filename: assetArm.name,
-            url: assetArm.browser_download_url
+            filename: assetAppImageArm.name,
+            url: assetAppImageArm.browser_download_url
           };
         }
 
-        const select = document.getElementById("arch-select");
-        const currentArch = select ? select.value : "x86_64";
-        renderAppImageUI(currentArch);
+        // Resolve Flatpak assets
+        const assetFlatpakX86 = data.assets && data.assets.find(a => 
+          a.name.endsWith(".flatpak") && (a.name.includes("x86_64") || a.name.includes("amd64"))
+        );
+        const assetFlatpakArm = data.assets && data.assets.find(a => 
+          a.name.endsWith(".flatpak") && (a.name.includes("aarch64") || a.name.includes("arm64"))
+        );
+
+        if (assetFlatpakX86) {
+          flatpakData.x86_64 = {
+            filename: assetFlatpakX86.name,
+            url: assetFlatpakX86.browser_download_url
+          };
+        }
+        if (assetFlatpakArm) {
+          flatpakData.aarch64 = {
+            filename: assetFlatpakArm.name,
+            url: assetFlatpakArm.browser_download_url
+          };
+        }
+
+        const appImageSelect = document.getElementById("arch-select");
+        renderAppImageUI(appImageSelect ? appImageSelect.value : "x86_64");
+
+        const flatpakSelect = document.getElementById("arch-flatpak-select");
+        renderFlatpakUI(flatpakSelect ? flatpakSelect.value : "x86_64");
       } catch (e) {
-        console.warn("Could not auto-resolve AppImage URLs from GitHub API:", e);
+        console.warn("Could not auto-resolve release assets from GitHub API:", e);
       }
     })();
 
