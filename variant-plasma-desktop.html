@@ -1167,15 +1167,15 @@
           <div style="font-weight: 700; font-size: 1rem; margin-bottom: 6px; color: var(--text);">Direct AppImage Download (Latest Release)</div>
           <div style="font-size: 13px; color: var(--text-dim); margin-bottom: 14px;">Universal portable executable. Runs standalone without installation or root privileges.</div>
           
-          <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
-            <a href="https://github.com/tazihad/bengal-download-manager/releases/latest/download/bengal-download-manager-x86_64.AppImage" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 14px rgba(61, 174, 233, 0.35); text-decoration: none;">
+          <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
+            <a id="appimage-x86-btn" href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(61, 174, 233, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span>Download x86_64 (64-bit Intel / AMD)</span>
+              <span id="appimage-x86-label">Download x86_64 (64-bit Intel / AMD)</span>
             </a>
 
-            <a href="https://github.com/tazihad/bengal-download-manager/releases/latest/download/bengal-download-manager-aarch64.AppImage" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--plasma-border); color: var(--text); font-weight: 600; font-size: 13.5px; text-decoration: none;">
+            <a id="appimage-arm-btn" href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: #2563eb; color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span>Download aarch64 (64-bit ARM)</span>
+              <span id="appimage-arm-label">Download aarch64 (64-bit ARM)</span>
             </a>
           </div>
         </div>
@@ -1281,6 +1281,44 @@
   </div>
 
   <script>
+        
+
+        // Dynamic GitHub Releases AppImage auto-resolver
+    (async function resolveAppImages() {
+      try {
+        const res = await fetch("https://api.github.com/repos/tazihad/bengal-download-manager/releases/latest");
+        if (!res.ok) return;
+        const data = await res.json();
+        const tag = data.tag_name || "latest";
+
+        // Find x86_64 AppImage asset
+        const assetX86 = data.assets && data.assets.find(a => 
+          a.name.endsWith(".AppImage") && (a.name.includes("x86_64") || a.name.includes("amd64"))
+        );
+
+        // Find aarch64 AppImage asset
+        const assetArm = data.assets && data.assets.find(a => 
+          a.name.endsWith(".AppImage") && (a.name.includes("aarch64") || a.name.includes("arm64"))
+        );
+
+        if (assetX86) {
+          const btnX86 = document.getElementById("appimage-x86-btn");
+          const labelX86 = document.getElementById("appimage-x86-label");
+          if (btnX86) btnX86.href = assetX86.browser_download_url;
+          if (labelX86) labelX86.textContent = "Download x86_64 AppImage (" + tag + ")";
+        }
+
+        if (assetArm) {
+          const btnArm = document.getElementById("appimage-arm-btn");
+          const labelArm = document.getElementById("appimage-arm-label");
+          if (btnArm) btnArm.href = assetArm.browser_download_url;
+          if (labelArm) labelArm.textContent = "Download aarch64 AppImage (" + tag + ")";
+        }
+      } catch (e) {
+        console.warn("Could not auto-resolve AppImage URLs from GitHub API:", e);
+      }
+    })();
+
     // Live speed simulation
     setInterval(() => {
       const el = document.getElementById('liveHeroSpeed');
