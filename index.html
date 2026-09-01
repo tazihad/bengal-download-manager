@@ -243,7 +243,7 @@
       margin-bottom: 32px;
     }
 
-    /* Store & Add-on Badges CTA */
+    /* Store & Add-on Badges CTA Row */
     .hero-badges-row {
       display: flex;
       flex-wrap: wrap;
@@ -251,37 +251,36 @@
       gap: 16px;
     }
 
-    .badge-snap-img {
-      height: 48px;
-      width: auto;
-      border-radius: var(--radius-sm);
-      display: block;
+    .badge-link {
+      display: inline-flex;
+      align-items: center;
       transition: transform 0.2s, filter 0.2s;
     }
 
-    .badge-snap-img:hover {
+    .badge-link:hover {
       transform: translateY(-2px);
-      filter: drop-shadow(0 4px 14px rgba(0,0,0,0.6));
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.5));
     }
 
-    .badge-firefox-img {
-      height: 48px;
+    .badge-snap-light {
+      height: 52px;
       width: auto;
       border-radius: var(--radius-sm);
       display: block;
-      transition: transform 0.2s, filter 0.2s;
     }
 
-    .badge-firefox-img:hover {
-      transform: translateY(-2px);
-      filter: drop-shadow(0 4px 14px rgba(255,113,57,0.4));
+    .badge-firefox-svg {
+      height: 52px;
+      width: auto;
+      border-radius: var(--radius-sm);
+      display: block;
     }
 
     .btn-kde-ghost {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      height: 48px;
+      height: 52px;
       padding: 0 20px;
       border-radius: var(--radius-sm);
       background: rgba(255, 255, 255, 0.08);
@@ -306,6 +305,7 @@
       border: 1px solid var(--plasma-border);
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
       background: #000;
+      cursor: pointer;
     }
 
     .hero-preview-frame img {
@@ -848,19 +848,19 @@
           Bengal Download Manager integrates with your Linux desktop environment. Featuring multi-connection chunking up to 32x, one-click browser link interception, and adaptive light &amp; dark themes.
         </p>
 
-        <!-- Official Snap Store & Firefox Badges -->
+        <!-- Official Snap Store & Firefox Badges Requested by User -->
         <div class="hero-badges-row">
-          <!-- Snap Store Official Badge from README -->
-          <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener" title="Get it from the Snap Store">
-            <img src="https://snapcraft.io/en/dark/install.svg" alt="Get it from the Snap Store" class="badge-snap-img" />
+          <!-- Snap Store Official Light Badge -->
+          <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener" class="badge-link" title="Get it from the Snap Store">
+            <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" class="badge-snap-light" />
           </a>
 
-          <!-- Firefox Addon Badge from README -->
-          <a href="https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module" target="_blank" rel="noopener" title="Get the Firefox Add-on">
-            <img src="https://img.shields.io/badge/Firefox-Get_the_Add--on-ff7139?style=for-the-badge&logo=firefox-browser&logoColor=white" alt="Get the Firefox Add-on" class="badge-firefox-img" />
+          <!-- Firefox Addon Official Mozilla Badge -->
+          <a href="https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module" target="_blank" rel="noopener" class="badge-link" title="Get the Extension on Firefox">
+            <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Get the Extension on Firefox" class="badge-firefox-svg" />
           </a>
 
-          <!-- AppImage / Flatpak Button -->
+          <!-- Other Packages Button -->
           <a href="#install" class="btn-kde-ghost">
             <span>📦 Other Packages</span>
           </a>
@@ -1107,7 +1107,7 @@
       <div id="tab-snap" class="install-body active">
         <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
           <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener">
-            <img src="https://snapcraft.io/en/dark/install.svg" alt="Get it from the Snap Store" style="height: 48px;" />
+            <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" style="height: 52px;" />
           </a>
           <span style="font-size: 13px; color: var(--text-dim);">Official Canonical Snap Package &bull; Auto-updates enabled</span>
         </div>
