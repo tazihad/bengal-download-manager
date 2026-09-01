@@ -1475,14 +1475,14 @@
       }
     }
 
-        function onGlobalArchChange(arch) {
+    function onGlobalArchChange(arch) {
       const heroSel = document.getElementById("hero-arch-select");
       const appSel = document.getElementById("arch-select");
       const flatSel = document.getElementById("arch-flatpak-select");
 
-      if (heroSel) heroSel.value = arch;
-      if (appSel) appSel.value = arch;
-      if (flatSel) flatSel.value = arch;
+      if (heroSel && heroSel.value !== arch) heroSel.value = arch;
+      if (appSel && appSel.value !== arch) appSel.value = arch;
+      if (flatSel && flatSel.value !== arch) flatSel.value = arch;
 
       renderAppImageUI(arch);
       renderFlatpakUI(arch);
@@ -1490,17 +1490,19 @@
     }
 
     function updateHeroBadges(arch) {
+      const currentApp = appImageData[arch] || appImageData.x86_64;
       const heroAppImageBtn = document.getElementById("hero-appimage-btn");
       const heroAppImageLabel = document.getElementById("hero-appimage-label");
-      if (heroAppImageBtn && appImageData[arch]) {
-        heroAppImageBtn.href = appImageData[arch].url;
+      if (heroAppImageBtn && currentApp) {
+        heroAppImageBtn.href = currentApp.url;
         if (heroAppImageLabel) heroAppImageLabel.textContent = "AppImage (" + arch + ")";
       }
 
+      const currentFlat = flatpakData[arch] || flatpakData.x86_64;
       const heroFlatpakBtn = document.getElementById("hero-flatpak-btn");
       const heroFlatpakLabel = document.getElementById("hero-flatpak-label");
-      if (heroFlatpakBtn && flatpakData[arch]) {
-        heroFlatpakBtn.href = flatpakData[arch].url;
+      if (heroFlatpakBtn && currentFlat) {
+        heroFlatpakBtn.href = currentFlat.url;
         if (heroFlatpakLabel) heroFlatpakLabel.textContent = "Flatpak (" + arch + ")";
       }
     }
@@ -1573,27 +1575,9 @@
           };
         }
 
-                const appImageSelect = document.getElementById("arch-select");
-        renderAppImageUI(appImageSelect ? appImageSelect.value : "x86_64");
-
-        const flatpakSelect = document.getElementById("arch-flatpak-select");
-        renderFlatpakUI(flatpakSelect ? flatpakSelect.value : "x86_64");
-        updateHeroBadges(currentArch);
-
-        // Update Hero direct download buttons
-        const heroAppImageBtn = document.getElementById("hero-appimage-btn");
-        const heroAppImageLabel = document.getElementById("hero-appimage-label");
-        if (heroAppImageBtn && appImageData.x86_64) {
-          heroAppImageBtn.href = appImageData.x86_64.url;
-          if (heroAppImageLabel) heroAppImageLabel.textContent = "AppImage (" + tag + ")";
-        }
-
-        const heroFlatpakBtn = document.getElementById("hero-flatpak-btn");
-        const heroFlatpakLabel = document.getElementById("hero-flatpak-label");
-        if (heroFlatpakBtn && flatpakData.x86_64) {
-          heroFlatpakBtn.href = flatpakData.x86_64.url;
-          if (heroFlatpakLabel) heroFlatpakLabel.textContent = "Flatpak (" + tag + ")";
-        }
+        const heroSel = document.getElementById("hero-arch-select");
+        const currentArch = (heroSel && heroSel.value) ? heroSel.value : "x86_64";
+        onGlobalArchChange(currentArch);
       } catch (e) {
         console.warn("Could not auto-resolve release assets from GitHub API:", e);
       }
