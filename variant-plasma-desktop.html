@@ -1304,6 +1304,19 @@
           const labelX86 = document.getElementById("appimage-x86-label");
           if (btnX86) btnX86.href = assetX86.browser_download_url;
           if (labelX86) labelX86.textContent = "Download x86_64 AppImage (" + tag + ")";
+
+          const filenameX86 = assetX86.name;
+          const urlX86 = assetX86.browser_download_url;
+          const cmdX86El = document.getElementById("appimage-x86-cmd");
+          const copyBtnX86 = document.getElementById("copy-appimage-x86-btn");
+          const rawCmdX86 = "curl -L -o " + filenameX86 + " " + urlX86 + " && chmod +x " + filenameX86 + " && ./" + filenameX86;
+
+          if (cmdX86El) {
+            cmdX86El.innerHTML = "curl -L -o " + filenameX86 + " " + urlX86 + "<br />chmod +x " + filenameX86 + " &amp;&amp; ./" + filenameX86;
+          }
+          if (copyBtnX86) {
+            copyBtnX86.onclick = function() { copyCode(rawCmdX86, copyBtnX86); };
+          }
         }
 
         if (assetArm) {
@@ -1311,6 +1324,19 @@
           const labelArm = document.getElementById("appimage-arm-label");
           if (btnArm) btnArm.href = assetArm.browser_download_url;
           if (labelArm) labelArm.textContent = "Download aarch64 AppImage (" + tag + ")";
+
+          const filenameArm = assetArm.name;
+          const urlArm = assetArm.browser_download_url;
+          const cmdArmEl = document.getElementById("appimage-arm-cmd");
+          const copyBtnArm = document.getElementById("copy-appimage-arm-btn");
+          const rawCmdArm = "curl -L -o " + filenameArm + " " + urlArm + " && chmod +x " + filenameArm + " && ./" + filenameArm;
+
+          if (cmdArmEl) {
+            cmdArmEl.innerHTML = "curl -L -o " + filenameArm + " " + urlArm + "<br />chmod +x " + filenameArm + " &amp;&amp; ./" + filenameArm;
+          }
+          if (copyBtnArm) {
+            copyBtnArm.onclick = function() { copyCode(rawCmdArm, copyBtnArm); };
+          }
         }
       } catch (e) {
         console.warn("Could not auto-resolve AppImage URLs from GitHub API:", e);
