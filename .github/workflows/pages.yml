@@ -1,15 +1,6 @@
 name: Deploy GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'index.html'
-      - 'variant-plasma-desktop.html'
-      - 'assets/**'
-      - '.nojekyll'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
