@@ -130,11 +130,31 @@ def update_metainfo(ver: str):
         f.write(content)
 
 
+def update_html_landing_page(ver: str):
+    html_files = [
+        os.path.join(ROOT_DIR, "index.html"),
+        os.path.join(ROOT_DIR, "variant-plasma-desktop.html")
+    ]
+    clean_ver = ver.split("-")[0] if "-" in ver else ver
+    for path in html_files:
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Update version strings in release URLs and fallback data
+        content = re.sub(r"bengal-download-manager-[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?", f"bengal-download-manager-{clean_ver}", content)
+        content = re.sub(r"/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?", f"/releases/download/v{clean_ver}", content)
+        content = re.sub(r'version:\s*"v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?', f'version: "v{clean_ver}', content)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+
 def sync_all(ver: str):
     print(f"[*] Synchronizing SSOT version: {ver}")
     update_root_version(ver)
     update_snapcraft(ver)
     update_metainfo(ver)
+    update_html_landing_page(ver)
     print("[✓] All manifests synchronized successfully.")
 
 
