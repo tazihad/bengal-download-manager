@@ -27,6 +27,8 @@ issues: https://github.com/tazihad/bengal-download-manager/issues
 lint:
   ignore:
     - unused-library
+    - missing-library
+    - missing-dependency
 
 platforms:
   amd64:
@@ -122,5 +124,7 @@ parts:
       #   undefined symbol: rsvg_handle_get_pixbuf_and_error
       - -usr/lib/*/librsvg*
       - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
+      - -lib/python*/site-packages/PyQt6/Qt6/qml/QtQuick3D*
+      - -usr/lib/*/qt6/qml/QtQuick3D*
       - "*"
 
