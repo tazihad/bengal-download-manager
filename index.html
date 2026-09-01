@@ -297,36 +297,48 @@
       transform: translateY(-2px);
     }
 
-    /* Hero Mockup Preview Box */
+    /* Hero Mockup Preview Box - Luminous Ambient Stage */
     .hero-preview-frame {
       position: relative;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid var(--plasma-border);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-      background: #000;
+      border-radius: 16px;
+      background: radial-gradient(circle at 50% 35%, rgba(61, 174, 233, 0.22) 0%, rgba(30, 41, 59, 0.5) 60%, rgba(15, 20, 28, 0.75) 100%);
+      border: 1px solid rgba(61, 174, 233, 0.35);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 45px rgba(61, 174, 233, 0.2);
+      padding: 16px;
       cursor: pointer;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .hero-preview-frame:hover {
+      transform: translateY(-4px);
+      border-color: var(--plasma-blue);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), 0 0 55px rgba(61, 174, 233, 0.35);
     }
 
     .hero-preview-frame img {
       width: 100%;
       height: auto;
       display: block;
+      filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.75));
+      border-radius: 8px;
     }
 
     .hero-speed-tag {
       position: absolute;
-      bottom: 16px;
-      right: 16px;
-      background: rgba(21, 24, 26, 0.92);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(46, 204, 113, 0.4);
+      bottom: 24px;
+      right: 24px;
+      background: rgba(18, 23, 30, 0.94);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(46, 204, 113, 0.5);
       padding: 8px 16px;
       border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       gap: 10px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.6);
+      z-index: 10;
     }
 
     .speed-tag-dot {
@@ -501,7 +513,7 @@
       color: var(--plasma-blue-light);
     }
 
-    /* Screenshot Cards Grid */
+    /* Screenshot Cards Grid with Ambient Image Canvas */
     .screenshots-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -512,11 +524,13 @@
     .screenshot-card {
       background: var(--plasma-surface);
       border: 1px solid var(--plasma-border);
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
       box-shadow: 0 10px 30px rgba(0,0,0,0.4);
       transition: transform 0.3s, border-color 0.3s;
       cursor: pointer;
+      display: flex;
+      flex-direction: column;
     }
 
     .screenshot-card:hover {
@@ -525,11 +539,27 @@
       box-shadow: 0 16px 40px rgba(0,0,0,0.6);
     }
 
+    .screenshot-canvas {
+      padding: 14px;
+      background: radial-gradient(circle at 50% 50%, rgba(61, 174, 233, 0.1) 0%, rgba(21, 24, 28, 0.75) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 230px;
+    }
+
     .screenshot-card img {
       width: 100%;
-      height: 230px;
-      object-fit: cover;
+      height: 205px;
+      object-fit: contain;
       display: block;
+      filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.65));
+      border-radius: 6px;
+      transition: transform 0.3s ease;
+    }
+
+    .screenshot-card:hover img {
+      transform: scale(1.02);
     }
 
     .screenshot-caption {
@@ -539,6 +569,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-top: auto;
     }
 
     .screenshot-title {
@@ -867,7 +898,7 @@
         </div>
       </div>
 
-      <!-- Hero App Preview with Floating Speed Pill -->
+      <!-- Hero App Preview - Floating on Ambient Glow Canvas -->
       <div class="hero-preview-frame" onclick="openLightbox('assets/screenshots/main-app.png')">
         <img src="assets/screenshots/main-app.png" alt="Bengal Download Manager Main Window" />
         <div class="hero-speed-tag font-mono">
@@ -1001,12 +1032,14 @@
         </div>
       </div>
 
-      <!-- Application Screenshots Grid -->
+      <!-- Application Screenshots Grid with Ambient Glow Canvas -->
       <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; margin: 40px 0 20px; text-align: center;">Desktop Interface Screenshots</h3>
 
       <div class="screenshots-grid">
         <div class="screenshot-card" onclick="openLightbox('assets/screenshots/main-app.png')">
-          <img src="assets/screenshots/main-app.png" alt="Main Window Dark Mode" />
+          <div class="screenshot-canvas">
+            <img src="assets/screenshots/main-app.png" alt="Main Window Dark Mode" />
+          </div>
           <div class="screenshot-caption">
             <span class="screenshot-title">Main Window (Dark Mode)</span>
             <span class="screenshot-badge">Core UI</span>
@@ -1014,7 +1047,9 @@
         </div>
 
         <div class="screenshot-card" onclick="openLightbox('assets/screenshots/main-app-light-mode.png')">
-          <img src="assets/screenshots/main-app-light-mode.png" alt="Main Window Light Mode" />
+          <div class="screenshot-canvas">
+            <img src="assets/screenshots/main-app-light-mode.png" alt="Main Window Light Mode" />
+          </div>
           <div class="screenshot-caption">
             <span class="screenshot-title">Main Window (Light Mode)</span>
             <span class="screenshot-badge">Breeze Light</span>
@@ -1022,7 +1057,9 @@
         </div>
 
         <div class="screenshot-card" onclick="openLightbox('assets/screenshots/media-downloader.png')">
-          <img src="assets/screenshots/media-downloader.png" alt="Media & Video Downloader" />
+          <div class="screenshot-canvas">
+            <img src="assets/screenshots/media-downloader.png" alt="Media & Video Downloader" />
+          </div>
           <div class="screenshot-caption">
             <span class="screenshot-title">Media &amp; Stream Downloader</span>
             <span class="screenshot-badge">Video Grabber</span>
@@ -1030,7 +1067,9 @@
         </div>
 
         <div class="screenshot-card" onclick="openLightbox('assets/screenshots/download-popup.png')">
-          <img src="assets/screenshots/download-popup.png" alt="Link Interceptor Dialog" />
+          <div class="screenshot-canvas">
+            <img src="assets/screenshots/download-popup.png" alt="Link Interceptor Dialog" />
+          </div>
           <div class="screenshot-caption">
             <span class="screenshot-title">Link Interceptor Dialog</span>
             <span class="screenshot-badge">Dialog</span>
@@ -1038,7 +1077,9 @@
         </div>
 
         <div class="screenshot-card" onclick="openLightbox('assets/screenshots/download-progress.png')">
-          <img src="assets/screenshots/download-progress.png" alt="Live Speed & Progress" />
+          <div class="screenshot-canvas">
+            <img src="assets/screenshots/download-progress.png" alt="Live Speed & Progress" />
+          </div>
           <div class="screenshot-caption">
             <span class="screenshot-title">Live Speed &amp; Segment Progress</span>
             <span class="screenshot-badge">Active Task</span>
@@ -1046,7 +1087,9 @@
         </div>
 
         <div class="screenshot-card" onclick="openLightbox('assets/screenshots/extension.png')">
-          <img src="assets/screenshots/extension.png" alt="Browser Extension Module" />
+          <div class="screenshot-canvas">
+            <img src="assets/screenshots/extension.png" alt="Browser Extension Module" />
+          </div>
           <div class="screenshot-caption">
             <span class="screenshot-title">Browser Extension Module</span>
             <span class="screenshot-badge">Extension</span>
