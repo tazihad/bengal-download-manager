@@ -1381,7 +1381,7 @@
         <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;" id="flatpak-cmd-title">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
         <div class="cli-box font-mono">
           <button id="copy-flatpak-btn" class="copy-btn" onclick="copyFlatpakCmd(this)">Copy</button>
-          <code id="flatpak-main-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.2.26-x86_64.flatpak https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak<br /><span class="cli-prompt">$</span>flatpak install bengal-download-manager-0.2.26-x86_64.flatpak</code>
+          <code id="flatpak-main-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.2.26-x86_64.flatpak https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak<br /><span class="cli-prompt">$</span>flatpak install --user bengal-download-manager-0.2.26-x86_64.flatpak</code>
         </div>
 
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
@@ -1497,7 +1497,7 @@
       if (label) label.textContent = "Flatpak (" + arch + ")";
       if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
       if (cmd) {
-        cmd.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url + '<br /><span class="cli-prompt">$</span>flatpak install ' + current.filename;
+        cmd.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url + '<br /><span class="cli-prompt">$</span>flatpak install --user ' + current.filename;
       }
     }
 
@@ -1553,7 +1553,7 @@
       const archSelect = document.getElementById("arch-flatpak-select");
       const arch = archSelect ? archSelect.value : "x86_64";
       const current = flatpakData[arch] || flatpakData.x86_64;
-      const raw = "curl -L -o " + current.filename + " " + current.url + "\nflatpak install " + current.filename;
+      const raw = "curl -L -o " + current.filename + " " + current.url + "\nflatpak install --user " + current.filename;
       copyCode(raw, btn);
     }
 
