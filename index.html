@@ -1475,6 +1475,21 @@
       }
     }
 
+    function renderFlatpakUI(arch) {
+      const current = flatpakData[arch] || flatpakData.x86_64;
+      const btn = document.getElementById("flatpak-main-btn");
+      const label = document.getElementById("flatpak-main-label");
+      const title = document.getElementById("flatpak-cmd-title");
+      const cmd = document.getElementById("flatpak-main-cmd");
+
+      if (btn) btn.href = current.url;
+      if (label) label.textContent = "Flatpak (" + arch + ")";
+      if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
+      if (cmd) {
+        cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />flatpak install " + current.filename;
+      }
+    }
+
     function onGlobalArchChange(arch) {
       const heroSel = document.getElementById("hero-arch-select");
       const appSel = document.getElementById("arch-select");
