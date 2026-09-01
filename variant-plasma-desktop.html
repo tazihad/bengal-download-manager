@@ -276,6 +276,34 @@
       display: block;
     }
 
+        .btn-kde-plasma {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 22px;
+      border-radius: var(--radius-sm);
+      background: var(--plasma-blue);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+      text-decoration: none;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .btn-kde-plasma:hover {
+      background: var(--plasma-blue-hover);
+      border-color: rgba(255, 255, 255, 0.35);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
+    }
+
+    .btn-kde-plasma:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
     .btn-kde-ghost {
       display: inline-flex;
       align-items: center;
@@ -1163,26 +1191,26 @@
 
       <!-- AppImage Panel (Architecture Dropdown with x86_64 preselected) -->
       <div id="tab-appimage" class="install-body">
-        <div style="margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-          <div>
-            <div style="font-weight: 700; font-size: 1rem; color: var(--text);">Direct AppImage Download (Latest Release)</div>
-            <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;">Universal portable executable. Runs standalone without installation or root privileges.</div>
-          </div>
-
-          <!-- Architecture Dropdown Selector -->
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <label for="arch-select" style="font-size: 13px; font-weight: 600; color: var(--plasma-amber);">Architecture:</label>
-            <select id="arch-select" onchange="onArchChange(this.value)" style="background: var(--plasma-bg); color: var(--text); border: 1px solid var(--plasma-border); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s;">
-              <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
-              <option value="aarch64">aarch64 (64-bit ARM)</option>
-            </select>
-          </div>
+        <div style="margin-bottom: 18px;">
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Direct AppImage Download (Latest Release)</div>
+          <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">Universal portable executable. Runs standalone without installation or root privileges.</div>
         </div>
 
-        <!-- Dynamic Direct Download Button -->
-        <div style="margin-bottom: 22px;">
-          <a id="appimage-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 10px; padding: 12px 24px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(61, 174, 233, 0.4); text-decoration: none; transition: all 0.2s;">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        <!-- Architecture Selector directly above Download Button -->
+        <div style="margin-bottom: 16px; display: inline-flex; flex-direction: column; gap: 6px;">
+          <label for="arch-select" style="font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px;">
+            <span>Select System Architecture:</span>
+          </label>
+          <select id="arch-select" onchange="onArchChange(this.value)" style="background: var(--plasma-bg); color: var(--text); border: 1px solid var(--plasma-border); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s; min-width: 260px;">
+            <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+            <option value="aarch64">aarch64 (64-bit ARM)</option>
+          </select>
+        </div>
+
+        <!-- Authentic KDE Plasma Style Download Button -->
+        <div style="margin-bottom: 24px;">
+          <a id="appimage-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="btn-kde-plasma">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             <span id="appimage-main-label">Download AppImage for x86_64 (v0.2.26)</span>
           </a>
         </div>
