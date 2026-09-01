@@ -1,9 +1,7 @@
 name: bengal-download-manager
-title: Bengal Download Manager
 base: core24
 version: '0.2.29'
 summary: High-speed multi-threaded download manager powered by Aria2
-contact: https://github.com/tazihad/bengal-download-manager/issues
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
   featuring multi-threaded segment downloads, Aria2 engine acceleration, modern UI,
@@ -23,12 +21,6 @@ icon: assets/icons/512x512.png
 website: https://github.com/tazihad/bengal-download-manager
 source-code: https://github.com/tazihad/bengal-download-manager
 issues: https://github.com/tazihad/bengal-download-manager/issues
-
-lint:
-  ignore:
-    - unused-library
-    - missing-library
-    - missing-dependency
 
 platforms:
   amd64:
@@ -124,7 +116,5 @@ parts:
       #   undefined symbol: rsvg_handle_get_pixbuf_and_error
       - -usr/lib/*/librsvg*
       - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
-      - -lib/python*/site-packages/PyQt6/Qt6/qml/QtQuick3D*
-      - -usr/lib/*/qt6/qml/QtQuick3D*
       - "*"
 
