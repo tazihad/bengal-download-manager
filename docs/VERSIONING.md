@@ -74,7 +74,19 @@ git push origin <branch-name> --tags
 
 ---
 
-### Option D: If You Prefer Editing Files by Hand in Your Editor
+### Option D: Graduate a Pre-Release / Alpha Branch to Stable
+When merging a feature or alpha branch back into `main`:
+```bash
+# Automatically strips -alpha suffix (e.g. 0.3.34-alpha.1 -> 0.3.34) and synchronizes all manifests
+python3 scripts/sync_version.py --graduate
+
+# Commit and proceed to merge into main
+git commit -am "chore: graduate version to stable release"
+```
+
+---
+
+### Option E: If You Prefer Editing Files by Hand in Your Editor
 1. **Edit the `VERSION` file**:
    ```bash
    echo "0.2.25" > VERSION

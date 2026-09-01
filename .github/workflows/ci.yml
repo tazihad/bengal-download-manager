@@ -52,6 +52,16 @@ jobs:
         run: |
           python3 scripts/sync_version.py --check
 
+      - name: Validate Stable Version on Main PRs
+        if: github.base_ref == 'main'
+        run: |
+          VERSION=$(cat VERSION)
+          if [[ "$VERSION" =~ -(alpha|beta|rc|dev) ]]; then
+            echo "::error::Pull requests targeting 'main' cannot contain a pre-release version: '$VERSION'."
+            echo "Run 'python3 scripts/sync_version.py --graduate' (or '--set ${VERSION%%-*}') before merging."
+            exit 1
+          fi
+
       - name: Validate Desktop Entry and Metainfo
         run: |
           desktop-file-validate flatpak/io.github.tazihad.bengal-download-manager.desktop
