@@ -133,7 +133,6 @@ def update_metainfo(ver: str):
 def update_html_landing_page(ver: str):
     html_files = [
         os.path.join(ROOT_DIR, "index.html"),
-        os.path.join(ROOT_DIR, "variant-plasma-desktop.html")
     ]
     clean_ver = ver.split("-")[0] if "-" in ver else ver
     for path in html_files:
