@@ -1308,13 +1308,13 @@
           </select>
         </div>
 
-        <!-- KDE Glaxnimate Style Custom Store Badge -->
+        <!-- KDE Glaxnimate Style Flathub Store Badge -->
         <div style="margin-bottom: 24px;">
           <a id="flatpak-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge">
-            <img src="assets/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
+            <img src="assets/flathub.svg" alt="Flathub Logo" class="store-badge-icon" />
             <div class="text-container">
-              <div class="store-pre-title">DOWNLOAD</div>
-              <div class="store-title" id="flatpak-main-label">Flatpak (x86_64)</div>
+              <div class="store-pre-title">Download on</div>
+              <div class="store-title" id="flatpak-main-label">Flathub (x86_64)</div>
             </div>
           </a>
         </div>
@@ -1448,7 +1448,7 @@
       const cmd = document.getElementById("flatpak-main-cmd");
 
       if (btn) btn.href = current.url;
-      if (label) label.textContent = "Flatpak (" + arch + ")";
+      if (label) label.textContent = "Flathub (" + arch + ")";
       if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
       if (cmd) {
         cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />flatpak install " + current.filename;
