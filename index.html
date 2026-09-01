@@ -1168,28 +1168,28 @@
           <div style="font-size: 13px; color: var(--text-dim); margin-bottom: 14px;">Universal portable executable. Runs standalone without installation or root privileges.</div>
           
           <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
-            <a id="appimage-x86-btn" href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(61, 174, 233, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
+            <a id="appimage-x86-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(61, 174, 233, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span id="appimage-x86-label">Download x86_64 (64-bit Intel / AMD)</span>
+              <span id="appimage-x86-label">Download x86_64 AppImage (v0.2.26)</span>
             </a>
 
-            <a id="appimage-arm-btn" href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: #2563eb; color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
+            <a id="appimage-arm-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: #2563eb; color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span id="appimage-arm-label">Download aarch64 (64-bit ARM)</span>
+              <span id="appimage-arm-label">Download aarch64 AppImage (v0.2.26)</span>
             </a>
           </div>
         </div>
 
         <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
         <div class="cli-box font-mono">
-          <button class="copy-btn" onclick="copyCode('curl -L -o bengal-download-manager-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/latest/download/bengal-download-manager-x86_64.AppImage &amp;&amp; chmod +x bengal-download-manager-x86_64.AppImage &amp;&amp; ./bengal-download-manager-x86_64.AppImage', this)">Copy</button>
-          <code>curl -L -o bengal-download-manager-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/latest/download/bengal-download-manager-x86_64.AppImage<br />chmod +x bengal-download-manager-x86_64.AppImage &amp;&amp; ./bengal-download-manager-x86_64.AppImage</code>
+          <button id="copy-appimage-x86-btn" class="copy-btn" onclick="copyCode('curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage', this)">Copy</button>
+          <code id="appimage-x86-cmd">curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage<br />chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage</code>
         </div>
 
         <div style="font-weight: 600; font-size: 13px; color: var(--plasma-blue-light); margin-bottom: 6px;">Terminal Quick-Start (aarch64 / ARM64):</div>
         <div class="cli-box font-mono">
-          <button class="copy-btn" onclick="copyCode('curl -L -o bengal-download-manager-aarch64.AppImage https://github.com/tazihad/bengal-download-manager/releases/latest/download/bengal-download-manager-aarch64.AppImage &amp;&amp; chmod +x bengal-download-manager-aarch64.AppImage &amp;&amp; ./bengal-download-manager-aarch64.AppImage', this)">Copy</button>
-          <code>curl -L -o bengal-download-manager-aarch64.AppImage https://github.com/tazihad/bengal-download-manager/releases/latest/download/bengal-download-manager-aarch64.AppImage<br />chmod +x bengal-download-manager-aarch64.AppImage &amp;&amp; ./bengal-download-manager-aarch64.AppImage</code>
+          <button id="copy-appimage-arm-btn" class="copy-btn" onclick="copyCode('curl -L -o bengal-download-manager-0.2.26-aarch64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage &amp;&amp; chmod +x bengal-download-manager-0.2.26-aarch64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-aarch64.AppImage', this)">Copy</button>
+          <code id="appimage-arm-cmd">curl -L -o bengal-download-manager-0.2.26-aarch64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage<br />chmod +x bengal-download-manager-0.2.26-aarch64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-aarch64.AppImage</code>
         </div>
 
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
