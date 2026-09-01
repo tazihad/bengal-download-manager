@@ -276,7 +276,69 @@
       display: block;
     }
 
-        .btn-kde-plasma {
+            /* KDE / Glaxnimate Store Badge Pattern */
+    .custom-store-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      height: 52px;
+      padding: 0 20px;
+      background: var(--plasma-surface);
+      border: 1px solid var(--plasma-border);
+      border-radius: var(--radius-sm);
+      color: #ffffff;
+      text-decoration: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .custom-store-badge:hover {
+      background: var(--plasma-surface-elevated);
+      border-color: var(--plasma-blue);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .custom-store-badge:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .custom-store-badge .store-badge-icon {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .custom-store-badge .text-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: left;
+    }
+
+    .custom-store-badge .store-pre-title {
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      line-height: 1.1;
+    }
+
+    .custom-store-badge .store-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.2;
+      margin-top: 1px;
+    }
+
+    .btn-kde-plasma {
       display: inline-flex;
       align-items: center;
       gap: 10px;
@@ -1205,11 +1267,14 @@
           </select>
         </div>
 
-        <!-- Authentic KDE Plasma Style Download Button -->
+        <!-- KDE Glaxnimate Style Custom Store Badge -->
         <div style="margin-bottom: 24px;">
-          <a id="appimage-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="btn-kde-plasma">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            <span id="appimage-main-label">Download AppImage for x86_64 (v0.2.26)</span>
+          <a id="appimage-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="custom-store-badge">
+            <img src="assets/appimage.svg" alt="AppImage Logo" class="store-badge-icon" />
+            <div class="text-container">
+              <div class="store-pre-title">DOWNLOAD</div>
+              <div class="store-title" id="appimage-main-label">AppImage (x86_64)</div>
+            </div>
           </a>
         </div>
 
@@ -1243,11 +1308,14 @@
           </select>
         </div>
 
-        <!-- Authentic KDE Plasma Style Download Button -->
+        <!-- KDE Glaxnimate Style Custom Store Badge -->
         <div style="margin-bottom: 24px;">
-          <a id="flatpak-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="btn-kde-plasma">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            <span id="flatpak-main-label">Download Flatpak for x86_64 (v0.2.26)</span>
+          <a id="flatpak-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge">
+            <img src="assets/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
+            <div class="text-container">
+              <div class="store-pre-title">DOWNLOAD</div>
+              <div class="store-title" id="flatpak-main-label">Flatpak (x86_64)</div>
+            </div>
           </a>
         </div>
 
@@ -1353,7 +1421,7 @@
       const cmd = document.getElementById("appimage-main-cmd");
 
       if (btn) btn.href = current.url;
-      if (label) label.textContent = "Download AppImage for " + arch + " (" + appImageData.version + ")";
+      if (label) label.textContent = "AppImage (" + arch + ")";
       if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
       if (cmd) {
         cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />chmod +x " + current.filename + " &amp;&amp; ./" + current.filename;
@@ -1380,7 +1448,7 @@
       const cmd = document.getElementById("flatpak-main-cmd");
 
       if (btn) btn.href = current.url;
-      if (label) label.textContent = "Download Flatpak for " + arch + " (" + flatpakData.version + ")";
+      if (label) label.textContent = "Flatpak (" + arch + ")";
       if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
       if (cmd) {
         cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />flatpak install " + current.filename;
