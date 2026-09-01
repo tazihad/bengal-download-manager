@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bengal Download Manager — KDE Kirigami & Desktop Showcase</title>
+  
+  <meta name="description" content="KDE Plasma & Native Desktop Glass edition for Bengal Download Manager." />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --plasma-bg: #1b1e20;
+      --plasma-surface: #232629;
+      --plasma-surface-glass: rgba(35, 38, 41, 0.75);
+      --plasma-border: rgba(255, 255, 255, 0.12);
+      
+      --plasma-blue: #3daee9;
+      --plasma-amber: #fdbc4b;
+      --plasma-green: #2ecc71;
+      --plasma-red: #da4453;
+
+      --text: #eff0f1;
+      --text-dim: #bdc3c7;
+      --text-muted: #7f8c8d;
+
+      --radius-kde: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, #202b38 0%, #15181a 100%);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* Style Variant Selector Bar */
+    .variant-bar {
+      background: rgba(15, 18, 20, 0.95);
+      padding: 10px 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--plasma-border);
+      position: sticky;
+      top: 0;
+      z-index: 1100;
+      backdrop-filter: blur(12px);
+    }
+
+    .variant-links { display: flex; gap: 10px; }
+
+    .variant-pill {
+      padding: 4px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .variant-pill:hover, .variant-pill.active {
+      background: var(--plasma-blue);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* KDE Topbar */
+    .kde-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 0;
+    }
+
+    .kde-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .kde-brand img { width: 36px; height: 36px; }
+
+    .kde-menu {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .kde-menu a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .kde-menu a:hover { color: var(--plasma-blue); }
+
+    /* Plasma Hero Card */
+    .plasma-hero {
+      background: var(--plasma-surface-glass);
+      border: 1px solid var(--plasma-border);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(24px);
+      margin: 20px 0 60px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .hero-h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2rem, 3.5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    .btn-kde {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-kde-primary {
+      background: var(--plasma-blue);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(61, 174, 233, 0.35);
+    }
+
+    .btn-kde-primary:hover {
+      background: #2980b9;
+      transform: translateY(-2px);
+    }
+
+    .btn-kde-sec {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid var(--plasma-border);
+      margin-left: 12px;
+    }
+
+    .btn-kde-sec:hover { background: rgba(255, 255, 255, 0.15); }
+
+    /* Poster Gallery Section */
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .poster-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+
+    .poster-card {
+      background: var(--plasma-surface);
+      border: 1px solid var(--plasma-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      transition: transform 0.3s;
+    }
+
+    .poster-card:hover { transform: translateY(-4px); }
+    .poster-card img { width: 100%; height: auto; display: block; }
+    .poster-caption { padding: 16px 20px; font-weight: 600; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid var(--plasma-border);
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .plasma-hero, .poster-grid { grid-template-columns: 1fr; }
+      .kde-menu { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Style Variant Switcher -->
+  <div class="variant-bar">
+    <span>🌐 <strong>KDE Plasma 6 / Kirigami Archetype:</strong></span>
+    <div class="variant-links">
+      <a href="index.html" class="variant-pill">1. Complete Showcase</a>
+      <a href="variant-linear-bento.html" class="variant-pill">2. Linear Bento</a>
+      <a href="variant-terminal-geek.html" class="variant-pill">3. Terminal Geek</a>
+      <a href="variant-plasma-desktop.html" class="variant-pill active">4. KDE Desktop Glass</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <header class="kde-nav">
+      <a href="#" class="kde-brand">
+        <img src="assets/logo.png" alt="logo" />
+        <span>Bengal Download Manager</span>
+      </a>
+
+      <ul class="kde-menu">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#gallery">Posters &amp; UI</a></li>
+        <li><a href="https://snapcraft.io/bengal-download-manager">Snapcraft</a></li>
+        <li><a href="https://github.com/tazihad/bengal-download-manager">Source Code</a></li>
+      </ul>
+    </header>
+
+    <!-- Plasma Hero Glass Card -->
+    <section id="overview" class="plasma-hero">
+      <div>
+        <div style="color: var(--plasma-amber); font-weight: 700; font-size: 13px; text-transform: uppercase; margin-bottom: 8px;">KDE Kirigami &bull; Qt6 &bull; Aria2 Engine</div>
+        <h1 class="hero-h1">Native Desktop Acceleration for Linux.</h1>
+        <p style="color: var(--text-dim); margin-bottom: 28px;">
+          Bengal Download Manager integrates with your Linux desktop environment. Featuring system tray notifications, adaptive color schemes, and up to 32 parallel split streams.
+        </p>
+
+        <div>
+          <a href="https://snapcraft.io/bengal-download-manager" target="_blank" class="btn-kde btn-kde-primary">Install via Snap</a>
+          <a href="https://github.com/tazihad/bengal-download-manager/releases" target="_blank" class="btn-kde btn-kde-sec">Get AppImage</a>
+        </div>
+      </div>
+
+      <div>
+        <img src="assets/screenshots/main-app.png" alt="Bengal Main App" style="width: 100%; border-radius: 8px; border: 1px solid var(--plasma-border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
+      </div>
+    </section>
+
+    <!-- Product Posters Section -->
+    <section id="gallery">
+      <h2 class="section-title">Design &amp; Ecosystem Posters</h2>
+      
+      <div class="poster-grid">
+        <div class="poster-card">
+          <img src="assets/poster_classic_hero.jpg" alt="Multi-Threaded Turbo Downloader" />
+          <div class="poster-caption">High Velocity Multi-Threaded Engine</div>
+        </div>
+
+        <div class="poster-card">
+          <img src="assets/poster_browser_integration.jpg" alt="Seamless Browser Integration" />
+          <div class="poster-caption">Seamless Browser Integration &amp; Auto-Catch</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Bengal Download Manager &bull; Released under MIT License &bull; Free &amp; Open Source
+    </footer>
+  </div>
+
+</body>
+</html>
