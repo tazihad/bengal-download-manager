@@ -1541,11 +1541,19 @@
       onGlobalArchChange(arch);
     }
 
+    function copyAppImageCmd(btn) {
+      const archSelect = document.getElementById("arch-select");
+      const arch = archSelect ? archSelect.value : "x86_64";
+      const current = appImageData[arch] || appImageData.x86_64;
+      const raw = "curl -L -o " + current.filename + " " + current.url + "\nchmod +x " + current.filename + " && ./" + current.filename;
+      copyCode(raw, btn);
+    }
+
     function copyFlatpakCmd(btn) {
       const archSelect = document.getElementById("arch-flatpak-select");
       const arch = archSelect ? archSelect.value : "x86_64";
       const current = flatpakData[arch] || flatpakData.x86_64;
-      const raw = "curl -L -o " + current.filename + " " + current.url + " && flatpak install " + current.filename;
+      const raw = "curl -L -o " + current.filename + " " + current.url + "\nflatpak install " + current.filename;
       copyCode(raw, btn);
     }
 
@@ -1639,11 +1647,34 @@
 
     // Copy code
     function copyCode(text, btn) {
-      navigator.clipboard.writeText(text).then(() => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          const old = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = old; }, 2000);
+        }).catch(() => fallbackCopy(text, btn));
+      } else {
+        fallbackCopy(text, btn);
+      }
+    }
+
+    function fallbackCopy(text, btn) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
         const old = btn.textContent;
         btn.textContent = 'Copied!';
         setTimeout(() => { btn.textContent = old; }, 2000);
-      });
+      } catch (err) {
+        console.error('Fallback copy failed', err);
+      }
+      document.body.removeChild(textArea);
     }
 
     // FAQ Accordion
