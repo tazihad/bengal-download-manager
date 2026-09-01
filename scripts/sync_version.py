@@ -142,9 +142,21 @@ def update_html_landing_page(ver: str):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
         # Update version strings in release URLs and fallback data
-        content = re.sub(r"bengal-download-manager-[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?", f"bengal-download-manager-{clean_ver}", content)
-        content = re.sub(r"/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?", f"/releases/download/v{clean_ver}", content)
-        content = re.sub(r'version:\s*"v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?', f'version: "v{clean_ver}', content)
+        content = re.sub(
+            r"bengal-download-manager-[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?-(x86_64|aarch64)",
+            rf"bengal-download-manager-{clean_ver}-\1",
+            content
+        )
+        content = re.sub(
+            r"/releases/download/v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?/",
+            f"/releases/download/v{clean_ver}/",
+            content
+        )
+        content = re.sub(
+            r'version:\s*"v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?',
+            f'version: "v{clean_ver}',
+            content
+        )
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
