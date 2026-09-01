@@ -1161,35 +1161,37 @@
         </div>
       </div>
 
-      <!-- AppImage Panel (x86_64 & aarch64 support) -->
+      <!-- AppImage Panel (Architecture Dropdown with x86_64 preselected) -->
       <div id="tab-appimage" class="install-body">
-        <div style="margin-bottom: 20px;">
-          <div style="font-weight: 700; font-size: 1rem; margin-bottom: 6px; color: var(--text);">Direct AppImage Download (Latest Release)</div>
-          <div style="font-size: 13px; color: var(--text-dim); margin-bottom: 14px;">Universal portable executable. Runs standalone without installation or root privileges.</div>
-          
-          <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;">
-            <a id="appimage-x86-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(61, 174, 233, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
-              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span id="appimage-x86-label">Download x86_64 AppImage (v0.2.26)</span>
-            </a>
+        <div style="margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <div style="font-weight: 700; font-size: 1rem; color: var(--text);">Direct AppImage Download (Latest Release)</div>
+            <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;">Universal portable executable. Runs standalone without installation or root privileges.</div>
+          </div>
 
-            <a id="appimage-arm-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-sm); background: #2563eb; color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4); text-decoration: none; transition: transform 0.2s, background 0.2s;">
-              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              <span id="appimage-arm-label">Download aarch64 AppImage (v0.2.26)</span>
-            </a>
+          <!-- Architecture Dropdown Selector -->
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="arch-select" style="font-size: 13px; font-weight: 600; color: var(--plasma-amber);">Architecture:</label>
+            <select id="arch-select" onchange="onArchChange(this.value)" style="background: var(--plasma-bg); color: var(--text); border: 1px solid var(--plasma-border); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s;">
+              <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+              <option value="aarch64">aarch64 (64-bit ARM)</option>
+            </select>
           </div>
         </div>
 
-        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
-        <div class="cli-box font-mono">
-          <button id="copy-appimage-x86-btn" class="copy-btn" onclick="copyCode('curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage', this)">Copy</button>
-          <code id="appimage-x86-cmd">curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage<br />chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage</code>
+        <!-- Dynamic Direct Download Button -->
+        <div style="margin-bottom: 22px;">
+          <a id="appimage-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 10px; padding: 12px 24px; border-radius: var(--radius-sm); background: var(--plasma-blue); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(61, 174, 233, 0.4); text-decoration: none; transition: all 0.2s;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            <span id="appimage-main-label">Download AppImage for x86_64 (v0.2.26)</span>
+          </a>
         </div>
 
-        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-blue-light); margin-bottom: 6px;">Terminal Quick-Start (aarch64 / ARM64):</div>
+        <!-- Dynamic Terminal Quick-Start -->
+        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;" id="appimage-cmd-title">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
         <div class="cli-box font-mono">
-          <button id="copy-appimage-arm-btn" class="copy-btn" onclick="copyCode('curl -L -o bengal-download-manager-0.2.26-aarch64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage &amp;&amp; chmod +x bengal-download-manager-0.2.26-aarch64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-aarch64.AppImage', this)">Copy</button>
-          <code id="appimage-arm-cmd">curl -L -o bengal-download-manager-0.2.26-aarch64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage<br />chmod +x bengal-download-manager-0.2.26-aarch64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-aarch64.AppImage</code>
+          <button id="copy-appimage-btn" class="copy-btn" onclick="copyAppImageCmd(this)">Copy</button>
+          <code id="appimage-main-cmd">curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage<br />chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage</code>
         </div>
 
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
@@ -1281,13 +1283,54 @@
   <script>
         
 
-        // Dynamic GitHub Releases AppImage auto-resolver
+        // AppImage Architecture and GitHub Release State
+    let appImageData = {
+      version: "v0.2.26",
+      x86_64: {
+        filename: "bengal-download-manager-0.2.26-x86_64.AppImage",
+        url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage"
+      },
+      aarch64: {
+        filename: "bengal-download-manager-0.2.26-aarch64.AppImage",
+        url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-aarch64.AppImage"
+      }
+    };
+
+    function renderAppImageUI(arch) {
+      const current = appImageData[arch] || appImageData.x86_64;
+      const btn = document.getElementById("appimage-main-btn");
+      const label = document.getElementById("appimage-main-label");
+      const title = document.getElementById("appimage-cmd-title");
+      const cmd = document.getElementById("appimage-main-cmd");
+
+      if (btn) btn.href = current.url;
+      if (label) label.textContent = "Download AppImage for " + arch + " (" + appImageData.version + ")";
+      if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
+      if (cmd) {
+        cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />chmod +x " + current.filename + " &amp;&amp; ./" + current.filename;
+      }
+    }
+
+    function onArchChange(arch) {
+      renderAppImageUI(arch);
+    }
+
+    function copyAppImageCmd(btn) {
+      const archSelect = document.getElementById("arch-select");
+      const arch = archSelect ? archSelect.value : "x86_64";
+      const current = appImageData[arch] || appImageData.x86_64;
+      const raw = "curl -L -o " + current.filename + " " + current.url + " && chmod +x " + current.filename + " && ./" + current.filename;
+      copyCode(raw, btn);
+    }
+
+    // Dynamic GitHub Releases AppImage auto-resolver
     (async function resolveAppImages() {
       try {
         const res = await fetch("https://api.github.com/repos/tazihad/bengal-download-manager/releases/latest");
         if (!res.ok) return;
         const data = await res.json();
-        const tag = data.tag_name || "latest";
+        const tag = data.tag_name || "v0.2.26";
+        appImageData.version = tag;
 
         // Find x86_64 AppImage asset
         const assetX86 = data.assets && data.assets.find(a => 
@@ -1300,44 +1343,22 @@
         );
 
         if (assetX86) {
-          const btnX86 = document.getElementById("appimage-x86-btn");
-          const labelX86 = document.getElementById("appimage-x86-label");
-          if (btnX86) btnX86.href = assetX86.browser_download_url;
-          if (labelX86) labelX86.textContent = "Download x86_64 AppImage (" + tag + ")";
-
-          const filenameX86 = assetX86.name;
-          const urlX86 = assetX86.browser_download_url;
-          const cmdX86El = document.getElementById("appimage-x86-cmd");
-          const copyBtnX86 = document.getElementById("copy-appimage-x86-btn");
-          const rawCmdX86 = "curl -L -o " + filenameX86 + " " + urlX86 + " && chmod +x " + filenameX86 + " && ./" + filenameX86;
-
-          if (cmdX86El) {
-            cmdX86El.innerHTML = "curl -L -o " + filenameX86 + " " + urlX86 + "<br />chmod +x " + filenameX86 + " &amp;&amp; ./" + filenameX86;
-          }
-          if (copyBtnX86) {
-            copyBtnX86.onclick = function() { copyCode(rawCmdX86, copyBtnX86); };
-          }
+          appImageData.x86_64 = {
+            filename: assetX86.name,
+            url: assetX86.browser_download_url
+          };
         }
 
         if (assetArm) {
-          const btnArm = document.getElementById("appimage-arm-btn");
-          const labelArm = document.getElementById("appimage-arm-label");
-          if (btnArm) btnArm.href = assetArm.browser_download_url;
-          if (labelArm) labelArm.textContent = "Download aarch64 AppImage (" + tag + ")";
-
-          const filenameArm = assetArm.name;
-          const urlArm = assetArm.browser_download_url;
-          const cmdArmEl = document.getElementById("appimage-arm-cmd");
-          const copyBtnArm = document.getElementById("copy-appimage-arm-btn");
-          const rawCmdArm = "curl -L -o " + filenameArm + " " + urlArm + " && chmod +x " + filenameArm + " && ./" + filenameArm;
-
-          if (cmdArmEl) {
-            cmdArmEl.innerHTML = "curl -L -o " + filenameArm + " " + urlArm + "<br />chmod +x " + filenameArm + " &amp;&amp; ./" + filenameArm;
-          }
-          if (copyBtnArm) {
-            copyBtnArm.onclick = function() { copyCode(rawCmdArm, copyBtnArm); };
-          }
+          appImageData.aarch64 = {
+            filename: assetArm.name,
+            url: assetArm.browser_download_url
+          };
         }
+
+        const select = document.getElementById("arch-select");
+        const currentArch = select ? select.value : "x86_64";
+        renderAppImageUI(currentArch);
       } catch (e) {
         console.warn("Could not auto-resolve AppImage URLs from GitHub API:", e);
       }
