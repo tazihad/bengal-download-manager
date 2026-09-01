@@ -969,35 +969,57 @@
           Bengal Download Manager integrates with your Linux desktop environment. Featuring multi-connection chunking up to 32x, one-click browser link interception, and adaptive light &amp; dark themes.
         </p>
 
-        <!-- Official Packages & Store Badges -->
-        <div class="hero-badges-row">
-          <!-- Snap Store Official Light Badge -->
-          <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener" class="badge-link" title="Get it from the Snap Store">
-            <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" class="badge-snap-light" />
-          </a>
+        <!-- Desktop App Downloads Block -->
+        <div style="margin-bottom: 24px;">
+          <!-- Architecture Dropdown Above the 3 Buttons -->
+          <div style="margin-bottom: 12px; display: inline-flex; align-items: center; gap: 10px;">
+            <label for="hero-arch-select" style="font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px;">
+              <span>Architecture:</span>
+            </label>
+            <select id="hero-arch-select" onchange="onGlobalArchChange(this.value)" style="background: var(--plasma-bg); color: var(--text); border: 1px solid var(--plasma-border); border-radius: var(--radius-sm); padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s;">
+              <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+              <option value="aarch64">aarch64 (64-bit ARM)</option>
+            </select>
+          </div>
 
-          <!-- AppImage Custom Store Badge -->
-          <a id="hero-appimage-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download AppImage">
-            <img src="assets/appimage.svg" alt="AppImage Logo" class="store-badge-icon" />
-            <div class="text-container">
-              <div class="store-pre-title">DOWNLOAD</div>
-              <div class="store-title" id="hero-appimage-label">AppImage</div>
-            </div>
-          </a>
+          <!-- 3 Main Application Packages Row -->
+          <div class="hero-badges-row">
+            <!-- Snap Store Official Light Badge -->
+            <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener" class="badge-link" title="Get it from the Snap Store">
+              <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" class="badge-snap-light" />
+            </a>
 
-          <!-- Flatpak Custom Store Badge -->
-          <a id="hero-flatpak-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download Flatpak">
-            <img src="assets/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
-            <div class="text-container">
-              <div class="store-pre-title">DOWNLOAD</div>
-              <div class="store-title" id="hero-flatpak-label">Flatpak</div>
-            </div>
-          </a>
+            <!-- AppImage Custom Store Badge -->
+            <a id="hero-appimage-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download AppImage">
+              <img src="assets/appimage.svg" alt="AppImage Logo" class="store-badge-icon" />
+              <div class="text-container">
+                <div class="store-pre-title">DOWNLOAD</div>
+                <div class="store-title" id="hero-appimage-label">AppImage (x86_64)</div>
+              </div>
+            </a>
 
-          <!-- Firefox Addon Official Mozilla Badge -->
-          <a href="https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module" target="_blank" rel="noopener" class="badge-link" title="Get the Extension on Firefox">
-            <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Get the Extension on Firefox" class="badge-firefox-svg" />
-          </a>
+            <!-- Flatpak Custom Store Badge -->
+            <a id="hero-flatpak-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download Flatpak">
+              <img src="assets/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
+              <div class="text-container">
+                <div class="store-pre-title">DOWNLOAD</div>
+                <div class="store-title" id="hero-flatpak-label">Flatpak (x86_64)</div>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- Extension Support Section -->
+        <div style="padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+          <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--plasma-amber); margin-bottom: 10px;">
+            Extension Support:
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <!-- Firefox Addon Official Mozilla Badge -->
+            <a href="https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module" target="_blank" rel="noopener" class="badge-link" title="Get the Extension on Firefox">
+              <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Get the Extension on Firefox" class="badge-firefox-svg" />
+            </a>
+          </div>
         </div>
       </div>
 
@@ -1441,35 +1463,42 @@
       }
     }
 
-    function onArchChange(arch) {
+        function onGlobalArchChange(arch) {
+      const heroSel = document.getElementById("hero-arch-select");
+      const appSel = document.getElementById("arch-select");
+      const flatSel = document.getElementById("arch-flatpak-select");
+
+      if (heroSel) heroSel.value = arch;
+      if (appSel) appSel.value = arch;
+      if (flatSel) flatSel.value = arch;
+
       renderAppImageUI(arch);
+      renderFlatpakUI(arch);
+      updateHeroBadges(arch);
     }
 
-    function copyAppImageCmd(btn) {
-      const archSelect = document.getElementById("arch-select");
-      const arch = archSelect ? archSelect.value : "x86_64";
-      const current = appImageData[arch] || appImageData.x86_64;
-      const raw = "curl -L -o " + current.filename + " " + current.url + " && chmod +x " + current.filename + " && ./" + current.filename;
-      copyCode(raw, btn);
-    }
+    function updateHeroBadges(arch) {
+      const heroAppImageBtn = document.getElementById("hero-appimage-btn");
+      const heroAppImageLabel = document.getElementById("hero-appimage-label");
+      if (heroAppImageBtn && appImageData[arch]) {
+        heroAppImageBtn.href = appImageData[arch].url;
+        if (heroAppImageLabel) heroAppImageLabel.textContent = "AppImage (" + arch + ")";
+      }
 
-    function renderFlatpakUI(arch) {
-      const current = flatpakData[arch] || flatpakData.x86_64;
-      const btn = document.getElementById("flatpak-main-btn");
-      const label = document.getElementById("flatpak-main-label");
-      const title = document.getElementById("flatpak-cmd-title");
-      const cmd = document.getElementById("flatpak-main-cmd");
-
-      if (btn) btn.href = current.url;
-      if (label) label.textContent = "Flatpak (" + arch + ")";
-      if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
-      if (cmd) {
-        cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />flatpak install " + current.filename;
+      const heroFlatpakBtn = document.getElementById("hero-flatpak-btn");
+      const heroFlatpakLabel = document.getElementById("hero-flatpak-label");
+      if (heroFlatpakBtn && flatpakData[arch]) {
+        heroFlatpakBtn.href = flatpakData[arch].url;
+        if (heroFlatpakLabel) heroFlatpakLabel.textContent = "Flatpak (" + arch + ")";
       }
     }
 
+    function onArchChange(arch) {
+      onGlobalArchChange(arch);
+    }
+
     function onFlatpakArchChange(arch) {
-      renderFlatpakUI(arch);
+      onGlobalArchChange(arch);
     }
 
     function copyFlatpakCmd(btn) {
@@ -1537,6 +1566,7 @@
 
         const flatpakSelect = document.getElementById("arch-flatpak-select");
         renderFlatpakUI(flatpakSelect ? flatpakSelect.value : "x86_64");
+        updateHeroBadges(currentArch);
 
         // Update Hero direct download buttons
         const heroAppImageBtn = document.getElementById("hero-appimage-btn");
