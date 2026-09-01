@@ -1,7 +1,9 @@
 name: bengal-download-manager
+title: Bengal Download Manager
 base: core24
 version: '0.2.29'
 summary: High-speed multi-threaded download manager powered by Aria2
+contact: https://github.com/tazihad/bengal-download-manager/issues
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
   featuring multi-threaded segment downloads, Aria2 engine acceleration, modern UI,
@@ -21,6 +23,10 @@ icon: assets/icons/512x512.png
 website: https://github.com/tazihad/bengal-download-manager
 source-code: https://github.com/tazihad/bengal-download-manager
 issues: https://github.com/tazihad/bengal-download-manager/issues
+
+lint:
+  ignore:
+    - unused-library
 
 platforms:
   amd64:
