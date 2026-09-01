@@ -814,6 +814,17 @@
       display: block;
     }
 
+        .cli-prompt {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      color: var(--plasma-blue);
+      font-weight: 700;
+      margin-right: 8px;
+      opacity: 0.85;
+    }
+
     .cli-box {
       position: relative;
       background: var(--plasma-bg);
@@ -1292,7 +1303,7 @@
 
         <div class="cli-box font-mono">
           <button class="copy-btn" onclick="copyCode('sudo snap install bengal-download-manager', this)">Copy</button>
-          <code>sudo snap install bengal-download-manager</code>
+          <code><span class="cli-prompt">$</span>sudo snap install bengal-download-manager</code>
         </div>
       </div>
 
@@ -1329,7 +1340,7 @@
         <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;" id="appimage-cmd-title">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
         <div class="cli-box font-mono">
           <button id="copy-appimage-btn" class="copy-btn" onclick="copyAppImageCmd(this)">Copy</button>
-          <code id="appimage-main-cmd">curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage<br />chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage</code>
+          <code id="appimage-main-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.2.26-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.AppImage<br /><span class="cli-prompt">$</span>chmod +x bengal-download-manager-0.2.26-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.2.26-x86_64.AppImage</code>
         </div>
 
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
@@ -1370,7 +1381,7 @@
         <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 6px;" id="flatpak-cmd-title">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
         <div class="cli-box font-mono">
           <button id="copy-flatpak-btn" class="copy-btn" onclick="copyFlatpakCmd(this)">Copy</button>
-          <code id="flatpak-main-cmd">curl -L -o bengal-download-manager-0.2.26-x86_64.flatpak https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak<br />flatpak install bengal-download-manager-0.2.26-x86_64.flatpak</code>
+          <code id="flatpak-main-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.2.26-x86_64.flatpak https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.26/bengal-download-manager-0.2.26-x86_64.flatpak<br /><span class="cli-prompt">$</span>flatpak install bengal-download-manager-0.2.26-x86_64.flatpak</code>
         </div>
 
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
@@ -1471,7 +1482,7 @@
       if (label) label.textContent = "AppImage (" + arch + ")";
       if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
       if (cmd) {
-        cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />chmod +x " + current.filename + " &amp;&amp; ./" + current.filename;
+        cmd.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url + '<br /><span class="cli-prompt">$</span>chmod +x ' + current.filename + ' &amp;&amp; ./' + current.filename;
       }
     }
 
@@ -1486,7 +1497,7 @@
       if (label) label.textContent = "Flatpak (" + arch + ")";
       if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
       if (cmd) {
-        cmd.innerHTML = "curl -L -o " + current.filename + " " + current.url + "<br />flatpak install " + current.filename;
+        cmd.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url + '<br /><span class="cli-prompt">$</span>flatpak install ' + current.filename;
       }
     }
 
