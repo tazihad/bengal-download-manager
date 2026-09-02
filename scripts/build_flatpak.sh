@@ -49,7 +49,10 @@ cp -a dist/bengal-download-manager/. "$BUILD_DIR/files/lib/bengal-download-manag
 chmod +x "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager"
 ln -sf /app/lib/bengal-download-manager/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
 
-if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
+if [ -f "assets/bin/linux/$ARCH_NAME/aria2c" ]; then
+    cp "assets/bin/linux/$ARCH_NAME/aria2c" "$BUILD_DIR/files/bin/aria2c"
+    chmod +x "$BUILD_DIR/files/bin/aria2c"
+elif [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
     cp "assets/bin/$ARCH_NAME/aria2c" "$BUILD_DIR/files/bin/aria2c"
     chmod +x "$BUILD_DIR/files/bin/aria2c"
 fi

@@ -31,7 +31,6 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
-          cp variant-plasma-desktop.html _site/
           cp -r assets _site/
           touch _site/.nojekyll
 

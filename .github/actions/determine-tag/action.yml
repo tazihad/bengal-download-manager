@@ -58,11 +58,17 @@ runs:
                 raw_tags = []
 
             existing_tags = {t.strip() for t in raw_tags if t.strip()}
+            is_main = (ref == "refs/heads/main")
+
+            # On main branch, ensure root_version is always clean/stable (strip any pre-release suffix)
+            effective_root_version = root_version
+            if is_main and effective_root_version:
+                effective_root_version = effective_root_version.split("-")[0]
 
             # If VERSION file is present and not yet tagged in git:
-            if root_version and f"v{root_version}" not in existing_tags:
-                tag = f"v{root_version}"
-                version = root_version
+            if effective_root_version and f"v{effective_root_version}" not in existing_tags:
+                tag = f"v{effective_root_version}"
+                version = effective_root_version
                 print(f"Using untagged root VERSION file: {version} -> {tag}")
             else:
                 parsed = []

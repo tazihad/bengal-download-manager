@@ -44,7 +44,10 @@ else
     ARCH_NAME="x86_64"
 fi
 
-if [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
+if [ -f "assets/bin/linux/$ARCH_NAME/aria2c" ]; then
+    cp "assets/bin/linux/$ARCH_NAME/aria2c" "$BUILD_DIR/files/bin/aria2c"
+    chmod +x "$BUILD_DIR/files/bin/aria2c"
+elif [ -f "assets/bin/$ARCH_NAME/aria2c" ]; then
     cp "assets/bin/$ARCH_NAME/aria2c" "$BUILD_DIR/files/bin/aria2c"
     chmod +x "$BUILD_DIR/files/bin/aria2c"
 fi

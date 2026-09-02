@@ -51,7 +51,10 @@ runs:
         fi
         chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
 
-        if [ -f "assets/bin/${ARCH}/aria2c" ]; then
+        if [ -f "assets/bin/linux/${ARCH}/aria2c" ]; then
+          cp "assets/bin/linux/${ARCH}/aria2c" "$BUILD_DIR/files/bin/aria2c"
+          chmod +x "$BUILD_DIR/files/bin/aria2c"
+        elif [ -f "assets/bin/${ARCH}/aria2c" ]; then
           cp "assets/bin/${ARCH}/aria2c" "$BUILD_DIR/files/bin/aria2c"
           chmod +x "$BUILD_DIR/files/bin/aria2c"
         fi

@@ -681,6 +681,7 @@ def find_aria2():
     meipass = getattr(sys, '_MEIPASS', None)
     if meipass:
         for candidate in [
+            os.path.join(meipass, "assets", "bin", "linux", arch, "aria2c"),
             os.path.join(meipass, "assets", "bin", arch, "aria2c"),
             os.path.join(meipass, "assets", "bin", "aria2c"),
             os.path.join(meipass, "bin", "aria2c")
@@ -695,12 +696,15 @@ def find_aria2():
         snap_candidates = [
             os.path.join(snap_root, "usr", "bin", "aria2c"),
             os.path.join(snap_root, "bin", "aria2c"),
+            os.path.join(snap_root, "share", "bengal-download-manager", "assets", "bin", "linux", arch, "aria2c"),
             os.path.join(snap_root, "share", "bengal-download-manager", "assets", "bin", arch, "aria2c"),
+            os.path.join(snap_root, "assets", "bin", "linux", arch, "aria2c"),
             os.path.join(snap_root, "assets", "bin", arch, "aria2c"),
         ]
 
     for candidate in [
         "/app/bin/aria2c",
+        f"/app/share/bengal-download-manager/assets/bin/linux/{arch}/aria2c",
         f"/app/share/bengal-download-manager/assets/bin/{arch}/aria2c",
         *snap_candidates
     ]:
@@ -712,8 +716,10 @@ def find_aria2():
     src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     root_dir = os.path.dirname(src_dir)
     for candidate in [
+        os.path.join(root_dir, "assets", "bin", "linux", arch, "aria2c"),
         os.path.join(root_dir, "assets", "bin", arch, "aria2c"),
         os.path.join(root_dir, "assets", "bin", "aria2c"),
+        os.path.join(src_dir, "assets", "bin", "linux", arch, "aria2c"),
         os.path.join(src_dir, "assets", "bin", arch, "aria2c")
     ]:
         if os.path.exists(candidate) and os.access(candidate, os.X_OK):

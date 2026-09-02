@@ -102,6 +102,12 @@ def bump_version(ver: str, bump_type: str) -> str:
         raise ValueError(f"Unknown bump type: {bump_type}")
 
 
+def graduate_version(ver: str) -> str:
+    """Graduates a pre-release version (e.g. 0.3.34-alpha.1 or 0.3.34-alpha) to a clean stable version (0.3.34)."""
+    major, minor, patch_num, _, _ = parse_semver(ver)
+    return f"{major}.{minor}.{patch_num}"
+
+
 def update_root_version(ver: str):
     with open(VERSION_FILE, "w", encoding="utf-8") as f:
         f.write(f"{ver}\n")
@@ -133,7 +139,6 @@ def update_metainfo(ver: str):
 def update_html_landing_page(ver: str):
     html_files = [
         os.path.join(ROOT_DIR, "index.html"),
-        os.path.join(ROOT_DIR, "variant-plasma-desktop.html")
     ]
     clean_ver = ver.split("-")[0] if "-" in ver else ver
     for path in html_files:
@@ -221,8 +226,9 @@ def main():
     parser.add_argument("--check", action="store_true", help="Check manifest consistency against VERSION")
     parser.add_argument("--set", type=str, metavar="VER", help="Set specific version string across all manifests")
     parser.add_argument("--bump", choices=["patch", "minor", "major", "alpha"], help="Bump semantic version")
-    parser.add_argument("--tag", action="store_true", help="Create Git tag after bump/set")
-    parser.add_argument("--commit", action="store_true", help="Create Git commit after bump/set")
+    parser.add_argument("--graduate", action="store_true", help="Graduate pre-release version (e.g. 0.3.34-alpha) to stable version (0.3.34)")
+    parser.add_argument("--tag", action="store_true", help="Create Git tag after bump/set/graduate")
+    parser.add_argument("--commit", action="store_true", help="Create Git commit after bump/set/graduate")
 
     args = parser.parse_args()
 
@@ -233,6 +239,9 @@ def main():
     new_ver = None
     if args.set:
         new_ver = args.set.strip().lstrip("v")
+    elif args.graduate:
+        curr_ver = read_root_version()
+        new_ver = graduate_version(curr_ver)
     elif args.bump:
         curr_ver = read_root_version()
         new_ver = bump_version(curr_ver, args.bump)
