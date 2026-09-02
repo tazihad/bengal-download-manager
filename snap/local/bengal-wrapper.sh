@@ -21,7 +21,7 @@ if [ -n "$SNAP_VERSION" ] && [ -z "$APP_VERSION" ]; then
     export APP_VERSION="$SNAP_VERSION"
 fi
 export PYTHONPATH="$SNAP_APP_ROOT/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$SNAP/usr/lib/python3/dist-packages:$PYTHONPATH"
-export PATH="$SNAP/bin:$SNAP/usr/bin:$SNAP_APP_ROOT/assets/bin/$ARCH:$SNAP_APP_ROOT/assets/bin:$PATH"
+export PATH="$SNAP/bin:$SNAP/usr/bin:$SNAP_APP_ROOT/assets/bin/linux/$ARCH:$SNAP_APP_ROOT/assets/bin/$ARCH:$SNAP_APP_ROOT/assets/bin:$PATH"
 export LD_LIBRARY_PATH="$SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH"
 
 # 2. Qt6 / Wayland / Rendering configuration
@@ -39,7 +39,9 @@ export XDG_DATA_DIRS="$SNAP/usr/share:$SNAP_APP_ROOT/assets:$XDG_DATA_DIRS"
 #      undefined symbol: rsvg_handle_get_pixbuf_and_error
 
 # 4. Aria2 bundled fallback detection
-if [ -f "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" ]; then
+if [ -f "$SNAP_APP_ROOT/assets/bin/linux/$ARCH/aria2c" ]; then
+    chmod +x "$SNAP_APP_ROOT/assets/bin/linux/$ARCH/aria2c" 2>/dev/null || true
+elif [ -f "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" ]; then
     chmod +x "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" 2>/dev/null || true
 fi
 
