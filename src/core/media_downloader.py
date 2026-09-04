@@ -379,12 +379,14 @@ class MediaExtractorWorker(QThread):
     playlist_analyzed = pyqtSignal(dict)
     analysis_failed = pyqtSignal(str)
 
-    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None):
+    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None):
         super().__init__()
         from core.utils import sanitize_media_url
         self.url = sanitize_media_url(url)
         self.cookies_browser = cookies_browser
         self.cookies_file = cookies_file
+        self.referrer = referrer
+        self.user_agent = user_agent
         self.process = None
         _keep_thread_alive(self)
 
@@ -421,9 +423,19 @@ class MediaExtractorWorker(QThread):
                 "--playlist-end", "100",
                 "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
-                "--ffmpeg-location", bin_dir,
                 "--extractor-args", f"youtube:player_client={yt_client}",
             ]
+
+            ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
+            if ffmpeg_bin:
+                cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+            elif os.path.exists(bin_dir):
+                cmd.extend(["--ffmpeg-location", bin_dir])
+
+            if self.referrer:
+                cmd.extend(["--referer", self.referrer])
+            if self.user_agent:
+                cmd.extend(["--user-agent", self.user_agent])
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
@@ -623,7 +635,7 @@ class YtDlpDownloadWorker(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(int, str)
 
-    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None):
+    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -633,6 +645,8 @@ class YtDlpDownloadWorker(QThread):
         self.is_audio_only = is_audio_only
         self.cookies_browser = cookies_browser
         self.cookies_file = cookies_file
+        self.referrer = referrer
+        self.user_agent = user_agent
         self.is_running = True
         self.is_paused = False
         self.process = None
@@ -665,7 +679,13 @@ class YtDlpDownloadWorker(QThread):
             bin_dir = str(BIN_DIR)
 
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
-            output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
+            clean_base = os.path.splitext(self.filename)[0] if self.filename else ""
+            if clean_base and clean_base.lower() not in ("media", "media_download", "master", "index"):
+                while len(clean_base.encode("utf-8")) > 100:
+                    clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+                output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+            else:
+                output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
 
             try:
                 cfg = load_category_config()
@@ -680,7 +700,6 @@ class YtDlpDownloadWorker(QThread):
                 "--verbose" if is_debug else "--no-warnings",
                 "--progress-delta", "0.1",
                 "--remote-components", "ejs:github",
-                "--ffmpeg-location", bin_dir,
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",
                 "--restrict-filenames",
@@ -688,6 +707,17 @@ class YtDlpDownloadWorker(QThread):
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
+
+            ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
+            if ffmpeg_bin:
+                cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+            elif os.path.exists(bin_dir):
+                cmd.extend(["--ffmpeg-location", bin_dir])
+
+            if self.referrer:
+                cmd.extend(["--referer", self.referrer])
+            if self.user_agent:
+                cmd.extend(["--user-agent", self.user_agent])
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
@@ -836,6 +866,10 @@ class YtDlpDownloadWorker(QThread):
                     f_ext = os.path.splitext(self.final_file_path)[1].lower()
                     if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                         final_path = self.final_file_path
+
+                target_expected = os.path.join(self.save_dir, self.filename)
+                if os.path.exists(target_expected) and os.path.isfile(target_expected):
+                    final_path = target_expected
 
                 if not final_path or not os.path.exists(final_path):
                     candidates = []

@@ -85,6 +85,7 @@ class DownloadFileInfoDialog(QDialog):
         
         self.auto_detect_category()
         self.update_save_path()
+        self.category_combo.activated.connect(lambda: setattr(self, "_category_manually_changed", True))
         self.category_combo.currentTextChanged.connect(self.update_save_path)
         self.save_input.textChanged.connect(self.on_save_input_changed)
         
@@ -148,7 +149,9 @@ class DownloadFileInfoDialog(QDialog):
         cat = self.category_combo.currentText()
         categories = self.config.get("categories", {})
         
-        if cat in categories:
+        if not getattr(self, "_category_manually_changed", False) and self.file_info.get("custom_save_dir") and os.path.exists(self.file_info.get("custom_save_dir")):
+            base_dir = self.file_info["custom_save_dir"]
+        elif cat in categories:
             base_dir = categories[cat]["path"]
         else:
             base_dir = get_user_downloads_dir()

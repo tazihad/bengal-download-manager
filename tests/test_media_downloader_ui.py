@@ -234,6 +234,7 @@ def test_media_downloader_auto_start_pipeline(qapp, monkeypatch):
         download_clicked = True
 
     monkeypatch.setattr(dlg, "_on_download_clicked", mock_download_clicked)
+    monkeypatch.setattr(dlg, "start_analysis", lambda: None)
 
     # 1. Initialize auto-start with 1080p target preset
     dlg.analyze_and_download("https://www.youtube.com/watch?v=sample123", auto_start=True, target_preset="1080p Full HD")
@@ -580,4 +581,42 @@ def test_video_and_audio_codec_availability_dropdowns(qapp):
     assert "(Not Available)" in dlg.cmb_audio_format.itemText(3)
 
     dlg.close()
+
+
+def test_start_media_download_shows_download_file_info_dialog(qapp, tmp_path):
+    """Verify that start_media_download with show_file_info=True displays DownloadFileInfoDialog before downloading."""
+    from main import MainWindow
+    from unittest.mock import patch
+    from PyQt6.QtCore import Qt
+
+    mw = MainWindow(start_ipc=False)
+    mw.hide()
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_start:
+        item_ref = mw.start_media_download(
+            url="https://example.com/stream.m3u8",
+            filename="Test_Stream.mp4",
+            format_spec="bestvideo+bestaudio/best",
+            custom_save_dir=str(tmp_path),
+            total_size_bytes=104857600,
+            show_file_info=True
+        )
+
+        assert item_ref is not None
+        dialog_key = mw._get_item_key(item_ref)
+        assert dialog_key in mw.active_file_info_dialogs
+        file_info_dlg = mw.active_file_info_dialogs[dialog_key]
+        assert file_info_dlg is not None
+        assert file_info_dlg.file_info["filename"] == "Test_Stream.mp4"
+        assert file_info_dlg.file_info["size_bytes"] == 104857600
+        # Worker has not started yet while waiting for user confirmation
+        assert not mock_start.called
+
+        # Simulate user clicking "Start Download" in DownloadFileInfoDialog
+        file_info_dlg.on_start()
+        assert mock_start.called
+        file_info_dlg.close()
+
+    mw.close()
+
 

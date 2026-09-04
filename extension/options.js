@@ -318,6 +318,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const mediaSniffingCheckbox = document.getElementById('options-enable-media-sniffing');
+  if (mediaSniffingCheckbox) {
+    mediaSniffingCheckbox.addEventListener('change', (e) => {
+      chrome.storage.local.set({ enableMediaSniffing: e.target.checked }, () => {
+        showToast(e.target.checked ? 'Media stream capture enabled ✓' : 'Media stream capture paused ✓', 'success');
+      });
+    });
+  }
+
   // 4. Setup Filter Inputs
   setupFilterInput('whitelist-url-input', 'add-whitelist-url', 'whitelist-url-tags', 'whitelistUrls', false);
   setupFilterInput('whitelist-ext-input', 'add-whitelist-ext', 'whitelist-ext-tags', 'whitelistExts', true);
@@ -331,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     theme: "system",
     bdmVersion: "",
     enableInterception: true,
+    enableMediaSniffing: true,
     whitelistUrls: [],
     whitelistExts: [],
     blacklistUrls: [],
@@ -348,6 +358,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('token').value = items.token || '';
     if (interceptionCheckbox) {
       interceptionCheckbox.checked = (items.enableInterception !== false);
+    }
+    if (mediaSniffingCheckbox) {
+      mediaSniffingCheckbox.checked = (items.enableMediaSniffing !== false);
     }
 
     applyTheme(items.theme || 'system');
@@ -390,6 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
     const theme = selectedRadio ? selectedRadio.value : 'system';
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
+    const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
 
     const payload = {
       host: "localhost",
@@ -397,6 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
       token,
       theme,
       enableInterception,
+      enableMediaSniffing,
       whitelistUrls: filterLists.whitelistUrls,
       whitelistExts: filterLists.whitelistExts,
       blacklistUrls: filterLists.blacklistUrls,
@@ -426,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
         const theme = selectedRadio ? selectedRadio.value : 'system';
         const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
+        const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
 
         const savePayload = {
           host: "localhost",
@@ -433,6 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
           token: token || '',
           theme,
           enableInterception,
+          enableMediaSniffing,
           whitelistUrls: filterLists.whitelistUrls,
           whitelistExts: filterLists.whitelistExts,
           blacklistUrls: filterLists.blacklistUrls,
@@ -462,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
       token: "",
       theme: "system",
       enableInterception: true,
+      enableMediaSniffing: true,
       whitelistUrls: [],
       whitelistExts: [],
       blacklistUrls: [],
@@ -472,6 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('port').value = defaults.port;
       document.getElementById('token').value = defaults.token;
       if (interceptionCheckbox) interceptionCheckbox.checked = true;
+      if (mediaSniffingCheckbox) mediaSniffingCheckbox.checked = true;
       applyTheme(defaults.theme);
 
       filterLists.whitelistUrls = [];

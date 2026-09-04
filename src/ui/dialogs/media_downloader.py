@@ -1039,6 +1039,12 @@ class MediaDownloaderDialog(QDialog):
                 return None, c_path
             return None, None
 
+    def set_request_context(self, referrer=None, user_agent=None, custom_title=None):
+        """Sets incoming HTTP context (referrer, user-agent) and custom title for media analysis and downloads."""
+        self._referrer = referrer
+        self._user_agent = user_agent
+        self._custom_title = custom_title
+
     def analyze_and_download(self, url: str, auto_start: bool = False, target_preset: str = ""):
         """Sets URL, applies auto-start flags, and initiates analysis."""
         from core.utils import sanitize_media_url
@@ -1065,7 +1071,13 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_status.setText("Analyzing link...")
 
         c_browser, c_file = self._get_cookies_args()
-        self._worker = MediaExtractorWorker(url, cookies_browser=c_browser, cookies_file=c_file)
+        self._worker = MediaExtractorWorker(
+            url,
+            cookies_browser=c_browser,
+            cookies_file=c_file,
+            referrer=getattr(self, "_referrer", None),
+            user_agent=getattr(self, "_user_agent", None)
+        )
         self._worker.status_signal.connect(self._on_status_msg)
         self._worker.single_video_analyzed.connect(self._on_single_video_ready)
         self._worker.playlist_analyzed.connect(self._on_playlist_ready)
@@ -1080,7 +1092,14 @@ class MediaDownloaderDialog(QDialog):
         self._current_video_data = data
         self._current_playlist_data = None
 
-        self.lbl_video_title.setText(data.get("title", "Untitled Media"))
+        custom_title = getattr(self, "_custom_title", None)
+        raw_title = data.get("title", "Untitled Media")
+        is_generic = not raw_title or raw_title.lower().strip() in ("master", "index", "video", "untitled media", "playlist", "videoplayback", "media")
+        if custom_title and (is_generic or custom_title.lower() != "video stream"):
+            display_title = custom_title
+        else:
+            display_title = raw_title
+        self.lbl_video_title.setText(display_title)
         dur_sec = int(data.get("duration") or 0)
         dur_str = f"{dur_sec // 60}m {dur_sec % 60:02d}s" if dur_sec else "Unknown"
         uploader = data.get("uploader") or "Unknown"
@@ -1150,13 +1169,17 @@ class MediaDownloaderDialog(QDialog):
             target_preset = getattr(self, "_auto_start_preset", "")
             if target_preset:
                 model = self.cmb_quality_preset.model()
+                res_match = re.search(r"(\d{3,4}p)", target_preset, re.IGNORECASE)
+                is_audio = "audio" in target_preset.lower() or "mp3" in target_preset.lower() or "opus" in target_preset.lower()
+                token = res_match.group(1).lower() if res_match else ("audio" if is_audio else target_preset.lower())
+
                 matched_idx = -1
                 for i in range(self.cmb_quality_preset.count()):
                     item = model.item(i) if model else None
                     if item and not item.isEnabled():
                         continue
-                    item_text = self.cmb_quality_preset.itemText(i)
-                    if target_preset.lower() in item_text.lower():
+                    item_text = self.cmb_quality_preset.itemText(i).lower()
+                    if token in item_text or target_preset.lower() in item_text:
                         matched_idx = i
                         break
                 if matched_idx != -1:
@@ -1756,7 +1779,21 @@ class MediaDownloaderDialog(QDialog):
         c_browser, c_file = self._get_cookies_args()
 
         if self.stack.currentWidget() == self.page_video and self._current_video_data:
-            title = self._current_video_data.get("title", "video")
+            custom_title = getattr(self, "_custom_title", None)
+            yt_title = self._current_video_data.get("title", "")
+            is_generic = not yt_title or yt_title.lower().strip() in ("master", "index", "video", "untitled media", "playlist", "videoplayback", "media")
+
+            if custom_title and (is_generic or custom_title.lower() != "video stream"):
+                title = custom_title
+            elif not is_generic:
+                title = yt_title
+            elif custom_title:
+                title = custom_title
+            else:
+                ref = getattr(self, "_referrer", None) or self.txt_url.text().strip()
+                m = re.search(r"/(?:v|video|watch)/([A-Za-z0-9_-]+)", ref)
+                title = f"video_{m.group(1)}" if m else "video"
+
             webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
             format_spec, is_audio_only = self._get_single_video_format_spec()
 
@@ -1764,22 +1801,54 @@ class MediaDownloaderDialog(QDialog):
             ext = ".opus" if is_audio_only else ".mkv"
             filename = sanitize_media_filename(title, ext=ext)
 
+            preset_idx = self.cmb_quality_preset.currentIndex()
+            target_height = None
+            if preset_idx == 1: target_height = 2160
+            elif preset_idx == 2: target_height = 1440
+            elif preset_idx == 3: target_height = 1080
+            elif preset_idx == 4: target_height = 720
+            elif preset_idx == 5: target_height = 480
+            elif preset_idx == 6: target_height = 360
+
             total_size_bytes = 0
-            for fmt in self._current_video_data.get("formats", []):
-                f_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
-                if f_size > total_size_bytes:
-                    total_size_bytes = f_size
+            if target_height:
+                for fmt in self._current_video_data.get("formats", []):
+                    if fmt.get("height") == target_height:
+                        s = fmt.get("filesize") or fmt.get("filesize_approx") or 0
+                        if s > total_size_bytes:
+                            total_size_bytes = s
+            if total_size_bytes == 0:
+                for fmt in self._current_video_data.get("formats", []):
+                    f_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
+                    if f_size > total_size_bytes:
+                        total_size_bytes = f_size
 
             if hasattr(mw, "start_media_download"):
-                mw.start_media_download(
-                    url=webpage_url,
-                    filename=filename,
-                    format_spec=format_spec,
-                    is_audio_only=is_audio_only,
-                    cookies_browser=c_browser,
-                    cookies_file=c_file,
-                    total_size_bytes=total_size_bytes
-                )
+                try:
+                    mw.start_media_download(
+                        url=webpage_url,
+                        filename=filename,
+                        format_spec=format_spec,
+                        is_audio_only=is_audio_only,
+                        cookies_browser=c_browser,
+                        cookies_file=c_file,
+                        total_size_bytes=total_size_bytes,
+                        referrer=getattr(self, "_referrer", None),
+                        user_agent=getattr(self, "_user_agent", None),
+                        show_file_info=True
+                    )
+                except TypeError:
+                    mw.start_media_download(
+                        url=webpage_url,
+                        filename=filename,
+                        format_spec=format_spec,
+                        is_audio_only=is_audio_only,
+                        cookies_browser=c_browser,
+                        cookies_file=c_file,
+                        total_size_bytes=total_size_bytes,
+                        referrer=getattr(self, "_referrer", None),
+                        user_agent=getattr(self, "_user_agent", None)
+                    )
             else:
                 mw.process_incoming_url(webpage_url)
 
@@ -1811,7 +1880,9 @@ class MediaDownloaderDialog(QDialog):
                             format_spec=format_spec,
                             is_audio_only=is_audio_only,
                             cookies_browser=c_browser,
-                            cookies_file=c_file
+                            cookies_file=c_file,
+                            referrer=getattr(self, "_referrer", None),
+                            user_agent=getattr(self, "_user_agent", None)
                         )
                     else:
                         mw.process_incoming_url(item_url)

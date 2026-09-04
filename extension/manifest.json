@@ -33,6 +33,8 @@
       "js": [
         "content.js"
       ],
+      "all_frames": true,
+      "match_about_blank": true,
       "run_at": "document_start"
     }
   ],
@@ -57,6 +59,17 @@
     "page": "options.html",
     "open_in_tab": true
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "inject.js",
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "bengal-download-manager@zihad.com.bd",

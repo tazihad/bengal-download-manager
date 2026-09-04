@@ -27,6 +27,12 @@ def test_is_media_downloader_url():
     assert is_media_downloader_url("https://clips.twitch.tv/AbcXyz") is True
     assert is_media_downloader_url("https://v.redd.it/abc123xyz") is True
 
+    # Streaming media manifests (.m3u8, .mpd) & media flags
+    assert is_media_downloader_url("https://edge-xx.vidvara.cc/hls/test/master.m3u8") is True
+    assert is_media_downloader_url("https://example.com/live/index_1280x720.m3u8?token=abc") is True
+    assert is_media_downloader_url("https://example.com/dash/manifest.mpd") is True
+    assert is_media_downloader_url("https://custom-site.com/file.bin||||1") is True
+
     # Standard non-media file links
     assert is_media_downloader_url("https://releases.ubuntu.com/22.04/ubuntu.iso") is False
     assert is_media_downloader_url("https://example.com/document.pdf") is False

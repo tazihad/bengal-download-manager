@@ -1630,7 +1630,9 @@ class MainWindow(QMainWindow):
                         format_spec=format_spec,
                         is_audio_only=is_audio_only,
                         cookies_browser=cookies_browser,
-                        cookies_file=cookies_file
+                        cookies_file=cookies_file,
+                        referrer=item_name.data(Qt.ItemDataRole.UserRole + 15),
+                        user_agent=item_name.data(Qt.ItemDataRole.UserRole + 16)
                     )
                     self.active_downloads[key] = worker
                     worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
@@ -2977,29 +2979,60 @@ class MainWindow(QMainWindow):
 
     def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
-        parts = data.split("|", 3)
+        parts = data.split("|", 6)
         url = parts[0]
         user_agent = parts[1] if len(parts) > 1 else ""
         cookies = parts[2] if len(parts) > 2 else ""
         referrer = parts[3] if len(parts) > 3 else ""
+        is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
+        selected_quality = parts[5] if len(parts) > 5 else ""
+        custom_title = parts[6] if len(parts) > 6 else ""
 
         if not url:
             return
 
         # 0. Check if URL is a media / video streaming link supported by yt-dlp
         from core.utils import is_media_downloader_url
-        if is_media_downloader_url(url):
+        if is_media_flag or is_media_downloader_url(url):
             from core.config import load_category_config
             cfg = load_category_config()
             media_defaults = cfg.get("media_downloader_defaults", {})
-            auto_start = bool(media_defaults.get("auto_start_media", False))
-            target_preset = media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
-            self.open_media_downloader(
-                url=url,
-                auto_analyze=True,
-                auto_start=auto_start,
-                target_preset=target_preset
-            )
+            # When initiated through the browser popup / floating widget where resolution was selected,
+            # directly download without prompting with extra dialogs
+            if is_media_flag:
+                auto_start = True
+                target_preset = selected_quality or media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+            else:
+                auto_start = bool(media_defaults.get("auto_start_media", False))
+                target_preset = media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+
+            try:
+                self.open_media_downloader(
+                    url=url,
+                    auto_analyze=True,
+                    auto_start=auto_start,
+                    target_preset=target_preset,
+                    referrer=referrer,
+                    user_agent=user_agent,
+                    custom_title=custom_title
+                )
+            except TypeError:
+                try:
+                    self.open_media_downloader(
+                        url=url,
+                        auto_analyze=True,
+                        auto_start=auto_start,
+                        target_preset=target_preset,
+                        referrer=referrer,
+                        user_agent=user_agent
+                    )
+                except TypeError:
+                    self.open_media_downloader(
+                        url=url,
+                        auto_analyze=True,
+                        auto_start=auto_start,
+                        target_preset=target_preset
+                    )
             return
 
         GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
@@ -4272,9 +4305,11 @@ class MainWindow(QMainWindow):
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
 
-    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset=""):
+    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset="", referrer=None, user_agent=None, custom_title=None):
         from ui.dialogs import MediaDownloaderDialog
         if MemoryGuard.is_widget_alive(getattr(self, "_media_downloader_dlg", None)):
+            if hasattr(self._media_downloader_dlg, "set_request_context"):
+                self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title)
             if not auto_start:
                 self._media_downloader_dlg.show()
                 self._media_downloader_dlg.raise_()
@@ -4289,6 +4324,8 @@ class MainWindow(QMainWindow):
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.finished.connect(lambda *_: setattr(self, "_media_downloader_dlg", None))
+        if hasattr(self._media_downloader_dlg, "set_request_context"):
+            self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title)
         if not auto_start:
             self._media_downloader_dlg.show()
             self._media_downloader_dlg.raise_()
@@ -4315,7 +4352,7 @@ class MainWindow(QMainWindow):
         self._scheduler_dlg.raise_()
         self._scheduler_dlg.activateWindow()
 
-    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0):
+    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False):
         from core.media_downloader import YtDlpDownloadWorker
 
         config = load_category_config()
@@ -4332,11 +4369,109 @@ class MainWindow(QMainWindow):
             except Exception:
                 save_dir = get_user_downloads_dir()
 
-        from core.utils import sanitize_media_filename, get_unique_media_filepath
+        from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes
         base_name, ext = os.path.splitext(filename)
         sanitized_filename = sanitize_media_filename(base_name, ext=ext)
         target_path = get_unique_media_filepath(save_dir, sanitized_filename)
         filename = os.path.basename(target_path)
+
+        silent = getattr(self, "settings", {}).get("silent_download", False)
+        show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        if silent or not show_start:
+            show_file_info = False
+
+        if show_file_info:
+            # Deduplicate: if a popup dialog for this URL is ALREADY open, bring it to front
+            for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
+                if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
+                    existing_d_url = dialog.file_info.get("url")
+                    if existing_d_url == url:
+                        dialog.show()
+                        dialog.raise_()
+                        dialog.activateWindow()
+                        return None
+
+            existing_filenames = set()
+            existing_paths = set()
+            for r in range(self.download_table.rowCount()):
+                it = self.download_table.item(r, 0)
+                if it:
+                    existing_filenames.add(it.text())
+                    sp = it.data(Qt.ItemDataRole.UserRole + 1)
+                    if sp:
+                        existing_paths.add(os.path.normpath(sp))
+
+            size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Unknown"
+            file_info = {
+                "url": url,
+                "filename": filename,
+                "size_str": size_str,
+                "size_bytes": total_size_bytes,
+                "user_agent": user_agent,
+                "cookies": cookies_file or cookies_browser,
+                "referer": referrer or url,
+                "content_type": "audio/*" if is_audio_only else "video/*",
+                "custom_save_dir": save_dir
+            }
+
+            from ui.dialogs import DownloadFileInfoDialog
+            dialog = DownloadFileInfoDialog(
+                file_info,
+                parent=None,
+                existing_paths=existing_paths,
+                existing_names=existing_filenames
+            )
+
+            results = dialog.get_results()
+            resolved_filename = results["filename"]
+            resolved_save_path = results["save_path"]
+
+            self.download_table.setSortingEnabled(False)
+            row = 0
+            self.download_table.insertRow(row)
+            current_ts = str(time.time())
+
+            item_name = QTableWidgetItem(resolved_filename)
+            item_name.setIcon(get_file_icon(resolved_filename))
+            item_name.setToolTip(resolved_filename)
+            item_name.setData(Qt.ItemDataRole.UserRole, url)
+            item_name.setData(Qt.ItemDataRole.UserRole + 1, resolved_save_path)
+            item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)
+            item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)
+            item_name.setData(Qt.ItemDataRole.UserRole + 6, format_spec)
+            item_name.setData(Qt.ItemDataRole.UserRole + 7, is_audio_only)
+            item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+            item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
+            item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+            item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
+            item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
+
+            self.download_table.setItem(row, 0, item_name)
+            self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
+            self._set_status_text(row, "Paused")
+            self._set_sortable_item(row, 3, "", parse_time_to_sec)
+            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
+            self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
+            self._set_row_bold(row, False)
+            self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
+            self.save_data()
+
+            dialog_id = self._get_item_key(item_name)
+            self.active_file_info_dialogs[dialog_id] = dialog
+            dialog.finished.connect(lambda *_, d_id=dialog_id: self.active_file_info_dialogs.pop(d_id, None))
+
+            dialog.accepted.connect(lambda: self._handle_media_download_dialog_accepted(
+                dialog, file_info, item_name, format_spec, is_audio_only, cookies_browser, cookies_file, referrer, user_agent
+            ))
+            dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_name))
+
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            return item_name
 
         self.download_table.setSortingEnabled(False)
         row = 0
@@ -4356,6 +4491,8 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
         item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
         item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+        item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
+        item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
 
         init_size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Calculating..."
         self.download_table.setItem(row, 0, item_name)
@@ -4390,7 +4527,9 @@ class MainWindow(QMainWindow):
             format_spec=format_spec,
             is_audio_only=is_audio_only,
             cookies_browser=cookies_browser,
-            cookies_file=cookies_file
+            cookies_file=cookies_file,
+            referrer=referrer,
+            user_agent=user_agent
         )
 
         key = self._get_item_key(item_name)
@@ -4405,6 +4544,71 @@ class MainWindow(QMainWindow):
         self._sync_sidebar_queues()
         self.save_data()
         return item_name
+
+    def _handle_media_download_dialog_accepted(self, dialog, file_info, item_ref, format_spec, is_audio_only, cookies_browser, cookies_file, referrer, user_agent):
+        results = dialog.get_results()
+        key = self._get_item_key(item_ref)
+        if key:
+            self.active_file_info_dialogs.pop(key, None)
+
+        final_filename = results["filename"]
+        final_save_path = results["save_path"]
+        final_save_dir = os.path.dirname(final_save_path)
+
+        item_ref.setText(final_filename)
+        item_ref.setIcon(get_file_icon(final_filename))
+        item_ref.setToolTip(final_filename)
+        item_ref.setData(Qt.ItemDataRole.UserRole + 1, final_save_path)
+
+        row = self.download_table.row(item_ref)
+        if row == -1:
+            return
+
+        if results["action"] == 'start':
+            is_active = len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS
+            self._set_row_bold(row, is_active)
+
+            if not is_active:
+                self._set_status_text(row, "Queued")
+                self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                self._set_row_bold(row, False)
+                self.download_table.setSortingEnabled(True)
+                self.update_ui_states()
+                self._sync_sidebar_queues()
+                self.save_data()
+                return
+
+            self._set_status_text(row, "Starting...")
+            from core.media_downloader import YtDlpDownloadWorker
+            worker = YtDlpDownloadWorker(
+                url=file_info["url"],
+                row_index=row,
+                save_dir=final_save_dir,
+                filename=final_filename,
+                format_spec=format_spec,
+                is_audio_only=is_audio_only,
+                cookies_browser=cookies_browser,
+                cookies_file=cookies_file,
+                referrer=referrer,
+                user_agent=user_agent
+            )
+            self.active_downloads[key] = worker
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, path, ref=item_ref, k=key: self._on_media_download_finished(k, ref, path))
+            self._set_status_text(row, "Downloading...")
+            worker.start()
+            self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
+            self.save_data()
+        elif results["action"] == 'later':
+            self._set_status_text(row, "Paused")
+            self._set_row_bold(row, False)
+            self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
+            self.save_data()
 
     def _on_media_download_finished(self, key, item_ref, path):
         if key in self.active_downloads:
