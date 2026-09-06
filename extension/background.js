@@ -427,7 +427,7 @@ async function isBengalDMOnline() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
-    const response = await fetch("http://127.0.0.1:9000/", {
+    const response = await fetch("http://127.0.0.1:56900/", {
       method: 'GET',
       signal: controller.signal
     });
@@ -440,7 +440,7 @@ async function isBengalDMOnline() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const response = await fetch("http://localhost:9000/", {
+      const response = await fetch("http://localhost:56900/", {
         method: 'GET',
         signal: controller.signal
       });
@@ -468,7 +468,7 @@ async function sendToBengalDM(downloadData) {
 
   const isOnline = await isBengalDMOnline();
   if (!isOnline) {
-    console.warn("Bengal DM application is not running on port 9000.");
+    console.warn("Bengal DM application is not running on port 56900.");
     return false;
   }
 
@@ -486,7 +486,7 @@ async function sendToBengalDM(downloadData) {
   };
 
   try {
-    const response = await fetch("http://127.0.0.1:9000/", {
+    const response = await fetch("http://127.0.0.1:56900/", {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -496,7 +496,7 @@ async function sendToBengalDM(downloadData) {
     return response.ok;
   } catch (err) {
     try {
-      const response = await fetch("http://localhost:9000/", {
+      const response = await fetch("http://localhost:56900/", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -858,7 +858,7 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.title && tab && tab.url && cachedAppOnline) {
       try {
-        fetch("http://127.0.0.1:9000/tab-update", {
+        fetch("http://127.0.0.1:56900/tab-update", {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tabId: String(tabId), tabUrl: tab.url, tabTitle: changeInfo.title })

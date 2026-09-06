@@ -18,7 +18,7 @@ from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from core.utils import load_extension_config
 
 # Default TCP port for browser extension communication
-DM_CONNECTOR_PORT = 9000
+DM_CONNECTOR_PORT = 56900
 
 
 class SignalEmitter(QObject):

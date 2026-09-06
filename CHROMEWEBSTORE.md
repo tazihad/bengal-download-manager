@@ -38,7 +38,7 @@ Every permission declared in `manifest.json` serves a specific purpose:
 
 | Host Permission | Purpose |
 |-----------------|---------|
-| `http://127.0.0.1/*` | Required to communicate with the local Bengal Download Manager HTTP server (port 9000). |
+| `http://127.0.0.1/*` | Required to communicate with the local Bengal Download Manager HTTP server (port 56900). |
 | `http://localhost/*` | Fallback host permission for local Bengal Download Manager communication. |
 | `<all_urls>` | Required to extract session cookies and handle download links across web domains. |
 
@@ -47,7 +47,7 @@ Every permission declared in `manifest.json` serves a specific purpose:
 ## 3. Privacy & Data Disclosures
 
 - **Data Collected**: None. No personal data, browsing history, or user credentials are collected or sent to external servers.
-- **Data Transmission**: Download URLs and session cookies are transmitted **only** to the local Bengal Download Manager application running on your own computer (`http://127.0.0.1:9000`).
+- **Data Transmission**: Download URLs and session cookies are transmitted **only** to the local Bengal Download Manager application running on your own computer (`http://127.0.0.1:56900`).
 - **Analytics**: Zero third-party tracking or analytics scripts are included.
 
 ---

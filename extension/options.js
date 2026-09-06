@@ -97,7 +97,7 @@ async function testConnection(port, token) {
     // 1. Query Bengal DM app backend to verify app is running and retrieve BDM version
     let bdmData = null;
     try {
-      const bdmResp = await fetch("http://127.0.0.1:9000/", {
+      const bdmResp = await fetch("http://127.0.0.1:56900/", {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         signal: controller.signal
@@ -107,7 +107,7 @@ async function testConnection(port, token) {
       }
     } catch {
       try {
-        const bdmResp = await fetch("http://localhost:9000/", {
+        const bdmResp = await fetch("http://localhost:56900/", {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal
@@ -429,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Syncing configuration...', 'success');
 
     try {
-      const response = await fetch("http://127.0.0.1:9000/", { method: 'GET' });
+      const response = await fetch("http://127.0.0.1:56900/", { method: 'GET' });
       if (!response.ok) throw new Error("App not responding");
 
       const data = await response.json();

@@ -63,7 +63,7 @@ uv pip install -r requirements-dev.txt  # For development/testing
 The Chrome/Firefox extension requires:
 - A modern browser (Chrome, Edge, Firefox, Brave, etc.).
 - The extension files located in the `extension/` directory.
-- The application must be running to receive downloads via the local TCP port (9000).
+- The application must be running to receive downloads via the local TCP port (56900).
 
 ---
 
