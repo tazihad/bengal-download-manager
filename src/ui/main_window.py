@@ -1641,7 +1641,10 @@ class MainWindow(QMainWindow):
                     self.active_downloads[key] = progress_dialog
                     progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
                     progress_dialog.finished.connect(self._try_start_queued)
-                    if show_dialog:
+                    silent = getattr(self, "settings", {}).get("silent_download", False)
+                    show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+                    show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+                    if show_dialog and (not silent) and show_prog:
                         progress_dialog.show()
                     else:
                         progress_dialog.hide()
@@ -3319,7 +3322,7 @@ class MainWindow(QMainWindow):
         if silent or not show_start:
             # Bypass FileInfoDialog: auto-start immediately
             filename = file_info.get("filename") or resolve_filename(file_info.get("url"), {})
-            show_prog = False if silent else getattr(self, "settings", {}).get("show_progress_dialog", True)
+            show_prog = False if (silent or not show_start) else getattr(self, "settings", {}).get("show_progress_dialog", True)
             self.start_download(
                 url=file_info["url"], 
                 custom_filename=filename,
@@ -3372,7 +3375,8 @@ class MainWindow(QMainWindow):
             file_info,
             parent=None,
             existing_paths=existing_paths,
-            existing_names=existing_filenames
+            existing_names=existing_filenames,
+            main_window=self
         )
         
         # Add to list but don't start downloading yet (wait for user confirmation)
@@ -3409,6 +3413,15 @@ class MainWindow(QMainWindow):
         if key:
             self.active_file_info_dialogs.pop(key, None)
         
+        if results.get("dont_show_again"):
+            if hasattr(self, "settings") and isinstance(self.settings, dict):
+                self.settings["show_start_dialog"] = False
+            self.show_start_dialog = False
+            self.save_settings()
+            if hasattr(self, "_options_dlg") and MemoryGuard.is_widget_alive(self._options_dlg):
+                if hasattr(self._options_dlg, "chk_show_start_dialog"):
+                    self._options_dlg.chk_show_start_dialog.setChecked(False)
+
         # Update filename and path in case user changed them in the dialog
         item_ref.setText(results["filename"])
         item_ref.setToolTip(results["filename"])
@@ -3445,7 +3458,12 @@ class MainWindow(QMainWindow):
             self.download_table.removeRow(row)
         self.save_data()
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=True, user_agent=None, cookies=None, referer=None):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None):
+        if show_dialog is None:
+            silent = getattr(self, "settings", {}).get("silent_download", False)
+            show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+            show_dialog = (not silent) and show_start and getattr(self, "settings", {}).get("show_progress_dialog", True)
+
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
@@ -3521,7 +3539,15 @@ class MainWindow(QMainWindow):
         self.save_data()
         return item_name
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None, referrer=None, allow_resume=True):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True):
+        silent = getattr(self, "settings", {}).get("silent_download", False)
+        pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
+        if show_dialog is None:
+            should_show_progress = (not silent) and pref_show_progress
+        else:
+            should_show_progress = bool(show_dialog) and (not silent) and pref_show_progress
+
         format_spec = item_ref.data(Qt.ItemDataRole.UserRole + 6)
         if format_spec is not None:
             from core.media_downloader import YtDlpDownloadWorker
@@ -3575,8 +3601,7 @@ class MainWindow(QMainWindow):
             progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
             progress_dialog.finished.connect(self._try_start_queued)
 
-            silent = getattr(self, "settings", {}).get("silent_download", False)
-            if show_dialog and not silent:
+            if should_show_progress:
                 progress_dialog.show()
             else:
                 progress_dialog.hide()
@@ -3670,7 +3695,7 @@ class MainWindow(QMainWindow):
 
         # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
         progress_dialog = DownloadProgressDialog(worker, None)
-        if show_dialog:
+        if should_show_progress:
             progress_dialog.show()
         else:
             progress_dialog.hide()
@@ -3712,7 +3737,14 @@ class MainWindow(QMainWindow):
                         if entry:
                             self._stop_worker_entry(entry)
                 elif key in self.active_downloads or self._is_download_active(item_name):
-                    dialog = self.show_download_progress_dialog(item_name)
+                    silent = getattr(self, "settings", {}).get("silent_download", False)
+                    show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+                    show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+                    if (not silent) and show_prog:
+                        dialog = self.show_download_progress_dialog(item_name)
+                    else:
+                        entry = self.active_downloads.get(key)
+                        dialog = entry if isinstance(entry, DownloadProgressDialog) else None
                     status_item = self.download_table.item(row, 2)
                     logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
                     
@@ -4627,7 +4659,8 @@ class MainWindow(QMainWindow):
                 file_info,
                 parent=None,
                 existing_paths=existing_paths,
-                existing_names=existing_filenames
+                existing_names=existing_filenames,
+                main_window=self
             )
 
             results = dialog.get_results()
@@ -4761,7 +4794,9 @@ class MainWindow(QMainWindow):
         progress_dialog.finished.connect(self._try_start_queued)
 
         silent = getattr(self, "settings", {}).get("silent_download", False)
-        if not silent:
+        show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+        if (not silent) and show_prog:
             progress_dialog.show()
         else:
             progress_dialog.hide()
@@ -4779,6 +4814,15 @@ class MainWindow(QMainWindow):
         key = self._get_item_key(item_ref)
         if key:
             self.active_file_info_dialogs.pop(key, None)
+
+        if results.get("dont_show_again"):
+            if hasattr(self, "settings") and isinstance(self.settings, dict):
+                self.settings["show_start_dialog"] = False
+            self.show_start_dialog = False
+            self.save_settings()
+            if hasattr(self, "_options_dlg") and MemoryGuard.is_widget_alive(self._options_dlg):
+                if hasattr(self._options_dlg, "chk_show_start_dialog"):
+                    self._options_dlg.chk_show_start_dialog.setChecked(False)
 
         final_filename = results["filename"]
         final_save_path = results["save_path"]
@@ -4837,7 +4881,9 @@ class MainWindow(QMainWindow):
             progress_dialog.finished.connect(self._try_start_queued)
 
             silent = getattr(self, "settings", {}).get("silent_download", False)
-            if not silent:
+            show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+            show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+            if (not silent) and show_prog:
                 progress_dialog.show()
             else:
                 progress_dialog.hide()

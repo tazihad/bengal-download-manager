@@ -1,7 +1,7 @@
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QComboBox, QFormLayout, QApplication
+    QComboBox, QFormLayout, QApplication, QCheckBox
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -10,8 +10,9 @@ from core.config import load_category_config
 from core.memory_guard import MemoryGuard
 
 class DownloadFileInfoDialog(QDialog):
-    def __init__(self, file_info, parent=None, existing_paths=None, existing_names=None, force_copy=False):
+    def __init__(self, file_info, parent=None, existing_paths=None, existing_names=None, force_copy=False, main_window=None):
         super().__init__(parent)
+        self.main_window = main_window or (parent if hasattr(parent, "settings") else None)
         MemoryGuard.auto_manage_dialog(self)
         self.setWindowTitle("Download File Info")
         self.setWindowIcon(QApplication.windowIcon())
@@ -82,6 +83,11 @@ class DownloadFileInfoDialog(QDialog):
         form_layout.addRow("File Size:", self.lbl_size)
         
         self.layout.addLayout(form_layout)
+        
+        self.chk_dont_show = QCheckBox("Don't show this dialog again (start downloads directly)")
+        self.chk_dont_show.setToolTip("Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)")
+        self.chk_dont_show.setChecked(False)
+        self.layout.addWidget(self.chk_dont_show)
         
         self.auto_detect_category()
         self.update_save_path()
@@ -191,13 +197,50 @@ class DownloadFileInfoDialog(QDialog):
             "category": self.category_combo.currentText(),
             "filename": os.path.basename(self.save_input.text()),
             "size_str": self.file_info.get("size_str", "Unknown"),
-            "size_bytes": self.file_info.get("size_bytes", 0)
+            "size_bytes": self.file_info.get("size_bytes", 0),
+            "dont_show_again": self.chk_dont_show.isChecked() if hasattr(self, "chk_dont_show") else False
         }
         
+    def _save_dont_show_preference(self):
+        if not hasattr(self, "chk_dont_show") or not self.chk_dont_show.isChecked():
+            return
+        target = self.main_window
+        if not target:
+            for widget in QApplication.topLevelWidgets():
+                if hasattr(widget, "settings") and isinstance(widget.settings, dict):
+                    target = widget
+                    break
+        if target:
+            if hasattr(target, "settings") and isinstance(target.settings, dict):
+                target.settings["show_start_dialog"] = False
+            if hasattr(target, "show_start_dialog"):
+                target.show_start_dialog = False
+            if hasattr(target, "save_settings") and callable(target.save_settings):
+                target.save_settings()
+            if hasattr(target, "_options_dlg") and MemoryGuard.is_widget_alive(target._options_dlg):
+                if hasattr(target._options_dlg, "chk_show_start_dialog"):
+                    target._options_dlg.chk_show_start_dialog.setChecked(False)
+        else:
+            try:
+                import json
+                from core.utils import get_config_dir
+                path = os.path.join(get_config_dir(), "settings.json")
+                cur = {}
+                if os.path.exists(path):
+                    with open(path, "r") as f:
+                        cur = json.load(f)
+                cur["show_start_dialog"] = False
+                with open(path, "w") as f:
+                    json.dump(cur, f)
+            except Exception:
+                pass
+
     def on_start(self):
         self.action_result = 'start'
+        self._save_dont_show_preference()
         self.accept()
         
     def on_later(self):
         self.action_result = 'later'
+        self._save_dont_show_preference()
         self.accept()
