@@ -525,7 +525,7 @@ document.addEventListener('click', (event) => {
   root.id = 'bdmRoot';
 
   const logoUrl = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('assets/tray_monochrome_light.png')
+    ? chrome.runtime.getURL('assets/media_download_icon.svg')
     : '';
 
   const logoHtml = logoUrl

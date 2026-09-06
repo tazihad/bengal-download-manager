@@ -1057,8 +1057,8 @@ def get_themed_tray_icon(tray_option=None) -> QIcon:
         tray_option = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else "App Icon (Default)"
 
     opt_lower = str(tray_option).strip().lower()
-    light_path = _resolve_tray_asset("tray_monochrome_light.png")
-    dark_path = _resolve_tray_asset("tray_monochrome_dark.png")
+    light_path = _resolve_tray_asset("tray_monochrome_light.svg") or _resolve_tray_asset("tray_monochrome_light.png")
+    dark_path = _resolve_tray_asset("tray_monochrome_dark.svg") or _resolve_tray_asset("tray_monochrome_dark.png")
 
     if opt_lower in ("app icon (default)", "app icon", "app_icon", "bdm app icon"):
         icon = get_app_icon()

@@ -392,11 +392,11 @@ def test_tray_icon_resolution_and_dynamic_preview(qapp):
     from core.services.theme_service import _resolve_tray_asset, get_themed_tray_icon, apply_app_theme
     import os
 
-    light_path = _resolve_tray_asset("tray_monochrome_light.png")
-    dark_path = _resolve_tray_asset("tray_monochrome_dark.png")
-    assert light_path != "", "tray_monochrome_light.png asset not found"
+    light_path = _resolve_tray_asset("tray_monochrome_light.svg") or _resolve_tray_asset("tray_monochrome_light.png")
+    dark_path = _resolve_tray_asset("tray_monochrome_dark.svg") or _resolve_tray_asset("tray_monochrome_dark.png")
+    assert light_path != "", "tray_monochrome_light.svg asset not found"
     assert os.path.exists(light_path), f"Path {light_path} does not exist"
-    assert dark_path != "", "tray_monochrome_dark.png asset not found"
+    assert dark_path != "", "tray_monochrome_dark.svg asset not found"
     assert os.path.exists(dark_path), f"Path {dark_path} does not exist"
 
     window = MainWindow(start_ipc=False)
