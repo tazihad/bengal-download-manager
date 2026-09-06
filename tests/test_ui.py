@@ -1162,7 +1162,10 @@ def test_download_complete_dialog_shown_after_file_info_fetched(qapp, tmp_path):
     window.close()
 
 
-def test_media_download_complete_dialog_shown(qapp, tmp_path):
+def test_media_download_complete_dialog_shown(qapp, tmp_path, monkeypatch):
+    from core.media_downloader import YtDlpDownloadWorker
+    monkeypatch.setattr(YtDlpDownloadWorker, "start", lambda self: None)
+
     media_file = tmp_path / "video.mp4"
     media_file.write_bytes(b"\x00\x00\x00 ftypisom" + b"0" * 2048)
 
@@ -2207,15 +2210,55 @@ def test_show_progress_dialog_setting_suppresses_progress_window(qapp, tmp_path,
     """Verify that unchecking show_progress_dialog prevents progress dialog from popping up."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    import os
     from main import MainWindow
-    from core.workers import DownloadWorker, Aria2Worker
-    from core.media_downloader import YtDlpDownloadWorker
     from PyQt6.QtWidgets import QTableWidgetItem
-    from PyQt6.QtCore import Qt
+    from PyQt6.QtCore import Qt, QObject, pyqtSignal
 
-    monkeypatch.setattr(DownloadWorker, "start", lambda self: None)
-    monkeypatch.setattr(Aria2Worker, "start", lambda self: None)
-    monkeypatch.setattr(YtDlpDownloadWorker, "start", lambda self: None)
+    class DummyWorker(QObject):
+        log_signal = pyqtSignal(str)
+        main_bar_signal = pyqtSignal(int, int)
+        main_progress_signal = pyqtSignal(int, tuple)
+        finished_signal = pyqtSignal(int, str)
+        init_segments_signal = pyqtSignal(int)
+        segment_update_signal = pyqtSignal(int, tuple)
+
+        def __init__(self, url, row, save_dir, filename=None, **kwargs):
+            super().__init__()
+            self.url = url
+            self.row_index = row
+            self.filename = filename or "dummy.zip"
+            self.target_path = os.path.join(save_dir, self.filename)
+            self.total_bytes = 1000000
+            self.current_bytes = 0
+            self.generation = 1
+            self.is_paused = False
+            self.is_pause_requested = False
+
+        def isRunning(self):
+            return False
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def pause(self):
+            self.is_paused = True
+
+        def resume(self):
+            self.is_paused = False
+
+        def format_bytes(self, b, **kw):
+            return f"{b} B"
+
+        def set_global_speed_limit(self, limit):
+            pass
+
+    monkeypatch.setattr("ui.main_window.DownloadWorker", DummyWorker)
+    monkeypatch.setattr("ui.main_window.Aria2Worker", DummyWorker)
+    monkeypatch.setattr("core.media_downloader.YtDlpDownloadWorker", DummyWorker)
 
     win = MainWindow(start_ipc=False)
     win.hide()
@@ -2326,16 +2369,56 @@ def test_show_start_dialog_unchecked_suppresses_progress_dialog(qapp, tmp_path, 
     """Verify that unchecking show_start_dialog suppresses download progress dialog even if show_progress_dialog is True."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    import os
     from main import MainWindow
-    from core.workers import DownloadWorker, Aria2Worker
-    from core.media_downloader import YtDlpDownloadWorker
     from ui.dialogs.options import OptionsDialog
     from PyQt6.QtWidgets import QTableWidgetItem
-    from PyQt6.QtCore import Qt
+    from PyQt6.QtCore import Qt, QObject, pyqtSignal
 
-    monkeypatch.setattr(DownloadWorker, "start", lambda self: None)
-    monkeypatch.setattr(Aria2Worker, "start", lambda self: None)
-    monkeypatch.setattr(YtDlpDownloadWorker, "start", lambda self: None)
+    class DummyWorker(QObject):
+        log_signal = pyqtSignal(str)
+        main_bar_signal = pyqtSignal(int, int)
+        main_progress_signal = pyqtSignal(int, tuple)
+        finished_signal = pyqtSignal(int, str)
+        init_segments_signal = pyqtSignal(int)
+        segment_update_signal = pyqtSignal(int, tuple)
+
+        def __init__(self, url, row, save_dir, filename=None, **kwargs):
+            super().__init__()
+            self.url = url
+            self.row_index = row
+            self.filename = filename or "dummy.zip"
+            self.target_path = os.path.join(save_dir, self.filename)
+            self.total_bytes = 1000000
+            self.current_bytes = 0
+            self.generation = 1
+            self.is_paused = False
+            self.is_pause_requested = False
+
+        def isRunning(self):
+            return False
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def pause(self):
+            self.is_paused = True
+
+        def resume(self):
+            self.is_paused = False
+
+        def format_bytes(self, b, **kw):
+            return f"{b} B"
+
+        def set_global_speed_limit(self, limit):
+            pass
+
+    monkeypatch.setattr("ui.main_window.DownloadWorker", DummyWorker)
+    monkeypatch.setattr("ui.main_window.Aria2Worker", DummyWorker)
+    monkeypatch.setattr("core.media_downloader.YtDlpDownloadWorker", DummyWorker)
 
     win = MainWindow(start_ipc=False)
     win.hide()

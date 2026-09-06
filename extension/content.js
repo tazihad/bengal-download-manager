@@ -21,8 +21,12 @@
   let activeIframeVideo = null;
   let activeIframeData = null;
   let isTopHandlingWidget = false;
+  let isAppConnected = false;
+  let enableMediaSniffing = true;
+  let videoPanelPosition = 'top-right';
 
   function notifyTopFrameVideo(video, state = 'playing') {
+    if (!isAppConnected || !enableMediaSniffing) return;
     if (window.self === window.top) return;
     try {
       window.top.postMessage({
@@ -44,6 +48,7 @@
     if (!event.data || typeof event.data !== 'object') return;
 
     if (event.data.type === '__BDM_IFRAME_VIDEO_STATE__') {
+      if (!isAppConnected || !enableMediaSniffing) return;
       const data = event.data;
       const iframes = document.querySelectorAll('iframe');
       let targetIframe = null;
@@ -158,10 +163,73 @@
       });
     } catch {}
   }
-  fetchSniffedMedia();
+  function checkConnectionStatus() {
+    try {
+      chrome.runtime.sendMessage({ action: "get_connection_status" }, (res) => {
+        if (chrome.runtime.lastError) {
+          isAppConnected = false;
+          hideWidget();
+          return;
+        }
+        const wasConnected = isAppConnected;
+        isAppConnected = Boolean(res && res.online);
+        if (!isAppConnected) {
+          hideWidget();
+        } else if (!wasConnected && activeVideo && enableMediaSniffing) {
+          showWidget();
+        }
+      });
+    } catch {
+      isAppConnected = false;
+      hideWidget();
+    }
+  }
+  checkConnectionStatus();
+
+  try {
+    chrome.storage.local.get({
+      enableMediaSniffing: true,
+      videoPanelPosition: 'top-right'
+    }, (items) => {
+      if (chrome.runtime.lastError) return;
+      enableMediaSniffing = items.enableMediaSniffing !== false;
+      if (items.videoPanelPosition) videoPanelPosition = items.videoPanelPosition;
+      if (!enableMediaSniffing || !isAppConnected) {
+        hideWidget();
+      }
+    });
+
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local') {
+        if (changes.enableMediaSniffing !== undefined) {
+          enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
+          if (!enableMediaSniffing || !isAppConnected) {
+            hideWidget();
+          } else if (activeVideo && isAppConnected) {
+            showWidget();
+          }
+        }
+        if (changes.videoPanelPosition !== undefined) {
+          videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
+          updateWidgetPosition();
+        }
+      }
+    });
+  } catch {}
 
   chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.action === "connection_status_changed") {
+      const wasConnected = isAppConnected;
+      isAppConnected = Boolean(msg.online);
+      if (!isAppConnected) {
+        hideWidget();
+      } else if (!wasConnected && activeVideo && enableMediaSniffing) {
+        showWidget();
+      }
+      return;
+    }
     if (msg && msg.action === "media_stream_detected" && msg.stream) {
+      if (!isAppConnected || !enableMediaSniffing) return;
       if (!sniffedMediaStreams.some(s => s.url === msg.stream.url)) {
         sniffedMediaStreams.unshift(msg.stream);
         if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
@@ -345,12 +413,69 @@
     }
 
     @keyframes bdmFadeIn {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     .bdm-root.open .bdm-dropdown {
       display: block;
+    }
+
+    .bdm-root.pos-top-left .bdm-dropdown {
+      left: 0;
+      right: auto;
+      top: calc(100% + 6px);
+      bottom: auto;
+    }
+
+    .bdm-root.pos-top-right .bdm-dropdown {
+      right: 0;
+      left: auto;
+      top: calc(100% + 6px);
+      bottom: auto;
+    }
+
+    .bdm-root.pos-top-center .bdm-dropdown,
+    .bdm-root.pos-center .bdm-dropdown {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      top: calc(100% + 6px);
+      bottom: auto;
+    }
+
+    .bdm-root.pos-bottom-left .bdm-dropdown {
+      left: 0;
+      right: auto;
+      bottom: calc(100% + 6px);
+      top: auto;
+    }
+
+    .bdm-root.pos-bottom-right .bdm-dropdown {
+      right: 0;
+      left: auto;
+      bottom: calc(100% + 6px);
+      top: auto;
+    }
+
+    .bdm-root.pos-bottom-center .bdm-dropdown {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      bottom: calc(100% + 6px);
+      top: auto;
+    }
+
+    .bdm-root.pos-top-center .bdm-header,
+    .bdm-root.pos-center .bdm-header,
+    .bdm-root.pos-bottom-center .bdm-header {
+      text-align: center;
+    }
+
+    .bdm-root.pos-top-center .bdm-meta,
+    .bdm-root.pos-center .bdm-meta,
+    .bdm-root.pos-bottom-center .bdm-meta {
+      justify-content: center;
     }
 
     /* Dropdown Header */
@@ -1164,7 +1289,7 @@
 
   // 12. Widget Display & Positioning
   function updateWidgetPosition() {
-    if (!activeVideo || !root.classList.contains('visible')) return;
+    if (!activeVideo || !root.classList.contains('visible') || !isAppConnected || !enableMediaSniffing) return;
 
     if (isUserPositioned) {
       root.style.left = `${userCoords.left}px`;
@@ -1183,12 +1308,50 @@
     }
 
     const pillW = pill.offsetWidth || 34;
+    const pillH = pill.offsetHeight || 34;
     const pad = 16;
-    let left = rect.right - pillW - pad;
-    let top = rect.top + pad;
+    let left;
+    let top;
+
+    switch (videoPanelPosition) {
+      case 'top-left':
+        left = rect.left + pad;
+        top = rect.top + pad;
+        break;
+      case 'top-center':
+        left = rect.left + (rect.width - pillW) / 2;
+        top = rect.top + pad;
+        break;
+      case 'center':
+        left = rect.left + (rect.width - pillW) / 2;
+        top = rect.top + (rect.height - pillH) / 2;
+        break;
+      case 'bottom-left':
+        left = rect.left + pad;
+        top = rect.bottom - pillH - 24;
+        break;
+      case 'bottom-center':
+        left = rect.left + (rect.width - pillW) / 2;
+        top = rect.bottom - pillH - 24;
+        break;
+      case 'bottom-right':
+        left = rect.right - pillW - pad;
+        top = rect.bottom - pillH - 24;
+        break;
+      case 'top-right':
+      default:
+        left = rect.right - pillW - pad;
+        top = rect.top + pad;
+        break;
+    }
+
+    const validPositions = ['top-right', 'top-left', 'top-center', 'center', 'bottom-right', 'bottom-left', 'bottom-center'];
+    const activePosClass = `pos-${videoPanelPosition}`;
+    validPositions.forEach(p => root.classList.remove(`pos-${p}`));
+    root.classList.add(validPositions.includes(videoPanelPosition) ? activePosClass : 'pos-top-right');
 
     left = Math.max(8, Math.min(window.innerWidth - pillW - 8, left));
-    top = Math.max(8, Math.min(window.innerHeight - 40, top));
+    top = Math.max(8, Math.min(window.innerHeight - pillH - 8, top));
 
     root.style.left = `${left}px`;
     root.style.top = `${top}px`;
@@ -1197,6 +1360,10 @@
   }
 
   function showWidget() {
+    if (!isAppConnected || !enableMediaSniffing) {
+      hideWidget();
+      return;
+    }
     ensureAttached();
     root.classList.add('visible');
     root.style.display = 'flex';
@@ -1226,14 +1393,59 @@
     footerEl.classList.remove('opening');
     footerTextEl.textContent = 'Bengal Download Manager';
 
-    // Prevent dropdown clipping off left edge if dragged near left boundary
-    const rect = root.getBoundingClientRect();
-    if (rect.left < 320) {
+    const isCenterPos = ['top-center', 'center', 'bottom-center'].includes(videoPanelPosition);
+    const isBottomPos = ['bottom-left', 'bottom-right', 'bottom-center'].includes(videoPanelPosition);
+
+    if (isUserPositioned) {
+      const rect = root.getBoundingClientRect();
+      if (rect.left < 160) {
+        dropdown.style.left = '0';
+        dropdown.style.right = 'auto';
+        dropdown.style.transform = 'none';
+      } else if (window.innerWidth - rect.right < 160) {
+        dropdown.style.left = 'auto';
+        dropdown.style.right = '0';
+        dropdown.style.transform = 'none';
+      } else {
+        dropdown.style.left = '50%';
+        dropdown.style.right = 'auto';
+        dropdown.style.transform = 'translateX(-50%)';
+      }
+      dropdown.style.top = 'calc(100% + 6px)';
+      dropdown.style.bottom = 'auto';
+    } else if (isCenterPos) {
+      dropdown.style.left = '50%';
       dropdown.style.right = 'auto';
+      dropdown.style.transform = 'translateX(-50%)';
+      if (isBottomPos) {
+        dropdown.style.top = 'auto';
+        dropdown.style.bottom = 'calc(100% + 6px)';
+      } else {
+        dropdown.style.top = 'calc(100% + 6px)';
+        dropdown.style.bottom = 'auto';
+      }
+    } else if (['top-left', 'bottom-left'].includes(videoPanelPosition)) {
       dropdown.style.left = '0';
+      dropdown.style.right = 'auto';
+      dropdown.style.transform = 'none';
+      if (isBottomPos) {
+        dropdown.style.top = 'auto';
+        dropdown.style.bottom = 'calc(100% + 6px)';
+      } else {
+        dropdown.style.top = 'calc(100% + 6px)';
+        dropdown.style.bottom = 'auto';
+      }
     } else {
       dropdown.style.left = 'auto';
       dropdown.style.right = '0';
+      dropdown.style.transform = 'none';
+      if (isBottomPos) {
+        dropdown.style.top = 'auto';
+        dropdown.style.bottom = 'calc(100% + 6px)';
+      } else {
+        dropdown.style.top = 'calc(100% + 6px)';
+        dropdown.style.bottom = 'auto';
+      }
     }
 
     requestMediaInfo();
@@ -1257,6 +1469,7 @@
 
   // 13. Video State Observation
   function onVideoState(video) {
+    if (!isAppConnected || !enableMediaSniffing) return;
     if (!video) return;
 
     const hasPlayed = playedVideos.has(video) || (activeVideo === video);

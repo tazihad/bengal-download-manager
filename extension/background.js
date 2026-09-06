@@ -57,9 +57,30 @@ function applyDownloadUiOptions(isOnline) {
   }
 }
 
+function broadcastConnectionStatus(isOnline) {
+  try {
+    chrome.tabs.query({}, (tabs) => {
+      if (chrome.runtime.lastError || !tabs) return;
+      for (const tab of tabs) {
+        if (tab && tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            action: "connection_status_changed",
+            online: Boolean(isOnline)
+          }).catch(() => {});
+        }
+      }
+    });
+  } catch {}
+}
+
 async function updateAppConnectionBadge(isOnline) {
-  cachedAppOnline = Boolean(isOnline);
+  const onlineBool = Boolean(isOnline);
+  const statusChanged = (cachedAppOnline !== onlineBool);
+  cachedAppOnline = onlineBool;
   applyDownloadUiOptions(cachedAppOnline);
+  if (statusChanged) {
+    broadcastConnectionStatus(cachedAppOnline);
+  }
   const action = getActionAPI();
   if (!action) return;
 
@@ -1349,6 +1370,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "update_connection_status") {
     updateAppConnectionBadge(Boolean(request.online));
     sendResponse({ success: true, online: cachedAppOnline });
+    return true;
+  }
+
+  if (request.action === "get_connection_status") {
+    sendResponse({ online: cachedAppOnline });
     return true;
   }
 

@@ -286,7 +286,26 @@ class MainWindow(QMainWindow):
             return proc
         except Exception:
             return None
+    def close(self):
+        self._is_closing = True
+        if hasattr(self, "_active_retry_timers"):
+            for t in list(self._active_retry_timers):
+                try:
+                    t.stop()
+                except Exception:
+                    pass
+            self._active_retry_timers.clear()
+        return super().close()
+
     def closeEvent(self, event: QCloseEvent):
+        self._is_closing = True
+        if hasattr(self, "_active_retry_timers"):
+            for t in list(self._active_retry_timers):
+                try:
+                    t.stop()
+                except Exception:
+                    pass
+            self._active_retry_timers.clear()
         if not self.is_quitting:
             event.ignore()
             self._is_in_tray = True
@@ -4491,14 +4510,20 @@ class MainWindow(QMainWindow):
                 max_retries = q_config.get("retries_count", 10)
                 if not hasattr(self, "download_retry_counts"):
                     self.download_retry_counts = {}
+                if not hasattr(self, "_active_retry_timers"):
+                    self._active_retry_timers = []
                 current_retries = self.download_retry_counts.get(key, 0)
                 if current_retries < max_retries:
                     self.download_retry_counts[key] = current_retries + 1
                     url = item_ref.data(Qt.ItemDataRole.UserRole)
                     if url:
                         self._set_status_text(row, f"Retrying ({current_retries + 1}/{max_retries})...")
-                        def _do_retry(ref=item_ref, u=url):
-                            if not MemoryGuard.is_widget_alive(self):
+                        timer = QTimer(self)
+                        timer.setSingleShot(True)
+                        def _do_retry(ref=item_ref, u=url, t=timer):
+                            if hasattr(self, "_active_retry_timers") and t in self._active_retry_timers:
+                                self._active_retry_timers.remove(t)
+                            if getattr(self, "_is_closing", False) or not MemoryGuard.is_widget_alive(self) or not self.isVisible():
                                 return
                             try:
                                 if self.download_table.row(ref) == -1:
@@ -4506,7 +4531,9 @@ class MainWindow(QMainWindow):
                             except Exception:
                                 return
                             self._start_download_worker(u, ref, show_dialog=False)
-                        QTimer.singleShot(3000, _do_retry)
+                        timer.timeout.connect(_do_retry)
+                        self._active_retry_timers.append(timer)
+                        timer.start(3000)
                         return
 
         self.update_status_bar_speed()

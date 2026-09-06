@@ -327,6 +327,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const videoPositionSelect = document.getElementById('options-video-panel-position');
+  if (videoPositionSelect) {
+    videoPositionSelect.addEventListener('change', (e) => {
+      chrome.storage.local.set({ videoPanelPosition: e.target.value }, () => {
+        showToast('Video panel position updated ✓', 'success');
+      });
+    });
+  }
+
   // 4. Setup Filter Inputs
   setupFilterInput('whitelist-url-input', 'add-whitelist-url', 'whitelist-url-tags', 'whitelistUrls', false);
   setupFilterInput('whitelist-ext-input', 'add-whitelist-ext', 'whitelist-ext-tags', 'whitelistExts', true);
@@ -341,6 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bdmVersion: "",
     enableInterception: true,
     enableMediaSniffing: true,
+    videoPanelPosition: "top-right",
     whitelistUrls: [],
     whitelistExts: [],
     blacklistUrls: [],
@@ -361,6 +371,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (mediaSniffingCheckbox) {
       mediaSniffingCheckbox.checked = (items.enableMediaSniffing !== false);
+    }
+    if (videoPositionSelect) {
+      videoPositionSelect.value = items.videoPanelPosition || 'top-right';
     }
 
     applyTheme(items.theme || 'system');
@@ -404,6 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const theme = selectedRadio ? selectedRadio.value : 'system';
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
     const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
+    const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
 
     const payload = {
       host: "localhost",
@@ -412,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
       theme,
       enableInterception,
       enableMediaSniffing,
+      videoPanelPosition,
       whitelistUrls: filterLists.whitelistUrls,
       whitelistExts: filterLists.whitelistExts,
       blacklistUrls: filterLists.blacklistUrls,
@@ -442,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const theme = selectedRadio ? selectedRadio.value : 'system';
         const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
         const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
+        const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
 
         const savePayload = {
           host: "localhost",
@@ -450,6 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
           theme,
           enableInterception,
           enableMediaSniffing,
+          videoPanelPosition,
           whitelistUrls: filterLists.whitelistUrls,
           whitelistExts: filterLists.whitelistExts,
           blacklistUrls: filterLists.blacklistUrls,
@@ -480,6 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
       theme: "system",
       enableInterception: true,
       enableMediaSniffing: true,
+      videoPanelPosition: "top-right",
       whitelistUrls: [],
       whitelistExts: [],
       blacklistUrls: [],
@@ -491,6 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('token').value = defaults.token;
       if (interceptionCheckbox) interceptionCheckbox.checked = true;
       if (mediaSniffingCheckbox) mediaSniffingCheckbox.checked = true;
+      if (videoPositionSelect) videoPositionSelect.value = 'top-right';
       applyTheme(defaults.theme);
 
       filterLists.whitelistUrls = [];
