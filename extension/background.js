@@ -877,22 +877,41 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
           return;
         }
 
+        // Tonec IDM Pattern: Only HTTP 200 (OK), 206 (Partial Content), and 304 (Not Modified) can be file downloads.
+        // Redirects (301, 302, 303, 307, 308) MUST be allowed to proceed so the browser navigates to the target URL!
+        // (e.g. datanodes.to returns a 302 redirect from /...part1.rar to /download).
+        // Error codes (4xx, 5xx) must also be displayed as web pages, never cancelled as downloads.
+        const status = details.statusCode;
+        if (status && status !== 200 && status !== 206 && status !== 304) {
+          return; // Allow browser to follow redirects or render error pages!
+        }
+
         const headers = details.responseHeaders || [];
         let filenameFromHeader = "";
-        let hasContentDispositionAttachment = false;
+        let hasAttachmentDirective = false;
+        let hasContentDispositionHeader = false;
         let isBinaryContentType = false;
+        let isHtmlContentType = false;
 
         for (const h of headers) {
           const name = (h.name || '').toLowerCase();
           const value = (h.value || '').toLowerCase();
 
-          if (name === 'content-disposition' && (value.includes('attachment') || value.includes('filename='))) {
-            hasContentDispositionAttachment = true;
+          if (name === 'content-disposition') {
+            if (value.includes('attachment')) {
+              hasAttachmentDirective = true;
+            }
+            if (value.includes('attachment') || value.includes('filename=')) {
+              hasContentDispositionHeader = true;
+            }
             const match = h.value.match(/filename=["']?([^"';]+)["']?/i);
             if (match) filenameFromHeader = match[1];
           }
 
           if (name === 'content-type') {
+            if (value.includes('text/html') || value.includes('application/xhtml+xml')) {
+              isHtmlContentType = true;
+            }
             if (value.includes('application/x-msdownload') || 
                 value.includes('application/x-7z-compressed') || 
                 value.includes('application/x-rar-compressed') || 
@@ -904,6 +923,16 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
               }
             }
           }
+        }
+
+        const hasContentDispositionAttachment = hasAttachmentDirective || (hasContentDispositionHeader && !isHtmlContentType);
+
+        // Tonec IDM Pattern: If server returns an HTML webpage without an explicit attachment header,
+        // NEVER intercept or cancel, regardless of what the URL extension looks like!
+        // File hosts (datanodes.to, rapidgator, mediafire) often have URLs ending in .rar or .zip
+        // that return HTML landing pages with captchas or countdown timers.
+        if (isHtmlContentType && !hasAttachmentDirective) {
+          return; // Bypassed to native browser: let user view the page!
         }
 
         const ext = getFileExtension(filenameFromHeader || details.url);
@@ -954,6 +983,17 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
           })();
 
           if (extraSpec.includes("blocking") && cachedAppOnline) {
+            if (details.type === "main_frame" && details.tabId && details.tabId !== -1) {
+              // Tonec IDM Pattern: Close newly opened blank tabs (e.g. target="_blank") created solely for this download
+              chrome.tabs.get(details.tabId, (tab) => {
+                if (chrome.runtime.lastError || !tab) return;
+                if (!tab.url || tab.url === "about:blank" || tab.url === details.url || tab.pendingUrl === details.url) {
+                  chrome.tabs.remove(details.tabId, () => {
+                    if (chrome.runtime.lastError) {}
+                  });
+                }
+              });
+            }
             return { cancel: true };
           }
         }
