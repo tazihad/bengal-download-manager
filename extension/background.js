@@ -49,8 +49,17 @@ function getActionAPI() {
   return null;
 }
 
+function applyDownloadUiOptions(isOnline) {
+  if (chrome.downloads && chrome.downloads.setUiOptions) {
+    try {
+      chrome.downloads.setUiOptions({ enabled: !isOnline }).catch(() => {});
+    } catch {}
+  }
+}
+
 async function updateAppConnectionBadge(isOnline) {
   cachedAppOnline = Boolean(isOnline);
+  applyDownloadUiOptions(cachedAppOnline);
   const action = getActionAPI();
   if (!action) return;
 
@@ -1040,29 +1049,33 @@ function cancelAndEraseDownload(downloadId) {
   setTimeout(() => eraseDownloadRecord(downloadId), 500);
 }
 
-// 1. Hook onDeterminingFilename (Chrome/Edge): Cancels before Save-As dialog opens and before download animation triggers
+// 1. Hook onDeterminingFilename (Chrome/Edge): Cancels before download starts and before swing animation triggers
 if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
   chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
-    if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url) || isStreamingMedia(downloadItem.url, downloadItem.filename)) return;
+    if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url) || isStreamingMedia(downloadItem.url, downloadItem.filename)) {
+      if (suggest) try { suggest(); } catch {}
+      return;
+    }
 
     const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
     const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
     if (!shouldIntercept || !cachedAppOnline) {
+      if (suggest) try { suggest(); } catch {}
       return; // Leave download to native browser!
     }
 
-    (async () => {
-      const isOnline = await isBengalDMOnline();
-      if (!isOnline) return;
-
-      cancelAndEraseDownload(downloadItem.id);
-    })();
+    // SYNCHRONOUS 0th-TICK CANCELLATION:
+    // Aborts in the determining filename phase BEFORE Chromium triggers DownloadStartedAnimation::Show!
+    cancelAndEraseDownload(downloadItem.id);
+    if (suggest) {
+      try { suggest(); } catch {}
+    }
   });
 }
 
 // 2. Hook onCreated: Initial download instantiation and handover to Bengal DM
 if (chrome.downloads && chrome.downloads.onCreated) {
-  chrome.downloads.onCreated.addListener(async (downloadItem) => {
+  chrome.downloads.onCreated.addListener((downloadItem) => {
     if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url) || isStreamingMedia(downloadItem.url, downloadItem.filename)) return;
 
     const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
@@ -1072,45 +1085,40 @@ if (chrome.downloads && chrome.downloads.onCreated) {
       return; // Leave download to native browser!
     }
 
-    // 1. Verify if Bengal DM application is online
-    const isOnline = await isBengalDMOnline();
-    if (!isOnline) {
-      return;
-    }
-
-    // 2. Bengal DM is active: cancel and erase browser native download immediately on 0th byte
+    // Cancel IMMEDIATELY and SYNCHRONOUSLY on 0th tick
     cancelAndEraseDownload(downloadItem.id);
 
-    // 3. Deduplicate if already processed by content script or webRequest
-    if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
+    // Asynchronous payload preparation and dispatch to Bengal DM
+    (async () => {
+      // Deduplicate if already processed by content script or webRequest
+      if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
 
-    const cookieString = await getCookiesForUrl(downloadItem.url, downloadItem.storeId);
+      const cookieString = await getCookiesForUrl(downloadItem.url, downloadItem.storeId);
+      const resolved = await resolveDownloadTarget(downloadItem.url, navigator.userAgent, cookieString);
 
-    const resolved = await resolveDownloadTarget(downloadItem.url, navigator.userAgent, cookieString);
+      const isCloudOrBrowserFile = downloadItem.url.includes("google.com") || 
+                                   downloadItem.url.includes("googleusercontent.com") || 
+                                   downloadItem.url.includes("export=download") || 
+                                   (downloadItem.filename && downloadItem.filename.length > 0);
 
-    const isCloudOrBrowserFile = downloadItem.url.includes("google.com") || 
-                                 downloadItem.url.includes("googleusercontent.com") || 
-                                 downloadItem.url.includes("export=download") || 
-                                 (downloadItem.filename && downloadItem.filename.length > 0);
+      if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
+        return;
+      }
 
-    if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
-      return;
-    }
+      const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadItem.url : resolved.url;
+      if (isRecentlySent(targetUrl, downloadItem.filename)) return;
 
-    const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadItem.url : resolved.url;
+      markRecentlySent(downloadItem.url, downloadItem.filename);
+      markRecentlySent(targetUrl, downloadItem.filename);
 
-    if (isRecentlySent(targetUrl, downloadItem.filename)) return;
-
-    markRecentlySent(downloadItem.url, downloadItem.filename);
-    markRecentlySent(targetUrl, downloadItem.filename);
-
-    await sendToBengalDM({
-      url: targetUrl,
-      userAgent: navigator.userAgent,
-      cookies: cookieString,
-      filename: downloadItem.filename || "",
-      referrer: referrer
-    });
+      await sendToBengalDM({
+        url: targetUrl,
+        userAgent: navigator.userAgent,
+        cookies: cookieString,
+        filename: downloadItem.filename || "",
+        referrer: referrer
+      });
+    })();
   });
 }
 

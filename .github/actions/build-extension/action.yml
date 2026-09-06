@@ -7,7 +7,7 @@ runs:
     - name: Build Extension Packages
       shell: bash
       run: |
-        python scripts/pack_extension.py
-        cp dist/bengal-download-manager-extension.crx extension-chromium.crx
-        cd extension
-        zip -r ../extension-firefox.xpi . -x "*.git*" -x "__pycache__*"
+        python scripts/pack_extension.py extension_build
+        cp extension_build/bengal-download-manager-extension.crx extension-chromium.crx
+        cp extension_build/bengal-download-manager-firefox.xpi extension-firefox.xpi
+        rm -rf extension_build
