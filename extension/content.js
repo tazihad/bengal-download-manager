@@ -578,21 +578,21 @@ document.addEventListener('click', (event) => {
     .bdm-footer {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 6px 12px;
+      justify-content: center;
+      padding: 7px 12px;
       background: #101317;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
-      font-size: 10.5px;
+      font-size: 11px;
       color: #6b7280;
+      min-height: 28px;
+      text-align: center;
+      transition: background 0.2s ease, color 0.2s ease;
     }
 
-    .bdm-feedback {
-      padding: 10px 12px;
-      font-size: 12px;
+    .bdm-footer.opening {
+      background: rgba(16, 185, 129, 0.12);
       color: #34d399;
-      text-align: center;
-      background: rgba(16, 185, 129, 0.1);
-      display: none;
+      font-weight: 500;
     }
   `;
   shadow.appendChild(style);
@@ -629,11 +629,9 @@ document.addEventListener('click', (event) => {
           <span id="bdmDuration">00:00</span>
         </div>
       </div>
-      <div class="bdm-feedback" id="bdmFeedback">Sending to Bengal DM...</div>
       <div class="bdm-list" id="bdmList"></div>
-      <div class="bdm-footer">
-        <span>Bengal Download Manager</span>
-        <span>Port 9000</span>
+      <div class="bdm-footer" id="bdmFooter">
+        <span id="bdmFooterText">Bengal Download Manager</span>
       </div>
     </div>
   `;
@@ -646,7 +644,8 @@ document.addEventListener('click', (event) => {
   const badgeEl = shadow.getElementById('bdmSourceBadge');
   const durationEl = shadow.getElementById('bdmDuration');
   const listEl = shadow.getElementById('bdmList');
-  const feedbackEl = shadow.getElementById('bdmFeedback');
+  const footerEl = shadow.getElementById('bdmFooter');
+  const footerTextEl = shadow.getElementById('bdmFooterText');
 
   // 5. Inactivity & Idle Transparency Management
   let isHovered = false;
@@ -1227,8 +1226,8 @@ document.addEventListener('click', (event) => {
       }
     }
 
-    feedbackEl.textContent = `Opening ${tier.quality} in Bengal DM...`;
-    feedbackEl.style.display = 'block';
+    footerEl.classList.add('opening');
+    footerTextEl.textContent = `Opening ${tier.quality} in Bengal DM...`;
 
     chrome.runtime.sendMessage({
       action: "send_to_bengal",
@@ -1242,7 +1241,6 @@ document.addEventListener('click', (event) => {
       sizeStr: tier.size || ""
     }, (response) => {
       setTimeout(() => {
-        feedbackEl.style.display = 'none';
         closeDropdown();
       }, 1200);
     });
@@ -1309,6 +1307,8 @@ document.addEventListener('click', (event) => {
     isDropdownOpen = true;
     clearIdleTimer();
     root.classList.add('open');
+    footerEl.classList.remove('opening');
+    footerTextEl.textContent = 'Bengal Download Manager';
 
     // Prevent dropdown clipping off left edge if dragged near left boundary
     const rect = root.getBoundingClientRect();
@@ -1327,7 +1327,8 @@ document.addEventListener('click', (event) => {
   function closeDropdown() {
     isDropdownOpen = false;
     root.classList.remove('open');
-    feedbackEl.style.display = 'none';
+    footerEl.classList.remove('opening');
+    footerTextEl.textContent = 'Bengal Download Manager';
     resetIdleTimer();
   }
 
