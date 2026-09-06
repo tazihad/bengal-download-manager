@@ -434,8 +434,30 @@ def normalize_tray_icon_name(name, default="App Icon (Default)"):
     return s
 
 
+CURRENT_THEME = "BDM Dark (Default)"
 CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
+
+
+def is_dark_theme(app=None) -> bool:
+    """Returns True if the current active theme is dark, False if light."""
+    global CURRENT_THEME
+    t_lower = str(CURRENT_THEME).strip().lower() if 'CURRENT_THEME' in globals() and CURRENT_THEME else ""
+    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark"):
+        return True
+    if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white"):
+        return False
+    if app is None:
+        app = QApplication.instance()
+    if app:
+        pal = app.palette()
+        bg_val = pal.color(QPalette.ColorRole.Window).value()
+        base_val = pal.color(QPalette.ColorRole.Base).value()
+        text_val = pal.color(QPalette.ColorRole.WindowText).value()
+        if bg_val < 128 or base_val < 128 or text_val > 128:
+            return True
+        return False
+    return True
 
 
 def is_monochrome_icon_theme(icon_theme_name=None) -> bool:
@@ -484,6 +506,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     """
     Applies application theme, custom accent color, custom toolbar icon set, and custom system tray icon set.
     """
+    global CURRENT_THEME
+    CURRENT_THEME = str(theme_name).strip()
+
     if app is None:
         app = QApplication.instance()
     if not app:
@@ -729,6 +754,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 color: #000000;
                 background-color: palette(highlight);
             }
+            QSplitter::handle:horizontal {
+                background-color: palette(window);
+            }
         """)
 
     for w in app.allWidgets():
@@ -814,7 +842,7 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
     icon_theme = CURRENT_ICON_THEME if CURRENT_ICON_THEME else "BDM Auto (Default)"
     icon_theme_lower = str(icon_theme).strip().lower()
 
-    if icon_theme_lower in ("colorful", "bdm colorful"):
+    if icon_theme_lower in ("colorful", "bdm colorful", "modern color", "modern", "prism", "prism color", "vivid", "color", "vibrant"):
         from ui.icons import get_colorful_icon
         return get_colorful_icon(name)
 
@@ -841,14 +869,7 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
         icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), glow=glow)
     else:
         app = QApplication.instance()
-        is_dark = False
-        if app:
-            pal = app.palette()
-            bg_val = pal.color(QPalette.ColorRole.Window).value()
-            fg_val = pal.color(QPalette.ColorRole.WindowText).value()
-            if bg_val < 128 or fg_val > 128:
-                is_dark = True
-        if is_dark:
+        if is_dark_theme(app):
             icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), glow=glow)
         else:
             icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), glow=glow)
@@ -1057,8 +1078,8 @@ def get_themed_tray_icon(tray_option=None) -> QIcon:
         tray_option = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else "App Icon (Default)"
 
     opt_lower = str(tray_option).strip().lower()
-    light_path = _resolve_tray_asset("tray_monochrome_light.png")
-    dark_path = _resolve_tray_asset("tray_monochrome_dark.png")
+    light_path = _resolve_tray_asset("tray_monochrome_light.svg") or _resolve_tray_asset("tray_monochrome_light.png")
+    dark_path = _resolve_tray_asset("tray_monochrome_dark.svg") or _resolve_tray_asset("tray_monochrome_dark.png")
 
     if opt_lower in ("app icon (default)", "app icon", "app_icon", "bdm app icon"):
         icon = get_app_icon()

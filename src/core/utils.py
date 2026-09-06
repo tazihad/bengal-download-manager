@@ -1646,11 +1646,14 @@ POPULAR_MEDIA_DOMAINS = {
 def is_media_downloader_url(data):
     """
     Checks if the provided URL string originates from a popular media/video source
-    supported by yt-dlp.
+    supported by yt-dlp, or represents an HLS/DASH streaming manifest (.m3u8, .mpd).
     """
     if not data:
         return False
-    raw_url = str(data).split("|", 1)[0].strip()
+    parts = str(data).split("|")
+    raw_url = parts[0].strip()
+    if len(parts) > 4 and parts[4] in ("1", "true", "True"):
+        return True
     try:
         parsed = urlparse(raw_url)
         netloc = parsed.netloc.lower()
@@ -1661,6 +1664,15 @@ def is_media_downloader_url(data):
         for domain in POPULAR_MEDIA_DOMAINS:
             if netloc == domain or netloc.endswith("." + domain):
                 return True
+        clean_url = raw_url.lower().split("?")[0].split("#")[0]
+        if (clean_url.endswith((".m3u8", ".mpd", ".m4s")) or
+            ".m3u8" in raw_url.lower() or
+            ".mpd" in raw_url.lower() or
+            "/videoplayback" in raw_url.lower() or
+            "/hls/" in raw_url.lower() or
+            "/hls2/" in raw_url.lower() or
+            "/dash/" in raw_url.lower()):
+            return True
     except Exception:
         pass
     return False
@@ -1725,9 +1737,10 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
     if not clean_base:
         clean_base = "media"
 
-    # Extract any existing duplicate counter suffix like " (1)", " (2)"
-    m = re.search(r'^(.*?)(\s*\(\d+\))$', clean_base)
-    if m:
+    # Extract any existing tags or duplicate counter suffixes like " [id] [1080p]", " (1)", " [id] (1)"
+    pattern = r'^(.*?)(\s*(?:\[[^\]]+\]|\(\d+\))+(?:\s*(?:\[[^\]]+\]|\(\d+\)))*)$'
+    m = re.search(pattern, clean_base)
+    if m and m.group(2).strip():
         main_part, suffix = m.group(1), m.group(2)
         eff_limit = max(10, max_len - len(suffix.encode("utf-8")))
         while len(main_part.encode("utf-8")) > eff_limit:

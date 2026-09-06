@@ -460,15 +460,30 @@ class OptionsDialog(QDialog):
         self.chk_show_queue_complete_dialog.setChecked(_get_setting("show_queue_complete_dialog", False))
         vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
 
-        def _on_silent_toggled(checked):
-            self.chk_show_start_dialog.setEnabled(not checked)
-            self.chk_show_progress_dialog.setEnabled(not checked)
-            self.chk_show_complete_dialog.setEnabled(not checked)
-            self.chk_show_queue_complete_dialog.setEnabled(not checked)
+        default_progress_tooltip = "Show popup progress dialog during active file transfer"
+        disabled_by_start_tooltip = "Show popup progress dialog during active file transfer (Requires 'Show start download dialog' to be enabled)"
+        disabled_by_silent_tooltip = "Show popup progress dialog during active file transfer (Disabled when Silent Download is enabled)"
 
-        self.chk_silent_download.toggled.connect(_on_silent_toggled)
-        if self.chk_silent_download.isChecked():
-            _on_silent_toggled(True)
+        def _update_dialog_checkbox_states():
+            silent = self.chk_silent_download.isChecked()
+            start_enabled = not silent
+            self.chk_show_start_dialog.setEnabled(start_enabled)
+
+            prog_enabled = start_enabled and self.chk_show_start_dialog.isChecked()
+            self.chk_show_progress_dialog.setEnabled(prog_enabled)
+            if silent:
+                self.chk_show_progress_dialog.setToolTip(disabled_by_silent_tooltip)
+            elif not self.chk_show_start_dialog.isChecked():
+                self.chk_show_progress_dialog.setToolTip(disabled_by_start_tooltip)
+            else:
+                self.chk_show_progress_dialog.setToolTip(default_progress_tooltip)
+
+            self.chk_show_complete_dialog.setEnabled(not silent)
+            self.chk_show_queue_complete_dialog.setEnabled(not silent)
+
+        self.chk_silent_download.toggled.connect(lambda _: _update_dialog_checkbox_states())
+        self.chk_show_start_dialog.toggled.connect(lambda _: _update_dialog_checkbox_states())
+        _update_dialog_checkbox_states()
 
         grp_dialogs.setLayout(vbox_dialogs)
         layout.addWidget(grp_dialogs)
@@ -1324,6 +1339,8 @@ class OptionsDialog(QDialog):
         return self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
 
     def get_show_progress_dialog(self) -> bool:
+        if hasattr(self, "chk_show_start_dialog") and not self.chk_show_start_dialog.isChecked():
+            return False
         return self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
 
     def get_show_complete_dialog(self) -> bool:

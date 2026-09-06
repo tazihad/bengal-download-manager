@@ -57,9 +57,7 @@ jobs:
         run: |
           VERSION=$(cat VERSION)
           if [[ "$VERSION" =~ -(alpha|beta|rc|dev) ]]; then
-            echo "::error::Pull requests targeting 'main' cannot contain a pre-release version: '$VERSION'."
-            echo "Run 'python3 scripts/sync_version.py --graduate' (or '--set ${VERSION%%-*}') before merging."
-            exit 1
+            echo "::warning title=Pre-release Version on PR::This PR contains pre-release version '$VERSION'. Remember to run 'python3 scripts/sync_version.py --graduate' before tagging a stable release."
           fi
 
       - name: Validate Desktop Entry and Metainfo

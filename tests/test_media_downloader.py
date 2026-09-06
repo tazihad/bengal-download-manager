@@ -409,6 +409,174 @@ def test_yt_dlp_extractor_args_youtube_player_client(tmp_path):
         assert cmd[ext_idx + 1] == "youtube:player_client=default"
 
 
+def test_media_downloader_headers_and_cookies(tmp_path):
+    """Verify that MediaExtractorWorker and YtDlpDownloadWorker send Accept-Language, Origin, and Cookie headers."""
+    # 1. Test MediaExtractorWorker
+    extractor = MediaExtractorWorker(
+        "https://cdn1017.cdn-tnmr.org/hls2/master.m3u8",
+        referrer="https://lulustream.com/7kt553us8e30",
+        user_agent="Mozilla/5.0 Firefox/156.0",
+        cookies="session_id=xyz123"
+    )
+
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.communicate.return_value = ('{"id":"test","title":"Test","formats":[]}', "")
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+        extractor.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        assert "--referer" in cmd
+        assert cmd[cmd.index("--referer") + 1] == "https://lulustream.com/7kt553us8e30"
+        assert "--user-agent" in cmd
+        assert cmd[cmd.index("--user-agent") + 1] == "Mozilla/5.0 Firefox/156.0"
+        assert "Accept-Language:en-US,en;q=0.9" in cmd
+        assert "Origin:https://lulustream.com" in cmd
+        assert "Cookie:session_id=xyz123" in cmd
+
+    # 2. Test YtDlpDownloadWorker
+    downloader = YtDlpDownloadWorker(
+        url="https://cdn1017.cdn-tnmr.org/hls2/master.m3u8",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="video.mp4",
+        referrer="https://lulustream.com/7kt553us8e30",
+        user_agent="Mozilla/5.0 Firefox/156.0",
+        cookies="session_id=xyz123"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = ["[download] Destination: /tmp/video.mp4"]
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+        downloader.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        assert "--referer" in cmd
+        assert cmd[cmd.index("--referer") + 1] == "https://lulustream.com/7kt553us8e30"
+        assert "--user-agent" in cmd
+        assert cmd[cmd.index("--user-agent") + 1] == "Mozilla/5.0 Firefox/156.0"
+        assert "Accept-Language:en-US,en;q=0.9" in cmd
+        assert "Origin:https://lulustream.com" in cmd
+        assert "Cookie:session_id=xyz123" in cmd
+
+
+def test_yt_dlp_download_worker_pause_and_stop(tmp_path):
+    """Verify YtDlpDownloadWorker.pause() and stop() terminate subprocess and do not emit Error signals."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    # 1. Test pause()
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/video.m3u8",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test_video.mp4"
+    )
+    mock_proc = MagicMock()
+    mock_proc.stdout = ["[download]  25.0% of 10.00MiB at 1.00MiB/s ETA 00:10"]
+    mock_proc.wait.return_value = -15
+    mock_proc.returncode = -15
+    worker.process = mock_proc
+
+    progress_emissions = []
+    finished_emissions = []
+    worker.main_progress_signal.connect(lambda row, data: progress_emissions.append(data))
+    worker.finished_signal.connect(lambda row, path: finished_emissions.append(path))
+
+    # Pause worker
+    worker.pause()
+    assert worker.is_paused is True
+    assert worker.is_running is False
+    assert mock_proc.terminate.called
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen", return_value=mock_proc):
+        worker.run()
+
+    # Verify no "Error" progress or finished signals were emitted due to pause
+    assert not any(d[2] == "Error" for d in progress_emissions)
+    assert len(finished_emissions) == 0
+
+    # 2. Test stop()
+    worker2 = YtDlpDownloadWorker(
+        url="https://example.com/video.m3u8",
+        row_index=1,
+        save_dir=str(tmp_path),
+        filename="test_video2.mp4"
+    )
+    mock_proc2 = MagicMock()
+    mock_proc2.stdout = []
+    mock_proc2.wait.return_value = -9
+    mock_proc2.returncode = -9
+    worker2.process = mock_proc2
+
+    progress_emissions2 = []
+    finished_emissions2 = []
+    worker2.main_progress_signal.connect(lambda row, data: progress_emissions2.append(data))
+    worker2.finished_signal.connect(lambda row, path: finished_emissions2.append(path))
+
+    worker2.stop()
+    assert worker2.is_running is False
+    assert mock_proc2.terminate.called
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen", return_value=mock_proc2):
+        worker2.run()
+
+    assert not any(d[2] == "Error" for d in progress_emissions2)
+    assert len(finished_emissions2) == 0
+
+
+def test_parse_single_video_data_estimates_filesize_from_tbr():
+    """Verify MediaExtractorWorker estimates filesize when filesize is None/0 but duration and tbr are present."""
+    raw_video = {
+        "id": "stream123",
+        "title": "HLS Stream Video",
+        "duration": 300,  # 300 seconds
+        "formats": [
+            {
+                "format_id": "1080p",
+                "ext": "mp4",
+                "vcodec": "avc1",
+                "acodec": "mp4a",
+                "height": 1080,
+                "width": 1920,
+                "filesize": None,  # Missing in HLS streams
+                "tbr": 4000,       # 4000 kbps
+                "url": "https://example.com/hls/1080p.m3u8"
+            }
+        ]
+    }
+
+    worker = MediaExtractorWorker("https://example.com/hls/master.m3u8")
+    parsed = worker._parse_single_video_data(raw_video)
+
+    assert len(parsed["formats"]) == 1
+    fmt = parsed["formats"][0]
+    # Expected: 300 sec * 4000 kbps * 125 bytes/kb = 150,000,000 bytes (~150 MB)
+    assert fmt["filesize"] == 150000000
+
+
+
+
+
 
 
 

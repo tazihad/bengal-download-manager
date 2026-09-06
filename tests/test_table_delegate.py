@@ -92,7 +92,7 @@ def test_modern_table_delegate_painting(qapp):
 
 def test_table_word_wrap_and_elide_mode(qapp):
     from ui.main_window import MainWindow
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     assert window.download_table.wordWrap() is False
     assert window.download_table.textElideMode() == Qt.TextElideMode.ElideRight
     window.close()

@@ -286,7 +286,26 @@ class MainWindow(QMainWindow):
             return proc
         except Exception:
             return None
+    def close(self):
+        self._is_closing = True
+        if hasattr(self, "_active_retry_timers"):
+            for t in list(self._active_retry_timers):
+                try:
+                    t.stop()
+                except Exception:
+                    pass
+            self._active_retry_timers.clear()
+        return super().close()
+
     def closeEvent(self, event: QCloseEvent):
+        self._is_closing = True
+        if hasattr(self, "_active_retry_timers"):
+            for t in list(self._active_retry_timers):
+                try:
+                    t.stop()
+                except Exception:
+                    pass
+            self._active_retry_timers.clear()
         if not self.is_quitting:
             event.ignore()
             self._is_in_tray = True
@@ -1622,6 +1641,7 @@ class MainWindow(QMainWindow):
                     is_audio_only = bool(item_name.data(Qt.ItemDataRole.UserRole + 7))
                     cookies_browser = item_name.data(Qt.ItemDataRole.UserRole + 9)
                     cookies_file = item_name.data(Qt.ItemDataRole.UserRole + 10)
+                    raw_cookies = item_name.data(Qt.ItemDataRole.UserRole + 5) or item_name.data(Qt.ItemDataRole.UserRole + 17)
                     worker = YtDlpDownloadWorker(
                         url=url,
                         row_index=r,
@@ -1630,13 +1650,28 @@ class MainWindow(QMainWindow):
                         format_spec=format_spec,
                         is_audio_only=is_audio_only,
                         cookies_browser=cookies_browser,
-                        cookies_file=cookies_file
+                        cookies_file=cookies_file,
+                        referrer=item_name.data(Qt.ItemDataRole.UserRole + 15),
+                        user_agent=item_name.data(Qt.ItemDataRole.UserRole + 16),
+                        cookies=raw_cookies
                     )
-                    self.active_downloads[key] = worker
+                    progress_dialog = DownloadProgressDialog(worker, None)
+                    progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                    self.active_downloads[key] = progress_dialog
+                    progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                    progress_dialog.finished.connect(self._try_start_queued)
+                    silent = getattr(self, "settings", {}).get("silent_download", False)
+                    show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+                    show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+                    if show_dialog and (not silent) and show_prog:
+                        progress_dialog.show()
+                    else:
+                        progress_dialog.hide()
                     worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
                     worker.finished_signal.connect(lambda _, path, ref=item_name, k=key: self._on_media_download_finished(k, ref, path))
                     self._set_status_text(r, "Downloading...")
-                    worker.start()
+                    if not worker.isRunning():
+                        worker.start()
                 else:
                     self._start_download_worker(url, item_name, resume_filename=filename, show_dialog=show_dialog)
             else:
@@ -1674,6 +1709,12 @@ class MainWindow(QMainWindow):
                         worker.pause()
                     except Exception:
                         pass
+                from core.media_downloader import YtDlpDownloadWorker
+                if isinstance(worker, YtDlpDownloadWorker):
+                    self.active_downloads.pop(key, None)
+                    if hasattr(self, "active_speeds"):
+                        self.active_speeds.pop(key, None)
+                    self.update_status_bar_speed()
 
             item_name.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
             if status_item:
@@ -2147,9 +2188,30 @@ class MainWindow(QMainWindow):
         if 0 <= index < self.download_table.rowCount():
             item = self.download_table.item(index, 0)
             if item:
+                item.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
                 key = self._get_item_key(item)
                 if key in self.active_downloads:
-                    self._stop_worker_entry(self.active_downloads[key])
+                    entry = self.active_downloads.get(key)
+                    worker = getattr(entry, 'worker', entry)
+                    if worker and hasattr(worker, 'pause'):
+                        try:
+                            worker.pause()
+                        except Exception:
+                            pass
+                    else:
+                        self._stop_worker_entry(entry)
+                    from core.media_downloader import YtDlpDownloadWorker
+                    if isinstance(worker, YtDlpDownloadWorker):
+                        self.active_downloads.pop(key, None)
+                        if hasattr(self, "active_speeds"):
+                            self.active_speeds.pop(key, None)
+                        self.update_status_bar_speed()
+                status_item = self.download_table.item(index, 2)
+                if status_item:
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                self._set_status_text(index, "Paused", logic_status="Paused")
+                self._set_row_bold(index, False)
+                self.update_ui_states()
 
     def qml_resume_download(self, index):
         if 0 <= index < self.download_table.rowCount():
@@ -2157,6 +2219,12 @@ class MainWindow(QMainWindow):
             if item:
                 url = item.data(Qt.ItemDataRole.UserRole)
                 if url:
+                    key = self._get_item_key(item)
+                    format_spec = item.data(Qt.ItemDataRole.UserRole + 6)
+                    if format_spec is not None and key in self.active_downloads:
+                        entry = self.active_downloads.pop(key, None)
+                        if entry:
+                            self._stop_worker_entry(entry)
                     self._start_download_worker(url, item, resume_filename=item.text())
 
     def qml_delete_download(self, index):
@@ -2410,6 +2478,39 @@ class MainWindow(QMainWindow):
             app.style().unpolish(sb)
             app.style().polish(sb)
             sb.update()
+
+        # Refresh central splitter, splitter handles, and download table header
+        splitter = self.centralWidget()
+        if splitter and isinstance(splitter, QSplitter) and app:
+            splitter.setPalette(app.palette())
+            app.style().unpolish(splitter)
+            app.style().polish(splitter)
+            for i in range(splitter.count()):
+                h = splitter.handle(i)
+                if h:
+                    h.setPalette(app.palette())
+                    app.style().unpolish(h)
+                    app.style().polish(h)
+                    h.update()
+            splitter.update()
+
+        if hasattr(self, "download_table") and self.download_table and app:
+            self.download_table.setPalette(app.palette())
+            app.style().unpolish(self.download_table)
+            app.style().polish(self.download_table)
+            hdr = self.download_table.horizontalHeader()
+            if hdr:
+                hdr.setPalette(app.palette())
+                app.style().unpolish(hdr)
+                app.style().polish(hdr)
+                hdr.update()
+            for row in range(self.download_table.rowCount()):
+                item = self.download_table.item(row, 0)
+                if item:
+                    filename = item.text()
+                    if filename:
+                        item.setIcon(get_file_icon(filename))
+            self.download_table.update()
 
         self.update_status_bar()
         self.update()
@@ -2977,29 +3078,75 @@ class MainWindow(QMainWindow):
 
     def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
-        parts = data.split("|", 3)
+        parts = data.split("|", 8)
         url = parts[0]
         user_agent = parts[1] if len(parts) > 1 else ""
         cookies = parts[2] if len(parts) > 2 else ""
         referrer = parts[3] if len(parts) > 3 else ""
+        is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
+        selected_quality = parts[5] if len(parts) > 5 else ""
+        custom_title = parts[6] if len(parts) > 6 else ""
+        size_bytes = int(parts[7].strip()) if len(parts) > 7 and parts[7].strip().isdigit() else 0
+        size_str = parts[8] if len(parts) > 8 else ""
 
         if not url:
             return
 
         # 0. Check if URL is a media / video streaming link supported by yt-dlp
         from core.utils import is_media_downloader_url
-        if is_media_downloader_url(url):
+        if is_media_flag or is_media_downloader_url(url):
             from core.config import load_category_config
             cfg = load_category_config()
             media_defaults = cfg.get("media_downloader_defaults", {})
-            auto_start = bool(media_defaults.get("auto_start_media", False))
-            target_preset = media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
-            self.open_media_downloader(
-                url=url,
-                auto_analyze=True,
-                auto_start=auto_start,
-                target_preset=target_preset
-            )
+            # When initiated through the browser popup / floating widget where resolution was selected,
+            # directly download without prompting with extra dialogs
+            if is_media_flag:
+                auto_start = True
+                target_preset = selected_quality or media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+            else:
+                auto_start = bool(media_defaults.get("auto_start_media", False))
+                target_preset = media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+
+            try:
+                self.open_media_downloader(
+                    url=url,
+                    auto_analyze=True,
+                    auto_start=auto_start,
+                    target_preset=target_preset,
+                    referrer=referrer,
+                    user_agent=user_agent,
+                    custom_title=custom_title,
+                    cookies=cookies,
+                    estimated_size_bytes=size_bytes
+                )
+            except TypeError:
+                try:
+                    self.open_media_downloader(
+                        url=url,
+                        auto_analyze=True,
+                        auto_start=auto_start,
+                        target_preset=target_preset,
+                        referrer=referrer,
+                        user_agent=user_agent,
+                        custom_title=custom_title
+                    )
+                except TypeError:
+                    try:
+                        self.open_media_downloader(
+                            url=url,
+                            auto_analyze=True,
+                            auto_start=auto_start,
+                            target_preset=target_preset,
+                            referrer=referrer,
+                            user_agent=user_agent
+                        )
+                    except TypeError:
+                        self.open_media_downloader(
+                            url=url,
+                            auto_analyze=True,
+                            auto_start=auto_start,
+                            target_preset=target_preset
+                        )
             return
 
         GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
@@ -3194,7 +3341,7 @@ class MainWindow(QMainWindow):
         if silent or not show_start:
             # Bypass FileInfoDialog: auto-start immediately
             filename = file_info.get("filename") or resolve_filename(file_info.get("url"), {})
-            show_prog = False if silent else getattr(self, "settings", {}).get("show_progress_dialog", True)
+            show_prog = False if (silent or not show_start) else getattr(self, "settings", {}).get("show_progress_dialog", True)
             self.start_download(
                 url=file_info["url"], 
                 custom_filename=filename,
@@ -3247,7 +3394,8 @@ class MainWindow(QMainWindow):
             file_info,
             parent=None,
             existing_paths=existing_paths,
-            existing_names=existing_filenames
+            existing_names=existing_filenames,
+            main_window=self
         )
         
         # Add to list but don't start downloading yet (wait for user confirmation)
@@ -3284,6 +3432,15 @@ class MainWindow(QMainWindow):
         if key:
             self.active_file_info_dialogs.pop(key, None)
         
+        if results.get("dont_show_again"):
+            if hasattr(self, "settings") and isinstance(self.settings, dict):
+                self.settings["show_start_dialog"] = False
+            self.show_start_dialog = False
+            self.save_settings()
+            if hasattr(self, "_options_dlg") and MemoryGuard.is_widget_alive(self._options_dlg):
+                if hasattr(self._options_dlg, "chk_show_start_dialog"):
+                    self._options_dlg.chk_show_start_dialog.setChecked(False)
+
         # Update filename and path in case user changed them in the dialog
         item_ref.setText(results["filename"])
         item_ref.setToolTip(results["filename"])
@@ -3320,7 +3477,12 @@ class MainWindow(QMainWindow):
             self.download_table.removeRow(row)
         self.save_data()
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=True, user_agent=None, cookies=None, referer=None):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None):
+        if show_dialog is None:
+            silent = getattr(self, "settings", {}).get("silent_download", False)
+            show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+            show_dialog = (not silent) and show_start and getattr(self, "settings", {}).get("show_progress_dialog", True)
+
         sorting_was_enabled = self.download_table.isSortingEnabled()
         self.download_table.setSortingEnabled(False)
 
@@ -3396,7 +3558,80 @@ class MainWindow(QMainWindow):
         self.save_data()
         return item_name
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=True, user_agent=None, cookies=None, referrer=None, allow_resume=True):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True):
+        silent = getattr(self, "settings", {}).get("silent_download", False)
+        pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
+        if show_dialog is None:
+            should_show_progress = (not silent) and pref_show_progress
+        else:
+            should_show_progress = bool(show_dialog) and (not silent) and pref_show_progress
+
+        format_spec = item_ref.data(Qt.ItemDataRole.UserRole + 6)
+        if format_spec is not None:
+            from core.media_downloader import YtDlpDownloadWorker
+            saved_path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
+            if saved_path and not custom_save_dir:
+                custom_save_dir = os.path.dirname(saved_path)
+            if not custom_save_dir or not os.path.exists(custom_save_dir):
+                config = load_category_config()
+                categories = config.get("categories", {})
+                final_category = item_ref.data(Qt.ItemDataRole.UserRole + 3) or "Video"
+                custom_save_dir = categories.get(final_category, {}).get("path") or get_user_downloads_dir()
+
+            filename = resume_filename if resume_filename else item_ref.text()
+            is_audio_only = bool(item_ref.data(Qt.ItemDataRole.UserRole + 7))
+            cookies_browser = item_ref.data(Qt.ItemDataRole.UserRole + 9)
+            cookies_file = item_ref.data(Qt.ItemDataRole.UserRole + 10)
+            raw_cookies = cookies or item_ref.data(Qt.ItemDataRole.UserRole + 5) or item_ref.data(Qt.ItemDataRole.UserRole + 17)
+            row = item_ref.row()
+
+            est_size_str = self.download_table.item(row, 1).text() if self.download_table.item(row, 1) else ""
+            est_bytes = parse_size_to_bytes(est_size_str)
+            worker = YtDlpDownloadWorker(
+                url=url,
+                row_index=row,
+                save_dir=custom_save_dir,
+                filename=filename,
+                format_spec=format_spec,
+                is_audio_only=is_audio_only,
+                cookies_browser=cookies_browser,
+                cookies_file=cookies_file,
+                referrer=referrer or item_ref.data(Qt.ItemDataRole.UserRole + 15),
+                user_agent=user_agent or item_ref.data(Qt.ItemDataRole.UserRole + 16),
+                cookies=raw_cookies,
+                total_bytes=est_bytes
+            )
+            if est_bytes > 0:
+                worker.total_bytes = est_bytes
+
+            gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+            item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            worker.generation = gen
+
+            key = self._get_item_key(item_ref)
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, path, ref=item_ref, k=key: self._on_media_download_finished(k, ref, path))
+
+            progress_dialog = DownloadProgressDialog(worker, None)
+            progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+            self.active_downloads[key] = progress_dialog
+            progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+            progress_dialog.finished.connect(self._try_start_queued)
+
+            if should_show_progress:
+                progress_dialog.show()
+            else:
+                progress_dialog.hide()
+
+            self._set_status_text(row, "Downloading...")
+            self._set_row_bold(row, True)
+            if not worker.isRunning():
+                worker.start()
+            self.update_ui_states()
+            return
+
         if not user_agent:
             user_agent = item_ref.data(Qt.ItemDataRole.UserRole + 4)
         if not cookies:
@@ -3479,7 +3714,7 @@ class MainWindow(QMainWindow):
 
         # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
         progress_dialog = DownloadProgressDialog(worker, None)
-        if show_dialog:
+        if should_show_progress:
             progress_dialog.show()
         else:
             progress_dialog.hide()
@@ -3513,8 +3748,22 @@ class MainWindow(QMainWindow):
                     continue
                 # If already active, bring dialog to front (or create/restore if silent/hidden) and resume if paused
                 key = self._get_item_key(item_name)
-                if key in self.active_downloads or self._is_download_active(item_name):
-                    dialog = self.show_download_progress_dialog(item_name)
+                format_spec = item_name.data(Qt.ItemDataRole.UserRole + 6)
+                if format_spec is not None:
+                    # Media download: clean up any existing paused/inactive worker from active_downloads
+                    if key in self.active_downloads:
+                        entry = self.active_downloads.pop(key, None)
+                        if entry:
+                            self._stop_worker_entry(entry)
+                elif key in self.active_downloads or self._is_download_active(item_name):
+                    silent = getattr(self, "settings", {}).get("silent_download", False)
+                    show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+                    show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+                    if (not silent) and show_prog:
+                        dialog = self.show_download_progress_dialog(item_name)
+                    else:
+                        entry = self.active_downloads.get(key)
+                        dialog = entry if isinstance(entry, DownloadProgressDialog) else None
                     status_item = self.download_table.item(row, 2)
                     logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
                     
@@ -3598,6 +3847,12 @@ class MainWindow(QMainWindow):
                             worker.pause()
                         except Exception:
                             pass
+                    from core.media_downloader import YtDlpDownloadWorker
+                    if isinstance(worker, YtDlpDownloadWorker):
+                        self.active_downloads.pop(key, None)
+                        if hasattr(self, "active_speeds"):
+                            self.active_speeds.pop(key, None)
+                        self.update_status_bar_speed()
                     
                     if hasattr(dialog, 'lbl_main_status'):
                         try:
@@ -3609,29 +3864,29 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
 
-                    # Update status preserving percentage string
-                    status_item = self.download_table.item(r, 2)
-                    if status_item:
-                        current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
-                        if current_status == "Complete" or status_item.text() == "Complete":
-                            continue
-                    if not status_item:
-                        status_item = QTableWidgetItem()
-                        self.download_table.setItem(r, 2, status_item)
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                    pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                    final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
-                    self._set_status_text(r, final_display, logic_status="Paused")
+                # Update status preserving percentage string
+                status_item = self.download_table.item(r, 2)
+                if status_item:
+                    current_status = status_item.data(Qt.ItemDataRole.UserRole + 1)
+                    if current_status == "Complete" or status_item.text() == "Complete" or item.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
+                        continue
+                if not status_item:
+                    status_item = QTableWidgetItem()
+                    self.download_table.setItem(r, 2, status_item)
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+                pct_data = status_item.data(Qt.ItemDataRole.UserRole)
+                final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                self._set_status_text(r, final_display, logic_status="Paused")
 
-                    # Reset Time Left and Rate on pause
-                    self._set_sortable_item(r, 3, "", parse_time_to_sec)
-                    self._set_sortable_item(r, 4, "", parse_size_to_bytes)
+                # Reset Time Left and Rate on pause
+                self._set_sortable_item(r, 3, "", parse_time_to_sec)
+                self._set_sortable_item(r, 4, "", parse_size_to_bytes)
 
-                    # Update last try timestamp on pause
-                    new_timestamp = str(time.time())
-                    item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
-                    self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
-                    self._set_row_bold(r, False)
+                # Update last try timestamp on pause
+                new_timestamp = str(time.time())
+                item.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
+                self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
+                self._set_row_bold(r, False)
         finally:
             self.download_table.blockSignals(False)
             if sorting_was_enabled:
@@ -3671,8 +3926,8 @@ class MainWindow(QMainWindow):
             item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
             return "Complete", "Complete", pct_str or "100.00%", False
 
-        # 2. Worker reports active/resuming states -> sync user intent to Normal
-        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading") or worker_status in ["Resuming...", "Resume GET...", "Connecting..."]:
+        # 2. Worker reports explicit resume action -> sync user intent to Normal
+        if worker_status in ["Resuming...", "Resume GET..."]:
             item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
             user_state = "Normal"
 
@@ -3687,6 +3942,11 @@ class MainWindow(QMainWindow):
             item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Cancelled")
             final_display = pct_str if pct_str else "Cancelled"
             return final_display, "Cancelled", pct_str, False
+
+        # 5. Worker reports active states -> sync user intent to Normal
+        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading") or worker_status == "Connecting...":
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            user_state = "Normal"
 
         # 5. User Intent: Normal / Active -> Interpret Engine Status
         if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
@@ -3811,7 +4071,10 @@ class MainWindow(QMainWindow):
             from core.media_downloader import YtDlpDownloadWorker
             if isinstance(entry, YtDlpDownloadWorker):
                 try:
-                    entry.stop()
+                    if hasattr(entry, 'pause'):
+                        entry.pause()
+                    else:
+                        entry.stop()
                     entry.requestInterruption()
                     entry.quit()
                     entry.wait(2000)
@@ -3873,6 +4136,12 @@ class MainWindow(QMainWindow):
                         worker.pause()
                     except Exception:
                         pass
+                from core.media_downloader import YtDlpDownloadWorker
+                if isinstance(worker, YtDlpDownloadWorker):
+                    self.active_downloads.pop(key, None)
+                    if hasattr(self, "active_speeds"):
+                        self.active_speeds.pop(key, None)
+                    self.update_status_bar_speed()
                 
                 if hasattr(entry, 'lbl_main_status'):
                     try:
@@ -4241,13 +4510,30 @@ class MainWindow(QMainWindow):
                 max_retries = q_config.get("retries_count", 10)
                 if not hasattr(self, "download_retry_counts"):
                     self.download_retry_counts = {}
+                if not hasattr(self, "_active_retry_timers"):
+                    self._active_retry_timers = []
                 current_retries = self.download_retry_counts.get(key, 0)
                 if current_retries < max_retries:
                     self.download_retry_counts[key] = current_retries + 1
                     url = item_ref.data(Qt.ItemDataRole.UserRole)
                     if url:
                         self._set_status_text(row, f"Retrying ({current_retries + 1}/{max_retries})...")
-                        QTimer.singleShot(3000, lambda ref=item_ref, u=url: self._start_download_worker(u, ref, show_dialog=False))
+                        timer = QTimer(self)
+                        timer.setSingleShot(True)
+                        def _do_retry(ref=item_ref, u=url, t=timer):
+                            if hasattr(self, "_active_retry_timers") and t in self._active_retry_timers:
+                                self._active_retry_timers.remove(t)
+                            if getattr(self, "_is_closing", False) or not MemoryGuard.is_widget_alive(self) or not self.isVisible():
+                                return
+                            try:
+                                if self.download_table.row(ref) == -1:
+                                    return
+                            except Exception:
+                                return
+                            self._start_download_worker(u, ref, show_dialog=False)
+                        timer.timeout.connect(_do_retry)
+                        self._active_retry_timers.append(timer)
+                        timer.start(3000)
                         return
 
         self.update_status_bar_speed()
@@ -4272,9 +4558,14 @@ class MainWindow(QMainWindow):
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
 
-    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset=""):
+    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset="", referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0):
         from ui.dialogs import MediaDownloaderDialog
         if MemoryGuard.is_widget_alive(getattr(self, "_media_downloader_dlg", None)):
+            if hasattr(self._media_downloader_dlg, "set_request_context"):
+                try:
+                    self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes)
+                except TypeError:
+                    self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title)
             if not auto_start:
                 self._media_downloader_dlg.show()
                 self._media_downloader_dlg.raise_()
@@ -4289,6 +4580,11 @@ class MainWindow(QMainWindow):
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.finished.connect(lambda *_: setattr(self, "_media_downloader_dlg", None))
+        if hasattr(self._media_downloader_dlg, "set_request_context"):
+            try:
+                self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes)
+            except TypeError:
+                self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title)
         if not auto_start:
             self._media_downloader_dlg.show()
             self._media_downloader_dlg.raise_()
@@ -4315,7 +4611,7 @@ class MainWindow(QMainWindow):
         self._scheduler_dlg.raise_()
         self._scheduler_dlg.activateWindow()
 
-    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0):
+    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None):
         from core.media_downloader import YtDlpDownloadWorker
 
         config = load_category_config()
@@ -4332,11 +4628,121 @@ class MainWindow(QMainWindow):
             except Exception:
                 save_dir = get_user_downloads_dir()
 
-        from core.utils import sanitize_media_filename, get_unique_media_filepath
+        from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes
         base_name, ext = os.path.splitext(filename)
+        is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
+        if is_youtube and base_name.lower() in ("media", "media_download", "master", "index", "video", "videoplayback"):
+            m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
+            if m_yt:
+                video_id = m_yt.group(1)
+                m_h = re.search(r"height<=(\d{3,4})", format_spec)
+                h_tag = f" [{m_h.group(1)}p]" if (m_h and not is_audio_only) else ""
+                base_name = f"YouTube_{video_id}{h_tag}"
         sanitized_filename = sanitize_media_filename(base_name, ext=ext)
         target_path = get_unique_media_filepath(save_dir, sanitized_filename)
         filename = os.path.basename(target_path)
+
+        silent = getattr(self, "settings", {}).get("silent_download", False)
+        show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        if silent or not show_start:
+            show_file_info = False
+
+        if show_file_info:
+            # Deduplicate: if a popup dialog for this URL is ALREADY open, bring it to front
+            for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
+                if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
+                    existing_d_url = dialog.file_info.get("url")
+                    if existing_d_url == url:
+                        dialog.show()
+                        dialog.raise_()
+                        dialog.activateWindow()
+                        return None
+
+            existing_filenames = set()
+            existing_paths = set()
+            for r in range(self.download_table.rowCount()):
+                it = self.download_table.item(r, 0)
+                if it:
+                    existing_filenames.add(it.text())
+                    sp = it.data(Qt.ItemDataRole.UserRole + 1)
+                    if sp:
+                        existing_paths.add(os.path.normpath(sp))
+
+            size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Unknown"
+            file_info = {
+                "url": url,
+                "filename": filename,
+                "size_str": size_str,
+                "size_bytes": total_size_bytes,
+                "user_agent": user_agent,
+                "cookies": cookies_file or cookies_browser or cookies,
+                "referer": referrer or url,
+                "content_type": "audio/*" if is_audio_only else "video/*",
+                "custom_save_dir": save_dir
+            }
+
+            from ui.dialogs import DownloadFileInfoDialog
+            dialog = DownloadFileInfoDialog(
+                file_info,
+                parent=None,
+                existing_paths=existing_paths,
+                existing_names=existing_filenames,
+                main_window=self
+            )
+
+            results = dialog.get_results()
+            resolved_filename = results["filename"]
+            resolved_save_path = results["save_path"]
+
+            self.download_table.setSortingEnabled(False)
+            row = 0
+            self.download_table.insertRow(row)
+            current_ts = str(time.time())
+
+            item_name = QTableWidgetItem(resolved_filename)
+            item_name.setIcon(get_file_icon(resolved_filename))
+            item_name.setToolTip(resolved_filename)
+            item_name.setData(Qt.ItemDataRole.UserRole, url)
+            item_name.setData(Qt.ItemDataRole.UserRole + 1, resolved_save_path)
+            item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)
+            item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)
+            item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent)
+            item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)
+            item_name.setData(Qt.ItemDataRole.UserRole + 6, format_spec)
+            item_name.setData(Qt.ItemDataRole.UserRole + 7, is_audio_only)
+            item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+            item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
+            item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+            item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
+            item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
+            item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
+
+            self.download_table.setItem(row, 0, item_name)
+            self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
+            self._set_status_text(row, "Paused")
+            self._set_sortable_item(row, 3, "", parse_time_to_sec)
+            self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+            self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
+            self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
+            self._set_row_bold(row, False)
+            self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
+            self.save_data()
+
+            dialog_id = self._get_item_key(item_name)
+            self.active_file_info_dialogs[dialog_id] = dialog
+            dialog.finished.connect(lambda *_, d_id=dialog_id: self.active_file_info_dialogs.pop(d_id, None))
+
+            dialog.accepted.connect(lambda: self._handle_media_download_dialog_accepted(
+                dialog, file_info, item_name, format_spec, is_audio_only, cookies_browser, cookies_file, referrer, user_agent, cookies
+            ))
+            dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_name))
+
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            return item_name
 
         self.download_table.setSortingEnabled(False)
         row = 0
@@ -4351,11 +4757,16 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
         item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)
         item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)
+        item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent)
+        item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)
         item_name.setData(Qt.ItemDataRole.UserRole + 6, format_spec)      # for _try_start_queued
         item_name.setData(Qt.ItemDataRole.UserRole + 7, is_audio_only)    # for _try_start_queued
         item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
         item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
         item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+        item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
+        item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
+        item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
 
         init_size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Calculating..."
         self.download_table.setItem(row, 0, item_name)
@@ -4390,25 +4801,137 @@ class MainWindow(QMainWindow):
             format_spec=format_spec,
             is_audio_only=is_audio_only,
             cookies_browser=cookies_browser,
-            cookies_file=cookies_file
+            cookies_file=cookies_file,
+            referrer=referrer,
+            user_agent=user_agent,
+            cookies=cookies,
+            total_bytes=total_size_bytes
         )
+        if total_size_bytes > 0:
+            worker.total_bytes = total_size_bytes
 
         key = self._get_item_key(item_name)
-        self.active_downloads[key] = worker
-
         worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
         worker.finished_signal.connect(lambda _, path, ref=item_name, k=key: self._on_media_download_finished(k, ref, path))
 
-        worker.start()
+        progress_dialog = DownloadProgressDialog(worker, None)
+        progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+        self.active_downloads[key] = progress_dialog
+        progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+        progress_dialog.finished.connect(self._try_start_queued)
+
+        silent = getattr(self, "settings", {}).get("silent_download", False)
+        show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+        if (not silent) and show_prog:
+            progress_dialog.show()
+        else:
+            progress_dialog.hide()
+
+        if not worker.isRunning():
+            worker.start()
         self.download_table.setSortingEnabled(True)
         self.update_ui_states()
         self._sync_sidebar_queues()
         self.save_data()
         return item_name
 
+    def _handle_media_download_dialog_accepted(self, dialog, file_info, item_ref, format_spec, is_audio_only, cookies_browser, cookies_file, referrer, user_agent, cookies=None):
+        results = dialog.get_results()
+        key = self._get_item_key(item_ref)
+        if key:
+            self.active_file_info_dialogs.pop(key, None)
+
+        if results.get("dont_show_again"):
+            if hasattr(self, "settings") and isinstance(self.settings, dict):
+                self.settings["show_start_dialog"] = False
+            self.show_start_dialog = False
+            self.save_settings()
+            if hasattr(self, "_options_dlg") and MemoryGuard.is_widget_alive(self._options_dlg):
+                if hasattr(self._options_dlg, "chk_show_start_dialog"):
+                    self._options_dlg.chk_show_start_dialog.setChecked(False)
+
+        final_filename = results["filename"]
+        final_save_path = results["save_path"]
+        final_save_dir = os.path.dirname(final_save_path)
+
+        item_ref.setText(final_filename)
+        item_ref.setIcon(get_file_icon(final_filename))
+        item_ref.setToolTip(final_filename)
+        item_ref.setData(Qt.ItemDataRole.UserRole + 1, final_save_path)
+
+        row = self.download_table.row(item_ref)
+        if row == -1:
+            return
+
+        if results["action"] == 'start':
+            is_active = len(self.active_downloads) < self.MAX_CONCURRENT_DOWNLOADS
+            self._set_row_bold(row, is_active)
+
+            if not is_active:
+                self._set_status_text(row, "Queued")
+                self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                self._set_row_bold(row, False)
+                self.download_table.setSortingEnabled(True)
+                self.update_ui_states()
+                self._sync_sidebar_queues()
+                self.save_data()
+                return
+
+            self._set_status_text(row, "Starting...")
+            from core.media_downloader import YtDlpDownloadWorker
+            worker = YtDlpDownloadWorker(
+                url=file_info["url"],
+                row_index=row,
+                save_dir=final_save_dir,
+                filename=final_filename,
+                format_spec=format_spec,
+                is_audio_only=is_audio_only,
+                cookies_browser=cookies_browser,
+                cookies_file=cookies_file,
+                referrer=referrer,
+                user_agent=user_agent,
+                cookies=cookies,
+                total_bytes=file_info.get("size_bytes", 0)
+            )
+            if file_info.get("size_bytes"):
+                worker.total_bytes = file_info["size_bytes"]
+
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, path, ref=item_ref, k=key: self._on_media_download_finished(k, ref, path))
+
+            progress_dialog = DownloadProgressDialog(worker, None)
+            progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+            self.active_downloads[key] = progress_dialog
+            progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+            progress_dialog.finished.connect(self._try_start_queued)
+
+            silent = getattr(self, "settings", {}).get("silent_download", False)
+            show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+            show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+            if (not silent) and show_prog:
+                progress_dialog.show()
+            else:
+                progress_dialog.hide()
+
+            self._set_status_text(row, "Downloading...")
+            if not worker.isRunning():
+                worker.start()
+            self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
+            self.save_data()
+        elif results["action"] == 'later':
+            self._set_status_text(row, "Paused")
+            self._set_row_bold(row, False)
+            self.download_table.setSortingEnabled(True)
+            self.update_ui_states()
+            self._sync_sidebar_queues()
+            self.save_data()
+
     def _on_media_download_finished(self, key, item_ref, path):
-        if key in self.active_downloads:
-            self.active_downloads.pop(key, None)
+        entry = self.active_downloads.pop(key, None) if key in self.active_downloads else None
         if hasattr(self, "active_speeds"):
             self.active_speeds.pop(key, None)
         self.update_status_bar_speed()
@@ -4418,6 +4941,13 @@ class MainWindow(QMainWindow):
             row = -1
 
         if row != -1:
+            worker = getattr(entry, "worker", entry)
+            if (not path or path == "Complete" or not os.path.exists(path)) and worker:
+                if getattr(worker, "final_file_path", None) and os.path.exists(worker.final_file_path):
+                    path = worker.final_file_path
+                elif getattr(worker, "target_path", None) and os.path.exists(worker.target_path):
+                    path = worker.target_path
+
             if path and os.path.exists(path):
                 filename = os.path.basename(path)
                 item_ref.setText(filename)
@@ -4470,10 +5000,17 @@ class MainWindow(QMainWindow):
                     dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
                     dialog.show()
             else:
-                status_item = self.download_table.item(row, 2)
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Error")
-                self._set_status_text(row, "Error")
+                user_state = item_ref.data(Qt.ItemDataRole.UserRole + 11)
+                if user_state in ("Paused", "Cancelled"):
+                    status_item = self.download_table.item(row, 2)
+                    pct_data = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
+                    final_display = pct_data if pct_data and "%" in str(pct_data) else user_state
+                    self._set_status_text(row, final_display, logic_status=user_state)
+                else:
+                    status_item = self.download_table.item(row, 2)
+                    if status_item:
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Error")
+                    self._set_status_text(row, "Error")
             self._set_row_bold(row, False)
 
         self.update_ui_states()
@@ -4502,6 +5039,9 @@ class MainWindow(QMainWindow):
                             is_audio_only = bool(item_ref.data(Qt.ItemDataRole.UserRole + 7))
                             cookies_browser = item_ref.data(Qt.ItemDataRole.UserRole + 9)
                             cookies_file = item_ref.data(Qt.ItemDataRole.UserRole + 10)
+                            raw_cookies = item_ref.data(Qt.ItemDataRole.UserRole + 5) or item_ref.data(Qt.ItemDataRole.UserRole + 17)
+                            est_size_str = self.download_table.item(r, 1).text() if self.download_table.item(r, 1) else ""
+                            est_bytes = parse_size_to_bytes(est_size_str)
                             worker = YtDlpDownloadWorker(
                                 url=url,
                                 row_index=r,
@@ -4510,13 +5050,25 @@ class MainWindow(QMainWindow):
                                 format_spec=format_spec,
                                 is_audio_only=is_audio_only,
                                 cookies_browser=cookies_browser,
-                                cookies_file=cookies_file
+                                cookies_file=cookies_file,
+                                referrer=item_ref.data(Qt.ItemDataRole.UserRole + 15),
+                                user_agent=item_ref.data(Qt.ItemDataRole.UserRole + 16),
+                                cookies=raw_cookies,
+                                total_bytes=est_bytes
                             )
-                            self.active_downloads[key] = worker
+                            if est_bytes > 0:
+                                worker.total_bytes = est_bytes
                             worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
                             worker.finished_signal.connect(lambda _, path, ref=item_ref, k=key: self._on_media_download_finished(k, ref, path))
+                            progress_dialog = DownloadProgressDialog(worker, None)
+                            progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                            self.active_downloads[key] = progress_dialog
+                            progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                            progress_dialog.finished.connect(self._try_start_queued)
+                            progress_dialog.hide()
                             self._set_status_text(r, "Downloading...")
-                            worker.start()
+                            if not worker.isRunning():
+                                worker.start()
                         else:
                             # Regular HTTP download row
                             self._start_download_worker(url, item_ref)

@@ -18,7 +18,7 @@ from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from core.utils import load_extension_config
 
 # Default TCP port for browser extension communication
-DM_CONNECTOR_PORT = 9000
+DM_CONNECTOR_PORT = 56900
 
 
 class SignalEmitter(QObject):
@@ -64,12 +64,29 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length).decode('utf-8')
+        body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ""
+        
+        # Guard: Only explicit user download submissions on root '/' or '/download' should trigger downloads
+        clean_path = self.path.split("?")[0].rstrip("/")
+        if clean_path not in ("", "/download"):
+            # Background sniffing or status notification (e.g. /media, /tab-update)
+            # Acknowledge with 200 OK without emitting new_download_signal
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"status": "acknowledged"}')
+            return
         
         url = ""
         user_agent = ""
         cookies = ""
         referrer = ""
+        is_media = False
+        title = ""
+        quality = ""
+        size_bytes = 0
+        size_str = ""
         
         try:
             payload = json.loads(body)
@@ -77,12 +94,18 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             user_agent = payload.get("userAgent", "")
             cookies = payload.get("cookies", "")
             referrer = payload.get("referrer", "")
+            is_media = bool(payload.get("isMedia", False))
+            title = str(payload.get("title", "") or payload.get("filename", "")).strip()
+            quality = str(payload.get("quality", "")).strip()
+            size_bytes = int(payload.get("sizeBytes", 0) or 0)
+            size_str = str(payload.get("sizeStr", "") or "").strip()
         except json.JSONDecodeError:
             url = body
             
         if url and url.startswith("http"):
+            media_flag = "1" if is_media else "0"
             # self.server.emitter is passed when initializing the server
-            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}")
+            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}|{media_flag}|{quality}|{title}|{size_bytes}|{size_str}")
             
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')

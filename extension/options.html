@@ -26,6 +26,10 @@
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
           <span>Appearance</span>
         </button>
+        <button class="nav-item" data-tab="tab-media">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span>Media</span>
+        </button>
         <button class="nav-item" data-tab="tab-whitelist">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           <span>Whitelist</span>
@@ -155,6 +159,46 @@
             <option value="light">Light Mode</option>
             <option value="dark">Dark Mode</option>
           </select>
+        </div>
+      </section>
+
+      <!-- Tab: Media -->
+      <section id="tab-media" class="tab-pane">
+        <div class="pane-header">
+          <h2>Media & Video Capture</h2>
+          <p class="pane-desc">Manage video stream detection and on-screen download panel settings for web players.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Streaming Media Capture</div>
+          <p class="card-desc">Automatically detect playing videos (YouTube, HLS, DASH, MP4) and display the download button on web players.</p>
+
+          <label class="toggle-control-label">
+            <input type="checkbox" id="options-enable-media-sniffing" checked>
+            <div class="toggle-control-text">
+              <span class="toggle-control-title">Capture streaming media</span>
+              <span class="toggle-control-desc">Show Bengal DM download popup on video players when Bengal DM is running</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Video Download Panel Position</div>
+          <p class="card-desc">Choose the default anchor position for the floating download button on video players.</p>
+
+          <div class="form-group" style="max-width: 340px;">
+            <label for="options-video-panel-position">Panel Position</label>
+            <select id="options-video-panel-position" class="form-input">
+              <option value="top-right">Top Right (Recommended)</option>
+              <option value="top-left">Top Left</option>
+              <option value="top-center">Top Center (Top Mid)</option>
+              <option value="center">Center (Mid Center)</option>
+              <option value="bottom-right">Bottom Right</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="bottom-center">Bottom Center (Bottom Mid)</option>
+            </select>
+            <span class="field-hint">You can also drag the floating button to move it anywhere on the player.</span>
+          </div>
         </div>
       </section>
 

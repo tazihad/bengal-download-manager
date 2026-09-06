@@ -392,11 +392,11 @@ def test_tray_icon_resolution_and_dynamic_preview(qapp):
     from core.services.theme_service import _resolve_tray_asset, get_themed_tray_icon, apply_app_theme
     import os
 
-    light_path = _resolve_tray_asset("tray_monochrome_light.png")
-    dark_path = _resolve_tray_asset("tray_monochrome_dark.png")
-    assert light_path != "", "tray_monochrome_light.png asset not found"
+    light_path = _resolve_tray_asset("tray_monochrome_light.svg") or _resolve_tray_asset("tray_monochrome_light.png")
+    dark_path = _resolve_tray_asset("tray_monochrome_dark.svg") or _resolve_tray_asset("tray_monochrome_dark.png")
+    assert light_path != "", "tray_monochrome_light.svg asset not found"
     assert os.path.exists(light_path), f"Path {light_path} does not exist"
-    assert dark_path != "", "tray_monochrome_dark.png asset not found"
+    assert dark_path != "", "tray_monochrome_dark.svg asset not found"
     assert os.path.exists(dark_path), f"Path {dark_path} does not exist"
 
     window = MainWindow(start_ipc=False)
@@ -1162,7 +1162,10 @@ def test_download_complete_dialog_shown_after_file_info_fetched(qapp, tmp_path):
     window.close()
 
 
-def test_media_download_complete_dialog_shown(qapp, tmp_path):
+def test_media_download_complete_dialog_shown(qapp, tmp_path, monkeypatch):
+    from core.media_downloader import YtDlpDownloadWorker
+    monkeypatch.setattr(YtDlpDownloadWorker, "start", lambda self: None)
+
     media_file = tmp_path / "video.mp4"
     media_file.write_bytes(b"\x00\x00\x00 ftypisom" + b"0" * 2048)
 
@@ -1744,6 +1747,16 @@ def test_options_dialog_silent_download_mode(qapp, monkeypatch, tmp_path):
     assert dlg.chk_show_progress_dialog.isChecked() is True
     assert dlg.chk_show_complete_dialog.isChecked() is True
 
+    # Unchecking show_start_dialog should disable show_progress_dialog
+    dlg.chk_show_start_dialog.setChecked(False)
+    assert dlg.chk_show_progress_dialog.isEnabled() is False
+    assert dlg.get_show_progress_dialog() is False
+
+    # Re-checking show_start_dialog should re-enable show_progress_dialog
+    dlg.chk_show_start_dialog.setChecked(True)
+    assert dlg.chk_show_progress_dialog.isEnabled() is True
+    assert dlg.get_show_progress_dialog() is True
+
     dlg.chk_silent_download.setChecked(True)
     dlg.save_and_accept()
     assert win.settings["silent_download"] is True
@@ -2007,23 +2020,461 @@ def test_download_file_info_dialog_file_type_display(qapp):
     dlg.close()
 
 
+def test_download_table_file_icon_theme_switching(qapp):
+    """Verify that file icons in the download table dynamically switch between white (dark mode) and dark (light mode)."""
+    from core.services.theme_service import get_file_icon, is_dark_theme, apply_app_theme
+    from PyQt6.QtWidgets import QTableWidgetItem
+
+    apply_app_theme("BDM Dark (Default)")
+    assert is_dark_theme() is True
+
+    apply_app_theme("BDM Light")
+    assert is_dark_theme() is False
+
+    win = MainWindow(start_ipc=False)
+    win.download_table.setRowCount(1)
+    item = QTableWidgetItem("vlc-3.0.23-win32.exe")
+    item.setIcon(get_file_icon("vlc-3.0.23-win32.exe"))
+    win.download_table.setItem(0, 0, item)
+
+    def get_avg_rgb():
+        ic = win.download_table.item(0, 0).icon()
+        pix = ic.pixmap(24, 24)
+        img = pix.toImage()
+        colors = []
+        for y in range(img.height()):
+            for x in range(img.width()):
+                c = img.pixelColor(x, y)
+                if c.alpha() > 100:
+                    colors.append((c.red(), c.green(), c.blue()))
+        assert len(colors) > 0, "Icon pixmap should have pixels"
+        return (sum(c[0] for c in colors) / len(colors),
+                sum(c[1] for c in colors) / len(colors),
+                sum(c[2] for c in colors) / len(colors))
+
+    # In Dark theme: icon must be white
+    win.apply_appearance_setting("BDM Dark (Default)", "BDM (Default)", "BDM Auto (Default)", "App Icon (Default)")
+    dark_rgb = get_avg_rgb()
+    assert dark_rgb[0] > 200 and dark_rgb[1] > 200 and dark_rgb[2] > 200
+
+    # In Light theme: icon must switch to dark
+    win.apply_appearance_setting("BDM Light", "BDM (Default)", "BDM Auto (Default)", "App Icon (Default)")
+    light_rgb = get_avg_rgb()
+    assert light_rgb[0] < 80 and light_rgb[1] < 80 and light_rgb[2] < 80
+
+    # Back to Dark theme: icon must switch back to white
+    win.apply_appearance_setting("BDM Dark (Default)", "BDM (Default)", "BDM Auto (Default)", "App Icon (Default)")
+    back_dark_rgb = get_avg_rgb()
+    assert back_dark_rgb[0] > 200 and back_dark_rgb[1] > 200 and back_dark_rgb[2] > 200
+
+    # In Modern Color: icon switches to colorful palette with indigo/blue
+    win.apply_appearance_setting("BDM Dark (Default)", "BDM (Default)", "Modern Color", "App Icon (Default)")
+    color_rgb = get_avg_rgb()
+    assert color_rgb[2] > color_rgb[0]
+
+    win.close()
 
 
+def test_download_file_info_skip_checkbox_layout_and_results(qapp):
+    from ui.dialogs.file_info import DownloadFileInfoDialog
+    file_info = {
+        "url": "https://example.com/testfile.zip",
+        "filename": "testfile.zip",
+        "size_str": "15 MB",
+        "size_bytes": 15728640,
+        "content_type": "application/zip"
+    }
+    dlg = DownloadFileInfoDialog(file_info)
+    assert hasattr(dlg, "chk_dont_show"), "Dialog must have chk_dont_show checkbox"
+    assert dlg.chk_dont_show.text() == "Don't show this dialog again (start downloads directly)"
+    assert not dlg.chk_dont_show.isChecked(), "Checkbox must be unchecked by default"
+
+    res = dlg.get_results()
+    assert res.get("dont_show_again") is False
+
+    dlg.chk_dont_show.setChecked(True)
+    res_checked = dlg.get_results()
+    assert res_checked.get("dont_show_again") is True
+    dlg.close()
 
 
+def test_download_file_info_dont_show_syncs_with_settings_and_options(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    from main import MainWindow
+    from ui.dialogs.file_info import DownloadFileInfoDialog
+    from ui.dialogs.options import OptionsDialog
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.settings["show_start_dialog"] = True
+    win.show_start_dialog = True
+
+    # Open options dialog alongside
+    options_dlg = OptionsDialog(main_window=win)
+    win._options_dlg = options_dlg
+    assert options_dlg.chk_show_start_dialog.isChecked() is True
+
+    # Open File Info dialog
+    file_info = {
+        "url": "https://example.com/archive.tar.gz",
+        "filename": "archive.tar.gz",
+        "size_str": "50 MB",
+        "size_bytes": 52428800
+    }
+    info_dlg = DownloadFileInfoDialog(file_info, main_window=win)
+    info_dlg.chk_dont_show.setChecked(True)
+    info_dlg.on_start()
+
+    # Verify settings updated and synced to open options dialog
+    assert win.settings["show_start_dialog"] is False
+    assert win.show_start_dialog is False
+    assert options_dlg.chk_show_start_dialog.isChecked() is False
+
+    # Now simulate user re-enabling "Show start download dialog" in Options dialog
+    options_dlg.chk_show_start_dialog.setChecked(True)
+    options_dlg.save_and_accept()
+    assert win.settings["show_start_dialog"] is True
+    assert win.show_start_dialog is True
+
+    options_dlg.close()
+    win.close()
 
 
+def test_direct_download_when_show_start_dialog_is_false(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    from main import MainWindow
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    started_downloads = []
+    monkeypatch.setattr(win, "_start_download_worker", lambda url, item_ref, **kw: started_downloads.append((url, item_ref.text())))
+    win.settings["show_start_dialog"] = False
+    win.show_start_dialog = False
+
+    file_info = {
+        "url": "https://example.com/direct_download.zip",
+        "filename": "direct_download.zip",
+        "size_str": "2 MB",
+        "size_bytes": 2097152
+    }
+
+    # Calling on_file_info_fetched should bypass DownloadFileInfoDialog and start immediately
+    win.on_file_info_fetched(file_info)
+
+    # Active file info dialogs must be empty
+    assert len(win.active_file_info_dialogs) == 0
+    # Download table must have the new item added directly
+    assert win.download_table.rowCount() >= 1
+    item = win.download_table.item(0, 0)
+    assert item is not None
+    assert item.text() == "direct_download.zip"
+    assert len(started_downloads) == 1
+    assert started_downloads[0] == ("https://example.com/direct_download.zip", "direct_download.zip")
+
+    win.close()
 
 
+def test_download_file_info_cancel_preserves_show_start_setting(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    from main import MainWindow
+    from ui.dialogs.file_info import DownloadFileInfoDialog
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    monkeypatch.setattr(win, "_start_download_worker", lambda *a, **kw: None)
+    win.settings["show_start_dialog"] = True
+    win.show_start_dialog = True
+
+    file_info = {
+        "url": "https://example.com/test_cancel.zip",
+        "filename": "test_cancel.zip",
+        "size_str": "10 MB",
+        "size_bytes": 10485760
+    }
+    dlg = DownloadFileInfoDialog(file_info, main_window=win)
+    dlg.chk_dont_show.setChecked(True)
+    # Reject/cancel the dialog
+    dlg.reject()
+
+    # show_start_dialog must remain True because dialog was canceled
+    assert win.settings.get("show_start_dialog", True) is True
+    assert getattr(win, "show_start_dialog", True) is True
+    dlg.close()
+    win.close()
 
 
+def test_show_progress_dialog_setting_suppresses_progress_window(qapp, tmp_path, monkeypatch):
+    """Verify that unchecking show_progress_dialog prevents progress dialog from popping up."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    import os
+    from main import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt, QObject, pyqtSignal
+
+    class DummyWorker(QObject):
+        log_signal = pyqtSignal(str)
+        main_bar_signal = pyqtSignal(int, int)
+        main_progress_signal = pyqtSignal(int, tuple)
+        finished_signal = pyqtSignal(int, str)
+        init_segments_signal = pyqtSignal(int)
+        segment_update_signal = pyqtSignal(int, tuple)
+
+        def __init__(self, url, row, save_dir, filename=None, **kwargs):
+            super().__init__()
+            self.url = url
+            self.row_index = row
+            self.filename = filename or "dummy.zip"
+            self.target_path = os.path.join(save_dir, self.filename)
+            self.total_bytes = 1000000
+            self.current_bytes = 0
+            self.generation = 1
+            self.is_paused = False
+            self.is_pause_requested = False
+
+        def isRunning(self):
+            return False
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def pause(self):
+            self.is_paused = True
+
+        def resume(self):
+            self.is_paused = False
+
+        def format_bytes(self, b, **kw):
+            return f"{b} B"
+
+        def set_global_speed_limit(self, limit):
+            pass
+
+    monkeypatch.setattr("ui.main_window.DownloadWorker", DummyWorker)
+    monkeypatch.setattr("ui.main_window.Aria2Worker", DummyWorker)
+    monkeypatch.setattr("core.media_downloader.YtDlpDownloadWorker", DummyWorker)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # Case 1: show_progress_dialog is False
+    win.settings["show_progress_dialog"] = False
+    win.settings["silent_download"] = False
+
+    # Add item to download table
+    win.download_table.setRowCount(1)
+    item_name = QTableWidgetItem("test_archive.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole, "https://example.com/test_archive.zip")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, str(tmp_path / "test_archive.zip"))
+    win.download_table.setItem(0, 0, item_name)
+    win.download_table.setItem(0, 1, QTableWidgetItem("10 MB"))
+    win.download_table.setItem(0, 2, QTableWidgetItem("Paused"))
+
+    # Start download worker with default show_dialog (which should resolve from settings)
+    win._start_download_worker("https://example.com/test_archive.zip", item_name)
+
+    key = win._get_item_key(item_name)
+    dlg = win.active_downloads.get(key)
+    assert dlg is not None
+    assert dlg.isVisible() is False
+
+    # Double click or manual request should still reveal it on demand
+    win.show_download_progress_dialog(key)
+    assert dlg.isVisible() is True
+    dlg.hide()
+    assert dlg.isVisible() is False
+
+    # Clean up first download
+    dlg.close()
+    win.active_downloads.clear()
+
+    # Case 2: start_download with show_progress_dialog = False
+    item2 = win.start_download("https://example.com/another.zip", "another.zip")
+    assert item2 is not None
+    key2 = win._get_item_key(item2)
+    dlg2 = win.active_downloads.get(key2)
+    assert dlg2 is not None
+    assert dlg2.isVisible() is False
+    dlg2.close()
+    win.active_downloads.clear()
+
+    # Case 3: show_progress_dialog is True -> should show dialog
+    win.settings["show_progress_dialog"] = True
+    item3 = win.start_download("https://example.com/visible.zip", "visible.zip")
+    assert item3 is not None
+    key3 = win._get_item_key(item3)
+    dlg3 = win.active_downloads.get(key3)
+    assert dlg3 is not None
+    assert dlg3.isVisible() is True
+    dlg3.close()
+    win.active_downloads.clear()
+
+    win.close()
 
 
+def test_resume_selected_download_respects_show_progress_dialog_false(qapp, tmp_path, monkeypatch):
+    """Verify that resuming a paused download does not show progress dialog if show_progress_dialog is False."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    from main import MainWindow
+    from core.workers import DownloadWorker, Aria2Worker
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    monkeypatch.setattr(DownloadWorker, "start", lambda self: None)
+    monkeypatch.setattr(Aria2Worker, "start", lambda self: None)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    win.settings["show_progress_dialog"] = False
+    win.download_table.setRowCount(1)
+    item_name = QTableWidgetItem("resume_test.iso")
+    item_name.setData(Qt.ItemDataRole.UserRole, "https://example.com/resume_test.iso")
+    item_name.setData(Qt.ItemDataRole.UserRole + 1, str(tmp_path / "resume_test.iso"))
+    item_status = QTableWidgetItem("Paused")
+    item_status.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
+    win.download_table.setItem(0, 0, item_name)
+    win.download_table.setItem(0, 1, QTableWidgetItem("500 MB"))
+    win.download_table.setItem(0, 2, item_status)
+
+    # Attach download info
+    win.download_infos = {
+        str(tmp_path / "resume_test.iso"): {
+            "url": "https://example.com/resume_test.iso",
+            "filename": "resume_test.iso",
+            "save_dir": str(tmp_path)
+        }
+    }
+
+    win.download_table.selectRow(0)
+    win.resume_selected_download()
+
+    key = win._get_item_key(item_name)
+    dlg = win.active_downloads.get(key)
+    assert dlg is not None
+    assert dlg.isVisible() is False
+
+    dlg.close()
+    win.close()
 
 
+def test_show_start_dialog_unchecked_suppresses_progress_dialog(qapp, tmp_path, monkeypatch):
+    """Verify that unchecking show_start_dialog suppresses download progress dialog even if show_progress_dialog is True."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
+    import os
+    from main import MainWindow
+    from ui.dialogs.options import OptionsDialog
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt, QObject, pyqtSignal
 
+    class DummyWorker(QObject):
+        log_signal = pyqtSignal(str)
+        main_bar_signal = pyqtSignal(int, int)
+        main_progress_signal = pyqtSignal(int, tuple)
+        finished_signal = pyqtSignal(int, str)
+        init_segments_signal = pyqtSignal(int)
+        segment_update_signal = pyqtSignal(int, tuple)
 
+        def __init__(self, url, row, save_dir, filename=None, **kwargs):
+            super().__init__()
+            self.url = url
+            self.row_index = row
+            self.filename = filename or "dummy.zip"
+            self.target_path = os.path.join(save_dir, self.filename)
+            self.total_bytes = 1000000
+            self.current_bytes = 0
+            self.generation = 1
+            self.is_paused = False
+            self.is_pause_requested = False
 
+        def isRunning(self):
+            return False
 
+        def start(self):
+            pass
 
+        def stop(self):
+            pass
+
+        def pause(self):
+            self.is_paused = True
+
+        def resume(self):
+            self.is_paused = False
+
+        def format_bytes(self, b, **kw):
+            return f"{b} B"
+
+        def set_global_speed_limit(self, limit):
+            pass
+
+    monkeypatch.setattr("ui.main_window.DownloadWorker", DummyWorker)
+    monkeypatch.setattr("ui.main_window.Aria2Worker", DummyWorker)
+    monkeypatch.setattr("core.media_downloader.YtDlpDownloadWorker", DummyWorker)
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # 1. Verify OptionsDialog initializes with chk_show_progress_dialog disabled when show_start_dialog is False
+    win.settings["show_start_dialog"] = False
+    win.settings["show_progress_dialog"] = True
+    win.settings["silent_download"] = False
+
+    options_dlg = OptionsDialog(main_window=win)
+    assert options_dlg.chk_show_start_dialog.isChecked() is False
+    assert options_dlg.chk_show_progress_dialog.isEnabled() is False
+    assert options_dlg.get_show_progress_dialog() is False
+    options_dlg.close()
+
+    # 2. Verify on_file_info_fetched starts download and suppresses progress dialog
+    file_info = {
+        "url": "https://example.com/no_start.zip",
+        "filename": "no_start.zip",
+        "size_str": "5 MB",
+        "size_bytes": 5242880
+    }
+    win.on_file_info_fetched(file_info)
+    assert win.download_table.rowCount() >= 1
+    item = win.download_table.item(0, 0)
+    key = win._get_item_key(item)
+    dlg = win.active_downloads.get(key)
+    assert dlg is not None
+    assert dlg.isVisible() is False
+    dlg.close()
+    win.active_downloads.clear()
+
+    # 3. Verify start_download directly suppresses progress dialog
+    item2 = win.start_download("https://example.com/direct2.iso", "direct2.iso")
+    key2 = win._get_item_key(item2)
+    dlg2 = win.active_downloads.get(key2)
+    assert dlg2 is not None
+    assert dlg2.isVisible() is False
+    dlg2.close()
+    win.active_downloads.clear()
+
+    # 4. Verify _start_download_worker suppresses progress dialog
+    win.download_table.setRowCount(1)
+    item3 = QTableWidgetItem("worker_test.bin")
+    item3.setData(Qt.ItemDataRole.UserRole, "https://example.com/worker_test.bin")
+    item3.setData(Qt.ItemDataRole.UserRole + 1, str(tmp_path / "worker_test.bin"))
+    win.download_table.setItem(0, 0, item3)
+    win.download_table.setItem(0, 1, QTableWidgetItem("1 MB"))
+    win.download_table.setItem(0, 2, QTableWidgetItem("Paused"))
+
+    win._start_download_worker("https://example.com/worker_test.bin", item3)
+    key3 = win._get_item_key(item3)
+    dlg3 = win.active_downloads.get(key3)
+    assert dlg3 is not None
+    assert dlg3.isVisible() is False
+    dlg3.close()
+
+    win.close()
 

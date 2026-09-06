@@ -39,9 +39,13 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
                             manifest["background"].pop("scripts", None)
                         if "permissions" in manifest and "webRequestBlocking" in manifest["permissions"]:
                             manifest["permissions"].remove("webRequestBlocking")
+                        if "permissions" in manifest and "downloads.ui" not in manifest["permissions"]:
+                            manifest["permissions"].insert(1, "downloads.ui")
                     elif target == "firefox":
                         if "background" in manifest and "service_worker" in manifest["background"]:
                             manifest["background"].pop("service_worker", None)
+                        if "permissions" in manifest and "downloads.ui" in manifest["permissions"]:
+                            manifest["permissions"].remove("downloads.ui")
                         if "browser_specific_settings" not in manifest:
                             manifest["browser_specific_settings"] = {}
                         if "gecko" not in manifest["browser_specific_settings"]:
@@ -127,19 +131,26 @@ def make_crx(extension_dir, output_crx, output_zip, pem_key_path=None):
             os.remove(pem_key_path)
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Pack Bengal DM browser extension for Chrome and Firefox.")
+    parser.add_argument("out_dir", nargs="?", default=None, help="Output directory for generated packages (default: <repo>/dist)")
+    args = parser.parse_args()
+
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    out_dir = os.path.abspath(args.out_dir) if args.out_dir else os.path.join(repo_root, "dist")
+    os.makedirs(out_dir, exist_ok=True)
+
     ext_dir = os.path.join(repo_root, "extension")
-    out_crx = os.path.join(repo_root, "dist", "bengal-download-manager-extension.crx")
-    out_zip = os.path.join(repo_root, "dist", "bengal-download-manager-extension.zip")
-    out_chrome_zip = os.path.join(repo_root, "dist", "bengal-download-manager-chrome.zip")
-    out_firefox_zip = os.path.join(repo_root, "dist", "bengal-download-manager-firefox.zip")
-    out_firefox_xpi = os.path.join(repo_root, "dist", "bengal-download-manager-firefox.xpi")
+    out_crx = os.path.join(out_dir, "bengal-download-manager-extension.crx")
+    out_zip = os.path.join(out_dir, "bengal-download-manager-extension.zip")
+    out_chrome_zip = os.path.join(out_dir, "bengal-download-manager-chrome.zip")
+    out_firefox_zip = os.path.join(out_dir, "bengal-download-manager-firefox.zip")
+    out_firefox_xpi = os.path.join(out_dir, "bengal-download-manager-firefox.xpi")
     
     make_crx(ext_dir, out_crx, out_zip)
     build_zip_package(ext_dir, out_chrome_zip, target="chrome")
     build_zip_package(ext_dir, out_firefox_zip, target="firefox")
     shutil.copy(out_firefox_zip, out_firefox_xpi)
     
-    print(f"Chrome package created: {out_chrome_zip}")
-    print(f"Firefox package created: {out_firefox_zip}")
+    print(f"CRX binary created: {out_crx}")
     print(f"Firefox XPI package created: {out_firefox_xpi}")

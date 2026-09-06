@@ -77,16 +77,19 @@ class DownloadProgressDialog(QDialog):
         grid.setSpacing(10) 
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
         
         def add_row(label_text, value_widget, row):
             l = QLabel(label_text)
             l.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            grid.addWidget(l, row, 0)
+            grid.addWidget(l, row, 0, Qt.AlignmentFlag.AlignLeft)
             value_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            grid.addWidget(value_widget, row, 1)
+            grid.addWidget(value_widget, row, 1, Qt.AlignmentFlag.AlignLeft)
 
         self.lbl_main_status = QLabel("Connecting...")
         self.lbl_main_status.setStyleSheet("color: #0078d4; font-weight: bold;") 
+        self.lbl_main_status.setFixedWidth(280)
         add_row("Status:", self.lbl_main_status, 0)
 
         tnum_tag = QFont.Tag.fromString('tnum')
@@ -97,7 +100,7 @@ class DownloadProgressDialog(QDialog):
         font_size.setFeature(tnum_tag, 1)
         self.lbl_size.setFont(font_size)
         self.lbl_size.setStyleSheet("font-weight: bold;")
-        self.lbl_size.setFixedWidth(180)
+        self.lbl_size.setFixedWidth(280)
         add_row("File size:", self.lbl_size, 1)
         
         self.lbl_downloaded = QLabel("0 bytes")
@@ -106,7 +109,7 @@ class DownloadProgressDialog(QDialog):
         font_dl.setFeature(tnum_tag, 1)
         self.lbl_downloaded.setFont(font_dl)
         self.lbl_downloaded.setStyleSheet("font-weight: bold;")
-        self.lbl_downloaded.setFixedWidth(180)
+        self.lbl_downloaded.setFixedWidth(280)
         add_row("Downloaded:", self.lbl_downloaded, 2)
 
         self.lbl_speed = QLabel("0.00 B/s")
@@ -115,7 +118,7 @@ class DownloadProgressDialog(QDialog):
         font_sp.setFeature(tnum_tag, 1)
         self.lbl_speed.setFont(font_sp)
         self.lbl_speed.setStyleSheet("font-weight: bold;")
-        self.lbl_speed.setFixedWidth(180)
+        self.lbl_speed.setFixedWidth(280)
         add_row("Transfer rate:", self.lbl_speed, 3)
 
         self.lbl_time = QLabel("Calculating...")
@@ -124,10 +127,13 @@ class DownloadProgressDialog(QDialog):
         font_tm.setFeature(tnum_tag, 1)
         self.lbl_time.setFont(font_tm)
         self.lbl_time.setStyleSheet("font-weight: bold;")
-        self.lbl_time.setFixedWidth(180)
+        self.lbl_time.setFixedWidth(280)
         add_row("Time left:", self.lbl_time, 4)
         
         self.lbl_resume = QLabel("Unknown")
+        if getattr(self.worker, 'supports_resume', False) or hasattr(self.worker, 'gid'):
+            self.lbl_resume.setText("Yes")
+        self.lbl_resume.setFixedWidth(280)
         add_row("Resume capability:", self.lbl_resume, 5)
 
         grid.setColumnStretch(1, 1)
@@ -259,6 +265,10 @@ class DownloadProgressDialog(QDialog):
         details_layout.addWidget(self.segments_container)
         
         self.seg_table = QTableWidget()
+        tnum_tag = QFont.Tag.fromString('tnum')
+        f_seg = QFont(self.seg_table.font())
+        f_seg.setFeature(tnum_tag, 1)
+        self.seg_table.setFont(f_seg)
         self.seg_table.setColumnCount(4)
         seg_headers = [("N.", "Connection thread index"), ("Downloaded", "Bytes downloaded by thread"), ("Rate", "Current speed of thread"), ("Status", "Thread state")]
         self.seg_table.setHorizontalHeaderLabels([h[0] for h in seg_headers])
@@ -343,8 +353,8 @@ class DownloadProgressDialog(QDialog):
             self.setFixedSize(self.fixed_width, self.base_height)
 
     def init_segment_table(self, num_segments):
-        # Aria2 backend (which has 'gid') supports resume automatically
-        if num_segments > 1 or hasattr(self.worker, 'gid'):
+        # Aria2 backend (which has 'gid') or workers with supports_resume support resume
+        if num_segments > 1 or hasattr(self.worker, 'gid') or getattr(self.worker, 'supports_resume', False):
             self.lbl_resume.setText("Yes")
         else:
             self.lbl_resume.setText("No/Unknown")
@@ -407,16 +417,23 @@ class DownloadProgressDialog(QDialog):
             self.seg_table.setItem(index, 3, QTableWidgetItem(display_status))
 
     def append_log(self, text):
-        if len(text) < 60:
-            if text == "Resuming download...":
-                display_text = "Resuming..."
-            elif text == "Pausing download...":
-                display_text = "Paused"
-            elif text == "Connecting to server...":
-                display_text = "Connecting..."
-            else:
-                display_text = text
-            self.lbl_main_status.setText(display_text)
+        if not text:
+            return
+        clean_text = text.strip()
+        if clean_text in ("Resuming download...", "Resuming...", "Resume GET..."):
+            display_text = "Resuming..."
+        elif clean_text in ("Pausing download...", "Paused", "Download paused."):
+            display_text = "Paused"
+        elif clean_text in ("Connecting to server...", "Connecting to Aria2 engine...", "Connecting..."):
+            display_text = "Connecting..."
+        elif clean_text in ("Download completed.", "Aria2 download completed successfully."):
+            display_text = "Complete"
+        elif clean_text.startswith("Critical Error:") or clean_text.startswith("Error"):
+            display_text = "Error"
+            self.lbl_main_status.setStyleSheet("font-weight: bold; color: red;")
+        else:
+            return
+        self.lbl_main_status.setText(display_text)
 
     def update_progress(self, current, total):
         self.current_bytes = current
@@ -496,9 +513,13 @@ class DownloadProgressDialog(QDialog):
         self.reject() 
 
     def on_finished(self, row, status):
-        if status == "Complete":
+        import os
+        is_path_complete = isinstance(status, str) and bool(status) and (os.path.isabs(status) and os.path.exists(status))
+        if status == "Complete" or is_path_complete:
             self.is_completed = True
             display_status = "Complete"
+            if is_path_complete and hasattr(self, "worker") and self.worker:
+                self.worker.target_path = status
         elif status == "Cancelled":
             display_status = "Cancelled"
         elif status == "Error":
@@ -524,6 +545,16 @@ class DownloadProgressDialog(QDialog):
                 
             self.lbl_time.setText("0 sec")
             self.lbl_speed.setText("0.00 B/s")
+
+            for i in range(len(self.segment_bars)):
+                self.segment_bars[i].setMaximum(10000)
+                self.segment_bars[i].setValue(10000)
+                status_item = self.seg_table.item(i, 3)
+                if status_item and status_item.text() not in ("Unused", "-"):
+                    status_item.setText("Complete")
+                    rate_item = self.seg_table.item(i, 2)
+                    if rate_item and rate_item.text() != "-":
+                        rate_item.setText("0.00 B/s")
             
             self.btn_cancel.setText("Close")
             self.btn_pause.setText("Open Folder")
