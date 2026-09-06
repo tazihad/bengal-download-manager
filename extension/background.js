@@ -480,7 +480,9 @@ async function sendToBengalDM(downloadData) {
     referrer: referrer || "",
     title: downloadData.title || "",
     quality: downloadData.quality || "",
-    isMedia: !!downloadData.isMedia
+    isMedia: !!downloadData.isMedia,
+    sizeBytes: downloadData.sizeBytes || 0,
+    sizeStr: downloadData.sizeStr || ""
   };
 
   try {
@@ -630,6 +632,25 @@ function isMatchingMediaRequest(url, contentType) {
   const hostname = u.hostname.toLowerCase();
   for (const bh of dynamicMediaConfig.blockedHosts) {
     if (hostname.includes(bh)) return false;
+  }
+
+  // Filter out thumbnail preview clips and hover loops (e.g. vidthumb.mp4 on sxyprn)
+  const lowerUrl = url.toLowerCase();
+  const lowerPath = u.pathname.toLowerCase();
+  if (
+    lowerUrl.includes('vidthumb') ||
+    lowerUrl.includes('thumb_preview') ||
+    lowerUrl.includes('hover_preview') ||
+    lowerUrl.includes('preview_video') ||
+    lowerUrl.includes('preview.mp4') ||
+    lowerUrl.includes('trailer_preview') ||
+    lowerUrl.includes('storyboard') ||
+    lowerUrl.includes('_preview.') ||
+    lowerPath.includes('/preview/') ||
+    lowerPath.includes('/preview_clip/') ||
+    lowerPath.includes('/thumbnails/')
+  ) {
+    return false;
   }
 
   // 1. Host matching (e.g. googlevideo)
@@ -1211,7 +1232,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           filename: request.filename || request.title || "",
           title: request.title || "",
           quality: request.quality || "",
-          isMedia: true
+          isMedia: true,
+          sizeBytes: request.sizeBytes || 0,
+          sizeStr: request.sizeStr || ""
         });
         sendResponse({ success, resolvedUrl: cleanUrl });
         return;

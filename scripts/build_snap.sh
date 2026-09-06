@@ -44,7 +44,11 @@ fi
 
 echo "--- 1. Validating Snapcraft Recipe Syntax ---"
 PY_BIN="python3"
-if [ -f "venv/bin/python" ]; then
+if command -v uv >/dev/null 2>&1; then
+    PY_BIN="uv run python"
+elif [ -f ".venv/bin/python" ]; then
+    PY_BIN=".venv/bin/python"
+elif [ -f "venv/bin/python" ]; then
     PY_BIN="venv/bin/python"
 fi
 

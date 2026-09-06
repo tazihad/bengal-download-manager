@@ -1737,9 +1737,10 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
     if not clean_base:
         clean_base = "media"
 
-    # Extract any existing duplicate counter suffix like " (1)", " (2)"
-    m = re.search(r'^(.*?)(\s*\(\d+\))$', clean_base)
-    if m:
+    # Extract any existing tags or duplicate counter suffixes like " [id] [1080p]", " (1)", " [id] (1)"
+    pattern = r'^(.*?)(\s*(?:\[[^\]]+\]|\(\d+\))+(?:\s*(?:\[[^\]]+\]|\(\d+\)))*)$'
+    m = re.search(pattern, clean_base)
+    if m and m.group(2).strip():
         main_part, suffix = m.group(1), m.group(2)
         eff_limit = max(10, max_len - len(suffix.encode("utf-8")))
         while len(main_part.encode("utf-8")) > eff_limit:

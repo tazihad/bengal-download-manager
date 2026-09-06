@@ -85,6 +85,8 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         is_media = False
         title = ""
         quality = ""
+        size_bytes = 0
+        size_str = ""
         
         try:
             payload = json.loads(body)
@@ -95,13 +97,15 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             is_media = bool(payload.get("isMedia", False))
             title = str(payload.get("title", "") or payload.get("filename", "")).strip()
             quality = str(payload.get("quality", "")).strip()
+            size_bytes = int(payload.get("sizeBytes", 0) or 0)
+            size_str = str(payload.get("sizeStr", "") or "").strip()
         except json.JSONDecodeError:
             url = body
             
         if url and url.startswith("http"):
             media_flag = "1" if is_media else "0"
             # self.server.emitter is passed when initializing the server
-            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}|{media_flag}|{quality}|{title}")
+            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}|{media_flag}|{quality}|{title}|{size_bytes}|{size_str}")
             
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')

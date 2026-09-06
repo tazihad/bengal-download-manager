@@ -620,3 +620,378 @@ def test_start_media_download_shows_download_file_info_dialog(qapp, tmp_path):
     mw.close()
 
 
+def test_media_downloader_pause_and_resume_lifecycle(qapp, tmp_path):
+    """Verify pausing and resuming media downloads via MainWindow and QML bridge methods."""
+    from ui.main_window import MainWindow
+    from core.media_downloader import YtDlpDownloadWorker
+    from PyQt6.QtCore import Qt
+    from unittest.mock import patch
+
+    mw = MainWindow(start_ipc=False)
+    mw.hide()
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start"):
+        item_ref = mw.start_media_download(
+            url="https://example.com/video.m3u8",
+            filename="Paused_Video.mp4",
+            format_spec="bestvideo+bestaudio/best",
+            custom_save_dir=str(tmp_path),
+            show_file_info=False
+        )
+
+    assert item_ref is not None
+    key = mw._get_item_key(item_ref)
+    entry = mw.active_downloads[key]
+    from ui.dialogs.progress import DownloadProgressDialog
+    assert isinstance(entry, DownloadProgressDialog)
+    worker = getattr(entry, "worker", entry)
+    assert isinstance(worker, YtDlpDownloadWorker)
+    assert worker.is_paused is False
+
+    row = mw.download_table.row(item_ref)
+    mw.download_table.selectRow(row)
+
+    # 1. Stop / Pause the media download
+    with patch.object(worker, "pause", wraps=worker.pause) as mock_pause:
+        mw.stop_selected_download()
+        assert mock_pause.called
+        assert worker.is_paused is True
+        # Worker popped from active_downloads upon pause
+        assert key not in mw.active_downloads
+        assert item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Paused"
+        status_item = mw.download_table.item(row, 2)
+        assert status_item.data(Qt.ItemDataRole.UserRole + 1) == "Paused"
+
+    # 2. Resume the media download
+    with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_resume_start:
+        mw.resume_selected_download()
+        assert mock_resume_start.called
+        new_entry = mw.active_downloads[key]
+        assert isinstance(new_entry, DownloadProgressDialog)
+        new_worker = getattr(new_entry, "worker", new_entry)
+        assert isinstance(new_worker, YtDlpDownloadWorker)
+        assert new_worker is not worker
+        assert item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Normal"
+
+    # 3. Test QML pause and resume
+    with patch.object(new_worker, "pause", wraps=new_worker.pause) as mock_qml_pause:
+        mw.qml_pause_download(row)
+        assert mock_qml_pause.called
+        assert key not in mw.active_downloads
+        assert item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Paused"
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_qml_resume_start:
+        mw.qml_resume_download(row)
+        assert mock_qml_resume_start.called
+        assert key in mw.active_downloads
+        resumed_entry = mw.active_downloads[key]
+        assert isinstance(resumed_entry, DownloadProgressDialog)
+        resumed_worker = getattr(resumed_entry, "worker", resumed_entry)
+        assert isinstance(resumed_worker, YtDlpDownloadWorker)
+    mw.close()
+
+
+def test_extension_media_download_passes_size_to_file_info_dialog(qapp, tmp_path):
+    """Verify that size passed from browser extension via process_incoming_url renders in DownloadFileInfoDialog."""
+    from ui.main_window import MainWindow
+    from unittest.mock import patch
+
+    mw = MainWindow(start_ipc=False)
+    mw.hide()
+
+    # 1. Test start_media_download directly with size
+    item_ref = mw.start_media_download(
+        url="https://example.com/video.m3u8",
+        filename="Test_Stream.mp4",
+        format_spec="bestvideo+bestaudio/best",
+        custom_save_dir=str(tmp_path),
+        total_size_bytes=131489000,
+        show_file_info=True
+    )
+
+    assert item_ref is not None
+    dialog_key = mw._get_item_key(item_ref)
+    assert dialog_key in mw.active_file_info_dialogs
+    file_info_dlg = mw.active_file_info_dialogs[dialog_key]
+    assert file_info_dlg is not None
+    # Verify file size label displays the formatted size and NOT 'Unknown'
+    assert "Unknown" not in file_info_dlg.lbl_size.text()
+    assert "125.40 MB" in file_info_dlg.lbl_size.text()
+    file_info_dlg.close()
+
+    # 2. Test process_incoming_url parses 8-part IPC payload with size
+    payload_data = "https://example.com/video2.m3u8|TestUA|TestCookie|https://referrer.com|1|1080p|Custom Video Title|150000000|150 MB"
+    with patch.object(mw, "open_media_downloader") as mock_open_media:
+        mw.process_incoming_url(payload_data)
+        assert mock_open_media.called
+        kwargs = mock_open_media.call_args[1]
+        assert kwargs["estimated_size_bytes"] == 150000000
+        assert kwargs["custom_title"] == "Custom Video Title"
+
+    mw.close()
+
+
+def test_media_downloader_estimated_size_preserved_and_progress_dialog_shown(qapp, tmp_path):
+    """Verify that 1.24 GB estimated size is preserved when formats have smaller single stream (245 MB)
+    and DownloadProgressDialog is displayed when starting media download."""
+    from unittest.mock import patch
+    from ui.main_window import MainWindow
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+    from ui.dialogs.progress import DownloadProgressDialog
+
+    mw = MainWindow(start_ipc=False)
+    mw.hide()
+
+    dlg = MediaDownloaderDialog(main_window=mw)
+    dlg.hide()
+    # Mock video data where single legacy format is 245 MB but estimated size from extension is 1.24 GB (1331439861)
+    dlg._current_video_data = {
+        "title": "Large Movie 1080p",
+        "webpage_url": "https://example.com/movie",
+        "duration": 7200,
+        "formats": [
+            {"format_id": "22", "height": 720, "vcodec": "avc1", "acodec": "mp4a", "filesize": 256901120}  # ~245 MB
+        ]
+    }
+    dlg._estimated_size_bytes = 1331439861  # 1.24 GB
+    dlg.stack.setCurrentWidget(dlg.page_video)
+
+    with patch.object(mw, "start_media_download") as mock_start:
+        dlg._on_download_clicked()
+        assert mock_start.called
+        kwargs = mock_start.call_args[1]
+        assert kwargs["total_size_bytes"] == 1331439861
+
+    # Verify start_media_download instantiates and displays DownloadProgressDialog
+    with patch("core.media_downloader.YtDlpDownloadWorker.start"):
+        item_ref = mw.start_media_download(
+            url="https://example.com/movie",
+            filename="Large_Movie.mp4",
+            format_spec="bestvideo+bestaudio/best",
+            custom_save_dir=str(tmp_path),
+            total_size_bytes=1331439861,
+            show_file_info=False
+        )
+
+    key = mw._get_item_key(item_ref)
+    assert key in mw.active_downloads
+    prog_dlg = mw.active_downloads[key]
+    assert isinstance(prog_dlg, DownloadProgressDialog)
+    assert prog_dlg.isVisible()
+    # Verify file size label in progress dialog shows 1.24 GB
+    assert "1.24" in prog_dlg.lbl_size.text()
+
+    prog_dlg.close()
+    dlg.close()
+    mw.close()
+
+
+def test_media_downloader_details_split_connections_update_during_download(qapp, tmp_path):
+    """Verify that during media download, the Details panel updates all split connections
+    from 'Pending...' to 'Receiving data...', 'Paused', 'Resuming...', and 'Complete'."""
+    from core.media_downloader import YtDlpDownloadWorker
+    from ui.dialogs.progress import DownloadProgressDialog
+    from PyQt6.QtGui import QFont
+    from unittest.mock import patch
+
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/test_video.m3u8",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test_video.mp4",
+        total_bytes=100000000  # 100 MB
+    )
+    assert worker.supports_resume is True
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start"):
+        prog_dlg = DownloadProgressDialog(worker, None)
+        prog_dlg.hide()
+
+    # 1. Verify Resume capability is "Yes"
+    assert prog_dlg.lbl_resume.text() == "Yes"
+
+    # 2. Verify seg_table font has OpenType tabular figures (tnum)
+    assert prog_dlg.seg_table.font().featureValue(QFont.Tag.fromString('tnum')) == 1
+
+    # 3. Open details view
+    prog_dlg.btn_details.setChecked(True)
+    prog_dlg.toggle_details(True)
+    assert not prog_dlg.details_frame.isHidden()
+
+    # 4. Initially or on startup, worker emits "Connecting..."
+    worker._emit_segment_updates(0, worker.total_bytes, 0.0, status_text="Connecting...")
+    num_conn = worker.max_connections
+    for i in range(num_conn):
+        item_status = prog_dlg.seg_table.item(i, 3)
+        assert item_status is not None
+        assert item_status.text() == "Connecting..."
+
+    # 5. During download: 30 MB downloaded at 5 MB/s
+    worker.current_bytes = 30000000
+    worker._emit_segment_updates(30000000, 100000000, 5242880.0)
+    for i in range(num_conn):
+        item_status = prog_dlg.seg_table.item(i, 3)
+        assert item_status is not None
+        assert item_status.text() in ("Downloading", "Receiving data...")
+        assert item_status.text() != "Pending..."
+        item_dl = prog_dlg.seg_table.item(i, 1)
+        assert item_dl is not None and item_dl.text() != "0.00  B"
+        item_speed = prog_dlg.seg_table.item(i, 2)
+        assert item_speed is not None and "B/s" in item_speed.text() and item_speed.text() != "0.00  B/s"
+        assert prog_dlg.segment_bars[i].value() > 0
+
+    # 6. Pause worker -> Connections reflect "Paused"
+    worker.pause()
+    for i in range(num_conn):
+        item_status = prog_dlg.seg_table.item(i, 3)
+        assert item_status is not None
+        assert item_status.text() == "Paused"
+
+    # 7. Resume worker -> Connections reflect "Resuming..."
+    worker.resume()
+    for i in range(num_conn):
+        item_status = prog_dlg.seg_table.item(i, 3)
+        assert item_status is not None
+        assert item_status.text() == "Resuming..."
+
+    # 8. Completion -> All connections reflect "Complete" with 100% progress
+    worker.current_bytes = 100000000
+    worker._emit_segment_updates(100000000, 100000000, 0.0, status_text="Complete")
+    prog_dlg.on_finished(0, "Complete")
+    for i in range(num_conn):
+        item_status = prog_dlg.seg_table.item(i, 3)
+        assert item_status is not None
+        assert item_status.text() == "Complete"
+        assert prog_dlg.segment_bars[i].value() == 10000
+
+    prog_dlg.close()
+
+
+def test_progress_dialog_no_flicker_and_raw_stdout_isolation(qapp, tmp_path):
+    """Verify that raw stdout lines do not corrupt lbl_main_status and that
+    all status column labels maintain stable fixed widths to eliminate flickering."""
+    from core.media_downloader import YtDlpDownloadWorker
+    from ui.dialogs.progress import DownloadProgressDialog
+    from unittest.mock import patch
+
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/test_video.m3u8",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test_video.mp4",
+        total_bytes=100000000
+    )
+
+    with patch("core.media_downloader.YtDlpDownloadWorker.start"):
+        prog_dlg = DownloadProgressDialog(worker, None)
+        prog_dlg.hide()
+
+    # 1. Verify all value widgets have stable fixed width to prevent layout horizontal jumping
+    assert prog_dlg.lbl_main_status.width() == 280
+    assert prog_dlg.lbl_size.width() == 280
+    assert prog_dlg.lbl_downloaded.width() == 280
+    assert prog_dlg.lbl_speed.width() == 280
+    assert prog_dlg.lbl_time.width() == 280
+    assert prog_dlg.lbl_resume.width() == 280
+
+    # 2. Update to Downloading
+    prog_dlg.update_stats(0, ("test_video.mp4", "100.00 MB", "Downloading", "00:10", "10.00 MB/s", 50000000, 100000000))
+    assert prog_dlg.lbl_main_status.text() == "Downloading"
+
+    # 3. Simulate incoming raw yt-dlp stdout lines — verify lbl_main_status ignores them and remains "Downloading"
+    raw_stdout_lines = [
+        "[download]  15.2% of ~ 100.00MiB at  5.40MiB/s ETA 01:45",
+        "[download] Destination: /tmp/test_video.mp4",
+        "[download] 100% of 100.00MiB in 00:10",
+        "[info] Extracting video metadata..."
+    ]
+    for line in raw_stdout_lines:
+        worker.log_signal.emit(line)
+        assert prog_dlg.lbl_main_status.text() == "Downloading"
+
+    # 4. Valid lifecycle messages still update properly
+    worker.log_signal.emit("Pausing download...")
+    assert prog_dlg.lbl_main_status.text() == "Paused"
+    worker.log_signal.emit("Resuming download...")
+    assert prog_dlg.lbl_main_status.text() == "Resuming..."
+
+    prog_dlg.close()
+
+
+def test_media_downloader_dialog_youtube_naming_convention(qapp):
+    """Verify that MediaDownloaderDialog formats filenames using the media downloader naming convention for YouTube."""
+    from main import MainWindow
+    from ui.dialogs import MediaDownloaderDialog
+    from unittest.mock import patch, MagicMock
+
+    mw = MainWindow(start_ipc=False)
+    dlg = MediaDownloaderDialog(main_window=mw)
+
+    sample_video = {
+        "id": "dQw4w9WgXcQ",
+        "title": "Rick Astley - Never Gonna Give You Up (Official Music Video)",
+        "webpage_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "extractor": "youtube",
+        "duration": 213,
+        "formats": [
+            {"format_id": "137", "ext": "mp4", "height": 1080, "is_video": True, "is_audio": False, "vcodec": "avc1"},
+            {"format_id": "140", "ext": "m4a", "height": None, "is_video": False, "is_audio": True, "acodec": "mp4a"}
+        ]
+    }
+    dlg._on_single_video_ready(sample_video)
+
+    # 1. Test 1080p Preset -> should format as 'Title [id] [1080p].mkv'
+    dlg.cmb_quality_preset.setCurrentIndex(3)  # 1080p Full HD
+    with patch.object(mw, "start_media_download") as mock_dl:
+        dlg._on_download_clicked()
+        assert mock_dl.called
+        call_kwargs = mock_dl.call_args[1]
+        fn = call_kwargs["filename"]
+        assert "[dQw4w9WgXcQ]" in fn
+        assert "[1080p]" in fn
+        assert fn.endswith(".mkv")
+
+    # 2. Test Audio-only Preset -> should format as 'Title [id].opus' without height tag
+    dlg.cmb_quality_preset.setCurrentIndex(7)  # Audio Only (Opus / MP3)
+    with patch.object(mw, "start_media_download") as mock_dl_audio:
+        dlg._on_download_clicked()
+        assert mock_dl_audio.called
+        call_kwargs_a = mock_dl_audio.call_args[1]
+        fn_a = call_kwargs_a["filename"]
+        assert "[dQw4w9WgXcQ]" in fn_a
+        assert "[1080p]" not in fn_a
+        assert fn_a.endswith(".opus")
+
+    mw.close()
+    dlg.close()
+
+
+def test_ytdlp_download_worker_youtube_output_template(tmp_path):
+    """Verify YtDlpDownloadWorker applies media downloader template for YouTube when generic filename is passed."""
+    from core.media_downloader import YtDlpDownloadWorker
+    from unittest.mock import patch, MagicMock
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="media.mp4"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = []
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        worker.run()
+
+        cmd = mock_popen.call_args[0][0]
+        out_tmpl = cmd[cmd.index("-o") + 1]
+        assert "[%(id)s]" in out_tmpl
+        assert "%(title).100B" in out_tmpl
+

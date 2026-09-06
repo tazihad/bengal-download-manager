@@ -658,6 +658,64 @@ document.addEventListener('click', (event) => {
       return false;
     }
 
+    // Navigational link check: legitimate playable main media players are never wrapped inside <a> navigational tags
+    const anchor = video.closest('a[href]');
+    if (anchor) {
+      const href = (anchor.getAttribute('href') || '').trim();
+      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+        return false;
+      }
+    }
+
+    // Thumbnail / preview classes or data attributes on the video element itself (e.g. .hvp_player on sxyprn)
+    const previewClassesOrAttrs = [
+      '.hvp_player',
+      '.vidthumb',
+      '.video-thumb',
+      '.thumb-video',
+      '.hover-video',
+      '.preview-video',
+      '.video-preview',
+      '.thumbnail-video',
+      '.trailer-video',
+      '.preview-player',
+      '.preview_player',
+      '[data-hvp]',
+      '[data-preview]',
+      '[data-thumb]',
+      '[data-thumbnail]',
+      '[data-trailer]'
+    ];
+    if (video.matches) {
+      for (const sel of previewClassesOrAttrs) {
+        if (video.matches(sel)) return false;
+      }
+    }
+
+    // Inline event handlers for thumbnail/hover video players (e.g. onplay="hvponplay(this)")
+    const onplayAttr = (video.getAttribute('onplay') || '').toLowerCase();
+    if (onplayAttr.includes('hvp') || onplayAttr.includes('preview') || onplayAttr.includes('thumb')) {
+      return false;
+    }
+
+    // Exclude thumbnail / preview media source URLs
+    const srcLower = (video.currentSrc || video.src || '').toLowerCase();
+    if (
+      srcLower.includes('vidthumb') ||
+      srcLower.includes('thumb_preview') ||
+      srcLower.includes('hover_preview') ||
+      srcLower.includes('preview_video') ||
+      srcLower.includes('preview.mp4') ||
+      srcLower.includes('trailer_preview') ||
+      srcLower.includes('storyboard') ||
+      srcLower.includes('_preview.') ||
+      srcLower.includes('/preview/') ||
+      srcLower.includes('/preview_clip/') ||
+      srcLower.includes('/thumbnails/')
+    ) {
+      return false;
+    }
+
     // If it hasn't been played yet, must not be paused
     if (!allowPaused && !playedVideos.has(video)) {
       if (video.paused || video.ended) {
@@ -668,6 +726,16 @@ document.addEventListener('click', (event) => {
     // Exclude short preview loops / ad gifs (< 3.5 seconds) if duration is known & finite
     if (video.duration && isFinite(video.duration) && video.duration > 0 && video.duration < 3.5) {
       return false;
+    }
+
+    // Exclude muted looping preview clips without native or player controls (GIF replacements)
+    if (video.loop && video.muted && !video.controls) {
+      if (!video.duration || !isFinite(video.duration) || video.duration < 45) {
+        const hasCustomPlayer = video.closest('.jwplayer, .video-js, .plyr, .dplayer, .artplayer, #movie_player, .html5-video-player');
+        if (!hasCustomPlayer) {
+          return false;
+        }
+      }
     }
 
     const rect = video.getBoundingClientRect();
@@ -706,11 +774,27 @@ document.addEventListener('click', (event) => {
       const genericPreview = video.closest([
         'ytd-thumbnail',
         '#inline-preview-player',
+        'ytd-video-preview',
         '.feed-video-preview',
         '.shorts-carousel',
         '.thumb-preview',
+        '.post_vid_thumb',
+        '.vid_container',
+        '.video_thumb',
+        '.thumb_video',
+        '.video-card',
+        '.thumbnail-card',
+        '.thumb-container',
+        '.preview-container',
+        '.video-preview-container',
+        '.hover-preview',
+        '.media-card',
+        '.thumb',
+        '.thumbnail',
         '.ad-container',
-        '.advertisement'
+        '.advertisement',
+        '[data-hvp]',
+        '[data-preview]'
       ].join(','));
       if (genericPreview) {
         return false;
@@ -802,6 +886,11 @@ document.addEventListener('click', (event) => {
     }
   }
 
+  function estimateFileSizeBytes(durationSec, bitrateKbps) {
+    if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return 0;
+    return Math.round(durationSec * (bitrateKbps || 2500) * 125);
+  }
+
   // 9. Supported Resolutions Filtering (Never show unsupported qualities!)
   function getSupportedResolutions(video) {
     const isYouTube = window.location.hostname.includes('youtube.com');
@@ -813,7 +902,7 @@ document.addEventListener('click', (event) => {
         'highres': { quality: '4K (2160p)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
         'hd2880': { quality: '5K (2880p)', badge: '5K', label: '5K Ultra HD', height: 2880, bitrate: 30000, cls: 'uhd' },
         'hd2160': { quality: '4K (2160p)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
-        'hd1440': { quality: '1440p (2K)', badge: '2K', label: '2K Quad HD', height: 1440, bitrate: 12000, cls: 'uhd' },
+        'hd1440': { quality: '2K (1440p)', badge: '2K', label: '2K Quad HD', height: 1440, bitrate: 12000, cls: 'uhd' },
         'hd1080': { quality: '1080p', badge: '1080p', label: '1080p Full HD', height: 1080, bitrate: 5000, cls: 'hd' },
         'hd720': { quality: '720p', badge: '720p', label: '720p HD', height: 720, bitrate: 2500, cls: 'hd' },
         'large': { quality: '480p', badge: '480p', label: '480p SD', height: 480, bitrate: 1200, cls: '' },
@@ -830,6 +919,7 @@ document.addEventListener('click', (event) => {
           seenQualities.add(item.quality);
           result.push({
             ...item,
+            sizeBytes: estimateFileSizeBytes(duration, item.bitrate),
             size: estimateFileSize(duration, item.bitrate, false)
           });
         }
@@ -844,6 +934,7 @@ document.addEventListener('click', (event) => {
         bitrate: 192,
         cls: 'audio',
         isAudio: true,
+        sizeBytes: estimateFileSizeBytes(duration, 192),
         size: estimateFileSize(duration, 192, true)
       });
 
@@ -870,6 +961,7 @@ document.addEventListener('click', (event) => {
           bitrate: vh >= 1080 ? 5000 : 2500,
           cls: resCls,
           streamUrl: m3u8Stream.url,
+          sizeBytes: estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
           size: estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
         },
         {
@@ -881,6 +973,7 @@ document.addEventListener('click', (event) => {
           cls: 'audio',
           isAudio: true,
           streamUrl: m3u8Stream.url,
+          sizeBytes: estimateFileSizeBytes(duration, 192),
           size: estimateFileSize(duration, 192, true)
         }
       ];
@@ -902,6 +995,7 @@ document.addEventListener('click', (event) => {
       .filter(t => t.height <= vh)
       .map(t => ({
         ...t,
+        sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
         size: estimateFileSize(duration, t.bitrate, false)
       }));
 
@@ -914,6 +1008,7 @@ document.addEventListener('click', (event) => {
       bitrate: 192,
       cls: 'audio',
       isAudio: true,
+      sizeBytes: estimateFileSizeBytes(duration, 192),
       size: estimateFileSize(duration, 192, true)
     });
 
@@ -1001,7 +1096,9 @@ document.addEventListener('click', (event) => {
       isMedia: true,
       title: title,
       filename: title,
-      quality: tier.quality
+      quality: tier.quality,
+      sizeBytes: tier.sizeBytes || 0,
+      sizeStr: tier.size || ""
     }, (response) => {
       setTimeout(() => {
         feedbackEl.style.display = 'none';
@@ -1091,7 +1188,7 @@ document.addEventListener('click', (event) => {
 
     const hasPlayed = playedVideos.has(video) || (activeVideo === video);
     if (!isValidPlayedVideo(video, hasPlayed)) {
-      if (activeVideo === video && !document.contains(video)) {
+      if (activeVideo === video) {
         hideWidget();
         activeVideo = null;
       }
@@ -1150,7 +1247,7 @@ document.addEventListener('click', (event) => {
   // Periodic active video scanner (crucial for custom iframe video players like JWPlayer/HLS.js on vidara.so)
   setInterval(() => {
     if (activeVideo) {
-      if (!document.contains(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo))) {
+      if (!document.contains(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo)) || !isValidPlayedVideo(activeVideo, true)) {
         hideWidget();
         activeVideo = null;
       } else {

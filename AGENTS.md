@@ -61,20 +61,20 @@
 ### Run Application in Development Mode
 ```bash
 # Standard PyQt6 QWidget Mode
-venv/bin/python src/main.py
+uv run python src/main.py
 
 # KDE Kirigami QML Mode
-venv/bin/python src/main.py --kirigami
+uv run python src/main.py --kirigami
 ```
 
 ### Run Automated Unit Test Suite
 ```bash
-PYTHONPATH=src venv/bin/pytest -v tests/
+PYTHONPATH=src uv run pytest -v tests/
 ```
 
 ### Build Standalone Executable Binary
 ```bash
-PYTHONPATH=src venv/bin/pyinstaller \
+PYTHONPATH=src uv run pyinstaller \
     --name "bengal-download-manager" \
     --onefile \
     --paths "src" \
@@ -101,3 +101,4 @@ bash scripts/build_and_run_flatpak.sh
 4. **Theme Adaptability**: Do not hardcode static dark text colors (`#444`). Allow `QPalette` system colors to adapt cleanly across Light, Dark, and Automatic system themes.
 5. **Empirical Verification**: Always verify code changes by running `pytest` or testing binary builds before declaring completion.
 6. **Single Source of Truth Versioning**: Always use `scripts/sync_version.py` when changing or checking version numbers across `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, and `src/core/version.py`. (Note: Browser extension in `extension/manifest.json` is versioned independently). See `docs/VERSIONING.md` for details.
+7. **Use `uv` Instead of `venv`**: Always use `uv` for Python environment management, package installation, and execution (e.g. `uv venv`, `uv pip install ...`, and `uv run <command>`). Do not use standard `python3 -m venv` or raw `venv/bin/python`.

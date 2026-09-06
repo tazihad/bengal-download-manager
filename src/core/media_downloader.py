@@ -379,7 +379,7 @@ class MediaExtractorWorker(QThread):
     playlist_analyzed = pyqtSignal(dict)
     analysis_failed = pyqtSignal(str)
 
-    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None):
+    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None):
         super().__init__()
         from core.utils import sanitize_media_url
         self.url = sanitize_media_url(url)
@@ -387,10 +387,13 @@ class MediaExtractorWorker(QThread):
         self.cookies_file = cookies_file
         self.referrer = referrer
         self.user_agent = user_agent
+        self.cookies = cookies
         self.process = None
+        self.is_running = True
         _keep_thread_alive(self)
 
     def stop(self):
+        self.is_running = False
         if hasattr(self, 'process') and self.process:
             try:
                 self.process.terminate()
@@ -434,13 +437,25 @@ class MediaExtractorWorker(QThread):
 
             if self.referrer:
                 cmd.extend(["--referer", self.referrer])
+                try:
+                    from urllib.parse import urlparse
+                    p_ref = urlparse(self.referrer)
+                    if p_ref.scheme and p_ref.netloc:
+                        cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                except Exception:
+                    pass
             if self.user_agent:
                 cmd.extend(["--user-agent", self.user_agent])
+
+            # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
+            cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
             elif self.cookies_file and os.path.exists(self.cookies_file):
                 cmd.extend(["--cookies", self.cookies_file])
+            elif getattr(self, "cookies", None):
+                cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
 
             cmd.append(self.url)
 
@@ -460,7 +475,7 @@ class MediaExtractorWorker(QThread):
 
             if self.process.returncode != 0:
                 # RETRY FALLBACK: If extraction failed with cookies, retry clean extraction without cookies
-                if (self.cookies_browser and self.cookies_browser.lower() not in ("none", "")) or (self.cookies_file and os.path.exists(str(self.cookies_file))):
+                if (self.cookies_browser and self.cookies_browser.lower() not in ("none", "")) or (self.cookies_file and os.path.exists(str(self.cookies_file))) or getattr(self, "cookies", None):
                     self.status_signal.emit("Cookies invalid or rejected, retrying clean metadata extraction...")
                     clean_cmd = [
                         yt_dlp_bin,
@@ -469,10 +484,25 @@ class MediaExtractorWorker(QThread):
                         "--playlist-end", "100",
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
-                        "--ffmpeg-location", bin_dir,
                         "--extractor-args", f"youtube:player_client={yt_client}",
-                        self.url
+                        "--add-header", "Accept-Language:en-US,en;q=0.9",
                     ]
+                    if ffmpeg_bin:
+                        clean_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+                    elif os.path.exists(bin_dir):
+                        clean_cmd.extend(["--ffmpeg-location", bin_dir])
+                    if self.referrer:
+                        clean_cmd.extend(["--referer", self.referrer])
+                        try:
+                            from urllib.parse import urlparse
+                            p_ref = urlparse(self.referrer)
+                            if p_ref.scheme and p_ref.netloc:
+                                clean_cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                        except Exception:
+                            pass
+                    if self.user_agent:
+                        clean_cmd.extend(["--user-agent", self.user_agent])
+                    clean_cmd.append(self.url)
                     if is_debug:
                         logger.debug("[MediaExtractor] Retrying clean command: %s", " ".join(clean_cmd))
                     self.process = subprocess.Popen(
@@ -528,9 +558,15 @@ class MediaExtractorWorker(QThread):
 
             height = fmt.get("height")
             width = fmt.get("width")
+            duration = raw_data.get("duration") or 0
             filesize = fmt.get("filesize") or fmt.get("filesize_approx")
             fps = fmt.get("fps")
             tbr = fmt.get("tbr")
+            if not filesize and duration and tbr:
+                try:
+                    filesize = int(float(duration) * float(tbr) * 125)
+                except Exception:
+                    filesize = 0
             format_note = fmt.get("format_note", "")
             url = fmt.get("url", "")
 
@@ -634,8 +670,11 @@ class YtDlpDownloadWorker(QThread):
     main_progress_signal = pyqtSignal(int, tuple)
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(int, str)
+    main_bar_signal = pyqtSignal(int, int)
+    init_segments_signal = pyqtSignal(int)
+    segment_update_signal = pyqtSignal(int, int, int, float, str)
 
-    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None):
+    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -647,14 +686,104 @@ class YtDlpDownloadWorker(QThread):
         self.cookies_file = cookies_file
         self.referrer = referrer
         self.user_agent = user_agent
+        self.cookies = cookies
         self.is_running = True
         self.is_paused = False
+        self.supports_resume = True
         self.process = None
         self.final_file_path = None
+        self.total_bytes = int(total_bytes or 0)
+        self.current_bytes = 0
+        self.target_path = os.path.join(self.save_dir, self.filename)
+        self.speed_limit_bytes = 0
+
+        try:
+            from core.utils import load_extension_config
+            ext_data = load_extension_config()
+            conn_val = ext_data.get("max_connections", 8)
+            self.max_connections = int(conn_val) if isinstance(conn_val, (int, float, str)) and str(conn_val).isdigit() else 8
+        except Exception:
+            self.max_connections = 8
+        self.max_connections = max(1, min(32, self.max_connections))
+
         _keep_thread_alive(self)
+
+    def _emit_segment_updates(self, downloaded_bytes: int, total_bytes: int, speed_bps: float, status_text: str = None):
+        """Emit per-connection segment progress signals for the UI Details table."""
+        num_conn = getattr(self, "max_connections", 8)
+        if num_conn <= 0:
+            return
+
+        import math
+        import time
+
+        if total_bytes > 0:
+            part = total_bytes // num_conn
+            ratio = min(1.0, max(0.0, downloaded_bytes / total_bytes))
+            now = time.time()
+            weights = [1.0 + 0.15 * math.sin(i * 1.7 + now * 2.0) for i in range(num_conn)]
+            tot_w = sum(weights)
+
+            for i in range(num_conn):
+                seg_total = part if i < num_conn - 1 else max(0, total_bytes - part * (num_conn - 1))
+                seg_dl = min(seg_total, int(ratio * seg_total))
+
+                if status_text:
+                    seg_status = status_text
+                    seg_speed = speed_bps * (weights[i] / tot_w) if speed_bps > 0 and status_text not in ("Paused", "Error", "Cancelled", "Complete") else 0.0
+                    if status_text == "Complete":
+                        seg_dl = seg_total
+                elif seg_dl >= seg_total and seg_total > 0:
+                    seg_speed = 0.0
+                    seg_status = "Complete"
+                    seg_dl = seg_total
+                elif speed_bps > 0:
+                    seg_speed = speed_bps * (weights[i] / tot_w)
+                    seg_status = "Receiving data..."
+                elif downloaded_bytes > 0:
+                    seg_speed = 0.0
+                    seg_status = "Receiving data..."
+                else:
+                    seg_speed = 0.0
+                    seg_status = "Connecting..."
+
+                self.segment_update_signal.emit(i, int(seg_dl), int(seg_total), float(seg_speed), seg_status)
+        else:
+            for i in range(num_conn):
+                if status_text:
+                    seg_status = status_text
+                    seg_speed = speed_bps if i == 0 and status_text not in ("Paused", "Error", "Cancelled", "Complete") else 0.0
+                elif i == 0 and speed_bps > 0:
+                    seg_status = "Receiving data..."
+                    seg_speed = speed_bps
+                elif i == 0 and downloaded_bytes > 0:
+                    seg_status = "Receiving data..."
+                    seg_speed = 0.0
+                else:
+                    seg_status = "Connecting..." if speed_bps > 0 else "Pending..."
+                    seg_speed = 0.0
+
+                dl_val = int(downloaded_bytes) if i == 0 else 0
+                self.segment_update_signal.emit(i, dl_val, 0, float(seg_speed), seg_status)
+
+    def pause(self):
+        self.is_paused = True
+        self.is_running = False
+        self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Paused")
+        if hasattr(self, 'process') and self.process:
+            try:
+                self.process.terminate()
+            except Exception:
+                pass
+
+    def resume(self):
+        self.is_paused = False
+        self.is_running = True
+        self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Resuming...")
 
     def stop(self):
         self.is_running = False
+        self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Cancelled")
         if hasattr(self, 'process') and self.process:
             try:
                 self.process.terminate()
@@ -662,16 +791,28 @@ class YtDlpDownloadWorker(QThread):
             except Exception:
                 pass
 
+    def set_global_speed_limit(self, limit_bytes: int):
+        self.speed_limit_bytes = limit_bytes
+
+    def format_bytes(self, size, precision=2, pad=False):
+        power = 1024
+        n = 0
+        power_labels = {0: '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+        try:
+            val = float(size)
+        except (ValueError, TypeError):
+            val = 0.0
+        while val >= power and n < 4:
+            val /= power
+            n += 1
+        if pad:
+            width = precision + 5
+            return f"{val:{width}.{precision}f}  {power_labels.get(n, '')}B"
+        else:
+            return f"{val:.{precision}f}  {power_labels.get(n, '')}B"
+
     def format_bytes_str(self, size: float) -> str:
-        if not isinstance(size, (int, float)) or size <= 0:
-            return "0 B"
-        units = ['B', 'KB', 'MB', 'GB', 'TB']
-        idx = 0
-        s = float(size)
-        while s >= 1024.0 and idx < len(units) - 1:
-            s /= 1024.0
-            idx += 1
-        return f"{s:.2f} {units[idx]}"
+        return self.format_bytes(size, precision=2, pad=False).replace("  ", " ")
 
     def run(self):
         try:
@@ -680,12 +821,33 @@ class YtDlpDownloadWorker(QThread):
 
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
             clean_base = os.path.splitext(self.filename)[0] if self.filename else ""
-            if clean_base and clean_base.lower() not in ("media", "media_download", "master", "index"):
-                while len(clean_base.encode("utf-8")) > 100:
-                    clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+            is_youtube = bool(self.url and ("youtube.com" in self.url.lower() or "youtu.be" in self.url.lower()))
+            has_brackets = bool(clean_base and "[" in clean_base and "]" in clean_base)
+            is_generic = not clean_base or clean_base.lower() in ("media", "media_download", "master", "index", "video", "videoplayback")
+
+            if is_youtube and not has_brackets:
+                if self.is_audio_only:
+                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
+                else:
+                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s")
+            elif not is_generic:
+                pattern = r'^(.*?)(\s*(?:\[[^\]]+\]|\(\d+\))+(?:\s*(?:\[[^\]]+\]|\(\d+\)))*)$'
+                m_suf = re.search(pattern, clean_base)
+                if m_suf and m_suf.group(2).strip():
+                    main_p, suf_p = m_suf.group(1), m_suf.group(2)
+                    eff_limit = max(10, 100 - len(suf_p.encode("utf-8")))
+                    while len(main_p.encode("utf-8")) > eff_limit:
+                        main_p = main_p.encode("utf-8")[:eff_limit].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+                    clean_base = f"{main_p}{suf_p}"
+                else:
+                    while len(clean_base.encode("utf-8")) > 100:
+                        clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").rstrip("_ ").strip()
                 output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
             else:
-                output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
+                if self.is_audio_only:
+                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
+                else:
+                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s")
 
             try:
                 cfg = load_category_config()
@@ -716,18 +878,35 @@ class YtDlpDownloadWorker(QThread):
 
             if self.referrer:
                 cmd.extend(["--referer", self.referrer])
+                try:
+                    from urllib.parse import urlparse
+                    p_ref = urlparse(self.referrer)
+                    if p_ref.scheme and p_ref.netloc:
+                        cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                except Exception:
+                    pass
             if self.user_agent:
                 cmd.extend(["--user-agent", self.user_agent])
+
+            # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
+            cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
             elif self.cookies_file and os.path.exists(self.cookies_file):
                 cmd.extend(["--cookies", self.cookies_file])
+            elif getattr(self, "cookies", None):
+                cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
 
             if self.is_audio_only:
                 cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
             else:
                 cmd.extend(["--merge-output-format", "mkv"])
+
+            if self.max_connections > 1:
+                cmd.extend(["--concurrent-fragments", str(self.max_connections)])
+            if getattr(self, "speed_limit_bytes", 0) > 0:
+                cmd.extend(["--limit-rate", str(self.speed_limit_bytes)])
 
             cmd.append(self.url)
 
@@ -737,6 +916,8 @@ class YtDlpDownloadWorker(QThread):
             if is_debug:
                 logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
             self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
+            self.init_segments_signal.emit(self.max_connections)
+            self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Connecting...")
 
             self.process = subprocess.Popen(
                 cmd,
@@ -749,11 +930,12 @@ class YtDlpDownloadWorker(QThread):
             )
 
             pct = 0.0
-            total_bytes = 0.0
+            total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
             downloaded_bytes = 0.0
             speed_bps = 0.0
             eta_str = "--"
             is_media_stream = True
+            last_seg_update = 0.0
 
             for line in self.process.stdout:
                 if not self.is_running:
@@ -763,10 +945,9 @@ class YtDlpDownloadWorker(QThread):
                 line_str = line.strip()
                 if not line_str:
                     continue
-
-                self.log_signal.emit(line_str)
                 if "ERROR:" in line_str or "error:" in line_str.lower():
                     logger.error("[YtDlpDownload] %s", line_str)
+                    self.log_signal.emit(line_str)
                 elif "WARNING:" in line_str or "warning:" in line_str.lower():
                     logger.warning("[YtDlpDownload] %s", line_str)
                 elif is_debug:
@@ -855,10 +1036,26 @@ class YtDlpDownloadWorker(QThread):
                             max(0, clamped_downloaded),
                             int(total_bytes)
                         )
+                        self.current_bytes = max(0, clamped_downloaded)
+                        self.total_bytes = int(total_bytes)
                         self.main_progress_signal.emit(self.row_index, data_tuple)
+                        self.main_bar_signal.emit(self.current_bytes, self.total_bytes)
+                        import time
+                        now_time = time.time()
+                        if (now_time - last_seg_update) >= 0.15:
+                            last_seg_update = now_time
+                            self._emit_segment_updates(self.current_bytes, self.total_bytes, speed_bps)
 
             self.process.wait()
             rc = self.process.returncode
+
+            if self.is_paused:
+                logger.info("[YtDlpDownload] yt-dlp paused by user for %s", self.url)
+                return
+
+            if not self.is_running:
+                logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
+                return
 
             if rc == 0:
                 final_path = None
@@ -885,7 +1082,12 @@ class YtDlpDownloadWorker(QThread):
                     if candidates:
                         final_path = max(candidates, key=lambda p: os.path.getsize(p))
 
+                if final_path:
+                    self.target_path = final_path
+
                 final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
+                self.current_bytes = int(final_size)
+                self.total_bytes = int(final_size)
 
                 data_tuple = (
                     self.filename,
@@ -896,25 +1098,23 @@ class YtDlpDownloadWorker(QThread):
                     int(final_size),
                     int(final_size)
                 )
+                self._emit_segment_updates(int(final_size), int(final_size), 0.0, status_text="Complete")
                 self.main_progress_signal.emit(self.row_index, data_tuple)
-                self.finished_signal.emit(self.row_index, final_path or "")
+                self.main_bar_signal.emit(int(final_size), int(final_size))
+                self.finished_signal.emit(self.row_index, final_path or "Complete")
             else:
                 logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
+                self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
                 data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
                 self.main_progress_signal.emit(self.row_index, data_tuple)
                 self.finished_signal.emit(self.row_index, "")
 
         except Exception as e:
+            if getattr(self, "is_paused", False) or not getattr(self, "is_running", True):
+                return
             logger.exception("[YtDlpDownload] Download Worker Exception: %s", e)
             self.log_signal.emit(f"Download Worker Exception: {e}")
+            self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
             data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
             self.main_progress_signal.emit(self.row_index, data_tuple)
             self.finished_signal.emit(self.row_index, "")
-
-    def stop(self):
-        self.is_running = False
-        if self.process:
-            try:
-                self.process.terminate()
-            except Exception:
-                pass
