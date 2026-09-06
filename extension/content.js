@@ -102,6 +102,89 @@ document.addEventListener('click', (event) => {
   let isDropdownOpen = false;
   let ytMediaInfo = null;
   const dismissedVideos = new Set();
+  let activeIframeVideo = null;
+  let activeIframeData = null;
+  let isTopHandlingWidget = false;
+
+  function notifyTopFrameVideo(video, state = 'playing') {
+    if (window.self === window.top) return;
+    try {
+      window.top.postMessage({
+        type: '__BDM_IFRAME_VIDEO_STATE__',
+        state: state,
+        duration: video.duration || 0,
+        currentTime: video.currentTime || 0,
+        currentSrc: video.currentSrc || video.src || '',
+        videoWidth: video.videoWidth || 0,
+        videoHeight: video.videoHeight || 0,
+        title: getVideoTitle(video),
+        frameUrl: window.location.href
+      }, '*');
+    } catch (e) {}
+  }
+
+  // Cross-frame coordination: allow top window to host widget so user can drag icon anywhere on page
+  window.addEventListener('message', (event) => {
+    if (!event.data || typeof event.data !== 'object') return;
+
+    if (event.data.type === '__BDM_IFRAME_VIDEO_STATE__') {
+      const data = event.data;
+      const iframes = document.querySelectorAll('iframe');
+      let targetIframe = null;
+      for (const f of iframes) {
+        if (f.contentWindow === event.source) {
+          targetIframe = f;
+          break;
+        }
+      }
+
+      if (!targetIframe && data.frameUrl) {
+        for (const f of iframes) {
+          if (f.src && (f.src === data.frameUrl || data.frameUrl.startsWith(f.src))) {
+            targetIframe = f;
+            break;
+          }
+        }
+      }
+
+      if (!targetIframe && iframes.length === 1) {
+        targetIframe = iframes[0];
+      }
+
+      if (targetIframe) {
+        try {
+          event.source.postMessage({ type: '__BDM_TOP_HANDLING_VIDEO__' }, '*');
+        } catch (e) {}
+
+        if (data.state === 'playing') {
+          activeIframeVideo = targetIframe;
+          activeIframeData = data;
+          activeVideo = targetIframe;
+          if (data.title && titleEl) {
+            titleEl.textContent = data.title;
+            titleEl.title = data.title;
+          }
+          showWidget();
+        } else if (data.state === 'paused') {
+          if (activeVideo === targetIframe) {
+            updateWidgetPosition();
+          }
+        } else if (data.state === 'ended') {
+          if (activeVideo === targetIframe) {
+            hideWidget();
+            activeVideo = null;
+            activeIframeVideo = null;
+            activeIframeData = null;
+          }
+        }
+      }
+    } else if (event.data.type === '__BDM_TOP_HANDLING_VIDEO__') {
+      isTopHandlingWidget = true;
+      if (!document.fullscreenElement) {
+        hideWidget();
+      }
+    }
+  });
 
   // 1. Inject inject.js into main world to access YouTube/HTML5 player APIs
   try {
@@ -222,20 +305,15 @@ document.addEventListener('click', (event) => {
       font-variant-numeric: tabular-nums;
       pointer-events: auto;
       z-index: 2147483647;
-      opacity: 1;
-      transition: opacity 0.35s ease, transform 0.2s ease;
+      opacity: 0.22;
+      transition: opacity 0.25s ease, transform 0.2s ease;
     }
 
     .bdm-root.visible {
       display: flex;
     }
 
-    /* Barely visible / transparent after few seconds of inactivity */
-    .bdm-root.idle {
-      opacity: 0.22;
-    }
-
-    /* If hovered, active, open, or dragging, remove transparency completely */
+    /* If hovered, active, open, or dragging, show up completely */
     .bdm-root:hover,
     .bdm-root.open,
     .bdm-root.dragging,
@@ -687,6 +765,10 @@ document.addEventListener('click', (event) => {
   });
 
   function getVideoKey(video) {
+    if (!video) return window.location.href;
+    if (video.tagName === 'IFRAME') {
+      return (activeIframeData && activeIframeData.currentSrc) || video.src || window.location.href;
+    }
     if (window.location.hostname.includes('youtube.com')) {
       const v = new URLSearchParams(window.location.search).get('v');
       if (v) return `yt_${v}`;
@@ -707,11 +789,14 @@ document.addEventListener('click', (event) => {
       return false;
     }
 
-    // Navigational link check: legitimate playable main media players are never wrapped inside <a> navigational tags
+    // Navigational link check: reject if anchor is a thumbnail card, but preserve legitimate players
     const anchor = video.closest('a[href]');
     if (anchor) {
-      const href = (anchor.getAttribute('href') || '').trim();
-      if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+      const isExplicitThumb = video.matches('.hvp_player, .vidthumb, .video-thumb, [data-hvp]') ||
+                              video.closest('.post_vid_thumb, .thumb, .video-thumb, .vidthumb') ||
+                              (video.currentSrc || video.src || '').toLowerCase().includes('vidthumb') ||
+                              (video.loop && video.muted && (!video.duration || video.duration < 15));
+      if (isExplicitThumb) {
         return false;
       }
     }
@@ -797,11 +882,6 @@ document.addEventListener('click', (event) => {
       return false;
     }
 
-    // Viewport check (if in top window; inside iframe rect is relative to iframe viewport)
-    if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
-      return false;
-    }
-
     // Check display / visibility styles
     const style = window.getComputedStyle(video);
     if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
@@ -820,33 +900,35 @@ document.addEventListener('click', (event) => {
         return false;
       }
     } else {
-      const genericPreview = video.closest([
-        'ytd-thumbnail',
-        '#inline-preview-player',
-        'ytd-video-preview',
-        '.feed-video-preview',
-        '.shorts-carousel',
-        '.thumb-preview',
-        '.post_vid_thumb',
-        '.vid_container',
-        '.video_thumb',
-        '.thumb_video',
-        '.video-card',
-        '.thumbnail-card',
-        '.thumb-container',
-        '.preview-container',
-        '.video-preview-container',
-        '.hover-preview',
-        '.media-card',
-        '.thumb',
-        '.thumbnail',
-        '.ad-container',
-        '.advertisement',
-        '[data-hvp]',
-        '[data-preview]'
-      ].join(','));
-      if (genericPreview) {
-        return false;
+      const isRecognizedMain = video.closest('#player_el, .player_el, #vid_container_id, .yps_player_wrap, .jwplayer, .video-js, .plyr, .dplayer, .artplayer');
+      if (!isRecognizedMain) {
+        const genericPreview = video.closest([
+          'ytd-thumbnail',
+          '#inline-preview-player',
+          'ytd-video-preview',
+          '.feed-video-preview',
+          '.shorts-carousel',
+          '.thumb-preview',
+          '.post_vid_thumb',
+          '.video_thumb',
+          '.thumb_video',
+          '.video-card',
+          '.thumbnail-card',
+          '.thumb-container',
+          '.preview-container',
+          '.video-preview-container',
+          '.hover-preview',
+          '.media-card',
+          '.thumb',
+          '.thumbnail',
+          '.ad-container',
+          '.advertisement',
+          '[data-hvp]',
+          '[data-preview]'
+        ].join(','));
+        if (genericPreview) {
+          return false;
+        }
       }
     }
 
@@ -881,6 +963,10 @@ document.addEventListener('click', (event) => {
   }
 
   function getVideoTitle(video) {
+    if (activeIframeData && activeIframeData.title) {
+      const t = cleanTitleString(activeIframeData.title);
+      if (t && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
+    }
     if (ytMediaInfo && ytMediaInfo.title) {
       const t = cleanTitleString(ytMediaInfo.title);
       if (t) return t;
@@ -943,7 +1029,9 @@ document.addEventListener('click', (event) => {
   // 9. Supported Resolutions Filtering (Never show unsupported qualities!)
   function getSupportedResolutions(video) {
     const isYouTube = window.location.hostname.includes('youtube.com');
-    const duration = (ytMediaInfo && ytMediaInfo.duration) || video.duration || 0;
+    const duration = (ytMediaInfo && ytMediaInfo.duration) ||
+                     (activeIframeData && activeIframeData.duration) ||
+                     (video && video.duration) || 0;
 
     // A. Check YouTube Player API Levels
     if (isYouTube && ytMediaInfo && Array.isArray(ytMediaInfo.levels) && ytMediaInfo.levels.length > 0) {
@@ -996,7 +1084,7 @@ document.addEventListener('click', (event) => {
     const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
     const m3u8Stream = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
     if (m3u8Stream) {
-      const vh = video.videoHeight || 720;
+      const vh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 720;
       const resLabel = vh >= 1080 ? '1080p Full HD' : (vh >= 720 ? '720p HD' : (vh >= 480 ? '480p SD' : `${vh}p`));
       const resBadge = vh >= 1080 ? '1080p' : (vh >= 720 ? '720p' : (vh >= 480 ? '480p' : `${vh}p`));
       const resCls = vh >= 720 ? 'hd' : '';
@@ -1029,7 +1117,7 @@ document.addEventListener('click', (event) => {
     }
 
     // C. Standard Video Height Filtering (Generic sites or fallback)
-    const vh = video.videoHeight || 720;
+    const vh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 720;
     const allTiers = [
       { quality: '2160p (4K)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
       { quality: '1440p (2K)', badge: '2K', label: '2K Quad HD', height: 1440, bitrate: 12000, cls: 'uhd' },
@@ -1074,7 +1162,9 @@ document.addEventListener('click', (event) => {
     const isYouTube = window.location.hostname.includes('youtube.com');
     badgeEl.textContent = isYouTube ? 'YouTube' : 'Media';
 
-    const dur = (ytMediaInfo && ytMediaInfo.duration) || activeVideo.duration || 0;
+    const dur = (ytMediaInfo && ytMediaInfo.duration) ||
+                (activeIframeData && activeIframeData.duration) ||
+                (activeVideo && activeVideo.duration) || 0;
     const durStr = formatDuration(dur);
     durationEl.textContent = durStr ? `Duration: ${durStr}` : 'Streaming';
 
@@ -1126,6 +1216,8 @@ document.addEventListener('click', (event) => {
         const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
         const m3u8 = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
         targetUrl = m3u8 ? m3u8.url : sniffedMediaStreams[0].url;
+      } else if (activeIframeData && activeIframeData.currentSrc && (activeIframeData.currentSrc.startsWith('http://') || activeIframeData.currentSrc.startsWith('https://'))) {
+        targetUrl = activeIframeData.currentSrc;
       } else if (activeVideo.currentSrc && (activeVideo.currentSrc.startsWith('http://') || activeVideo.currentSrc.startsWith('https://'))) {
         targetUrl = activeVideo.currentSrc;
       } else if (activeVideo.src && (activeVideo.src.startsWith('http://') || activeVideo.src.startsWith('https://'))) {
@@ -1263,6 +1355,14 @@ document.addEventListener('click', (event) => {
       playedVideos.add(video);
     }
 
+    // If inside an iframe, delegate to top window so user can move icon outside iframe
+    if (window.self !== window.top) {
+      notifyTopFrameVideo(video, video.paused ? 'paused' : 'playing');
+      if (isTopHandlingWidget && !document.fullscreenElement) {
+        return;
+      }
+    }
+
     if (activeVideo !== video) {
       activeVideo = video;
       requestMediaInfo();
@@ -1272,7 +1372,7 @@ document.addEventListener('click', (event) => {
 
   document.addEventListener('play', (e) => {
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
-      setTimeout(() => onVideoState(e.target), 200);
+      setTimeout(() => onVideoState(e.target), 150);
     }
   }, true);
 
@@ -1289,6 +1389,22 @@ document.addEventListener('click', (event) => {
         playedVideos.add(e.target);
       }
       if (!activeVideo || activeVideo === e.target) {
+        onVideoState(e.target);
+      }
+    }
+  }, true);
+
+  document.addEventListener('loadedmetadata', (e) => {
+    if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
+      if (!e.target.paused || playedVideos.has(e.target)) {
+        onVideoState(e.target);
+      }
+    }
+  }, true);
+
+  document.addEventListener('canplay', (e) => {
+    if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
+      if (!e.target.paused || playedVideos.has(e.target)) {
         onVideoState(e.target);
       }
     }
@@ -1311,7 +1427,10 @@ document.addEventListener('click', (event) => {
   // Periodic active video scanner (crucial for custom iframe video players like JWPlayer/HLS.js on vidara.so)
   setInterval(() => {
     if (activeVideo) {
-      if (!document.contains(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo)) || !isValidPlayedVideo(activeVideo, true)) {
+      if (!document.contains(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo))) {
+        hideWidget();
+        activeVideo = null;
+      } else if (activeVideo.tagName === 'VIDEO' && !isValidPlayedVideo(activeVideo, true)) {
         hideWidget();
         activeVideo = null;
       } else {
@@ -1322,8 +1441,8 @@ document.addEventListener('click', (event) => {
 
     const videos = document.querySelectorAll('video');
     for (const v of videos) {
-      if (!v.paused || playedVideos.has(v)) {
-        if (isValidPlayedVideo(v, playedVideos.has(v))) {
+      if (!v.paused || playedVideos.has(v) || v.currentTime > 0) {
+        if (isValidPlayedVideo(v, true)) {
           onVideoState(v);
           break;
         }
