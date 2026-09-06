@@ -1227,7 +1227,7 @@ document.addEventListener('click', (event) => {
     }
 
     footerEl.classList.add('opening');
-    footerTextEl.textContent = `Opening ${tier.quality} in Bengal DM...`;
+    footerTextEl.textContent = 'Downloading with Bengal DM.';
 
     chrome.runtime.sendMessage({
       action: "send_to_bengal",
