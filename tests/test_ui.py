@@ -2007,6 +2007,62 @@ def test_download_file_info_dialog_file_type_display(qapp):
     dlg.close()
 
 
+def test_download_table_file_icon_theme_switching(qapp):
+    """Verify that file icons in the download table dynamically switch between white (dark mode) and dark (light mode)."""
+    from core.services.theme_service import get_file_icon, is_dark_theme, apply_app_theme
+    from PyQt6.QtWidgets import QTableWidgetItem
+
+    apply_app_theme("BDM Dark (Default)")
+    assert is_dark_theme() is True
+
+    apply_app_theme("BDM Light")
+    assert is_dark_theme() is False
+
+    win = MainWindow(start_ipc=False)
+    win.download_table.setRowCount(1)
+    item = QTableWidgetItem("vlc-3.0.23-win32.exe")
+    item.setIcon(get_file_icon("vlc-3.0.23-win32.exe"))
+    win.download_table.setItem(0, 0, item)
+
+    def get_avg_rgb():
+        ic = win.download_table.item(0, 0).icon()
+        pix = ic.pixmap(24, 24)
+        img = pix.toImage()
+        colors = []
+        for y in range(img.height()):
+            for x in range(img.width()):
+                c = img.pixelColor(x, y)
+                if c.alpha() > 100:
+                    colors.append((c.red(), c.green(), c.blue()))
+        assert len(colors) > 0, "Icon pixmap should have pixels"
+        return (sum(c[0] for c in colors) / len(colors),
+                sum(c[1] for c in colors) / len(colors),
+                sum(c[2] for c in colors) / len(colors))
+
+    # In Dark theme: icon must be white
+    win.apply_appearance_setting("BDM Dark (Default)", "BDM (Default)", "BDM Auto (Default)", "App Icon (Default)")
+    dark_rgb = get_avg_rgb()
+    assert dark_rgb[0] > 200 and dark_rgb[1] > 200 and dark_rgb[2] > 200
+
+    # In Light theme: icon must switch to dark
+    win.apply_appearance_setting("BDM Light", "BDM (Default)", "BDM Auto (Default)", "App Icon (Default)")
+    light_rgb = get_avg_rgb()
+    assert light_rgb[0] < 80 and light_rgb[1] < 80 and light_rgb[2] < 80
+
+    # Back to Dark theme: icon must switch back to white
+    win.apply_appearance_setting("BDM Dark (Default)", "BDM (Default)", "BDM Auto (Default)", "App Icon (Default)")
+    back_dark_rgb = get_avg_rgb()
+    assert back_dark_rgb[0] > 200 and back_dark_rgb[1] > 200 and back_dark_rgb[2] > 200
+
+    # In Modern Color: icon switches to colorful palette with indigo/blue
+    win.apply_appearance_setting("BDM Dark (Default)", "BDM (Default)", "Modern Color", "App Icon (Default)")
+    color_rgb = get_avg_rgb()
+    assert color_rgb[2] > color_rgb[0]
+
+    win.close()
+
+
+
 
 
 

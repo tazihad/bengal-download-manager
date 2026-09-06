@@ -18,6 +18,7 @@ from core.services.ipc_service import (
 
 from core.services.theme_service import (
     ACCENT_COLORS,
+    CURRENT_THEME,
     CURRENT_ICON_THEME,
     CURRENT_TRAY_ICON,
     CATEGORY_EXTENSIONS,
@@ -32,6 +33,7 @@ from core.services.theme_service import (
     get_themed_icon,
     get_themed_tray_icon,
     init_app_font,
+    is_dark_theme,
     is_monochrome_icon_theme,
     make_faded_icon,
     normalize_accent_name,
@@ -53,6 +55,7 @@ __all__ = [
     "SingleInstanceServer",
     "check_single_instance",
     "ACCENT_COLORS",
+    "CURRENT_THEME",
     "CURRENT_ICON_THEME",
     "CURRENT_TRAY_ICON",
     "CATEGORY_EXTENSIONS",
@@ -67,6 +70,7 @@ __all__ = [
     "get_themed_icon",
     "get_themed_tray_icon",
     "init_app_font",
+    "is_dark_theme",
     "is_monochrome_icon_theme",
     "make_faded_icon",
     "normalize_accent_name",

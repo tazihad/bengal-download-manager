@@ -2457,6 +2457,39 @@ class MainWindow(QMainWindow):
             app.style().polish(sb)
             sb.update()
 
+        # Refresh central splitter, splitter handles, and download table header
+        splitter = self.centralWidget()
+        if splitter and isinstance(splitter, QSplitter) and app:
+            splitter.setPalette(app.palette())
+            app.style().unpolish(splitter)
+            app.style().polish(splitter)
+            for i in range(splitter.count()):
+                h = splitter.handle(i)
+                if h:
+                    h.setPalette(app.palette())
+                    app.style().unpolish(h)
+                    app.style().polish(h)
+                    h.update()
+            splitter.update()
+
+        if hasattr(self, "download_table") and self.download_table and app:
+            self.download_table.setPalette(app.palette())
+            app.style().unpolish(self.download_table)
+            app.style().polish(self.download_table)
+            hdr = self.download_table.horizontalHeader()
+            if hdr:
+                hdr.setPalette(app.palette())
+                app.style().unpolish(hdr)
+                app.style().polish(hdr)
+                hdr.update()
+            for row in range(self.download_table.rowCount()):
+                item = self.download_table.item(row, 0)
+                if item:
+                    filename = item.text()
+                    if filename:
+                        item.setIcon(get_file_icon(filename))
+            self.download_table.update()
+
         self.update_status_bar()
         self.update()
         self.repaint()
