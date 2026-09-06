@@ -10,7 +10,7 @@ Bengal Download Manager targets multiple distribution channels:
 * **Canonical Snap Store**: Snap package built via Snapcraft (`snap/snapcraft.yaml`).
 * **Flatpak / Flathub**: Flatpak bundle and AppStream catalog metadata (`flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml`).
 * **In-App Runtime**: Help -> About Dialog, CLI `--version`, and IPC daemon (`src/core/version.py`).
-* *(Note: Browser extension in `extension/manifest.json` is versioned independently, e.g. `0.4`).*
+* *(Note: Browser extension in `extension/manifest.json` is versioned independently, e.g. `0.5`).*
 
 ### The Canonical File
 The root file **`VERSION`** is the single authoritative source of truth for the application version. No other file should be edited manually to change versions.
