@@ -222,41 +222,55 @@ document.addEventListener('click', (event) => {
       font-variant-numeric: tabular-nums;
       pointer-events: auto;
       z-index: 2147483647;
-      transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 1;
+      transition: opacity 0.35s ease, transform 0.2s ease;
     }
 
     .bdm-root.visible {
       display: flex;
     }
 
-    /* Bengal DM Dark Tray Pill */
+    /* Barely visible / transparent after few seconds of inactivity */
+    .bdm-root.idle {
+      opacity: 0.22;
+    }
+
+    /* If hovered, active, open, or dragging, remove transparency completely */
+    .bdm-root:hover,
+    .bdm-root.open,
+    .bdm-root.dragging,
+    .bdm-root:focus-within {
+      opacity: 1 !important;
+    }
+
+    /* Bengal DM Dark Tray Pill Icon Button */
     .bdm-pill {
       position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      height: 32px;
-      padding: 0 12px 0 8px;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
       background: linear-gradient(145deg, #242932 0%, #15181f 100%);
       color: #f9fafb;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 6px;
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.35);
       cursor: grab;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
-      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
 
     .bdm-pill:hover {
       background: linear-gradient(145deg, #2c323d 0%, #1a1e27 100%);
-      border-color: rgba(255, 255, 255, 0.28);
-      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65), 0 1px 4px rgba(0, 0, 0, 0.4);
+      border-color: rgba(255, 255, 255, 0.32);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65), 0 2px 5px rgba(0, 0, 0, 0.4);
+      transform: scale(1.05);
     }
 
     .bdm-pill:active {
       cursor: grabbing;
+      transform: scale(0.96);
     }
 
     /* Tray icon badge */
@@ -264,32 +278,20 @@ document.addEventListener('click', (event) => {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 18px;
-      height: 18px;
+      width: 22px;
+      height: 22px;
       flex-shrink: 0;
+      pointer-events: none;
     }
 
-    .bdm-label {
-      white-space: nowrap;
-      color: #f9fafb;
-      font-weight: 500;
-      line-height: 1;
-    }
-
-    .bdm-chevron {
-      width: 6px;
-      height: 6px;
-      border-right: 1.5px solid #9ca3af;
-      border-bottom: 1.5px solid #9ca3af;
-      transform: rotate(45deg);
-      margin-left: 2px;
-      margin-top: -2px;
-      transition: transform 0.2s ease;
-    }
-
-    .bdm-root.open .bdm-chevron {
-      transform: rotate(-135deg);
-      margin-top: 2px;
+    .bdm-logo-img {
+      width: 22px;
+      height: 22px;
+      object-fit: contain;
+      user-select: none;
+      -webkit-user-drag: none;
+      display: block;
+      pointer-events: none;
     }
 
     /* Corner close cross button: HOVER TO VIEW */
@@ -522,18 +524,24 @@ document.addEventListener('click', (event) => {
   root.className = 'bdm-root';
   root.id = 'bdmRoot';
 
+  const logoUrl = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL)
+    ? chrome.runtime.getURL('assets/tray_monochrome_light.png')
+    : '';
+
+  const logoHtml = logoUrl
+    ? `<img class="bdm-logo-img" src="${logoUrl}" alt="Bengal DM" draggable="false" />`
+    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="#1e2229" stroke="#3daee9" stroke-width="1.5"/>
+        <path d="M12 6V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="#3daee9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 17H18" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+      </svg>`;
+
   root.innerHTML = `
-    <div class="bdm-pill" id="bdmPill" title="Bengal Download Manager (Drag to reposition)">
+    <div class="bdm-pill" id="bdmPill" title="Bengal Download Manager (Click to download, drag to reposition)">
       <button class="bdm-close-btn" id="bdmCloseBtn" title="Dismiss">&times;</button>
       <div class="bdm-icon-wrap">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="2" y="2" width="20" height="20" rx="5" fill="#1e2229" stroke="#3daee9" stroke-width="1.5"/>
-          <path d="M12 6V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="#3daee9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M6 17H18" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        ${logoHtml}
       </div>
-      <span class="bdm-label">Download Video</span>
-      <span class="bdm-chevron"></span>
     </div>
     <div class="bdm-dropdown" id="bdmDropdown">
       <div class="bdm-header">
@@ -562,7 +570,42 @@ document.addEventListener('click', (event) => {
   const listEl = shadow.getElementById('bdmList');
   const feedbackEl = shadow.getElementById('bdmFeedback');
 
-  // 5. Draggable / Movable Behavior
+  // 5. Inactivity & Idle Transparency Management
+  let isHovered = false;
+  let idleTimer = null;
+  const IDLE_DELAY_MS = 3200;
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    if (!root) return;
+    root.classList.remove('idle');
+    if (!isDropdownOpen && !isPointerDown && !isHovered) {
+      idleTimer = setTimeout(() => {
+        if (!isDropdownOpen && !isPointerDown && !isHovered) {
+          root.classList.add('idle');
+        }
+      }, IDLE_DELAY_MS);
+    }
+  }
+
+  function clearIdleTimer() {
+    clearTimeout(idleTimer);
+    if (root) {
+      root.classList.remove('idle');
+    }
+  }
+
+  root.addEventListener('mouseenter', () => {
+    isHovered = true;
+    clearIdleTimer();
+  });
+
+  root.addEventListener('mouseleave', () => {
+    isHovered = false;
+    resetIdleTimer();
+  });
+
+  // 6. Draggable / Movable Behavior
   let isPointerDown = false;
   let hasDragged = false;
   let dragStartX = 0;
@@ -572,6 +615,9 @@ document.addEventListener('click', (event) => {
 
   pill.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#bdmCloseBtn')) return;
+
+    clearIdleTimer();
+    root.classList.add('dragging');
 
     isPointerDown = true;
     hasDragged = false;
@@ -602,8 +648,8 @@ document.addEventListener('click', (event) => {
       let newTop = initialTop + dy;
 
       const pad = 8;
-      const rootW = pill.offsetWidth || 150;
-      const rootH = pill.offsetHeight || 32;
+      const rootW = pill.offsetWidth || 34;
+      const rootH = pill.offsetHeight || 34;
       newLeft = Math.max(pad, Math.min(window.innerWidth - rootW - pad, newLeft));
       newTop = Math.max(pad, Math.min(window.innerHeight - rootH - pad, newTop));
 
@@ -618,12 +664,15 @@ document.addEventListener('click', (event) => {
   pill.addEventListener('pointerup', (e) => {
     if (!isPointerDown) return;
     isPointerDown = false;
+    root.classList.remove('dragging');
     try {
       pill.releasePointerCapture(e.pointerId);
     } catch (err) {}
 
     if (!hasDragged) {
       toggleDropdown();
+    } else if (!isDropdownOpen) {
+      resetIdleTimer();
     }
   });
 
@@ -1127,7 +1176,7 @@ document.addEventListener('click', (event) => {
       root.style.display = 'flex';
     }
 
-    const pillW = pill.offsetWidth || 150;
+    const pillW = pill.offsetWidth || 34;
     const pad = 16;
     let left = rect.right - pillW - pad;
     let top = rect.top + pad;
@@ -1146,9 +1195,11 @@ document.addEventListener('click', (event) => {
     root.classList.add('visible');
     root.style.display = 'flex';
     updateWidgetPosition();
+    resetIdleTimer();
   }
 
   function hideWidget() {
+    clearIdleTimer();
     closeDropdown();
     root.classList.remove('visible');
     root.style.display = 'none';
@@ -1164,7 +1215,19 @@ document.addEventListener('click', (event) => {
 
   function openDropdown() {
     isDropdownOpen = true;
+    clearIdleTimer();
     root.classList.add('open');
+
+    // Prevent dropdown clipping off left edge if dragged near left boundary
+    const rect = root.getBoundingClientRect();
+    if (rect.left < 320) {
+      dropdown.style.right = 'auto';
+      dropdown.style.left = '0';
+    } else {
+      dropdown.style.left = 'auto';
+      dropdown.style.right = '0';
+    }
+
     requestMediaInfo();
     populateDropdown();
   }
@@ -1173,6 +1236,7 @@ document.addEventListener('click', (event) => {
     isDropdownOpen = false;
     root.classList.remove('open');
     feedbackEl.style.display = 'none';
+    resetIdleTimer();
   }
 
   // Close dropdown on outside click
