@@ -116,7 +116,52 @@ async function getGoogleDriveCookies(targetUrl, storeId, capturedCookieHeader) {
   return result.join('; ');
 }
 
+// v0.4 Google Drive resolution logic
+async function resolveGoogleDriveDownload(url, userAgent, cookies) {
+  if (url.includes('confirm=') || url.includes('uuid=')) {
+    return { url, isHtmlLanding: false };
+  }
+
+  try {
+    const headers = {
+      'User-Agent': userAgent || navigator.userAgent,
+      'Range': 'bytes=0-65536'
+    };
+    if (cookies) {
+      headers['Cookie'] = cookies;
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: headers,
+      credentials: 'include',
+      redirect: 'follow'
+    });
+
+    const finalUrl = response.url || url;
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+    // If direct binary file
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
+      return { url: finalUrl, isHtmlLanding: false };
+    }
+
+    const text = await response.text();
+
+    // v0.4 Google Drive confirmation form / link resolution
+    const confirmedUrl = resolveGoogleDriveConfirmation(text, finalUrl);
+    if (confirmedUrl) {
+      return { url: confirmedUrl, isHtmlLanding: false };
+    }
+
+    return { url: finalUrl, isHtmlLanding: true };
+  } catch (err) {
+    return { url, isHtmlLanding: false };
+  }
+}
+
 // Export for module or global background script
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { isGoogleDriveUrl, resolveGoogleDriveConfirmation, getGoogleDriveCookies };
+  module.exports = { isGoogleDriveUrl, resolveGoogleDriveConfirmation, resolveGoogleDriveDownload, getGoogleDriveCookies };
 }
+

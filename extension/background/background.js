@@ -528,9 +528,11 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
     return { url, isHtmlLanding: false };
   }
 
-  // Dedicated Google Drive bypass: tokenized download links should never be pre-fetched
+  // Dedicated Google Drive v0.4 resolution
   if (typeof isGoogleDriveUrl === 'function' && isGoogleDriveUrl(url)) {
-    return { url, isHtmlLanding: false };
+    if (typeof resolveGoogleDriveDownload === 'function') {
+      return await resolveGoogleDriveDownload(url, userAgent, cookies);
+    }
   }
 
   try {
@@ -1294,21 +1296,18 @@ if (chrome.downloads && chrome.downloads.onCreated) {
         cookieString = await getCookiesForUrl(downloadItem.url, cookieStoreId, referrer);
       }
 
+      const resolved = await resolveDownloadTarget(downloadItem.url, (reqData && reqData.userAgent) || navigator.userAgent, cookieString);
+
       const isCloudOrBrowserFile = downloadItem.url.includes("google.com") || 
                                    downloadItem.url.includes("googleusercontent.com") || 
                                    downloadItem.url.includes("export=download") || 
                                    (downloadItem.filename && downloadItem.filename.length > 0);
 
-      let targetUrl = downloadItem.url;
-      if (!isCloudOrBrowserFile) {
-        const resolved = await resolveDownloadTarget(downloadItem.url, (reqData && reqData.userAgent) || navigator.userAgent, cookieString);
-        if (resolved.isHtmlLanding) {
-          return;
-        }
-        if (resolved.url) {
-          targetUrl = resolved.url;
-        }
+      if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
+        return;
       }
+
+      const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadItem.url : resolved.url;
 
       if (isRecentlySent(targetUrl, downloadItem.filename)) return;
 
