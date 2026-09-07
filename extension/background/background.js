@@ -528,7 +528,7 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
     return { url, isHtmlLanding: false };
   }
 
-  // Dedicated Google Drive v0.4 resolution
+  // Dedicated Google Drive resolution (strictly for drive.google.com using v0.3 logic)
   if (typeof isGoogleDriveUrl === 'function' && isGoogleDriveUrl(url)) {
     if (typeof resolveGoogleDriveDownload === 'function') {
       return await resolveGoogleDriveDownload(url, userAgent, cookies);

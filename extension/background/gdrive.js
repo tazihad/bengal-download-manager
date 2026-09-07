@@ -1,75 +1,58 @@
 // --- DEDICATED GOOGLE DRIVE HANDLER MODULE ---
 // Isolates Google Drive detection, cookie extraction, and virus-scan form resolution
-// to ensure standard website downloads are never affected.
+// strictly for drive.google.com following the extension v0.3 implementation.
 
 function isGoogleDriveUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const u = url.toLowerCase();
-  return (
-    u.includes('drive.google.com') ||
-    u.includes('drive.usercontent.google.com') ||
-    u.includes('docs.google.com') ||
-    (u.includes('googleusercontent.com') && (u.includes('export=download') || u.includes('id=') || u.includes('/download')))
-  );
+  return u.includes('drive.google.com') || u.includes('drive.usercontent.google.com');
 }
 
+// v0.3 Google Drive confirmation form and link resolution
 function resolveGoogleDriveConfirmation(htmlText, finalUrl) {
   if (!htmlText) return null;
-  // 1. Virus scan warning form
-  const formMatch = htmlText.match(/<form[^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i);
+
+  // 1. Google Drive download confirmation forms (from v0.3)
+  const formMatch = htmlText.match(/<form[^>]*id=["']download-form["'][^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i)
+                 || htmlText.match(/<form[^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i);
   if (formMatch) {
     const formAction = formMatch[1].replace(/&amp;/g, '&');
     const formInner = formMatch[2];
+
     const inputs = [];
     const inputRegex = /<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi;
     let m;
-    let hasConfirm = false;
     while ((m = inputRegex.exec(formInner)) !== null) {
       if (m[1] && m[1] !== 'submit') {
-        if (m[1] === 'confirm') hasConfirm = true;
         inputs.push(`${encodeURIComponent(m[1])}=${encodeURIComponent(m[2])}`);
       }
     }
-    if (!hasConfirm) {
-      inputs.push('confirm=t');
-    }
+
     if (inputs.length > 0) {
       const baseUrl = new URL(formAction, finalUrl).href;
-      return baseUrl + (baseUrl.includes('?') ? '&' : '?') + inputs.join('&');
+      const confirmUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + inputs.join('&');
+      return confirmUrl;
     }
   }
 
-  // 2. Direct uc-download-link anchor
-  const gdriveConfirmMatch = htmlText.match(/id=["']uc-download-link["'][^>]*href=["']([^"']+)["']/i) ||
-                             htmlText.match(/href=["'](\/uc\?export=download[^"']+)["']/i) ||
-                             htmlText.match(/href=["'](https:\/\/[^"']*(?:googleusercontent\.com|drive\.google\.com)\/download[^"']+)["']/i);
+  // 2. Direct uc-download-link or confirmation anchor (from v0.3)
+  const gdriveConfirmMatch = htmlText.match(/id=["']uc-download-link["'][^>]*href=["']([^"']+)["']/i)
+                          || htmlText.match(/href=["'](\/uc\?export=download&[^"']+)["']/i)
+                          || htmlText.match(/href=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i)
+                          || htmlText.match(/action=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i);
   if (gdriveConfirmMatch && gdriveConfirmMatch[1]) {
     const cleanUrl = gdriveConfirmMatch[1].replace(/&amp;/g, '&').trim();
-    let resUrl = new URL(cleanUrl, finalUrl).href;
-    if (!resUrl.includes('confirm=')) {
-      resUrl += (resUrl.includes('?') ? '&' : '?') + 'confirm=t';
-    }
-    return resUrl;
-  }
-
-  // 3. Embedded JSON downloadUrl
-  const jsonMatch = htmlText.match(/["']downloadUrl["']:\s*["']([^"']+)["']/i);
-  if (jsonMatch && jsonMatch[1]) {
-    const rawUrl = jsonMatch[1].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&').replace(/\\\//g, '/');
-    let resUrl = new URL(rawUrl, finalUrl).href;
-    if (!resUrl.includes('confirm=')) {
-      resUrl += (resUrl.includes('?') ? '&' : '?') + 'confirm=t';
-    }
-    return resUrl;
+    return new URL(cleanUrl, finalUrl).href;
   }
 
   return null;
 }
 
+// Enhanced cookie extraction for Google Drive (v0.3 + wire headers)
 async function getGoogleDriveCookies(targetUrl, storeId, capturedCookieHeader) {
   const cookieMap = new Map();
 
-  // If wire headers captured the actual browser cookie string, parse it first
+  // 1. If wire headers captured the actual browser cookie string, parse it
   if (capturedCookieHeader && typeof capturedCookieHeader === 'string') {
     for (const part of capturedCookieHeader.split(';')) {
       const idx = part.indexOf('=');
@@ -79,34 +62,46 @@ async function getGoogleDriveCookies(targetUrl, storeId, capturedCookieHeader) {
         if (k && !cookieMap.has(k)) cookieMap.set(k, v);
       }
     }
-    if (cookieMap.has('OSID') || cookieMap.has('__Secure-OSID')) {
-      const res = [];
-      for (const [k, v] of cookieMap.entries()) res.push(`${k}=${v}`);
-      return res.join('; ');
-    }
   }
 
-  // Fallback to chrome.cookies API across all Google domains
-  if (chrome.cookies && chrome.cookies.getAll) {
-    const domains = [
-      'drive.usercontent.google.com',
-      'drive.google.com',
-      'googleusercontent.com',
-      'google.com'
-    ];
-
-    for (const dom of domains) {
+  // 2. Query chrome.cookies for target URL, hostname, and parent domain as in v0.3
+  if (chrome.cookies && chrome.cookies.getAll && targetUrl) {
+    try {
+      const query = { url: targetUrl };
+      if (storeId) query.storeId = storeId;
+      let cookies = [];
       try {
-        const q = { domain: dom };
-        if (storeId) q.storeId = storeId;
-        const list = await chrome.cookies.getAll(q);
-        for (const c of list || []) {
-          if (c && c.name && !cookieMap.has(c.name)) {
-            cookieMap.set(c.name, c.value || '');
-          }
+        cookies = await chrome.cookies.getAll(query);
+      } catch (e) {
+        delete query.storeId;
+        try { cookies = await chrome.cookies.getAll(query); } catch (err) {}
+      }
+
+      for (const c of cookies || []) {
+        if (c && c.name && !cookieMap.has(c.name)) {
+          cookieMap.set(c.name, c.value || '');
+        }
+      }
+
+      // Query domains for Firefox dFPI and Google Drive sessions
+      try {
+        const parsed = new URL(targetUrl);
+        const domains = [parsed.hostname, 'drive.google.com', 'google.com', 'drive.usercontent.google.com'];
+
+        for (const dom of new Set(domains)) {
+          const dQuery = { domain: dom };
+          if (storeId) dQuery.storeId = storeId;
+          try {
+            const domCookies = await chrome.cookies.getAll(dQuery);
+            for (const c of domCookies || []) {
+              if (c && c.name && !cookieMap.has(c.name)) {
+                cookieMap.set(c.name, c.value || '');
+              }
+            }
+          } catch (e) {}
         }
       } catch (e) {}
-    }
+    } catch (err) {}
   }
 
   const result = [];
@@ -116,16 +111,16 @@ async function getGoogleDriveCookies(targetUrl, storeId, capturedCookieHeader) {
   return result.join('; ');
 }
 
-// v0.4 Google Drive resolution logic
+// v0.3 Google Drive target resolution logic
 async function resolveGoogleDriveDownload(url, userAgent, cookies) {
-  if (url.includes('confirm=') || url.includes('uuid=')) {
+  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
     return { url, isHtmlLanding: false };
   }
 
   try {
     const headers = {
       'User-Agent': userAgent || navigator.userAgent,
-      'Range': 'bytes=0-65536'
+      'Range': 'bytes=0-30720'
     };
     if (cookies) {
       headers['Cookie'] = cookies;
@@ -134,21 +129,20 @@ async function resolveGoogleDriveDownload(url, userAgent, cookies) {
     const response = await fetch(url, {
       method: 'GET',
       headers: headers,
-      credentials: 'include',
       redirect: 'follow'
     });
 
     const finalUrl = response.url || url;
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
 
-    // If direct binary file
+    // If direct binary file or non-HTML resource
     if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml')) {
       return { url: finalUrl, isHtmlLanding: false };
     }
 
     const text = await response.text();
 
-    // v0.4 Google Drive confirmation form / link resolution
+    // v0.3 Google Drive confirmation form / link resolution
     const confirmedUrl = resolveGoogleDriveConfirmation(text, finalUrl);
     if (confirmedUrl) {
       return { url: confirmedUrl, isHtmlLanding: false };
@@ -156,6 +150,7 @@ async function resolveGoogleDriveDownload(url, userAgent, cookies) {
 
     return { url: finalUrl, isHtmlLanding: true };
   } catch (err) {
+    console.warn("Could not resolve Google Drive download target:", err);
     return { url, isHtmlLanding: false };
   }
 }
