@@ -205,7 +205,7 @@
   try {
     if (chrome.runtime && chrome.runtime.getURL) {
       const script = document.createElement('script');
-      script.src = chrome.runtime.getURL('inject.js');
+      script.src = chrome.runtime.getURL('content/inject.js');
       script.async = true;
       (document.head || document.documentElement).appendChild(script);
       script.onload = () => script.remove();

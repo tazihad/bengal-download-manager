@@ -1,3 +1,12 @@
+// In Chrome MV3 service worker context, import modular helper scripts
+if (typeof isGoogleDriveUrl === 'undefined' && typeof importScripts === 'function') {
+  try {
+    importScripts('./gdrive.js');
+  } catch (e) {
+    console.error('Failed to import gdrive.js:', e);
+  }
+}
+
 // --- CONSTANTS & HELPERS ---
 const DEFAULT_IGNORED_EXTS = [
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',
@@ -302,59 +311,204 @@ async function shouldInterceptDownload(url, filename, referrer) {
   return shouldInterceptDownloadSync(url, filename, referrer);
 }
 
-// --- ENHANCED COOKIE EXTRACTION (cliget method with Firefox storeId & dFPI support) ---
-async function getCookiesForUrl(targetUrl, storeId) {
+// --- EXACT BROWSER REQUEST HEADER CAPTURE (cliget method for 100% complete cookies & headers) ---
+const capturedRequestHeaders = new Map();
+const capturedUrlHeaders = new Map();
+
+if (chrome.webRequest && chrome.webRequest.onSendHeaders) {
+  const onSendHeadersExtraSpec = ["requestHeaders"];
+  try {
+    if (chrome.webRequest.OnSendHeadersOptions && 'EXTRA_HEADERS' in chrome.webRequest.OnSendHeadersOptions) {
+      onSendHeadersExtraSpec.push("extraHeaders");
+    }
+  } catch {}
+
+  const setupSendHeadersListener = (spec) => {
+    chrome.webRequest.onSendHeaders.addListener(
+      (details) => {
+        if (!details || !details.url) return;
+        const now = Date.now();
+        if (capturedRequestHeaders.size > 200) {
+          for (const [id, item] of capturedRequestHeaders) {
+            if (now - item.timestamp > 60000) capturedRequestHeaders.delete(id);
+          }
+        }
+        if (capturedUrlHeaders.size > 200) {
+          for (const [u, item] of capturedUrlHeaders) {
+            if (now - item.timestamp > 60000) capturedUrlHeaders.delete(u);
+          }
+        }
+
+        let cookieHeader = "";
+        let userAgent = "";
+        let referer = "";
+        for (const h of details.requestHeaders || []) {
+          const name = h.name.toLowerCase();
+          if (name === 'cookie') {
+            cookieHeader = h.value;
+          } else if (name === 'user-agent') {
+            userAgent = h.value;
+          } else if (name === 'referer') {
+            referer = h.value;
+          }
+        }
+
+        const data = {
+          url: details.url,
+          cookieHeader: cookieHeader,
+          userAgent: userAgent,
+          referer: referer,
+          timestamp: now
+        };
+
+        capturedRequestHeaders.set(details.requestId, data);
+        if (cookieHeader) {
+          capturedUrlHeaders.set(details.url, data);
+          const cleanUrl = details.url.split('?')[0];
+          capturedUrlHeaders.set(cleanUrl, data);
+
+          try {
+            const parsed = new URL(details.url);
+            const id = parsed.searchParams.get('id');
+            if (id) {
+              capturedUrlHeaders.set('gdrive_' + id, data);
+            }
+          } catch {}
+        }
+      },
+      { urls: ["<all_urls>"] },
+      spec
+    );
+  };
+
+  try {
+    setupSendHeadersListener(onSendHeadersExtraSpec);
+  } catch (e) {
+    try {
+      setupSendHeadersListener(["requestHeaders"]);
+    } catch (err) {}
+  }
+}
+
+// --- ENHANCED COOKIE EXTRACTION (cliget method with Firefox storeId & dFPI / CHIPS support) ---
+async function getCookiesForUrl(targetUrl, storeId, extraUrl) {
   if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) {
     return "";
   }
 
-  try {
-    const query = { url: targetUrl };
-    if (storeId) {
-      query.storeId = storeId;
-    }
+  // 0. Check for exact cookies captured on the wire via webRequest.onSendHeaders
+  const captured = capturedUrlHeaders.get(targetUrl) || capturedUrlHeaders.get(targetUrl.split('?')[0]);
 
-    let cookies = [];
-    try {
-      cookies = await chrome.cookies.getAll(query);
-    } catch (e) {
-      delete query.storeId;
-      try { cookies = await chrome.cookies.getAll(query); } catch (err) {}
+  // Dedicated Google Drive cookie handling (isolated module)
+  if (typeof isGoogleDriveUrl === 'function' && isGoogleDriveUrl(targetUrl)) {
+    const wireCookies = (captured && captured.cookieHeader) ? captured.cookieHeader : "";
+    if (typeof getGoogleDriveCookies === 'function') {
+      const gCookies = await getGoogleDriveCookies(targetUrl, storeId, wireCookies);
+      if (gCookies) return gCookies;
     }
+  }
 
-    const cookieMap = new Map();
-    for (const c of cookies || []) {
-      if (c && c.name) {
-        cookieMap.set(c.name, c.value || "");
+  if (captured && captured.cookieHeader) {
+    return captured.cookieHeader;
+  }
+
+  const cookieMap = new Map();
+
+  // Helper to query cookies with both partitioned (Firefox dFPI / Chrome CHIPS) and unpartitioned storage
+  async function queryCookies(filter) {
+    if (!chrome.cookies || !chrome.cookies.getAll) return;
+
+    const partitionKeys = [
+      {},
+      { topLevelSite: "https://google.com" },
+      { topLevelSite: "https://drive.google.com" },
+      { topLevelSite: "https://drive.usercontent.google.com" }
+    ];
+
+    for (const pKey of partitionKeys) {
+      try {
+        const pFilter = Object.assign({}, filter, { partitionKey: pKey });
+        if (storeId) pFilter.storeId = storeId;
+        const pCookies = await chrome.cookies.getAll(pFilter);
+        for (const c of pCookies || []) {
+          if (c && c.name && !cookieMap.has(c.name)) {
+            cookieMap.set(c.name, c.value || "");
+          }
+        }
+      } catch (e) {
+        if (storeId) {
+          try {
+            const pCookies = await chrome.cookies.getAll(Object.assign({}, filter, { partitionKey: pKey }));
+            for (const c of pCookies || []) {
+              if (c && c.name && !cookieMap.has(c.name)) {
+                cookieMap.set(c.name, c.value || "");
+              }
+            }
+          } catch (err) {}
+        }
       }
     }
 
-    // Query domain & parent domain cookies for Firefox dFPI Total Cookie Protection
+    // Query standard unpartitioned storage
+    try {
+      const sFilter = Object.assign({}, filter);
+      if (storeId) sFilter.storeId = storeId;
+      const cookies = await chrome.cookies.getAll(sFilter);
+      for (const c of cookies || []) {
+        if (c && c.name && !cookieMap.has(c.name)) {
+          cookieMap.set(c.name, c.value || "");
+        }
+      }
+    } catch (e) {
+      if (storeId) {
+        try {
+          const cookies = await chrome.cookies.getAll(Object.assign({}, filter));
+          for (const c of cookies || []) {
+            if (c && c.name && !cookieMap.has(c.name)) {
+              cookieMap.set(c.name, c.value || "");
+            }
+          }
+        } catch (err) {}
+      }
+    }
+  }
+
+  try {
+    // 1. Primary target URL cookies
+    await queryCookies({ url: targetUrl });
+
+    // 2. Extra URL cookies (e.g. initiating tab URL / referrer)
+    if (extraUrl && (extraUrl.startsWith('http://') || extraUrl.startsWith('https://'))) {
+      await queryCookies({ url: extraUrl });
+      try {
+        const extraParsed = new URL(extraUrl);
+        await queryCookies({ domain: extraParsed.hostname });
+      } catch (e) {}
+    }
+
+    // 3. Target URL hostname and parent domains
     try {
       const parsed = new URL(targetUrl);
-      const hostParts = parsed.hostname.split('.');
-      
-      const dQuery = { domain: parsed.hostname };
-      if (storeId) dQuery.storeId = storeId;
-      try {
-        const domCookies = await chrome.cookies.getAll(dQuery);
-        for (const c of domCookies || []) {
-          if (c && c.name && !cookieMap.has(c.name)) {
-            cookieMap.set(c.name, c.value || "");
-          }
-        }
-      } catch (e) {}
+      const host = parsed.hostname;
+      await queryCookies({ domain: host });
 
-      if (hostParts.length >= 2) {
-        const parentDomain = hostParts.slice(-2).join('.');
-        const pQuery = { domain: parentDomain };
-        if (storeId) pQuery.storeId = storeId;
-        const parentCookies = await chrome.cookies.getAll(pQuery);
-        for (const c of parentCookies || []) {
-          if (c && c.name && !cookieMap.has(c.name)) {
-            cookieMap.set(c.name, c.value || "");
-          }
-        }
+      const hostParts = host.split('.');
+      for (let i = 1; i < hostParts.length - 1; i++) {
+        const pDomain = hostParts.slice(i).join('.');
+        await queryCookies({ domain: pDomain });
+      }
+
+      // 4. Multi-domain Cloud Providers: Google Drive / Google UserContent
+      // Google splits session credentials between .google.com, drive.google.com, and *.googleusercontent.com
+      const isGoogle = host.endsWith('google.com') || host.endsWith('googleusercontent.com');
+      if (isGoogle) {
+        await queryCookies({ domain: 'google.com' });
+        await queryCookies({ domain: 'googleusercontent.com' });
+        await queryCookies({ domain: 'drive.google.com' });
+        await queryCookies({ domain: 'drive.usercontent.google.com' });
+        await queryCookies({ url: 'https://drive.google.com/' });
+        await queryCookies({ url: 'https://drive.usercontent.google.com/' });
+        await queryCookies({ url: 'https://accounts.google.com/' });
       }
     } catch (e) {}
 
@@ -374,6 +528,11 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
     return { url, isHtmlLanding: false };
   }
 
+  // Dedicated Google Drive bypass: tokenized download links should never be pre-fetched
+  if (typeof isGoogleDriveUrl === 'function' && isGoogleDriveUrl(url)) {
+    return { url, isHtmlLanding: false };
+  }
+
   try {
     const headers = {
       'User-Agent': userAgent || navigator.userAgent,
@@ -386,6 +545,7 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
     const response = await fetch(url, {
       method: 'GET',
       headers: headers,
+      credentials: 'include',
       redirect: 'follow'
     });
 
@@ -772,7 +932,7 @@ if (chrome.webRequest && chrome.webRequest.onErrorOccurred) {
 
 // 2. Post raw media data to Bengal DM app (app handles stream matching, manifests, and FFmpeg muxing)
 async function postMediaToBengalDM(details, req, tab) {
-  const cookieString = await getCookiesForUrl(details.url, details.storeId);
+  const cookieString = await getCookiesForUrl(details.url, details.cookieStoreId || details.storeId, tab ? tab.url : undefined);
 
   // Clean request headers (remove range and pseudo-headers so app can fetch full stream)
   const rawReqHeaders = (req && req.requestHeaders) ? req.requestHeaders : [];
@@ -985,35 +1145,48 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
 
         // Only intercept if there is a real download intent
         if (hasContentDispositionAttachment || isBinaryContentType || isDownloadExt || isExplicitWhitelistedExt || isGoogleDriveExport) {
+          const reqData = capturedRequestHeaders.get(details.requestId);
+          let cookieString = reqData ? reqData.cookieHeader : "";
+
           (async () => {
             const isOnline = await isBengalDMOnline();
             if (!isOnline) return;
 
             if (isRecentlySent(details.url, filenameFromHeader)) return;
 
-            const cookieString = await getCookiesForUrl(details.url, details.storeId);
-
-            const resolved = await resolveDownloadTarget(details.url, navigator.userAgent, cookieString);
-            if (resolved.isHtmlLanding) {
-              return;
+            if (!cookieString) {
+              const cookieStoreId = details.cookieStoreId || details.storeId;
+              cookieString = await getCookiesForUrl(details.url, cookieStoreId, referrer);
             }
 
-            if (isRecentlySent(resolved.url, filenameFromHeader)) return;
+            let targetUrl = details.url;
+            // Only resolve HTML landing pages (e.g. virus scan prompts); never re-fetch direct file attachments
+            if (!hasContentDispositionAttachment && !isBinaryContentType && !isDownloadExt) {
+              const resolved = await resolveDownloadTarget(details.url, (reqData && reqData.userAgent) || navigator.userAgent, cookieString);
+              if (resolved.isHtmlLanding && !isGoogleDriveExport) {
+                return;
+              }
+              if (resolved.url) {
+                targetUrl = resolved.url;
+              }
+            }
+
+            if (isRecentlySent(targetUrl, filenameFromHeader)) return;
 
             markRecentlySent(details.url, filenameFromHeader);
-            markRecentlySent(resolved.url, filenameFromHeader);
+            markRecentlySent(targetUrl, filenameFromHeader);
 
             await sendToBengalDM({
-              url: resolved.url,
-              userAgent: navigator.userAgent,
+              url: targetUrl,
+              userAgent: (reqData && reqData.userAgent) || navigator.userAgent,
               cookies: cookieString,
               filename: filenameFromHeader,
-              referrer: referrer
+              referrer: (reqData && reqData.referer) || referrer
             });
           })();
 
-          if (extraSpec.includes("blocking") && cachedAppOnline) {
-            if (details.type === "main_frame" && details.tabId && details.tabId !== -1) {
+          if (extraSpec.includes("blocking") && cachedAppOnline && details.type === "main_frame") {
+            if (details.tabId && details.tabId !== -1) {
               // Tonec IDM Pattern: Close newly opened blank tabs (e.g. target="_blank") created solely for this download
               chrome.tabs.get(details.tabId, (tab) => {
                 if (chrome.runtime.lastError || !tab) return;
@@ -1106,39 +1279,56 @@ if (chrome.downloads && chrome.downloads.onCreated) {
       return; // Leave download to native browser!
     }
 
-    // Cancel IMMEDIATELY and SYNCHRONOUSLY on 0th tick
-    cancelAndEraseDownload(downloadItem.id);
-
     // Asynchronous payload preparation and dispatch to Bengal DM
     (async () => {
       // Deduplicate if already processed by content script or webRequest
-      if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
+      if (isRecentlySent(downloadItem.url, downloadItem.filename)) {
+        cancelAndEraseDownload(downloadItem.id);
+        return;
+      }
 
-      const cookieString = await getCookiesForUrl(downloadItem.url, downloadItem.storeId);
-      const resolved = await resolveDownloadTarget(downloadItem.url, navigator.userAgent, cookieString);
+      const reqData = capturedUrlHeaders.get(downloadItem.url) || capturedUrlHeaders.get(downloadItem.url.split('?')[0]);
+      let cookieString = reqData ? reqData.cookieHeader : "";
+      if (!cookieString) {
+        const cookieStoreId = downloadItem.cookieStoreId || downloadItem.storeId;
+        cookieString = await getCookiesForUrl(downloadItem.url, cookieStoreId, referrer);
+      }
 
       const isCloudOrBrowserFile = downloadItem.url.includes("google.com") || 
                                    downloadItem.url.includes("googleusercontent.com") || 
                                    downloadItem.url.includes("export=download") || 
                                    (downloadItem.filename && downloadItem.filename.length > 0);
 
-      if (resolved.isHtmlLanding && !isCloudOrBrowserFile) {
-        return;
+      let targetUrl = downloadItem.url;
+      if (!isCloudOrBrowserFile) {
+        const resolved = await resolveDownloadTarget(downloadItem.url, (reqData && reqData.userAgent) || navigator.userAgent, cookieString);
+        if (resolved.isHtmlLanding) {
+          return;
+        }
+        if (resolved.url) {
+          targetUrl = resolved.url;
+        }
       }
 
-      const targetUrl = (resolved.isHtmlLanding && isCloudOrBrowserFile) ? downloadItem.url : resolved.url;
-      if (isRecentlySent(targetUrl, downloadItem.filename)) return;
+      if (isRecentlySent(targetUrl, downloadItem.filename)) {
+        cancelAndEraseDownload(downloadItem.id);
+        return;
+      }
 
       markRecentlySent(downloadItem.url, downloadItem.filename);
       markRecentlySent(targetUrl, downloadItem.filename);
 
-      await sendToBengalDM({
+      const sent = await sendToBengalDM({
         url: targetUrl,
-        userAgent: navigator.userAgent,
+        userAgent: (reqData && reqData.userAgent) || navigator.userAgent,
         cookies: cookieString,
         filename: downloadItem.filename || "",
-        referrer: referrer
+        referrer: (reqData && reqData.referer) || referrer
       });
+
+      if (sent) {
+        cancelAndEraseDownload(downloadItem.id);
+      }
     })();
   });
 }
@@ -1233,7 +1423,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "download-with-bengal") {
     const targetUrl = info.linkUrl || info.srcUrl || info.selectionText || info.pageUrl;
     if (targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
-      const cookieString = await getCookiesForUrl(targetUrl, tab ? tab.cookieStoreId : undefined);
+      const cookieString = await getCookiesForUrl(targetUrl, tab ? tab.cookieStoreId : undefined, (tab && tab.url) ? tab.url : undefined);
 
       // Media streams (YouTube, Vimeo, TikTok, etc.) are streaming sites and should be sent directly to Bengal DM!
       if (isMediaUrl(targetUrl)) {
@@ -1283,7 +1473,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "send_to_bengal") {
     (async () => {
-      const cookieString = await getCookiesForUrl(request.url, sender && sender.tab ? sender.tab.cookieStoreId : undefined);
+      const cookieString = await getCookiesForUrl(
+        request.url,
+        sender && sender.tab ? sender.tab.cookieStoreId : undefined,
+        (sender && sender.tab && sender.tab.url) ? sender.tab.url : request.referrer
+      );
 
       if (isRecentlySent(request.url)) {
         sendResponse({ success: true, duplicate: true });

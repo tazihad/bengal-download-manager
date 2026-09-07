@@ -131,11 +131,11 @@ Content-Type: application/json
 
 ## 7. Extension Options & Popup UI
 
-- **Action Popup (`popup.html` / `popup.js`):**
+- **Action Popup (`ui/popup/popup.html` / `popup.js` / `popup.css`):**
   - Displays real-time connection status badge (Connected / Offline).
   - Quick toggle switch for **Automatic Download Capture**.
   - Direct link to open Bengal DM settings.
-- **Options Tab Page (`options.html` / `options.js`):**
+- **Options Tab Page (`ui/options/options.html` / `options.js` / `options.css`):**
   - **Local Port Configuration:** Change Aria2 RPC port (Default: `56800`).
   - **Custom Extension Filters:** Add or remove file extensions triggering auto-capture.
   - **Site Bypass List:** Add domains excluded from auto-capture.

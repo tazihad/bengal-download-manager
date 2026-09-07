@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bengal DM Integration Module",
-  "version": "0.5",
+  "version": "0.5.1",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
     "16": "assets/icon-16.png",
@@ -17,12 +17,13 @@
       "128": "assets/icon-128.png"
     },
     "default_title": "Bengal DM",
-    "default_popup": "popup.html"
+    "default_popup": "ui/popup/popup.html"
   },
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "background/background.js",
     "scripts": [
-      "background.js"
+      "background/gdrive.js",
+      "background/background.js"
     ]
   },
   "content_scripts": [
@@ -31,7 +32,7 @@
         "<all_urls>"
       ],
       "js": [
-        "content.js"
+        "content/content.js"
       ],
       "all_frames": true,
       "match_about_blank": true,
@@ -56,13 +57,13 @@
     "<all_urls>"
   ],
   "options_ui": {
-    "page": "options.html",
+    "page": "ui/options/options.html",
     "open_in_tab": true
   },
   "web_accessible_resources": [
     {
       "resources": [
-        "inject.js",
+        "content/inject.js",
         "assets/*"
       ],
       "matches": [
@@ -73,7 +74,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "bengal-download-manager@zihad.com.bd",
-      "strict_min_version": "140.0",
+      "strict_min_version": "115.0",
       "data_collection_permissions": {
         "required": [
           "none"

@@ -10,7 +10,7 @@ import sys
 import json
 import threading
 import getpass
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
@@ -105,7 +105,10 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         if url and url.startswith("http"):
             media_flag = "1" if is_media else "0"
             # self.server.emitter is passed when initializing the server
-            self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}|{media_flag}|{quality}|{title}|{size_bytes}|{size_str}")
+            if isinstance(payload, dict):
+                self.server.emitter.new_download_signal.emit(json.dumps(payload))
+            else:
+                self.server.emitter.new_download_signal.emit(f"{url}|{user_agent}|{cookies}|{referrer}|{media_flag}|{quality}|{title}|{size_bytes}|{size_str}")
             
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
@@ -130,7 +133,8 @@ class TcpListenerThread(QThread):
 
     def run(self):
         try:
-            self.server = HTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
+            self.server = ThreadingHTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
+            self.server.daemon_threads = True
             # Attach emitter to server so handler can access it
             self.server.emitter = self.emitter 
             self.server.serve_forever()

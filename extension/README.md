@@ -46,17 +46,29 @@ brew install python openssl
 
 ```
 extension/
-├── manifest.json       # Manifest V3 extension configuration
-├── background.js       # Service worker / background script (interception & Native RPC listener)
-├── content.js          # Content script (web page download link detection & context triggers)
-├── popup.html          # Browser action popup UI markup
-├── popup.js            # Popup UI logic and connection status monitor
-├── popup.css           # Popup styling
-├── options.html        # Extension settings page markup
-├── options.js          # Extension settings & IPC configuration logic
-├── options.css         # Extension settings page styling
-├── README.md           # This build guide for store reviewers and developers
-└── assets/             # Extension icons (16x16, 32x32, 48x48, 128x128)
+├── manifest.json            # Manifest V3 extension configuration
+├── README.md                # Build guide for store reviewers and developers
+├── background/              # Background service worker & specialized engines
+│   ├── background.js        # Service worker / background interception & Native RPC listener
+│   └── gdrive.js            # Isolated Google Drive detection & confirmation handler
+├── content/                 # Injected content scripts & page hooks
+│   ├── content.js           # Content script (web page download link detection & context triggers)
+│   └── inject.js            # Main-world script injector for HTML5/media stream detection
+├── ui/                      # Extension user interface views
+│   ├── popup/               # Browser action popup UI
+│   │   ├── popup.html       # Action popup markup
+│   │   ├── popup.css        # Action popup styling
+│   │   └── popup.js         # Action popup logic & status monitoring
+│   └── options/             # Settings & options page
+│       ├── options.html     # Settings page markup
+│       ├── options.css      # Settings page styling
+│       └── options.js       # Settings page configuration & whitelist/blacklist logic
+└── assets/                  # Extension icons & graphical assets
+    ├── icon-16.png
+    ├── icon-32.png
+    ├── icon-48.png
+    ├── icon-128.png
+    └── media_download_icon.svg
 ```
 
 ---

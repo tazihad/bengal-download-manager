@@ -1899,7 +1899,9 @@ class MainWindow(QMainWindow):
                     "date_added": str(date_added_ts), # Save raw timestamp
                     "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) if item_name.data(Qt.ItemDataRole.UserRole + 8) is not None else "Main download queue",
                     "extra_data": {
-                        "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url
+                        "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url,
+                        "user_agent": item_name.data(Qt.ItemDataRole.UserRole + 4) or item_name.data(Qt.ItemDataRole.UserRole + 16) or "",
+                        "cookies": item_name.data(Qt.ItemDataRole.UserRole + 5) or item_name.data(Qt.ItemDataRole.UserRole + 17) or ""
                     }
                 }
                 downloads.append(dl_data)
@@ -1935,7 +1937,13 @@ class MainWindow(QMainWindow):
                 item_name.setData(Qt.ItemDataRole.UserRole + 3, date_added_ts) # Raw Date Added TS
                 item_name.setData(Qt.ItemDataRole.UserRole + 8, d.get("queue", "Main download queue") if d.get("queue") is not None else "Main download queue")  # Queue
                 extra = d.get("extra_data", {})
-                item_name.setData(Qt.ItemDataRole.UserRole + 15, extra.get("referer", d.get("url", "")) if isinstance(extra, dict) else d.get("url", ""))
+                if not isinstance(extra, dict):
+                    extra = {}
+                item_name.setData(Qt.ItemDataRole.UserRole + 4, extra.get("user_agent", ""))
+                item_name.setData(Qt.ItemDataRole.UserRole + 5, extra.get("cookies", ""))
+                item_name.setData(Qt.ItemDataRole.UserRole + 15, extra.get("referer", d.get("url", "")))
+                item_name.setData(Qt.ItemDataRole.UserRole + 16, extra.get("user_agent", ""))
+                item_name.setData(Qt.ItemDataRole.UserRole + 17, extra.get("cookies", ""))
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -3078,16 +3086,41 @@ class MainWindow(QMainWindow):
 
     def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
-        parts = data.split("|", 8)
-        url = parts[0]
-        user_agent = parts[1] if len(parts) > 1 else ""
-        cookies = parts[2] if len(parts) > 2 else ""
-        referrer = parts[3] if len(parts) > 3 else ""
-        is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
-        selected_quality = parts[5] if len(parts) > 5 else ""
-        custom_title = parts[6] if len(parts) > 6 else ""
-        size_bytes = int(parts[7].strip()) if len(parts) > 7 and parts[7].strip().isdigit() else 0
-        size_str = parts[8] if len(parts) > 8 else ""
+        if isinstance(data, str) and data.strip().startswith("{"):
+            try:
+                import json
+                payload = json.loads(data)
+                url = payload.get("url", "")
+                user_agent = payload.get("userAgent", "") or payload.get("user_agent", "")
+                cookies = payload.get("cookies", "")
+                referrer = payload.get("referrer", "") or payload.get("referer", "")
+                is_media_flag = bool(payload.get("isMedia", False) or payload.get("is_media", False))
+                selected_quality = str(payload.get("quality", "")).strip()
+                custom_title = str(payload.get("title", "") or payload.get("filename", "")).strip()
+                size_bytes = int(payload.get("sizeBytes", 0) or payload.get("size_bytes", 0) or 0)
+                size_str = str(payload.get("sizeStr", "") or payload.get("size_str", "") or "").strip()
+            except Exception:
+                parts = str(data).split("|", 8)
+                url = parts[0]
+                user_agent = parts[1] if len(parts) > 1 else ""
+                cookies = parts[2] if len(parts) > 2 else ""
+                referrer = parts[3] if len(parts) > 3 else ""
+                is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
+                selected_quality = parts[5] if len(parts) > 5 else ""
+                custom_title = parts[6] if len(parts) > 6 else ""
+                size_bytes = int(parts[7].strip()) if len(parts) > 7 and parts[7].strip().isdigit() else 0
+                size_str = parts[8] if len(parts) > 8 else ""
+        else:
+            parts = str(data).split("|", 8)
+            url = parts[0]
+            user_agent = parts[1] if len(parts) > 1 else ""
+            cookies = parts[2] if len(parts) > 2 else ""
+            referrer = parts[3] if len(parts) > 3 else ""
+            is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
+            selected_quality = parts[5] if len(parts) > 5 else ""
+            custom_title = parts[6] if len(parts) > 6 else ""
+            size_bytes = int(parts[7].strip()) if len(parts) > 7 and parts[7].strip().isdigit() else 0
+            size_str = parts[8] if len(parts) > 8 else ""
 
         if not url:
             return
@@ -3371,6 +3404,23 @@ class MainWindow(QMainWindow):
         self.on_file_info_fetched(file_info)
 
     def on_file_info_fetched(self, file_info):
+        err = file_info.get("error") if isinstance(file_info, dict) else None
+        if err:
+            target_url = file_info.get("url") if isinstance(file_info, dict) else None
+            # Only abort if the URL itself is invalid
+            if not target_url or not str(target_url).startswith("http"):
+                if hasattr(self, "show_toast_notification"):
+                    self.show_toast_notification("Download Failed", str(err))
+                elif hasattr(self, "statusBar") and self.statusBar():
+                    self.statusBar().showMessage(f"Download failed: {err}", 6000)
+                return
+            # Pre-fetch warning/error occurred, but we have a valid download URL:
+            # proceed to show DownloadFileInfoDialog with "Unknown" size (matching commit 17f6cf5)
+            if hasattr(self, "statusBar") and self.statusBar():
+                self.statusBar().showMessage(f"Warning: {err}", 4000)
+            file_info["size_str"] = "Unknown"
+            file_info["size_bytes"] = 0
+
         silent = getattr(self, "settings", {}).get("silent_download", False)
         show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
         if silent or not show_start:
@@ -3391,15 +3441,19 @@ class MainWindow(QMainWindow):
 
         from ui.dialogs import DownloadFileInfoDialog
 
+        GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
+
         def _canonical_fn(target_url):
             if not target_url: return ""
             clean = target_url.split("?")[0].split("#")[0]
-            seg = [s for s in clean.split("/") if s]
+            seg = [s for s in clean.split("/") if s and s not in ("http:", "https:")]
             if not seg: return ""
             last = seg[-1].lower()
-            if last == "download" and len(seg) > 1:
-                last = seg[-2].lower()
-            return last
+            if last in GENERIC_ENDPOINTS:
+                return ""
+            if "." in last and len(last.split(".")[-1]) <= 6:
+                return last
+            return ""
 
         # Deduplicate: if a popup dialog for this URL or canonical filename is ALREADY open, bring it to front
         target_url = file_info.get("url") if isinstance(file_info, dict) else None

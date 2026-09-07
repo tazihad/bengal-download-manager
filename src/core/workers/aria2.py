@@ -110,6 +110,14 @@ class Aria2Worker(QThread):
         
         if self.cookies:
             headers.append(f"Cookie: {self.cookies}")
+
+        if "googleusercontent.com" in self.url or "google.com" in self.url:
+            headers.extend([
+                "Sec-Fetch-Dest: iframe",
+                "Sec-Fetch-Mode: navigate",
+                "Sec-Fetch-Site: same-site",
+                "Upgrade-Insecure-Requests: 1"
+            ])
         
         options["header"] = headers
         options["user-agent"] = ua # Still set explicitly for safety

@@ -33,6 +33,22 @@ class FileInfoFetcherWorker(QThread):
         return opener
 
     def run(self):
+        # Isolated handler for Google Drive downloads (preserves generic downloader integrity)
+        try:
+            from core.services.gdrive_handler import is_gdrive_url, process_gdrive_download
+            if is_gdrive_url(self.url):
+                gdrive_res = process_gdrive_download(
+                    self.url,
+                    user_agent=self.user_agent,
+                    cookies=self.cookies,
+                    referrer=self.referrer
+                )
+                if gdrive_res:
+                    self.finished_signal.emit(gdrive_res)
+                    return
+        except Exception:
+            pass
+
         # Initial guess before network request
         initial_filename = resolve_filename(self.url, {})
         

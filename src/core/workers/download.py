@@ -54,6 +54,12 @@ class SegmentWorker(QThread):
             if self.cookies:
                 req.add_header('Cookie', self.cookies)
             
+            if "googleusercontent.com" in self.url or "google.com" in self.url:
+                req.add_header('Sec-Fetch-Dest', 'iframe')
+                req.add_header('Sec-Fetch-Mode', 'navigate')
+                req.add_header('Sec-Fetch-Site', 'same-site')
+                req.add_header('Upgrade-Insecure-Requests', '1')
+
             if self.referrer:
                 req.add_header('Referer', self.referrer)
             else:
@@ -226,6 +232,11 @@ class DownloadWorker(QThread):
                 req.add_header('Cookie', self.cookies)
             if self.user_agent:
                 req.add_header('User-Agent', self.user_agent)
+            if "googleusercontent.com" in self.url or "google.com" in self.url:
+                req.add_header('Sec-Fetch-Dest', 'iframe')
+                req.add_header('Sec-Fetch-Mode', 'navigate')
+                req.add_header('Sec-Fetch-Site', 'same-site')
+                req.add_header('Upgrade-Insecure-Requests', '1')
             if self.referrer:
                 req.add_header('Referer', self.referrer)
             else:
@@ -235,6 +246,19 @@ class DownloadWorker(QThread):
             with self.opener.open(req) as response:
                 total_size = int(response.info().get('Content-Length', 0))
                 accept_ranges = response.info().get('Accept-Ranges', 'none')
+                content_type = response.info().get('Content-Type', '').lower()
+                content_disp = response.info().get('Content-Disposition', '')
+                final_url = response.geturl()
+
+            if "text/html" in content_type and not content_disp:
+                if "accounts.google.com" in final_url or "accounts.google.com" in self.url:
+                    self.log_signal.emit("Error: Google Drive login required. Session cookies missing or expired.")
+                    self.finished_signal.emit(self.row_index, "Error")
+                    return
+                elif not self.filename.endswith(('.html', '.htm')):
+                    self.log_signal.emit("Error: Received HTML webpage instead of expected file.")
+                    self.finished_signal.emit(self.row_index, "Error")
+                    return
             
             self.log_signal.emit(f"File size: {self.format_bytes(total_size)}")
             
