@@ -440,7 +440,9 @@ def test_media_downloader_headers_and_cookies(tmp_path):
         assert cmd[cmd.index("--user-agent") + 1] == "Mozilla/5.0 Firefox/156.0"
         assert "Accept-Language:en-US,en;q=0.9" in cmd
         assert "Origin:https://lulustream.com" in cmd
-        assert "Cookie:session_id=xyz123" in cmd
+        assert "--cookies" in cmd
+        cookie_file = cmd[cmd.index("--cookies") + 1]
+        assert cookie_file.endswith("_cookies.txt")
 
     # 2. Test YtDlpDownloadWorker
     downloader = YtDlpDownloadWorker(
@@ -471,7 +473,9 @@ def test_media_downloader_headers_and_cookies(tmp_path):
         assert cmd[cmd.index("--user-agent") + 1] == "Mozilla/5.0 Firefox/156.0"
         assert "Accept-Language:en-US,en;q=0.9" in cmd
         assert "Origin:https://lulustream.com" in cmd
-        assert "Cookie:session_id=xyz123" in cmd
+        assert "--cookies" in cmd
+        cookie_file = cmd[cmd.index("--cookies") + 1]
+        assert cookie_file.endswith("_cookies.txt")
 
 
 def test_yt_dlp_download_worker_pause_and_stop(tmp_path):
@@ -659,6 +663,101 @@ def test_ytdlp_multistream_download_progress_rollover(tmp_path):
         # Before completion, live clamped download must not equal total
         if i < len(history) - 1:
             assert cur_dl < cur_tot, f"Premature 100% completion detected at step {i}: {cur_dl}/{cur_tot}"
+
+
+def test_create_temp_netscape_cookie_file():
+    """Verify create_temp_netscape_cookie_file formats correctly and strips YouTube bloat cookies."""
+    from core.media_downloader import create_temp_netscape_cookie_file
+    raw_cookies = (
+        "SID=session_id_12345; "
+        "__Secure-ROLLOUT_TOKEN=bloat_token_abc; "
+        "GPS=1; "
+        "SOCS=CAESEwgDEgk0ODE3NDM0NzQaAmVuIAEaBgiA_LyaBg; "
+        "LOGIN_INFO=valid_login_info; "
+        "_gcl_au=1.1.123456789; "
+        "CONSENT=PENDING+999"
+    )
+    url = "https://www.youtube.com/watch?v=YPpOqfIQ5ME"
+    temp_path = create_temp_netscape_cookie_file(raw_cookies, url)
+    assert temp_path != ""
+    assert os.path.exists(temp_path)
+
+    try:
+        with open(temp_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        assert "# Netscape HTTP Cookie File" in content
+        assert ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsession_id_12345" in content
+        assert ".youtube.com\tTRUE\t/\tTRUE\t2147483647\tLOGIN_INFO\tvalid_login_info" in content
+        # Bloat cookies must be stripped
+        assert "__Secure-ROLLOUT_TOKEN" not in content
+        assert "GPS" not in content
+        assert "SOCS" not in content
+        assert "_gcl_au" not in content
+        assert "CONSENT" not in content
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def test_ytdlp_download_worker_http_413_cookie_retry(tmp_path):
+    """Verify YtDlpDownloadWorker retries clean download without cookies when HTTP 413 occurs."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    test_file = tmp_path / "test_video.mp4"
+    test_file.write_bytes(b"dummy video data")
+
+    # Mock proc 1: fails with HTTP 413
+    mock_proc1 = MagicMock()
+    mock_proc1.stdout = [
+        "[youtube] YPpOqfIQ5ME: Downloading webpage\n",
+        "WARNING: [youtube] HTTP Error 413: Request Entity Too Large. Retrying (1/3)...\n",
+        "ERROR: [youtube] YPpOqfIQ5ME: Unable to download API page: HTTP Error 413: Request Entity Too Large\n",
+    ]
+    mock_proc1.wait.return_value = 1
+    mock_proc1.returncode = 1
+
+    # Mock proc 2: succeeds without cookies
+    mock_proc2 = MagicMock()
+    mock_proc2.stdout = [
+        f"[download] Destination: {str(test_file)}\n",
+        "[download] 100% of 16.00B at 1.00MiB/s ETA 00:00\n",
+    ]
+    mock_proc2.wait.return_value = 0
+    mock_proc2.returncode = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.youtube.com/watch?v=YPpOqfIQ5ME",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test_video.mp4",
+        cookies="SID=valid_sid; __Secure-ROLLOUT_TOKEN=bloat"
+    )
+
+    completed_paths = []
+    worker.finished_signal.connect(lambda row, path: completed_paths.append(path))
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]) as mock_popen:
+        worker.run()
+
+        assert mock_popen.call_count == 2
+
+        # Attempt 1: had cookies
+        cmd1 = mock_popen.call_args_list[0][0][0]
+        assert "--cookies" in cmd1
+
+        # Attempt 2: retry without cookies
+        cmd2 = mock_popen.call_args_list[1][0][0]
+        assert "--cookies" not in cmd2
+        assert "--cookies-from-browser" not in cmd2
+
+    assert len(completed_paths) == 1
+    assert completed_paths[0] == str(test_file)
+
 
 
 

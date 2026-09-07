@@ -147,6 +147,65 @@ def parse_size_str_to_bytes(size_str: str) -> float:
         return 0.0
 
 
+def create_temp_netscape_cookie_file(cookie_str: str, url: str = "") -> str:
+    """Converts a semicolon-separated cookie string into a temporary Netscape cookies.txt file for yt-dlp.
+
+    Automatically filters out non-essential bloat and tracking cookies for YouTube to prevent
+    HTTP Error 413 (Request Entity Too Large).
+    """
+    if not cookie_str or not isinstance(cookie_str, str):
+        return ""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url or "")
+        hostname = (parsed.hostname or "youtube.com").lower()
+        parts = hostname.split(".")
+        if len(parts) >= 2:
+            base_domain = "." + ".".join(parts[-2:])
+        else:
+            base_domain = "." + hostname
+    except Exception:
+        base_domain = ".youtube.com"
+
+    is_yt = bool("youtube.com" in base_domain or "youtu.be" in base_domain)
+
+    # Non-essential bloat and tracking cookies on Google/YouTube that exceed 8KB request header limit
+    YT_IGNORE_COOKIES = {
+        "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "SOCS", "OTZ",
+        "CONSENT", "_ga", "_gid", "wide", "1P_JAR", "ANID", "NID"
+    }
+
+    lines = ["# Netscape HTTP Cookie File", "# https://curl.haxx.se/rfc/cookie_spec.html", ""]
+
+    seen_names = set()
+    for item in cookie_str.split(";"):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        idx = item.find("=")
+        name = item[:idx].strip()
+        val = item[idx + 1:].strip()
+        if not name or name in seen_names:
+            continue
+        seen_names.add(name)
+        if is_yt and name in YT_IGNORE_COOKIES:
+            continue
+        # Clean up any tabs or line breaks
+        name = name.replace("\t", " ").replace("\n", "").replace("\r", "")
+        val = val.replace("\t", " ").replace("\n", "").replace("\r", "")
+        # domain, include_subdomains, path, secure, expires, name, value
+        lines.append(f"{base_domain}\tTRUE\t/\tTRUE\t2147483647\t{name}\t{val}")
+
+    if len(lines) <= 3:
+        return ""
+
+    import tempfile
+    tf = tempfile.NamedTemporaryFile(mode="w", suffix="_cookies.txt", delete=False, encoding="utf-8")
+    tf.write("\n".join(lines) + "\n")
+    tf.close()
+    return tf.name
+
+
 class DependencyManagerWorker(QThread):
     """
     Worker thread to check, download, extract, and update external dependencies:
@@ -450,12 +509,17 @@ class MediaExtractorWorker(QThread):
             # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
             cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
+            temp_cookies_file = None
             if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
             elif self.cookies_file and os.path.exists(self.cookies_file):
                 cmd.extend(["--cookies", self.cookies_file])
             elif getattr(self, "cookies", None):
-                cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
+                temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
+                if temp_cookies_file and os.path.exists(temp_cookies_file):
+                    cmd.extend(["--cookies", temp_cookies_file])
+                else:
+                    cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
 
             cmd.append(self.url)
 
@@ -541,6 +605,12 @@ class MediaExtractorWorker(QThread):
 
         except Exception as e:
             self.analysis_failed.emit(str(e))
+        finally:
+            if temp_cookies_file and os.path.exists(temp_cookies_file):
+                try:
+                    os.remove(temp_cookies_file)
+                except Exception:
+                    pass
 
     def _parse_single_video_data(self, raw_data: dict) -> dict:
         """Parses raw yt-dlp video JSON output into a structured dictionary."""
@@ -857,7 +927,7 @@ class YtDlpDownloadWorker(QThread):
             except Exception:
                 yt_client = "default"
 
-            cmd = [
+            base_cmd = [
                 bin_path,
                 "--newline",
                 "--verbose" if is_debug else "--no-warnings",
@@ -873,276 +943,316 @@ class YtDlpDownloadWorker(QThread):
 
             ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
             if ffmpeg_bin:
-                cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+                base_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
             elif os.path.exists(bin_dir):
-                cmd.extend(["--ffmpeg-location", bin_dir])
+                base_cmd.extend(["--ffmpeg-location", bin_dir])
 
             if self.referrer:
-                cmd.extend(["--referer", self.referrer])
+                base_cmd.extend(["--referer", self.referrer])
                 try:
                     from urllib.parse import urlparse
                     p_ref = urlparse(self.referrer)
                     if p_ref.scheme and p_ref.netloc:
-                        cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                        base_cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
                 except Exception:
                     pass
             if self.user_agent:
-                cmd.extend(["--user-agent", self.user_agent])
+                base_cmd.extend(["--user-agent", self.user_agent])
 
             # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
-            cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
-
-            if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
-                cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
-            elif self.cookies_file and os.path.exists(self.cookies_file):
-                cmd.extend(["--cookies", self.cookies_file])
-            elif getattr(self, "cookies", None):
-                cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
+            base_cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
             if self.is_audio_only:
-                cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
+                base_cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
             else:
-                cmd.extend(["--merge-output-format", "mkv"])
+                base_cmd.extend(["--merge-output-format", "mkv"])
 
             if self.max_connections > 1:
-                cmd.extend(["--concurrent-fragments", str(self.max_connections)])
+                base_cmd.extend(["--concurrent-fragments", str(self.max_connections)])
             if getattr(self, "speed_limit_bytes", 0) > 0:
-                cmd.extend(["--limit-rate", str(self.speed_limit_bytes)])
-
-            cmd.append(self.url)
+                base_cmd.extend(["--limit-rate", str(self.speed_limit_bytes)])
 
             clean_env = get_clean_env(bin_dir)
-
-            self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
-            if is_debug:
-                logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
-            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
-            self.init_segments_signal.emit(self.max_connections)
-            self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Connecting...")
-
-            self.process = subprocess.Popen(
-                cmd,
-                env=clean_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                bufsize=1
+            temp_cookies_file = None
+            has_cookies = bool(
+                (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
+                or (self.cookies_file and os.path.exists(str(self.cookies_file)))
+                or getattr(self, "cookies", None)
             )
+            attempts = [1, 2] if has_cookies else [1]
 
-            pct = 0.0
-            initial_total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
-            total_bytes = initial_total_bytes
-            downloaded_bytes = 0.0
-            completed_streams_bytes = 0.0
-            stream_downloaded_bytes = 0.0
-            current_stream_total = 0.0
-            current_dest_file = ""
-            speed_bps = 0.0
-            eta_str = "--"
-            is_media_stream = True
-            last_seg_update = 0.0
+            for attempt in attempts:
+                if not self.is_running or self.is_paused:
+                    return
 
-            for line in self.process.stdout:
-                if not self.is_running:
-                    self.process.terminate()
-                    break
+                cmd = list(base_cmd)
+                if attempt == 1 and has_cookies:
+                    if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+                        cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
+                    elif self.cookies_file and os.path.exists(str(self.cookies_file)):
+                        cmd.extend(["--cookies", self.cookies_file])
+                    elif getattr(self, "cookies", None):
+                        temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
+                        if temp_cookies_file and os.path.exists(temp_cookies_file):
+                            cmd.extend(["--cookies", temp_cookies_file])
+                        else:
+                            cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
 
-                line_str = line.strip()
-                if not line_str:
-                    continue
-                if "ERROR:" in line_str or "error:" in line_str.lower():
-                    logger.error("[YtDlpDownload] %s", line_str)
-                    self.log_signal.emit(line_str)
-                elif "WARNING:" in line_str or "warning:" in line_str.lower():
-                    logger.warning("[YtDlpDownload] %s", line_str)
-                elif is_debug:
-                    logger.debug("[YtDlpDownload] %s", line_str)
+                cmd.append(self.url)
 
-                # Track destination file type to filter out subtitles/thumbnails
-                dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
-                if dest_match:
-                    dest_path = dest_match.group(1).strip()
-                    dest_ext = os.path.splitext(dest_path)[1].lower()
-                    if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
-                        is_media_stream = False
-                    elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
-                        is_media_stream = True
-                        self.final_file_path = dest_path
-                        if current_dest_file and current_dest_file != dest_path:
-                            # Multi-stream handover (e.g. video finished, now audio started)
-                            rollover = stream_downloaded_bytes if stream_downloaded_bytes > 0 else current_stream_total
-                            completed_streams_bytes += rollover
-                            stream_downloaded_bytes = 0.0
-                            current_stream_total = 0.0
-                        current_dest_file = dest_path
+                self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
+                if is_debug:
+                    logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
+                self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
+                self.init_segments_signal.emit(self.max_connections)
+                self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Connecting...")
 
-                # Capture output file path from stdout line (only valid video/audio extensions)
-                m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
-                if m_dest:
-                    cand_path = m_dest.group(1).strip()
-                    cand_ext = os.path.splitext(cand_path)[1].lower()
-                    if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_path.endswith(".part"):
-                        self.final_file_path = cand_path
-                        is_media_stream = True
+                self.process = subprocess.Popen(
+                    cmd,
+                    env=clean_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    bufsize=1
+                )
 
-                # Parse yt-dlp / aria2c stdout for media streams only
-                if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
-                    if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
-                        is_media_stream = False
+                pct = 0.0
+                initial_total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
+                total_bytes = initial_total_bytes
+                downloaded_bytes = 0.0
+                completed_streams_bytes = 0.0
+                stream_downloaded_bytes = 0.0
+                current_stream_total = 0.0
+                current_dest_file = ""
+                speed_bps = 0.0
+                eta_str = "--"
+                is_media_stream = True
+                last_seg_update = 0.0
+                collected_errors = []
 
-                    current_line_total = 0.0
-                    current_line_dl = 0.0
+                for line in self.process.stdout:
+                    if not self.is_running:
+                        self.process.terminate()
+                        break
 
-                    # Check for explicit dual sizes (downloaded / total or downloaded of total)
-                    dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
-                    if dual_size_match:
-                        parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
-                        parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
-                        if parsed_total > 0:
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+                    if "ERROR:" in line_str or "error:" in line_str.lower():
+                        logger.error("[YtDlpDownload] %s", line_str)
+                        self.log_signal.emit(line_str)
+                        collected_errors.append(line_str)
+                    elif "WARNING:" in line_str or "warning:" in line_str.lower():
+                        logger.warning("[YtDlpDownload] %s", line_str)
+                        collected_errors.append(line_str)
+                    elif is_debug:
+                        logger.debug("[YtDlpDownload] %s", line_str)
+
+                    # Track destination file type to filter out subtitles/thumbnails
+                    dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
+                    if dest_match:
+                        dest_path = dest_match.group(1).strip()
+                        dest_ext = os.path.splitext(dest_path)[1].lower()
+                        if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
+                            is_media_stream = False
+                        elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                             is_media_stream = True
-                            current_line_total = parsed_total
-                            if parsed_downloaded > 0:
-                                current_line_dl = parsed_downloaded
-                    else:
-                        size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
-                        if size_match:
-                            parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                            self.final_file_path = dest_path
+                            if current_dest_file and current_dest_file != dest_path:
+                                # Multi-stream handover (e.g. video finished, now audio started)
+                                rollover = stream_downloaded_bytes if stream_downloaded_bytes > 0 else current_stream_total
+                                completed_streams_bytes += rollover
+                                stream_downloaded_bytes = 0.0
+                                current_stream_total = 0.0
+                            current_dest_file = dest_path
+
+                    # Capture output file path from stdout line (only valid video/audio extensions)
+                    m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
+                    if m_dest:
+                        cand_path = m_dest.group(1).strip()
+                        cand_ext = os.path.splitext(cand_path)[1].lower()
+                        if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_path.endswith(".part"):
+                            self.final_file_path = cand_path
+                            is_media_stream = True
+
+                    # Parse yt-dlp / aria2c stdout for media streams only
+                    if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
+                        if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
+                            is_media_stream = False
+
+                        current_line_total = 0.0
+                        current_line_dl = 0.0
+
+                        # Check for explicit dual sizes (downloaded / total or downloaded of total)
+                        dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                        if dual_size_match:
+                            parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
+                            parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
                             if parsed_total > 0:
                                 is_media_stream = True
                                 current_line_total = parsed_total
-                        elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
-                            is_media_stream = True
-
-                    if is_media_stream:
-                        if current_line_total > 0:
-                            current_stream_total = current_line_total
-
-                        pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
-                        if pct_match:
-                            pct = float(pct_match.group(1))
-                            if current_line_dl == 0 and pct > 0:
-                                ref_total = current_line_total if current_line_total > 0 else current_stream_total
-                                if ref_total > 0:
-                                    current_line_dl = (pct / 100.0) * ref_total
-
-                        # Monotonic downloaded bytes within current stream (eliminates HLS fragment flickering)
-                        if current_line_dl > 0:
-                            stream_downloaded_bytes = max(stream_downloaded_bytes, current_line_dl)
-
-                        downloaded_bytes = completed_streams_bytes + stream_downloaded_bytes
-
-                        # Compute overall total bytes across multiple streams
-                        combined_stream_total = completed_streams_bytes + (current_stream_total or stream_downloaded_bytes)
-                        if initial_total_bytes > 0:
-                            total_bytes = max(initial_total_bytes, combined_stream_total)
+                                if parsed_downloaded > 0:
+                                    current_line_dl = parsed_downloaded
                         else:
-                            total_bytes = combined_stream_total
+                            size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                            if size_match:
+                                parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                                if parsed_total > 0:
+                                    is_media_stream = True
+                                    current_line_total = parsed_total
+                            elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
+                                is_media_stream = True
 
-                        if downloaded_bytes > total_bytes and total_bytes > 0:
-                            total_bytes = downloaded_bytes
+                        if is_media_stream:
+                            if current_line_total > 0:
+                                current_stream_total = current_line_total
 
-                        speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
-                        if not speed_match:
-                            speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
-                        if speed_match:
-                            speed_str = speed_match.group(1).replace("/s", "").strip()
-                            speed_bps = parse_size_str_to_bytes(speed_str)
+                            pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
+                            if pct_match:
+                                pct = float(pct_match.group(1))
+                                if current_line_dl == 0 and pct > 0:
+                                    ref_total = current_line_total if current_line_total > 0 else current_stream_total
+                                    if ref_total > 0:
+                                        current_line_dl = (pct / 100.0) * ref_total
 
-                        eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
-                        if eta_match:
-                            eta_str = eta_match.group(1)
+                            # Monotonic downloaded bytes within current stream (eliminates HLS fragment flickering)
+                            if current_line_dl > 0:
+                                stream_downloaded_bytes = max(stream_downloaded_bytes, current_line_dl)
 
-                        speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
-                        size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
+                            downloaded_bytes = completed_streams_bytes + stream_downloaded_bytes
 
-                        # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
-                        if total_bytes > 0:
-                            clamped_downloaded = min(int(downloaded_bytes), max(0, int(total_bytes) - 1))
-                        else:
-                            clamped_downloaded = int(downloaded_bytes)
+                            # Compute overall total bytes across multiple streams
+                            combined_stream_total = completed_streams_bytes + (current_stream_total or stream_downloaded_bytes)
+                            if initial_total_bytes > 0:
+                                total_bytes = max(initial_total_bytes, combined_stream_total)
+                            else:
+                                total_bytes = combined_stream_total
 
-                        data_tuple = (
-                            self.filename,
-                            size_fmt,
-                            "Downloading",
-                            eta_str,
-                            speed_fmt,
-                            max(0, clamped_downloaded),
-                            int(total_bytes)
-                        )
-                        self.current_bytes = max(0, clamped_downloaded)
-                        self.total_bytes = int(total_bytes)
-                        self.main_progress_signal.emit(self.row_index, data_tuple)
-                        self.main_bar_signal.emit(self.current_bytes, self.total_bytes)
-                        import time
-                        now_time = time.time()
-                        if (now_time - last_seg_update) >= 0.15:
-                            last_seg_update = now_time
-                            self._emit_segment_updates(self.current_bytes, self.total_bytes, speed_bps)
+                            if downloaded_bytes > total_bytes and total_bytes > 0:
+                                total_bytes = downloaded_bytes
 
-            self.process.wait()
-            rc = self.process.returncode
+                            speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
+                            if not speed_match:
+                                speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
+                            if speed_match:
+                                speed_str = speed_match.group(1).replace("/s", "").strip()
+                                speed_bps = parse_size_str_to_bytes(speed_str)
 
-            if self.is_paused:
-                logger.info("[YtDlpDownload] yt-dlp paused by user for %s", self.url)
-                return
+                            eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
+                            if eta_match:
+                                eta_str = eta_match.group(1)
 
-            if not self.is_running:
-                logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
-                return
+                            speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
+                            size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
 
-            if rc == 0:
-                final_path = None
-                if self.final_file_path and os.path.exists(self.final_file_path) and os.path.isfile(self.final_file_path):
-                    f_ext = os.path.splitext(self.final_file_path)[1].lower()
-                    if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
-                        final_path = self.final_file_path
+                            # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
+                            if total_bytes > 0:
+                                clamped_downloaded = min(int(downloaded_bytes), max(0, int(total_bytes) - 1))
+                            else:
+                                clamped_downloaded = int(downloaded_bytes)
 
-                target_expected = os.path.join(self.save_dir, self.filename)
-                if os.path.exists(target_expected) and os.path.isfile(target_expected):
-                    final_path = target_expected
+                            data_tuple = (
+                                self.filename,
+                                size_fmt,
+                                "Downloading",
+                                eta_str,
+                                speed_fmt,
+                                max(0, clamped_downloaded),
+                                int(total_bytes)
+                            )
+                            self.current_bytes = max(0, clamped_downloaded)
+                            self.total_bytes = int(total_bytes)
+                            self.main_progress_signal.emit(self.row_index, data_tuple)
+                            self.main_bar_signal.emit(self.current_bytes, self.total_bytes)
+                            import time
+                            now_time = time.time()
+                            if (now_time - last_seg_update) >= 0.15:
+                                last_seg_update = now_time
+                                self._emit_segment_updates(self.current_bytes, self.total_bytes, speed_bps)
 
-                if not final_path or not os.path.exists(final_path):
-                    candidates = []
-                    if os.path.exists(self.save_dir):
-                        for fname in os.listdir(self.save_dir):
-                            fext = os.path.splitext(fname)[1].lower()
-                            if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
-                                continue
-                            fpath = os.path.join(self.save_dir, fname)
-                            if os.path.isfile(fpath):
-                                if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
-                                    candidates.append(fpath)
-                    if candidates:
-                        final_path = max(candidates, key=lambda p: os.path.getsize(p))
+                self.process.wait()
+                rc = self.process.returncode
 
-                if final_path:
-                    self.target_path = final_path
+                if self.is_paused:
+                    logger.info("[YtDlpDownload] yt-dlp paused by user for %s", self.url)
+                    return
 
-                final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
-                self.current_bytes = int(final_size)
-                self.total_bytes = int(final_size)
+                if not self.is_running:
+                    logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
+                    return
 
-                data_tuple = (
-                    self.filename,
-                    self.format_bytes_str(final_size),
-                    "Complete",
-                    "--",
-                    "--",
-                    int(final_size),
-                    int(final_size)
-                )
-                self._emit_segment_updates(int(final_size), int(final_size), 0.0, status_text="Complete")
-                self.main_progress_signal.emit(self.row_index, data_tuple)
-                self.main_bar_signal.emit(int(final_size), int(final_size))
-                self.finished_signal.emit(self.row_index, final_path or "Complete")
-            else:
-                logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
-                self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
-                data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
-                self.main_progress_signal.emit(self.row_index, data_tuple)
-                self.finished_signal.emit(self.row_index, "")
+                if rc != 0 and attempt == 1 and has_cookies:
+                    error_blob = " ".join(collected_errors).lower()
+                    cookie_failure = any(
+                        err in error_blob
+                        for err in ("413", "too large", "connection reset", "connection aborted", "cookie", "bot", "sign in")
+                    ) or (completed_streams_bytes + stream_downloaded_bytes == 0)
+
+                    if cookie_failure:
+                        logger.warning("[YtDlpDownload] yt-dlp failed with cookies (rc=%d). Retrying clean download without cookies...", rc)
+                        self.log_signal.emit("Cookies invalid or rejected (HTTP 413 / network error), retrying clean download without cookies...")
+                        if temp_cookies_file and os.path.exists(temp_cookies_file):
+                            try:
+                                os.remove(temp_cookies_file)
+                            except Exception:
+                                pass
+                            temp_cookies_file = None
+                        continue
+
+                if rc == 0:
+                    final_path = None
+                    if self.final_file_path and os.path.exists(self.final_file_path) and os.path.isfile(self.final_file_path):
+                        f_ext = os.path.splitext(self.final_file_path)[1].lower()
+                        if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                            final_path = self.final_file_path
+
+                    target_expected = os.path.join(self.save_dir, self.filename)
+                    if os.path.exists(target_expected) and os.path.isfile(target_expected):
+                        final_path = target_expected
+
+                    if not final_path or not os.path.exists(final_path):
+                        candidates = []
+                        if os.path.exists(self.save_dir):
+                            for fname in os.listdir(self.save_dir):
+                                fext = os.path.splitext(fname)[1].lower()
+                                if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                                    continue
+                                fpath = os.path.join(self.save_dir, fname)
+                                if os.path.isfile(fpath):
+                                    if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
+                                        candidates.append(fpath)
+                        if candidates:
+                            final_path = max(candidates, key=lambda p: os.path.getsize(p))
+
+                    if final_path:
+                        self.target_path = final_path
+
+                    final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
+                    self.current_bytes = int(final_size)
+                    self.total_bytes = int(final_size)
+
+                    data_tuple = (
+                        self.filename,
+                        self.format_bytes_str(final_size),
+                        "Complete",
+                        "--",
+                        "--",
+                        int(final_size),
+                        int(final_size)
+                    )
+                    self._emit_segment_updates(int(final_size), int(final_size), 0.0, status_text="Complete")
+                    self.main_progress_signal.emit(self.row_index, data_tuple)
+                    self.main_bar_signal.emit(int(final_size), int(final_size))
+                    self.finished_signal.emit(self.row_index, final_path or "Complete")
+                    break
+                else:
+                    logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
+                    self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
+                    data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
+                    self.main_progress_signal.emit(self.row_index, data_tuple)
+                    self.finished_signal.emit(self.row_index, "")
+                    break
 
         except Exception as e:
             if getattr(self, "is_paused", False) or not getattr(self, "is_running", True):
@@ -1153,3 +1263,9 @@ class YtDlpDownloadWorker(QThread):
             data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
             self.main_progress_signal.emit(self.row_index, data_tuple)
             self.finished_signal.emit(self.row_index, "")
+        finally:
+            if temp_cookies_file and os.path.exists(temp_cookies_file):
+                try:
+                    os.remove(temp_cookies_file)
+                except Exception:
+                    pass

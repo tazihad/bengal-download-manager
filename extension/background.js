@@ -368,6 +368,29 @@ async function getCookiesForUrl(targetUrl, storeId) {
   }
 }
 
+// Sanitizes and strips oversized tracking / non-essential tokens from media site cookies (e.g. YouTube)
+// to prevent HTTP 413 (Request Entity Too Large) errors when communicating with servers and yt-dlp.
+function sanitizeMediaCookies(cookieStr, targetUrl) {
+  if (!cookieStr || typeof cookieStr !== "string") return "";
+  const isYt = targetUrl && (targetUrl.includes("youtube.com") || targetUrl.includes("youtu.be"));
+  if (!isYt) return cookieStr;
+
+  const YT_IGNORE = new Set([
+    "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "SOCS", "OTZ",
+    "CONSENT", "_ga", "_gid", "wide", "1P_JAR", "ANID", "NID"
+  ]);
+
+  return cookieStr
+    .split(";")
+    .map(c => c.trim())
+    .filter(c => {
+      if (!c || !c.includes("=")) return false;
+      const name = c.substring(0, c.indexOf("=")).trim();
+      return !YT_IGNORE.has(name);
+    })
+    .join("; ");
+}
+
 // --- RESOLVE DOWNLOAD TARGET (handles HTML landing pages with meta refresh / direct mirror links) ---
 async function resolveDownloadTarget(url, userAgent, cookies) {
   if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
@@ -1242,7 +1265,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         const success = await sendToBengalDM({
           url: cleanTargetUrl,
           userAgent: navigator.userAgent,
-          cookies: cookieString,
+          cookies: sanitizeMediaCookies(cookieString, cleanTargetUrl),
           referrer: (tab && tab.url) ? tab.url : cleanTargetUrl
         });
 
@@ -1296,7 +1319,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const success = await sendToBengalDM({
           url: cleanUrl,
           userAgent: navigator.userAgent,
-          cookies: cookieString,
+          cookies: sanitizeMediaCookies(cookieString, cleanUrl),
           referrer: request.referrer || request.url,
           filename: request.filename || request.title || "",
           title: request.title || "",
