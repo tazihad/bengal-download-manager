@@ -1185,8 +1185,8 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
             });
           })();
 
-          if (extraSpec.includes("blocking") && cachedAppOnline && details.type === "main_frame") {
-            if (details.tabId && details.tabId !== -1) {
+          if (extraSpec.includes("blocking") && cachedAppOnline) {
+            if (details.type === "main_frame" && details.tabId && details.tabId !== -1) {
               // Tonec IDM Pattern: Close newly opened blank tabs (e.g. target="_blank") created solely for this download
               chrome.tabs.get(details.tabId, (tab) => {
                 if (chrome.runtime.lastError || !tab) return;
@@ -1279,13 +1279,13 @@ if (chrome.downloads && chrome.downloads.onCreated) {
       return; // Leave download to native browser!
     }
 
+    // Cancel IMMEDIATELY and SYNCHRONOUSLY on 0th tick
+    cancelAndEraseDownload(downloadItem.id);
+
     // Asynchronous payload preparation and dispatch to Bengal DM
     (async () => {
       // Deduplicate if already processed by content script or webRequest
-      if (isRecentlySent(downloadItem.url, downloadItem.filename)) {
-        cancelAndEraseDownload(downloadItem.id);
-        return;
-      }
+      if (isRecentlySent(downloadItem.url, downloadItem.filename)) return;
 
       const reqData = capturedUrlHeaders.get(downloadItem.url) || capturedUrlHeaders.get(downloadItem.url.split('?')[0]);
       let cookieString = reqData ? reqData.cookieHeader : "";
@@ -1310,25 +1310,18 @@ if (chrome.downloads && chrome.downloads.onCreated) {
         }
       }
 
-      if (isRecentlySent(targetUrl, downloadItem.filename)) {
-        cancelAndEraseDownload(downloadItem.id);
-        return;
-      }
+      if (isRecentlySent(targetUrl, downloadItem.filename)) return;
 
       markRecentlySent(downloadItem.url, downloadItem.filename);
       markRecentlySent(targetUrl, downloadItem.filename);
 
-      const sent = await sendToBengalDM({
+      await sendToBengalDM({
         url: targetUrl,
         userAgent: (reqData && reqData.userAgent) || navigator.userAgent,
         cookies: cookieString,
         filename: downloadItem.filename || "",
         referrer: (reqData && reqData.referer) || referrer
       });
-
-      if (sent) {
-        cancelAndEraseDownload(downloadItem.id);
-      }
     })();
   });
 }
