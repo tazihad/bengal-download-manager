@@ -5,7 +5,9 @@ from core.utils import (
     resolve_filename,
     get_unique_filepath,
     get_config_dir,
-    is_media_downloader_url
+    is_media_downloader_url,
+    is_canonical_media_page_url,
+    is_generic_media_title
 )
 from main import parse_size_to_bytes, parse_time_to_sec, format_timestamp_relative
 
@@ -27,16 +29,58 @@ def test_is_media_downloader_url():
     assert is_media_downloader_url("https://clips.twitch.tv/AbcXyz") is True
     assert is_media_downloader_url("https://v.redd.it/abc123xyz") is True
 
+    # Bare homepages/feeds must NOT be treated as media downloader URLs
+    assert is_media_downloader_url("https://www.tiktok.com/") is False
+    assert is_media_downloader_url("https://www.tiktok.com/foryou") is False
+    assert is_media_downloader_url("https://www.tiktok.com/@someuser") is False
+    assert is_media_downloader_url("https://www.facebook.com/") is False
+    assert is_media_downloader_url("https://x.com/home") is False
+    assert is_media_downloader_url("https://www.youtube.com/") is False
+
     # Streaming media manifests (.m3u8, .mpd) & media flags
     assert is_media_downloader_url("https://edge-xx.vidvara.cc/hls/test/master.m3u8") is True
     assert is_media_downloader_url("https://example.com/live/index_1280x720.m3u8?token=abc") is True
     assert is_media_downloader_url("https://example.com/dash/manifest.mpd") is True
     assert is_media_downloader_url("https://custom-site.com/file.bin||||1") is True
+    # Bare homepage even with is_media flag is rejected
+    assert is_media_downloader_url("https://www.tiktok.com/||||1") is False
 
     # Standard non-media file links
     assert is_media_downloader_url("https://releases.ubuntu.com/22.04/ubuntu.iso") is False
     assert is_media_downloader_url("https://example.com/document.pdf") is False
     assert is_media_downloader_url("") is False
+
+
+def test_is_canonical_media_page_url():
+    assert is_canonical_media_page_url("https://www.tiktok.com/@user/video/7123456789012345678") is True
+    assert is_canonical_media_page_url("https://vt.tiktok.com/ZS12345/") is True
+    assert is_canonical_media_page_url("https://www.tiktok.com/") is False
+    assert is_canonical_media_page_url("https://www.tiktok.com/foryou") is False
+    assert is_canonical_media_page_url("https://www.tiktok.com/@someuser") is False
+
+    assert is_canonical_media_page_url("https://www.facebook.com/reel/123456789") is True
+    assert is_canonical_media_page_url("https://www.facebook.com/watch/?v=987654") is True
+    assert is_canonical_media_page_url("https://fb.watch/abc123/") is True
+    assert is_canonical_media_page_url("https://www.facebook.com/") is False
+
+    assert is_canonical_media_page_url("https://x.com/user/status/12345678") is True
+    assert is_canonical_media_page_url("https://x.com/home") is False
+    assert is_canonical_media_page_url("https://twitter.com/") is False
+
+    assert is_canonical_media_page_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is True
+    assert is_canonical_media_page_url("https://www.youtube.com/shorts/abc12345") is True
+    assert is_canonical_media_page_url("https://www.youtube.com/") is False
+
+
+def test_is_generic_media_title():
+    assert is_generic_media_title("Facebook") is True
+    assert is_generic_media_title("Facebook.mp4") is True
+    assert is_generic_media_title("TikTok") is True
+    assert is_generic_media_title("TikTok Video") is False
+    assert is_generic_media_title("Watch") is True
+    assert is_generic_media_title("(5) Facebook") is True
+    assert is_generic_media_title("Facebook - Log In or Sign Up") is True
+    assert is_generic_media_title("Funny Cat Playing Piano") is False
 
 def test_resolve_filename():
     # 1. Standard URL with MIME type

@@ -995,3 +995,72 @@ def test_ytdlp_download_worker_youtube_output_template(tmp_path):
         assert "[%(id)s]" in out_tmpl
         assert "%(title).100B" in out_tmpl
 
+
+def test_ytdlp_download_worker_facebook_output_template(tmp_path):
+    """Verify YtDlpDownloadWorker applies title and ID template for Facebook and avoids generic Facebook.mp4."""
+    from core.media_downloader import YtDlpDownloadWorker
+    from unittest.mock import patch, MagicMock
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.facebook.com/reel/26519773847685496",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="Facebook.mp4"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/fake/bin"), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("subprocess.Popen") as mock_popen:
+        mock_proc = MagicMock()
+        mock_proc.stdout = []
+        mock_proc.poll.return_value = 0
+        mock_proc.wait.return_value = 0
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        worker.run()
+
+        cmd = mock_popen.call_args[0][0]
+        out_tmpl = cmd[cmd.index("-o") + 1]
+        assert "[%(id)s]" in out_tmpl
+        assert "%(title).100B" in out_tmpl
+        assert "Facebook.mp4" not in out_tmpl
+
+
+def test_generic_media_title_detection():
+    """Verify is_generic_media_title correctly detects platform names and placeholders."""
+    from core.utils import is_generic_media_title
+
+    assert is_generic_media_title("Facebook") is True
+    assert is_generic_media_title("facebook.mp4") is True
+    assert is_generic_media_title("(1) Facebook") is True
+    assert is_generic_media_title("YouTube") is True
+    assert is_generic_media_title("Video Stream") is True
+    assert is_generic_media_title("master") is True
+    assert is_generic_media_title("") is True
+    assert is_generic_media_title("   ") is True
+    assert is_generic_media_title("Amazing Recipe Video") is False
+    assert is_generic_media_title("My Travel Vlog 2026") is False
+
+
+def test_main_window_process_incoming_url_facebook_chunk_rewrites_to_referrer(qapp):
+    """Verify MainWindow.process_incoming_url rewrites a CDN chunk to the Facebook reel referrer."""
+    from ui.main_window import MainWindow
+    from unittest.mock import patch
+
+    mw = MainWindow()
+    # Payload: url|userAgent|cookies|referrer|is_media|quality|title|sizeBytes|sizeStr
+    chunk_url = "https://video-iad3-1.xx.fbcdn.net/v/t39.25434-2/12345_n.mp4?bytestart=0&byteend=271955"
+    referrer = "https://www.facebook.com/reel/26519773847685496"
+    raw_ipc = f"{chunk_url}|Mozilla/5.0||{referrer}|1|720p|Facebook|271956|271 KB"
+
+    with patch.object(mw, "open_media_downloader") as mock_open:
+        mw.process_incoming_url(raw_ipc)
+        assert mock_open.called
+        call_kwargs = mock_open.call_args[1]
+        assert call_kwargs["url"] == referrer
+        assert call_kwargs["custom_title"] == ""
+
+    mw.close()
+
+

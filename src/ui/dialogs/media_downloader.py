@@ -1097,11 +1097,15 @@ class MediaDownloaderDialog(QDialog):
 
         custom_title = getattr(self, "_custom_title", None)
         raw_title = data.get("title", "Untitled Media")
-        is_generic = not raw_title or raw_title.lower().strip() in ("master", "index", "video", "untitled media", "playlist", "videoplayback", "media")
-        if custom_title and (is_generic or custom_title.lower() != "video stream"):
+        from core.utils import is_generic_media_title
+        is_raw_generic = is_generic_media_title(raw_title)
+        is_custom_generic = is_generic_media_title(custom_title)
+        if not is_raw_generic:
+            display_title = raw_title
+        elif not is_custom_generic:
             display_title = custom_title
         else:
-            display_title = raw_title
+            display_title = raw_title or "Media"
         self.lbl_video_title.setText(display_title)
         dur_sec = int(data.get("duration") or 0)
         dur_str = f"{dur_sec // 60}m {dur_sec % 60:02d}s" if dur_sec else "Unknown"
@@ -1784,25 +1788,27 @@ class MediaDownloaderDialog(QDialog):
         if self.stack.currentWidget() == self.page_video and self._current_video_data:
             custom_title = getattr(self, "_custom_title", None)
             yt_title = self._current_video_data.get("title", "")
-            is_generic = not yt_title or yt_title.lower().strip() in ("master", "index", "video", "untitled media", "playlist", "videoplayback", "media")
-
             webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
             is_youtube = ("youtube.com" in webpage_url.lower() or "youtu.be" in webpage_url.lower() or
                           self._current_video_data.get("extractor", "").lower() == "youtube" or
                           "youtube" in self._current_video_data.get("extractor_key", "").lower())
+            from core.utils import is_generic_media_title, is_media_downloader_url
+            is_popular_platform = is_youtube or bool(is_media_downloader_url(webpage_url))
 
-            if is_youtube and yt_title and not is_generic:
+            is_raw_generic = is_generic_media_title(yt_title)
+            is_custom_generic = is_generic_media_title(custom_title)
+
+            if not is_raw_generic:
                 title = yt_title
-            elif custom_title and (is_generic or custom_title.lower() != "video stream"):
-                title = custom_title
-            elif not is_generic:
-                title = yt_title
-            elif custom_title:
+            elif not is_custom_generic:
                 title = custom_title
             else:
-                ref = getattr(self, "_referrer", None) or self.txt_url.text().strip()
-                m = re.search(r"/(?:v|video|watch)/([A-Za-z0-9_-]+)", ref)
-                title = f"video_{m.group(1)}" if m else "video"
+                ref = getattr(self, "_referrer", None) or webpage_url
+                video_id = self._current_video_data.get("id")
+                if not video_id:
+                    m = re.search(r"/(?:reel|reels|watch|videos?|p|v|status)/([A-Za-z0-9_-]+)", ref)
+                    video_id = m.group(1) if m else ""
+                title = f"video_{video_id}" if video_id else "video"
 
             format_spec, is_audio_only = self._get_single_video_format_spec()
 
@@ -1829,7 +1835,7 @@ class MediaDownloaderDialog(QDialog):
                 if m_yt:
                     video_id = m_yt.group(1)
 
-            if is_youtube and video_id:
+            if (is_youtube or is_popular_platform) and video_id:
                 clean_title = title.strip()
                 if is_audio_only:
                     full_title = f"{clean_title} [{video_id}]"

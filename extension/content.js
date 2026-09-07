@@ -21,9 +21,64 @@
   let activeIframeVideo = null;
   let activeIframeData = null;
   let isTopHandlingWidget = false;
-  let isAppConnected = false;
+  let isAppConnected = true;
   let enableMediaSniffing = true;
   let videoPanelPosition = 'top-right';
+
+  const POPULAR_MEDIA_HOSTS = [
+    'youtube.com', 'youtu.be',
+    'facebook.com', 'fb.watch', 'fb.com',
+    'instagram.com',
+    'tiktok.com',
+    'twitter.com', 'x.com',
+    'reddit.com',
+    'vimeo.com',
+    'dailymotion.com',
+    'twitch.tv',
+    'bilibili.com',
+    'soundcloud.com',
+    'rumble.com',
+    'kick.com',
+    'streamable.com',
+    'pinterest.com'
+  ];
+
+  function isPopularMediaHost(hostname) {
+    const host = (hostname || window.location.hostname).toLowerCase();
+    return POPULAR_MEDIA_HOSTS.some(h => host === h || host.endsWith('.' + h));
+  }
+
+  function getPlatformName() {
+    const host = window.location.hostname.toLowerCase();
+    if (host.includes('youtube.com') || host.includes('youtu.be')) return 'YouTube';
+    if (host.includes('facebook.com') || host.includes('fb.watch') || host.includes('fb.com')) return 'Facebook';
+    if (host.includes('instagram.com')) return 'Instagram';
+    if (host.includes('tiktok.com')) return 'TikTok';
+    if (host.includes('twitter.com') || host.includes('x.com')) return 'X / Twitter';
+    if (host.includes('reddit.com')) return 'Reddit';
+    if (host.includes('vimeo.com')) return 'Vimeo';
+    if (host.includes('dailymotion.com')) return 'Dailymotion';
+    if (host.includes('twitch.tv')) return 'Twitch';
+    if (host.includes('bilibili.com')) return 'Bilibili';
+    return 'Media';
+  }
+
+  const GENERIC_TITLES = new Set([
+    'facebook', 'youtube', 'instagram', 'tiktok', 'twitter', 'x', 'reddit',
+    'vimeo', 'dailymotion', 'twitch', 'bilibili', 'video stream', 'media stream',
+    'media', 'untitled', 'untitled media', 'video', 'videos', 'watch', 'index', 'master',
+    'videoplayback', 'stream', 'unknown', 'post', 'status', 'clip', 'reels', 'reel'
+  ]);
+
+  function isGenericTitle(str) {
+    if (!str || typeof str !== 'string') return true;
+    const s = str.trim().toLowerCase();
+    if (!s || s.length < 2) return true;
+    if (GENERIC_TITLES.has(s)) return true;
+    if (/^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit)/i.test(s)) return true;
+    if (/^(facebook|twitter|instagram)\s*[-–—|]/i.test(s)) return true;
+    return false;
+  }
 
   function notifyTopFrameVideo(video, state = 'playing') {
     if (!isAppConnected || !enableMediaSniffing) return;
@@ -60,10 +115,49 @@
       }
 
       if (!targetIframe && data.frameUrl) {
-        for (const f of iframes) {
-          if (f.src && (f.src === data.frameUrl || data.frameUrl.startsWith(f.src))) {
-            targetIframe = f;
+        try {
+          const frameParsed = new URL(data.frameUrl);
+          for (const f of iframes) {
+            if (!f.src) continue;
+            try {
+              const srcParsed = new URL(f.src, window.location.href);
+              if (srcParsed.host === frameParsed.host || f.src.includes(frameParsed.pathname) || data.frameUrl.includes(srcParsed.pathname)) {
+                targetIframe = f;
+                break;
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
+
+      if (!targetIframe) {
+        // Check if there is an iframe inside recognized player containers (common on CMS / movie embed sites)
+        const playerSelectors = [
+          '#player iframe', '.player iframe', '.movieplayer iframe',
+          '.videocontainer iframe', '.playcontainer iframe', '#playex iframe',
+          '#vplayer iframe', '#player_el iframe', '.jwplayer iframe',
+          '.video-player iframe', '.player-wrapper iframe', '.clappr-player iframe'
+        ];
+        for (const sel of playerSelectors) {
+          const candidate = document.querySelector(sel);
+          if (candidate) {
+            targetIframe = candidate;
             break;
+          }
+        }
+      }
+
+      if (!targetIframe) {
+        // Fallback: match largest visible iframe with video player dimensions (width >= 280, height >= 160)
+        let largestArea = 0;
+        for (const f of iframes) {
+          const rect = f.getBoundingClientRect();
+          if (rect.width >= 280 && rect.height >= 160) {
+            const area = rect.width * rect.height;
+            if (area > largestArea) {
+              largestArea = area;
+              targetIframe = f;
+            }
           }
         }
       }
@@ -163,25 +257,37 @@
       });
     } catch {}
   }
-  function checkConnectionStatus() {
+  function checkConnectionStatus(callback) {
     try {
       chrome.runtime.sendMessage({ action: "get_connection_status" }, (res) => {
         if (chrome.runtime.lastError) {
           isAppConnected = false;
           hideWidget();
+          if (callback) callback(false);
           return;
         }
         const wasConnected = isAppConnected;
         isAppConnected = Boolean(res && res.online);
+        host.dataset.bgOnline = String(res && res.online);
         if (!isAppConnected) {
-          hideWidget();
-        } else if (!wasConnected && activeVideo && enableMediaSniffing) {
-          showWidget();
+          hideWidget('checkConnection_offline');
+        } else if (!wasConnected && enableMediaSniffing) {
+          if (activeVideo) {
+            showWidget();
+          } else {
+            const v = document.querySelector('video');
+            if (v && (!v.paused || v.currentTime > 0)) {
+              onVideoState(v);
+            }
+          }
         }
+        if (callback) callback(isAppConnected);
       });
-    } catch {
+    } catch (err) {
       isAppConnected = false;
-      hideWidget();
+      host.dataset.bgOnline = 'error_' + err.message;
+      hideWidget('checkConnection_catch');
+      if (callback) callback(false);
     }
   }
   checkConnectionStatus();
@@ -223,8 +329,15 @@
       isAppConnected = Boolean(msg.online);
       if (!isAppConnected) {
         hideWidget();
-      } else if (!wasConnected && activeVideo && enableMediaSniffing) {
-        showWidget();
+      } else if (!wasConnected && enableMediaSniffing) {
+        if (activeVideo) {
+          showWidget();
+        } else {
+          const v = document.querySelector('video');
+          if (v && (!v.paused || v.currentTime > 0)) {
+            onVideoState(v);
+          }
+        }
       }
       return;
     }
@@ -255,8 +368,12 @@
   const shadow = host.attachShadow({ mode: 'open' });
 
   function ensureAttached() {
-    const targetParent = document.fullscreenElement || document.body || document.documentElement;
-    if (targetParent && host.parentNode !== targetParent) {
+    let targetParent = document.fullscreenElement || document.documentElement || document.body;
+    if (targetParent && (targetParent instanceof HTMLVideoElement || targetParent.tagName === 'VIDEO')) {
+      targetParent = targetParent.parentElement || document.documentElement || document.body;
+    }
+    if (!targetParent) return;
+    if (host.parentNode !== targetParent) {
       targetParent.appendChild(host);
     }
   }
@@ -266,7 +383,30 @@
   } else {
     ensureAttached();
   }
-  document.addEventListener('fullscreenchange', ensureAttached);
+
+  ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((evt) => {
+    document.addEventListener(evt, () => {
+      ensureAttached();
+      setTimeout(() => {
+        ensureAttached();
+        if (document.fullscreenElement) {
+          const fsVideo = (document.fullscreenElement instanceof HTMLVideoElement || document.fullscreenElement.tagName === 'VIDEO')
+            ? document.fullscreenElement
+            : document.fullscreenElement.querySelector('video');
+          if (fsVideo && isValidPlayedVideo(fsVideo, true)) {
+            activeVideo = fsVideo;
+            showWidget();
+            return;
+          }
+        }
+        updateWidgetPosition();
+      }, 100);
+      setTimeout(() => {
+        ensureAttached();
+        updateWidgetPosition();
+      }, 400);
+    }, true);
+  });
 
   // 3. Inject Component Styles
   const style = document.createElement('style');
@@ -289,12 +429,16 @@
       font-variant-numeric: tabular-nums;
       pointer-events: auto;
       z-index: 2147483647;
-      opacity: 0.22;
+      opacity: 0.95;
       transition: opacity 0.25s ease, transform 0.2s ease;
     }
 
     .bdm-root.visible {
       display: flex;
+    }
+
+    .bdm-root.idle {
+      opacity: 0.4;
     }
 
     /* If hovered, active, open, or dragging, show up completely */
@@ -643,17 +787,13 @@
   root.className = 'bdm-root';
   root.id = 'bdmRoot';
 
-  const logoUrl = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL)
-    ? chrome.runtime.getURL('assets/media_download_icon.svg')
-    : '';
-
-  const logoHtml = logoUrl
-    ? `<img class="bdm-logo-img" src="${logoUrl}" alt="Bengal DM" draggable="false" />`
-    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="2" width="20" height="20" rx="5" fill="#1e2229" stroke="#3daee9" stroke-width="1.5"/>
-        <path d="M12 6V14M12 14L8.5 10.5M12 14L15.5 10.5" stroke="#3daee9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M6 17H18" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
-      </svg>`;
+  const logoHtml = `
+    <svg class="bdm-logo-img" viewBox="0 0 1177.38 1013.61" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(-435.32, 1559.90) scale(0.1, -0.1)" fill="#FFFFFF">
+        <path d="M7435 15553 c-198 -64 -668 -223 -808 -273 -100 -36 -120 -47 -128 -69 -44 -114 -187 -735 -229 -994 -98 -603 -129 -978 -130 -1558 0 -506 23 -825 96 -1324 165 -1127 557 -2197 1196 -3268 301 -503 739 -1084 1076 -1427 124 -126 131 -132 113 -90 -10 25 -59 140 -109 255 -373 867 -657 1738 -856 2625 -209 930 -320 1822 -357 2860 -35 967 65 2197 254 3148 18 89 30 162 27 161 -3 0 -68 -21 -145 -46z M12893 15583 c24 -83 124 -668 161 -943 166 -1232 177 -2361 35 -3610 -83 -733 -169 -1222 -334 -1895 -190 -777 -466 -1594 -802 -2375 -42 -96 -82 -191 -90 -210 l-15 -35 43 40 c236 215 685 783 1001 1265 901 1373 1388 2908 1449 4565 24 660 -36 1350 -181 2080 -38 193 -158 692 -178 746 -9 22 -30 33 -134 71 -96 35 -823 278 -936 313 -20 6 -23 4 -19 -12z M9075 15310 c-115 -21 -270 -51 -343 -66 -156 -32 -139 -15 -200 -209 -321 -1026 -413 -2106 -271 -3185 161 -1230 619 -2458 1352 -3627 116 -186 323 -470 334 -459 3 2 -7 39 -20 83 -158 498 -446 1681 -532 2178 -14 83 -39 227 -55 320 -146 860 -230 1822 -230 2630 1 758 66 1507 190 2180 16 90 30 171 30 180 0 20 -11 19 -255 -25z M11150 15339 c0 -6 18 -110 39 -232 78 -439 136 -946 163 -1417 21 -392 15 -1227 -12 -1615 -74 -1042 -197 -1865 -429 -2866 -94 -406 -212 -863 -326 -1259 -30 -101 -52 -186 -51 -188 2 -1 49 57 103 130 330 438 793 1291 1039 1910 459 1158 651 2261 594 3413 -18 364 -62 736 -126 1054 -52 262 -154 645 -226 850 -30 86 -36 96 -63 103 -61 17 -663 128 -692 128 -7 0 -13 -5 -13 -11z M5445 14495 c-435 -130 -679 -207 -688 -215 -20 -17 -172 -672 -221 -950 -93 -525 -133 -870 -166 -1425 -57 -980 31 -1944 265 -2910 306 -1267 886 -2398 1690 -3300 111 -124 217 -236 221 -232 2 2 -26 75 -62 163 -426 1032 -709 2179 -853 3454 -96 843 -116 1281 -108 2329 7 874 21 1151 97 1906 34 330 98 853 135 1089 29 185 29 186 13 185 -7 -1 -152 -43 -323 -94z M14700 14585 c0 -2 20 -145 45 -317 91 -643 137 -1085 179 -1753 55 -855 51 -2011 -10 -2785 -76 -988 -237 -1951 -459 -2760 -136 -495 -242 -807 -439 -1295 -47 -115 -84 -211 -82 -212 6 -6 187 189 312 335 526 614 951 1328 1261 2117 235 596 382 1150 497 1865 185 1152 161 2387 -70 3620 -40 210 -194 863 -207 877 -15 14 -987 313 -1019 313 -4 0 -8 -2 -8 -5z"/>
+      </g>
+    </svg>
+  `;
 
   root.innerHTML = `
     <div class="bdm-pill" id="bdmPill" title="Bengal Download Manager (Click to download, drag to reposition)">
@@ -723,32 +863,38 @@
     resetIdleTimer();
   });
 
+  ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'click'].forEach((evtName) => {
+    root.addEventListener(evtName, (e) => e.stopPropagation());
+    dropdown.addEventListener(evtName, (e) => e.stopPropagation());
+  });
+
   // 6. Draggable / Movable Behavior
   let isPointerDown = false;
   let hasDragged = false;
+  let isCapturing = false;
   let dragStartX = 0;
   let dragStartY = 0;
   let initialLeft = 0;
   let initialTop = 0;
 
+  let justDragged = false;
+
   pill.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
     if (e.target.closest('#bdmCloseBtn')) return;
 
     clearIdleTimer();
-    root.classList.add('dragging');
 
     isPointerDown = true;
     hasDragged = false;
+    justDragged = false;
+    isCapturing = false;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
 
     const rect = root.getBoundingClientRect();
     initialLeft = rect.left;
     initialTop = rect.top;
-
-    try {
-      pill.setPointerCapture(e.pointerId);
-    } catch (err) {}
   });
 
   pill.addEventListener('pointermove', (e) => {
@@ -756,9 +902,15 @@
     const dx = e.clientX - dragStartX;
     const dy = e.clientY - dragStartY;
 
-    if (!hasDragged && Math.hypot(dx, dy) > 4) {
+    if (!hasDragged && Math.hypot(dx, dy) > 6) {
       hasDragged = true;
+      justDragged = true;
       isUserPositioned = true;
+      root.classList.add('dragging');
+      try {
+        pill.setPointerCapture(e.pointerId);
+        isCapturing = true;
+      } catch (err) {}
     }
 
     if (hasDragged) {
@@ -780,21 +932,45 @@
   });
 
   pill.addEventListener('pointerup', (e) => {
+    e.stopPropagation();
     if (!isPointerDown) return;
     isPointerDown = false;
     root.classList.remove('dragging');
-    try {
-      pill.releasePointerCapture(e.pointerId);
-    } catch (err) {}
+    if (isCapturing) {
+      try {
+        pill.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      isCapturing = false;
+    }
 
-    if (!hasDragged) {
-      toggleDropdown();
-    } else if (!isDropdownOpen) {
-      resetIdleTimer();
+    if (hasDragged) {
+      justDragged = true;
+      setTimeout(() => { justDragged = false; }, 200);
+      if (!isDropdownOpen) {
+        resetIdleTimer();
+      }
     }
   });
 
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (justDragged || hasDragged) {
+      hasDragged = false;
+      return;
+    }
+    toggleDropdown();
+  });
+
   // 6. Cross Button in Corner (Hover-to-view dismissal)
+  closeBtn.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+  });
+
+  closeBtn.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+  });
+
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -829,13 +1005,15 @@
       return false;
     }
 
+    const isPopular = isPopularMediaHost(window.location.hostname);
+
     // Navigational link check: reject if anchor is a thumbnail card, but preserve legitimate players
     const anchor = video.closest('a[href]');
     if (anchor) {
       const isExplicitThumb = video.matches('.hvp_player, .vidthumb, .video-thumb, [data-hvp]') ||
                               video.closest('.post_vid_thumb, .thumb, .video-thumb, .vidthumb') ||
                               (video.currentSrc || video.src || '').toLowerCase().includes('vidthumb') ||
-                              (video.loop && video.muted && (!video.duration || video.duration < 15));
+                              (!isPopular && video.loop && video.muted && (!video.duration || video.duration < 15));
       if (isExplicitThumb) {
         return false;
       }
@@ -860,7 +1038,7 @@
       '[data-thumbnail]',
       '[data-trailer]'
     ];
-    if (video.matches) {
+    if (video.matches && !isPopular) {
       for (const sel of previewClassesOrAttrs) {
         if (video.matches(sel)) return false;
       }
@@ -868,7 +1046,7 @@
 
     // Inline event handlers for thumbnail/hover video players (e.g. onplay="hvponplay(this)")
     const onplayAttr = (video.getAttribute('onplay') || '').toLowerCase();
-    if (onplayAttr.includes('hvp') || onplayAttr.includes('preview') || onplayAttr.includes('thumb')) {
+    if (!isPopular && (onplayAttr.includes('hvp') || onplayAttr.includes('preview') || onplayAttr.includes('thumb'))) {
       return false;
     }
 
@@ -903,7 +1081,8 @@
     }
 
     // Exclude muted looping preview clips without native or player controls (GIF replacements)
-    if (video.loop && video.muted && !video.controls) {
+    // Only on generic sites. Popular platforms (Facebook, X, Instagram, TikTok) loop and start muted by design!
+    if (!isPopular && video.loop && video.muted && !video.controls) {
       if (!video.duration || !isFinite(video.duration) || video.duration < 45) {
         const hasCustomPlayer = video.closest('.jwplayer, .video-js, .plyr, .dplayer, .artplayer, #movie_player, .html5-video-player');
         if (!hasCustomPlayer) {
@@ -913,18 +1092,27 @@
     }
 
     const rect = video.getBoundingClientRect();
+    // Video must intersect the visible viewport (prevents scrolled-past feed videos from hijacking activeVideo)
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
+      return false;
+    }
+
     const isInIframe = window.self !== window.top;
-    const minW = isInIframe ? 160 : 260;
-    const minH = isInIframe ? 90 : 140;
+    const minW = isPopular ? 120 : (isInIframe ? 160 : 260);
+    const minH = isPopular ? 100 : (isInIframe ? 90 : 140);
 
     // Dimensions check
-    if ((rect.width < minW || rect.height < minH) && (video.videoWidth < 240 || video.videoHeight < 140)) {
+    if ((rect.width < minW || rect.height < minH) && (video.videoWidth < 120 || video.videoHeight < 100)) {
       return false;
     }
 
     // Check display / visibility styles
     const style = window.getComputedStyle(video);
-    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+    if (style.display === 'none' || style.visibility === 'hidden') {
+      return false;
+    }
+    // Only exclude opacity: '0' on generic sites. Popular sites (TikTok, WebGL/canvas players) may animate or render with opacity: 0
+    if (!isPopular && style.opacity === '0') {
       return false;
     }
 
@@ -939,35 +1127,50 @@
       if (isPreview) {
         return false;
       }
+    } else if (isPopular) {
+      const isExplicitAd = video.closest('.ad-container, .advertisement, [data-ad-container]');
+      if (isExplicitAd) {
+        return false;
+      }
     } else {
-      const isRecognizedMain = video.closest('#player_el, .player_el, #vid_container_id, .yps_player_wrap, .jwplayer, .video-js, .plyr, .dplayer, .artplayer');
+      const isRecognizedMain = video.closest([
+        '#player_el', '.player_el', '#vid_container_id', '.yps_player_wrap',
+        '.jwplayer', '.video-js', '.plyr', '.dplayer', '.artplayer',
+        '#player', '#vplayer', '#player-holder', '.playcontainer', '.videocontainer',
+        '.movieplayer', '.video-player', '.player-wrapper', '.clappr-player',
+        '.fluid_video_wrapper', '.flowplayer', '[data-player]'
+      ].join(','));
       if (!isRecognizedMain) {
-        const genericPreview = video.closest([
-          'ytd-thumbnail',
-          '#inline-preview-player',
-          'ytd-video-preview',
-          '.feed-video-preview',
-          '.shorts-carousel',
-          '.thumb-preview',
-          '.post_vid_thumb',
-          '.video_thumb',
-          '.thumb_video',
-          '.video-card',
-          '.thumbnail-card',
-          '.thumb-container',
-          '.preview-container',
-          '.video-preview-container',
-          '.hover-preview',
-          '.media-card',
-          '.thumb',
-          '.thumbnail',
-          '.ad-container',
-          '.advertisement',
-          '[data-hvp]',
-          '[data-preview]'
-        ].join(','));
-        if (genericPreview) {
-          return false;
+        // If the video is actively playing or has controls or duration > 30s, do not reject as preview card
+        const isLegitPlayback = (!video.paused && video.currentTime > 0) || video.controls || (video.duration > 30);
+        if (!isLegitPlayback) {
+          const genericPreview = video.closest([
+            'ytd-thumbnail',
+            '#inline-preview-player',
+            'ytd-video-preview',
+            '.feed-video-preview',
+            '.shorts-carousel',
+            '.thumb-preview',
+            '.post_vid_thumb',
+            '.video_thumb',
+            '.thumb_video',
+            '.video-card',
+            '.thumbnail-card',
+            '.thumb-container',
+            '.preview-container',
+            '.video-preview-container',
+            '.hover-preview',
+            '.media-card',
+            '.thumb',
+            '.thumbnail',
+            '.ad-container',
+            '.advertisement',
+            '[data-hvp]',
+            '[data-preview]'
+          ].join(','));
+          if (genericPreview) {
+            return false;
+          }
         }
       }
     }
@@ -988,6 +1191,184 @@
     return clean.trim();
   }
 
+  function isCanonicalMediaPage(url) {
+    if (!url) return false;
+    try {
+      const u = new URL(url);
+      const path = u.pathname.toLowerCase().replace(/\/+$/, '');
+      const host = u.hostname.toLowerCase();
+      if (!path || ['', '/', '/foryou', '/following', '/explore', '/live', '/home', '/feed'].includes(path)) {
+        if (!u.searchParams.has('v') && !u.searchParams.has('video_id')) return false;
+      }
+      if (host.includes('vt.tiktok.com') || host.includes('vm.tiktok.com') || host.includes('fb.watch') || host.includes('youtu.be') || host.includes('dai.ly')) {
+        return path.length > 1;
+      }
+      if (host.includes('tiktok.com')) {
+        return path.includes('/video/') || path.includes('/v/') || /\/\d{18,20}/.test(path);
+      }
+      if (host.includes('facebook.com')) {
+        return path.includes('/reel/') || path.includes('/watch') || path.includes('/videos/') || u.searchParams.has('v');
+      }
+      if (host.includes('instagram.com')) {
+        return path.includes('/reel/') || path.includes('/p/') || path.includes('/tv/') || path.includes('/reels/');
+      }
+      if (host.includes('twitter.com') || host.includes('x.com')) {
+        return path.includes('/status/');
+      }
+      if (host.includes('youtube.com')) {
+        return u.searchParams.has('v') || path.includes('/shorts/') || path.includes('/embed/') || path.includes('/watch');
+      }
+      if (host.includes('reddit.com')) {
+        return path.includes('/comments/');
+      }
+      return path.length > 1;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function getMediaPageUrl(video) {
+    const host = window.location.hostname.toLowerCase();
+    const currentUrl = window.location.href;
+
+    // Facebook & Reels
+    if (host.includes('facebook.com') || host.includes('fb.watch') || host.includes('fb.com')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        return currentUrl;
+      }
+      if (video) {
+        try {
+          const container = video.closest('[role="article"], [data-pagelet*="FeedUnit"], [data-pagelet*="Reel"], div[role="main"]') || video.parentElement;
+          if (container) {
+            const permalinkEl = container.querySelector('a[href*="/reel/"], a[href*="/watch"], a[href*="/videos/"]');
+            if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
+              return permalinkEl.href;
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // Instagram & Reels
+    if (host.includes('instagram.com')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        return currentUrl;
+      }
+      if (video) {
+        try {
+          const container = video.closest('article, [role="presentation"]') || video.parentElement;
+          if (container) {
+            const permalinkEl = container.querySelector('a[href*="/reel/"], a[href*="/p/"]');
+            if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
+              return permalinkEl.href;
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // TikTok
+    if (host.includes('tiktok.com')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        return currentUrl;
+      }
+      if (video) {
+        try {
+          const container = video.closest('[data-e2e="recommend-list-item-container"], [data-e2e="feed-item"], [data-e2e="user-post-item"], div[id*="xgwrapper"], section, article') || video.parentElement;
+          if (container) {
+            const permalinkEl = container.querySelector('a[href*="/video/"], a[href*="/v/"]');
+            if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
+              return permalinkEl.href;
+            }
+          }
+          // Search up the DOM tree for any container or link or element with video ID
+          let curr = video.parentElement;
+          for (let i = 0; i < 15 && curr; i++) {
+            const link = curr.querySelector('a[href*="/video/"], a[href*="/v/"]');
+            if (link && link.href && isCanonicalMediaPage(link.href)) {
+              return link.href;
+            }
+            if (curr.id) {
+              const m = curr.id.match(/\d{18,20}/);
+              if (m) {
+                return `https://www.tiktok.com/@video/video/${m[0]}`;
+              }
+            }
+            curr = curr.parentElement;
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // Twitter / X
+    if (host.includes('twitter.com') || host.includes('x.com')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        return currentUrl;
+      }
+      if (video) {
+        try {
+          const container = video.closest('article') || video.parentElement;
+          if (container) {
+            const permalinkEl = container.querySelector('a[href*="/status/"]');
+            if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
+              return permalinkEl.href;
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // Reddit
+    if (host.includes('reddit.com')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        return currentUrl;
+      }
+      if (video) {
+        try {
+          const container = video.closest('[data-test-id="post-container"], shreddit-post') || video.parentElement;
+          if (container) {
+            const permalinkEl = container.querySelector('a[href*="/comments/"], a[data-click-id="body"]');
+            if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
+              return permalinkEl.href;
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // YouTube
+    if (host.includes('youtube.com') || host.includes('youtu.be')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        return currentUrl;
+      }
+      if (video) {
+        try {
+          const container = video.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-reel-item-renderer') || video.parentElement;
+          if (container) {
+            const permalinkEl = container.querySelector('a#thumbnail[href*="/watch"], a[href*="/watch"], a[href*="/shorts/"]');
+            if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
+              return permalinkEl.href;
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    // Other popular media platforms (Vimeo, Twitch, etc.)
+    if (isPopularMediaHost(host)) {
+      const tabUrl = (cachedTabInfo && cachedTabInfo.url) || window.location.href;
+      return isCanonicalMediaPage(tabUrl) ? tabUrl : null;
+    }
+
+    return null;
+  }
+
   function getSlugFromUrl(urlStr) {
     try {
       const u = new URL(urlStr || window.location.href);
@@ -1005,39 +1386,54 @@
   function getVideoTitle(video) {
     if (activeIframeData && activeIframeData.title) {
       const t = cleanTitleString(activeIframeData.title);
-      if (t && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
+      if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
     }
     if (ytMediaInfo && ytMediaInfo.title) {
       const t = cleanTitleString(ytMediaInfo.title);
-      if (t) return t;
+      if (t && !isGenericTitle(t)) return t;
     }
     const ytTitle = document.querySelector('h1.ytd-watch-metadata, #title h1, h1.title');
     if (ytTitle && ytTitle.innerText.trim()) {
       const t = cleanTitleString(ytTitle.innerText);
-      if (t) return t;
+      if (t && !isGenericTitle(t)) return t;
     }
     if (cachedTabInfo && cachedTabInfo.title) {
       let t = cleanTitleString(cachedTabInfo.title);
-      if (t && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
+      if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
     }
     const metaTitle = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]');
     if (metaTitle && metaTitle.content && metaTitle.content.trim()) {
       const t = cleanTitleString(metaTitle.content);
-      if (t && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
+      if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
     }
     if (video && video.title && video.title.trim()) {
       const t = cleanTitleString(video.title);
-      if (t) return t;
+      if (t && !isGenericTitle(t)) return t;
+    }
+    // Check social container captions (Facebook, Instagram, etc.)
+    if (video) {
+      try {
+        const container = video.closest('[role="article"], [data-pagelet*="FeedUnit"], [data-pagelet*="Reel"], div[role="main"]');
+        if (container) {
+          const captionEl = container.querySelector('[data-ad-preview="message"], div[dir="auto"][style*="text-align"]');
+          if (captionEl && captionEl.innerText && captionEl.innerText.trim()) {
+            const cap = cleanTitleString(captionEl.innerText.trim().split('\n')[0]);
+            if (cap && !isGenericTitle(cap)) {
+              return cap.length > 80 ? cap.substring(0, 80) : cap;
+            }
+          }
+        }
+      } catch (e) {}
     }
     if (document.title && document.title.trim()) {
       let dt = cleanTitleString(document.title);
-      if (dt && !dt.toLowerCase().includes('embed') && dt.toLowerCase() !== 'index') {
+      if (dt && !isGenericTitle(dt) && !dt.toLowerCase().includes('embed') && dt.toLowerCase() !== 'index') {
         return dt;
       }
     }
     const slug = getSlugFromUrl(window.location.href) || ((cachedTabInfo && cachedTabInfo.url) ? getSlugFromUrl(cachedTabInfo.url) : "");
-    if (slug) return slug;
-    return "Video Stream";
+    if (slug && !isGenericTitle(slug)) return slug;
+    return `${getPlatformName()} Video`;
   }
 
   function formatDuration(sec) {
@@ -1120,44 +1516,50 @@
       }
     }
 
-    // B. If an HLS (m3u8) or DASH stream was sniffed for this tab
-    const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
-    const m3u8Stream = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
-    if (m3u8Stream) {
-      const vh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 720;
-      const resLabel = vh >= 1080 ? '1080p Full HD' : (vh >= 720 ? '720p HD' : (vh >= 480 ? '480p SD' : `${vh}p`));
-      const resBadge = vh >= 1080 ? '1080p' : (vh >= 720 ? '720p' : (vh >= 480 ? '480p' : `${vh}p`));
-      const resCls = vh >= 720 ? 'hd' : '';
+    // B. If an HLS (m3u8) or DASH stream was sniffed for this tab (only on generic sites)
+    const isPopular = isPopularMediaHost(window.location.hostname);
+    if (!isPopular) {
+      const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+      const m3u8Stream = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+      if (m3u8Stream) {
+        const vh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 720;
+        const resLabel = vh >= 1080 ? '1080p Full HD' : (vh >= 720 ? '720p HD' : (vh >= 480 ? '480p SD' : `${vh}p`));
+        const resBadge = vh >= 1080 ? '1080p' : (vh >= 720 ? '720p' : (vh >= 480 ? '480p' : `${vh}p`));
+        const resCls = vh >= 720 ? 'hd' : '';
 
-      return [
-        {
-          quality: `${resBadge} (HLS Stream)`,
-          badge: resBadge,
-          label: `${resLabel} (HLS Stream)`,
-          height: vh,
-          bitrate: vh >= 1080 ? 5000 : 2500,
-          cls: resCls,
-          streamUrl: m3u8Stream.url,
-          sizeBytes: estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
-          size: estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
-        },
-        {
-          quality: 'Audio Only (MP3)',
-          badge: 'MP3',
-          label: 'Audio Only',
-          height: 0,
-          bitrate: 192,
-          cls: 'audio',
-          isAudio: true,
-          streamUrl: m3u8Stream.url,
-          sizeBytes: estimateFileSizeBytes(duration, 192),
-          size: estimateFileSize(duration, 192, true)
-        }
-      ];
+        return [
+          {
+            quality: `${resBadge} (HLS Stream)`,
+            badge: resBadge,
+            label: `${resLabel} (HLS Stream)`,
+            height: vh,
+            bitrate: vh >= 1080 ? 5000 : 2500,
+            cls: resCls,
+            streamUrl: m3u8Stream.url,
+            sizeBytes: estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
+            size: estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
+          },
+          {
+            quality: 'Audio Only (MP3)',
+            badge: 'MP3',
+            label: 'Audio Only',
+            height: 0,
+            bitrate: 192,
+            cls: 'audio',
+            isAudio: true,
+            streamUrl: m3u8Stream.url,
+            sizeBytes: estimateFileSizeBytes(duration, 192),
+            size: estimateFileSize(duration, 192, true)
+          }
+        ];
+      }
     }
 
     // C. Standard Video Height Filtering (Generic sites or fallback)
-    const vh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 720;
+    const rawVh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 0;
+    const rawVw = (activeIframeData && activeIframeData.videoWidth) || (video && video.videoWidth) || 0;
+    // For vertical videos (TikTok, YouTube Shorts, Reels), use maximum dimension to preserve 720p/1080p options
+    const vh = Math.max(rawVh, rawVw) || 720;
     const allTiers = [
       { quality: '2160p (4K)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
       { quality: '1440p (2K)', badge: '2K', label: '2K Quad HD', height: 1440, bitrate: 12000, cls: 'uhd' },
@@ -1168,13 +1570,22 @@
     ];
 
     // Strictly filter out any resolution tier higher than the video's actual dimensions
-    const filtered = allTiers
+    let filtered = allTiers
       .filter(t => t.height <= vh)
       .map(t => ({
         ...t,
         sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
         size: estimateFileSize(duration, t.bitrate, false)
       }));
+
+    // If dimensions check was overly strict or metadata not ready, provide standard tiers (1080p, 720p, 480p, 360p)
+    if (filtered.length === 0) {
+      filtered = allTiers.slice(2).map(t => ({
+        ...t,
+        sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
+        size: estimateFileSize(duration, t.bitrate, false)
+      }));
+    }
 
     // Add Audio Option
     filtered.push({
@@ -1199,8 +1610,7 @@
     titleEl.textContent = title;
     titleEl.title = title;
 
-    const isYouTube = window.location.hostname.includes('youtube.com');
-    badgeEl.textContent = isYouTube ? 'YouTube' : 'Media';
+    badgeEl.textContent = getPlatformName();
 
     const dur = (ytMediaInfo && ytMediaInfo.duration) ||
                 (activeIframeData && activeIframeData.duration) ||
@@ -1241,12 +1651,13 @@
   // 11. Trigger Download via Bengal DM
   function triggerDownload(tier) {
     if (!activeVideo) return;
-    const title = getVideoTitle(activeVideo);
-    let targetUrl = window.location.href;
+    const rawTitle = getVideoTitle(activeVideo);
+    const title = isGenericTitle(rawTitle) ? "" : rawTitle;
+    let targetUrl = "";
 
-    const isYouTube = window.location.hostname.includes('youtube.com');
-    if (isYouTube) {
-      targetUrl = window.location.href;
+    const mediaPageUrl = getMediaPageUrl(activeVideo);
+    if (mediaPageUrl) {
+      targetUrl = mediaPageUrl;
     } else {
       // 1. Direct stream URL attached to tier (e.g. master m3u8)
       if (tier.streamUrl && (tier.streamUrl.startsWith('http://') || tier.streamUrl.startsWith('https://'))) {
@@ -1262,9 +1673,15 @@
         targetUrl = activeVideo.currentSrc;
       } else if (activeVideo.src && (activeVideo.src.startsWith('http://') || activeVideo.src.startsWith('https://'))) {
         targetUrl = activeVideo.src;
-      } else if (cachedTabInfo && cachedTabInfo.url) {
+      } else if (cachedTabInfo && cachedTabInfo.url && isCanonicalMediaPage(cachedTabInfo.url)) {
         targetUrl = cachedTabInfo.url;
+      } else if (isCanonicalMediaPage(window.location.href)) {
+        targetUrl = window.location.href;
       }
+    }
+
+    if (!targetUrl) {
+      targetUrl = activeVideo.currentSrc || activeVideo.src || window.location.href;
     }
 
     footerEl.classList.add('opening');
@@ -1310,17 +1727,21 @@
     const pillW = pill.offsetWidth || 34;
     const pillH = pill.offsetHeight || 34;
     const pad = 16;
+    const isTikTok = window.location.hostname.includes('tiktok.com');
+    // TikTok has native overlays: top header actions (~48px) and bottom control bar (~56px) with fullscreen button
+    const tiktokTopOffset = isTikTok ? 52 : 0;
+    const tiktokBottomOffset = isTikTok ? 48 : 0;
     let left;
     let top;
 
     switch (videoPanelPosition) {
       case 'top-left':
         left = rect.left + pad;
-        top = rect.top + pad;
+        top = rect.top + pad + tiktokTopOffset;
         break;
       case 'top-center':
         left = rect.left + (rect.width - pillW) / 2;
-        top = rect.top + pad;
+        top = rect.top + pad + tiktokTopOffset;
         break;
       case 'center':
         left = rect.left + (rect.width - pillW) / 2;
@@ -1328,20 +1749,20 @@
         break;
       case 'bottom-left':
         left = rect.left + pad;
-        top = rect.bottom - pillH - 24;
+        top = rect.bottom - pillH - 24 - tiktokBottomOffset;
         break;
       case 'bottom-center':
         left = rect.left + (rect.width - pillW) / 2;
-        top = rect.bottom - pillH - 24;
+        top = rect.bottom - pillH - 24 - tiktokBottomOffset;
         break;
       case 'bottom-right':
         left = rect.right - pillW - pad;
-        top = rect.bottom - pillH - 24;
+        top = rect.bottom - pillH - 24 - tiktokBottomOffset;
         break;
       case 'top-right':
       default:
         left = rect.right - pillW - pad;
-        top = rect.top + pad;
+        top = rect.top + pad + tiktokTopOffset;
         break;
     }
 
@@ -1360,25 +1781,37 @@
   }
 
   function showWidget() {
+    host.dataset.appConnected = String(isAppConnected);
+    host.dataset.sniffing = String(enableMediaSniffing);
     if (!isAppConnected || !enableMediaSniffing) {
-      hideWidget();
+      hideWidget('showWidget_disconnected');
       return;
     }
     ensureAttached();
+    host.dataset.visible = 'true';
     root.classList.add('visible');
     root.style.display = 'flex';
     updateWidgetPosition();
     resetIdleTimer();
   }
 
-  function hideWidget() {
+  function hideWidget(reason = 'unknown') {
+    host.dataset.visible = 'false';
+    host.dataset.hideReason = reason;
     clearIdleTimer();
     closeDropdown();
+    observeVideoGeometry(null);
     root.classList.remove('visible');
     root.style.display = 'none';
   }
 
+  let lastToggleTime = 0;
+  let lastOpenedTime = 0;
+
   function toggleDropdown() {
+    const now = Date.now();
+    if (now - lastToggleTime < 350) return;
+    lastToggleTime = now;
     if (isDropdownOpen) {
       closeDropdown();
     } else {
@@ -1387,6 +1820,7 @@
   }
 
   function openDropdown() {
+    lastOpenedTime = Date.now();
     isDropdownOpen = true;
     clearIdleTimer();
     root.classList.add('open');
@@ -1462,19 +1896,30 @@
 
   // Close dropdown on outside click
   document.addEventListener('click', (e) => {
-    if (isDropdownOpen && !host.contains(e.target)) {
+    if (Date.now() - lastOpenedTime < 350) return;
+    const path = e.composedPath ? e.composedPath() : [];
+    if (isDropdownOpen && !path.includes(host) && !host.contains(e.target)) {
       closeDropdown();
     }
   });
 
   // 13. Video State Observation
   function onVideoState(video) {
-    if (!isAppConnected || !enableMediaSniffing) return;
+    if (!enableMediaSniffing) return;
     if (!video) return;
+
+    if (!isAppConnected) {
+      checkConnectionStatus((connected) => {
+        if (connected && video) {
+          onVideoState(video);
+        }
+      });
+      return;
+    }
 
     const hasPlayed = playedVideos.has(video) || (activeVideo === video);
     if (!isValidPlayedVideo(video, hasPlayed)) {
-      if (activeVideo === video) {
+      if (activeVideo === video && !isDropdownOpen) {
         hideWidget();
         activeVideo = null;
       }
@@ -1493,12 +1938,87 @@
       }
     }
 
+    let videoResizeObserver = null;
+    function observeVideoGeometry(video) {
+      if (videoResizeObserver) {
+        videoResizeObserver.disconnect();
+        videoResizeObserver = null;
+      }
+      if (!video || typeof ResizeObserver === 'undefined') return;
+      try {
+        videoResizeObserver = new ResizeObserver(() => {
+          if (activeVideo === video && root.classList.contains('visible')) {
+            updateWidgetPosition();
+          }
+        });
+        videoResizeObserver.observe(video);
+        if (video.parentElement) {
+          videoResizeObserver.observe(video.parentElement);
+        }
+      } catch (e) {}
+    }
+
     if (activeVideo !== video) {
       activeVideo = video;
+      observeVideoGeometry(video);
       requestMediaInfo();
     }
     showWidget();
   }
+
+  // Hover over video or custom player container (Facebook, X, YouTube, iframe embeds, etc.) to show widget
+  document.addEventListener('mouseover', (e) => {
+    if (!enableMediaSniffing || isDropdownOpen) return;
+    const target = e.target;
+    if (!target) return;
+
+    // If mouse is within our own dock/pill/dropdown, ignore
+    const path = e.composedPath ? e.composedPath() : [];
+    if (path.includes(host) || host.contains(target)) {
+      return;
+    }
+
+    if (activeIframeVideo && (target === activeIframeVideo || (target.contains && target.contains(activeIframeVideo)) || (target.closest && target.closest('#player, .player, .movieplayer, .videocontainer, .playcontainer')))) {
+      if (!root.classList.contains('visible')) {
+        showWidget();
+      }
+      return;
+    }
+
+    // If active video is actively playing and valid in the viewport:
+    // Moving the mouse over the video, its player wrapper, or its native controls frame (e.g. TikTok frame)
+    // MUST NEVER disrupt, swap, or hide activeVideo!
+    if (activeVideo && !activeVideo.paused && isValidPlayedVideo(activeVideo, false)) {
+      const isOverActive = target === activeVideo ||
+        (activeVideo.parentElement && activeVideo.parentElement.contains(target)) ||
+        (target.closest && (
+          target.closest('div.xgplayer, div[id*="xgwrapper"], div[class*="DivVideoWrapper"], [data-e2e="feed-video"], [data-e2e="video-player"]') === activeVideo.closest('div.xgplayer, div[id*="xgwrapper"], div[class*="DivVideoWrapper"], [data-e2e="feed-video"], [data-e2e="video-player"]') ||
+          target.closest('.html5-video-player, #movie_player, .video-js, .jwplayer, .plyr, .dplayer') === activeVideo.closest('.html5-video-player, #movie_player, .video-js, .jwplayer, .plyr, .dplayer')
+        ));
+      if (isOverActive) {
+        if (!root.classList.contains('visible')) {
+          showWidget();
+        }
+        return;
+      }
+    }
+
+    const video = (target instanceof HTMLVideoElement || target.tagName === 'VIDEO')
+      ? target
+      : (target.closest ? (target.closest('[data-testid="videoComponent"], [data-testid="videoPlayer"], article[data-testid="tweet"], [role="article"], [data-pagelet*="Reel"], [data-pagelet*="FeedUnit"], div[role="dialog"], div[data-video-id], div[aria-label*="Video"], [data-testid="tweetPhoto"], [data-testid="placementTracking"], div.player, div#player, div.movieplayer, div.videocontainer, div.playcontainer, div#player_el, .video-js, .jwplayer, .plyr, .dplayer, .artplayer, .clappr-player, .fluid_video_wrapper, .html5-video-player, [data-e2e="feed-item"], [data-e2e="user-post-item"], div[id*="xgwrapper"], div.xgplayer, [data-e2e="feed-video"], [data-e2e="browse-video"], [data-e2e="video-player"], [data-e2e="search-video"], div[class*="DivVideoWrapper"], div[class*="DivItemContainer"]') || target.parentElement)?.querySelector('video') : null);
+    if (video && (!video.paused || playedVideos.has(video) || video.currentTime > 0)) {
+      if (isValidPlayedVideo(video, true)) {
+        if (activeVideo && activeVideo !== video && !activeVideo.paused && video.paused) {
+          return;
+        }
+        if (activeVideo !== video) {
+          onVideoState(video);
+        } else if (!root.classList.contains('visible')) {
+          showWidget();
+        }
+      }
+    }
+  }, { passive: true });
 
   document.addEventListener('play', (e) => {
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
@@ -1554,9 +2074,17 @@
     }
   }, true);
 
-  // Periodic active video scanner (crucial for custom iframe video players like JWPlayer/HLS.js on vidara.so)
+  // Periodic active video scanner (crucial for custom iframe video players and fullscreen transitions)
   setInterval(() => {
+    if (!isAppConnected) {
+      checkConnectionStatus();
+    }
+    ensureAttached();
     if (activeVideo) {
+      if (isDropdownOpen) {
+        updateWidgetPosition();
+        return;
+      }
       if (!document.contains(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo))) {
         hideWidget();
         activeVideo = null;
@@ -1564,21 +2092,60 @@
         hideWidget();
         activeVideo = null;
       } else {
-        updateWidgetPosition();
+        if (!root.classList.contains('visible') && isAppConnected && enableMediaSniffing) {
+          showWidget();
+        } else {
+          updateWidgetPosition();
+        }
+        return;
       }
-      return;
     }
 
-    const videos = document.querySelectorAll('video');
-    for (const v of videos) {
-      if (!v.paused || playedVideos.has(v) || v.currentTime > 0) {
-        if (isValidPlayedVideo(v, true)) {
-          onVideoState(v);
-          break;
+    const videos = Array.from(document.querySelectorAll('video'));
+    // IDM Pattern: Filter to valid videos in viewport and rank by visible area
+    const validCandidates = videos.filter(v => isValidPlayedVideo(v, true));
+    if (validCandidates.length > 0) {
+      // First prioritize playing videos
+      const playingCandidates = validCandidates.filter(v => !v.paused);
+      if (playingCandidates.length > 0) {
+        // Pick the playing video with the largest visible bounding area
+        let best = playingCandidates[0];
+        let maxArea = (best.clientWidth || best.videoWidth || 1) * (best.clientHeight || best.videoHeight || 1);
+        for (let i = 1; i < playingCandidates.length; i++) {
+          const area = (playingCandidates[i].clientWidth || playingCandidates[i].videoWidth || 1) * (playingCandidates[i].clientHeight || playingCandidates[i].videoHeight || 1);
+          if (area > maxArea) {
+            maxArea = area;
+            best = playingCandidates[i];
+          }
+        }
+        if (activeVideo !== best) {
+          onVideoState(best);
+        } else if (!root.classList.contains('visible') && isAppConnected && enableMediaSniffing) {
+          showWidget();
+        }
+        return;
+      }
+
+      // If none currently playing, pick played/in-progress video with largest area
+      const playedCandidates = validCandidates.filter(v => playedVideos.has(v) || v.currentTime > 0);
+      if (playedCandidates.length > 0) {
+        let best = playedCandidates[0];
+        let maxArea = (best.clientWidth || best.videoWidth || 1) * (best.clientHeight || best.videoHeight || 1);
+        for (let i = 1; i < playedCandidates.length; i++) {
+          const area = (playedCandidates[i].clientWidth || playedCandidates[i].videoWidth || 1) * (playedCandidates[i].clientHeight || playedCandidates[i].videoHeight || 1);
+          if (area > maxArea) {
+            maxArea = area;
+            best = playedCandidates[i];
+          }
+        }
+        if (activeVideo !== best) {
+          onVideoState(best);
+        } else if (!root.classList.contains('visible') && isAppConnected && enableMediaSniffing) {
+          showWidget();
         }
       }
     }
-  }, 1000);
+  }, 500);
 
   window.addEventListener('scroll', updateWidgetPosition, { passive: true });
   window.addEventListener('resize', updateWidgetPosition, { passive: true });

@@ -574,6 +574,94 @@ def test_parse_single_video_data_estimates_filesize_from_tbr():
     assert fmt["filesize"] == 150000000
 
 
+def test_ytdlp_hls_download_progress_monotonicity(tmp_path):
+    """Verify that fluctuating HLS fragment estimates do not cause downloaded bytes to regress or flicker."""
+    lines = [
+        "[download] Destination: /tmp/test.mp4\n",
+        "[download]  10.0% of ~ 700.00MiB at 2.00MiB/s ETA 00:30 (frag 23/231)\n",  # ~70 MiB
+        "[download]  10.1% of ~ 670.00MiB at 2.00MiB/s ETA 00:30 (frag 24/231)\n",  # calculated ~67.6 MiB without guard
+        "[download]  10.2% of ~ 705.00MiB at 2.00MiB/s ETA 00:30 (frag 25/231)\n",  # ~71.9 MiB
+        "[download]  10.3% of ~ 668.00MiB at 2.00MiB/s ETA 00:30 (frag 26/231)\n",  # calculated ~68.8 MiB without guard
+        "[download]  100% of 705.00MiB in 00:40\n"
+    ]
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = lines
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/hls/master.m3u8",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test.mp4"
+    )
+
+    downloaded_history = []
+    worker.main_progress_signal.connect(lambda row, data: downloaded_history.append(data[5]))
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/bin/yt-dlp"), \
+         patch("subprocess.Popen", return_value=mock_proc):
+        worker.run()
+
+    assert len(downloaded_history) > 0
+    # Every emission must be >= previous emission (strictly monotonic, no regression/flicker)
+    for i in range(1, len(downloaded_history)):
+        assert downloaded_history[i] >= downloaded_history[i - 1], (
+            f"Flicker detected: progress regressed from {downloaded_history[i - 1]} to {downloaded_history[i]}"
+        )
+
+
+def test_ytdlp_multistream_download_progress_rollover(tmp_path):
+    """Test YtDlpDownloadWorker multi-stream progress (e.g. YouTube video + audio) accumulates properly without premature 100%."""
+    from core.media_downloader import YtDlpDownloadWorker
+
+    simulated_output = [
+        "[download] Destination: test.f137.mp4\n",
+        "[download]  10.0% of   50.00MiB at  5.00MiB/s ETA 00:09\n",
+        "[download]  50.0% of   50.00MiB at  5.00MiB/s ETA 00:05\n",
+        "[download] 100.0% of   50.00MiB at  5.00MiB/s ETA 00:00\n",
+        "[download] 100% of   50.00MiB in 00:00:10 at 5.00MiB/s\n",
+        "[download] Destination: test.f140.m4a\n",
+        "[download]  10.0% of    5.00MiB at  1.00MiB/s ETA 00:04\n",
+        "[download]  50.0% of    5.00MiB at  1.00MiB/s ETA 00:02\n",
+        "[download] 100.0% of    5.00MiB at  1.00MiB/s ETA 00:00\n",
+        "[Merger] Merging formats into \"test.mkv\"\n",
+    ]
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = iter(simulated_output)
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.youtube.com/watch?v=test",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="test.mkv",
+        total_bytes=int(55 * 1024 * 1024)
+    )
+
+    history = []
+    worker.main_progress_signal.connect(lambda row, data: history.append((data[5], data[6])))
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value="/bin/yt-dlp"), \
+         patch("subprocess.Popen", return_value=mock_proc):
+        worker.run()
+
+    assert len(history) > 0
+    # Stream 1 at 50%: dl ~ 25MB, total ~ 55MB
+    # Stream 2 at 10%: dl ~ 50MB + 0.5MB = 50.5MB, total ~ 55MB (NOT 100%!)
+    for i in range(1, len(history)):
+        cur_dl, cur_tot = history[i]
+        prev_dl, _ = history[i - 1]
+        assert cur_dl >= prev_dl, f"Progress decreased from {prev_dl} to {cur_dl}"
+        # Before completion, live clamped download must not equal total
+        if i < len(history) - 1:
+            assert cur_dl < cur_tot, f"Premature 100% completion detected at step {i}: {cur_dl}/{cur_tot}"
+
+
+
 
 
 

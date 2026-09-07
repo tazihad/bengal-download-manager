@@ -456,24 +456,8 @@ class DownloadProgressDialog(QDialog):
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
         
-        # Update internal byte counts if high-precision data is available (indices 5 and 6)
-        if len(data) > 6:
-            self.current_bytes = data[5]
-            self.total_bytes = data[6]
-            
-        current_bytes = self.current_bytes
-        total_bytes = self.total_bytes
-        
-        # Calculate percentage properly based on progress bar values
-        if total_bytes > 0:
-            percent = f"{(current_bytes / total_bytes) * 100:.2f}%"
-        else:
-            percent = "Unknown %" if current_bytes > 0 else "0.00%"
-            
-        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
-        
         # Map worker status to display status
-        worker_status = data[2]
+        worker_status = data[2] if len(data) > 2 else ""
         if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
             display_status = "Downloading"
         elif worker_status == "Connecting...":
@@ -484,7 +468,28 @@ class DownloadProgressDialog(QDialog):
             display_status = "Resuming..."
         else:
             display_status = worker_status
-            
+
+        # Update internal byte counts if high-precision data is available (indices 5 and 6)
+        if len(data) > 6:
+            new_current = int(data[5]) if isinstance(data[5], (int, float)) else 0
+            new_total = int(data[6]) if isinstance(data[6], (int, float)) else 0
+            self.current_bytes = new_current
+            if new_total > 0:
+                self.total_bytes = new_total
+
+        current_bytes = self.current_bytes
+        total_bytes = self.total_bytes
+
+        # Calculate percentage properly based on progress bar values
+        if total_bytes > 0 and current_bytes > 0:
+            pct_val = min(100.0, max(0.0, (current_bytes / total_bytes) * 100))
+            percent = f"{pct_val:.2f}%"
+        elif total_bytes > 0:
+            percent = "0.00%"
+        else:
+            percent = "Unknown %" if current_bytes > 0 else "0.00%"
+
+        self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
         self.lbl_main_status.setText(display_status)
         
         if display_status in ["Downloading", "Resuming...", "Connecting..."]:

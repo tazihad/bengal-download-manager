@@ -1643,6 +1643,37 @@ POPULAR_MEDIA_DOMAINS = {
 }
 
 
+GENERIC_MEDIA_TITLES = {
+    "facebook", "fb", "youtube", "yt", "instagram", "tiktok", "twitter", "x",
+    "reddit", "vimeo", "dailymotion", "twitch", "bilibili", "soundcloud",
+    "rumble", "kick", "streamable", "pinterest", "video", "videos", "watch",
+    "reel", "reels", "shorts", "clip", "media", "media stream", "video stream",
+    "untitled", "untitled media", "master", "index", "videoplayback", "stream",
+    "unknown", "post", "status", "media_download"
+}
+
+
+def is_generic_media_title(title: str) -> bool:
+    """
+    Returns True if the title is absent, empty, too short, or a generic platform name / placeholder.
+    """
+    if not title or not isinstance(title, str):
+        return True
+    t = title.strip().lower()
+    if not t or len(t) < 2:
+        return True
+    if t in GENERIC_MEDIA_TITLES:
+        return True
+    base, _ = os.path.splitext(t)
+    if base in GENERIC_MEDIA_TITLES:
+        return True
+    if re.match(r"^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit)", t):
+        return True
+    if re.match(r"^(facebook|twitter|instagram)\s*[-–—|]", t):
+        return True
+    return False
+
+
 def is_media_downloader_url(data):
     """
     Checks if the provided URL string originates from a popular media/video source
@@ -1653,6 +1684,13 @@ def is_media_downloader_url(data):
     parts = str(data).split("|")
     raw_url = parts[0].strip()
     if len(parts) > 4 and parts[4] in ("1", "true", "True"):
+        try:
+            parsed = urlparse(raw_url)
+            netloc = parsed.netloc.lower().split(":")[0]
+            if any(netloc == d or netloc.endswith("." + d) for d in POPULAR_MEDIA_DOMAINS):
+                return is_canonical_media_page_url(raw_url)
+        except Exception:
+            pass
         return True
     try:
         parsed = urlparse(raw_url)
@@ -1663,7 +1701,7 @@ def is_media_downloader_url(data):
             return False
         for domain in POPULAR_MEDIA_DOMAINS:
             if netloc == domain or netloc.endswith("." + domain):
-                return True
+                return is_canonical_media_page_url(raw_url)
         clean_url = raw_url.lower().split("?")[0].split("#")[0]
         if (clean_url.endswith((".m3u8", ".mpd", ".m4s")) or
             ".m3u8" in raw_url.lower() or
@@ -1676,6 +1714,51 @@ def is_media_downloader_url(data):
     except Exception:
         pass
     return False
+
+
+def is_canonical_media_page_url(data: str) -> bool:
+    """
+    Checks if a URL is a specific video/media page (with video ID/path),
+    and NOT just a root domain, home feed, or landing page (e.g. https://www.tiktok.com/).
+    """
+    if not data:
+        return False
+    raw_url = str(data).split("|")[0].strip()
+    try:
+        parsed = urlparse(raw_url)
+        path = parsed.path.rstrip("/").lower()
+        query = parsed.query.lower()
+        netloc = parsed.netloc.lower()
+        if ":" in netloc:
+            netloc = netloc.split(":")[0]
+
+        # Bare root or feed pages are NEVER single media pages
+        if not path or path in ("", "/", "/foryou", "/following", "/explore", "/live", "/home", "/feed"):
+            if not query or not ("v=" in query or "video_id=" in query or "watch" in query):
+                return False
+
+        # Short link and clip domains are always canonical video links if they have a path
+        if any(short in netloc for short in ("vt.tiktok.com", "vm.tiktok.com", "fb.watch", "youtu.be", "dai.ly", "pin.it", "v.redd.it", "clips.twitch.tv")):
+            return len(path) > 1
+
+        # Platform specific checks:
+        if "tiktok.com" in netloc:
+            return "/video/" in path or "/v/" in path or bool(re.search(r"/\d{18,20}", path))
+        if "facebook.com" in netloc:
+            return "/reel/" in path or "/watch" in path or "/videos/" in path or "v=" in query
+        if "instagram.com" in netloc:
+            return "/reel/" in path or "/p/" in path or "/tv/" in path or "/reels/" in path
+        if "twitter.com" in netloc or "x.com" in netloc:
+            return "/status/" in path
+        if "youtube.com" in netloc:
+            return "v=" in query or "/shorts/" in path or "/embed/" in path or "/watch" in path
+        if "reddit.com" in netloc:
+            return "/comments/" in path
+
+        # For generic sites, if path has more than just '/'
+        return len(path) > 1
+    except Exception:
+        return False
 
 
 def sanitize_media_url(data: str) -> str:

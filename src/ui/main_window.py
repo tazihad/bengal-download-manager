@@ -3092,9 +3092,44 @@ class MainWindow(QMainWindow):
         if not url:
             return
 
+        from core.utils import is_media_downloader_url, is_canonical_media_page_url, is_generic_media_title, POPULAR_MEDIA_DOMAINS
+        from urllib.parse import urlparse
+
+        # Fail-safe: If referrer originates from a popular media platform (Facebook, YouTube, etc.)
+        # and url is a CDN chunk, blob, or raw media segment, rewrite url to the canonical referrer page!
+        if referrer and is_media_downloader_url(referrer) and is_canonical_media_page_url(referrer):
+            try:
+                ref_parsed = urlparse(referrer)
+                ref_domain = ref_parsed.netloc.lower()
+                if any(ref_domain == d or ref_domain.endswith("." + d) for d in POPULAR_MEDIA_DOMAINS):
+                    url_parsed = urlparse(url)
+                    url_domain = url_parsed.netloc.lower()
+                    clean_url = url.lower().split("?")[0].split("#")[0]
+                    is_chunk = (
+                        url.startswith("blob:") or
+                        clean_url.endswith((".m4s", ".ts", ".mpd", ".m3u8")) or
+                        "fbcdn.net" in url_domain or
+                        "googlevideo.com" in url_domain or
+                        "twimg.com" in url_domain or
+                        "tiktokcdn.com" in url_domain or
+                        "redditmedia.com" in url_domain or
+                        "/videoplayback" in url.lower() or
+                        "/hls/" in url.lower() or
+                        "/dash/" in url.lower() or
+                        (url_domain != ref_domain and not is_media_downloader_url(url))
+                    )
+                    if is_chunk:
+                        url = referrer
+                        is_media_flag = True
+            except Exception:
+                pass
+
+        if is_generic_media_title(custom_title):
+            custom_title = ""
+
         # 0. Check if URL is a media / video streaming link supported by yt-dlp
-        from core.utils import is_media_downloader_url
-        if is_media_flag or is_media_downloader_url(url):
+        # Bare homepages of popular platforms must never trigger MediaExtractor!
+        if (is_media_flag and is_canonical_media_page_url(url)) or is_media_downloader_url(url):
             from core.config import load_category_config
             cfg = load_category_config()
             media_defaults = cfg.get("media_downloader_defaults", {})

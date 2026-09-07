@@ -1374,6 +1374,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === "get_connection_status") {
+    if (!cachedAppOnline) {
+      isBengalDMOnline().then(online => {
+        sendResponse({ online: Boolean(online) });
+      }).catch(() => {
+        sendResponse({ online: false });
+      });
+      return true;
+    }
     sendResponse({ online: cachedAppOnline });
     return true;
   }

@@ -821,11 +821,12 @@ class YtDlpDownloadWorker(QThread):
 
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
             clean_base = os.path.splitext(self.filename)[0] if self.filename else ""
-            is_youtube = bool(self.url and ("youtube.com" in self.url.lower() or "youtu.be" in self.url.lower()))
+            from core.utils import is_media_downloader_url, is_generic_media_title
+            is_popular_platform = bool(self.url and is_media_downloader_url(self.url))
             has_brackets = bool(clean_base and "[" in clean_base and "]" in clean_base)
-            is_generic = not clean_base or clean_base.lower() in ("media", "media_download", "master", "index", "video", "videoplayback")
+            is_generic = is_generic_media_title(clean_base)
 
-            if is_youtube and not has_brackets:
+            if (is_popular_platform or is_generic) and not has_brackets:
                 if self.is_audio_only:
                     output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
                 else:
@@ -930,8 +931,13 @@ class YtDlpDownloadWorker(QThread):
             )
 
             pct = 0.0
-            total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
+            initial_total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
+            total_bytes = initial_total_bytes
             downloaded_bytes = 0.0
+            completed_streams_bytes = 0.0
+            stream_downloaded_bytes = 0.0
+            current_stream_total = 0.0
+            current_dest_file = ""
             speed_bps = 0.0
             eta_str = "--"
             is_media_stream = True
@@ -963,6 +969,13 @@ class YtDlpDownloadWorker(QThread):
                     elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                         is_media_stream = True
                         self.final_file_path = dest_path
+                        if current_dest_file and current_dest_file != dest_path:
+                            # Multi-stream handover (e.g. video finished, now audio started)
+                            rollover = stream_downloaded_bytes if stream_downloaded_bytes > 0 else current_stream_total
+                            completed_streams_bytes += rollover
+                            stream_downloaded_bytes = 0.0
+                            current_stream_total = 0.0
+                        current_dest_file = dest_path
 
                 # Capture output file path from stdout line (only valid video/audio extensions)
                 m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
@@ -978,34 +991,56 @@ class YtDlpDownloadWorker(QThread):
                     if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
                         is_media_stream = False
 
+                    current_line_total = 0.0
+                    current_line_dl = 0.0
+
                     # Check for explicit dual sizes (downloaded / total or downloaded of total)
                     dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
                     if dual_size_match:
                         parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
                         parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
-                        if parsed_total > 500 * 1024:
+                        if parsed_total > 0:
                             is_media_stream = True
-                            if parsed_total > total_bytes:
-                                total_bytes = parsed_total
+                            current_line_total = parsed_total
                             if parsed_downloaded > 0:
-                                downloaded_bytes = parsed_downloaded
+                                current_line_dl = parsed_downloaded
                     else:
                         size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
                         if size_match:
                             parsed_total = parse_size_str_to_bytes(size_match.group(1))
-                            if parsed_total > 500 * 1024:
+                            if parsed_total > 0:
                                 is_media_stream = True
-                                if parsed_total > total_bytes:
-                                    total_bytes = parsed_total
+                                current_line_total = parsed_total
                         elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
                             is_media_stream = True
 
                     if is_media_stream:
+                        if current_line_total > 0:
+                            current_stream_total = current_line_total
+
                         pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
                         if pct_match:
                             pct = float(pct_match.group(1))
-                            if total_bytes > 500 * 1024 and (not dual_size_match or downloaded_bytes == 0):
-                                downloaded_bytes = (pct / 100.0) * total_bytes
+                            if current_line_dl == 0 and pct > 0:
+                                ref_total = current_line_total if current_line_total > 0 else current_stream_total
+                                if ref_total > 0:
+                                    current_line_dl = (pct / 100.0) * ref_total
+
+                        # Monotonic downloaded bytes within current stream (eliminates HLS fragment flickering)
+                        if current_line_dl > 0:
+                            stream_downloaded_bytes = max(stream_downloaded_bytes, current_line_dl)
+
+                        downloaded_bytes = completed_streams_bytes + stream_downloaded_bytes
+
+                        # Compute overall total bytes across multiple streams
+                        combined_stream_total = completed_streams_bytes + (current_stream_total or stream_downloaded_bytes)
+                        if initial_total_bytes > 0:
+                            total_bytes = max(initial_total_bytes, combined_stream_total)
+                        else:
+                            total_bytes = combined_stream_total
+
+                        if downloaded_bytes > total_bytes and total_bytes > 0:
+                            total_bytes = downloaded_bytes
 
                         speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
                         if not speed_match:
@@ -1023,7 +1058,7 @@ class YtDlpDownloadWorker(QThread):
 
                         # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
                         if total_bytes > 0:
-                            clamped_downloaded = min(int(downloaded_bytes), int(total_bytes) - 1)
+                            clamped_downloaded = min(int(downloaded_bytes), max(0, int(total_bytes) - 1))
                         else:
                             clamped_downloaded = int(downloaded_bytes)
 
