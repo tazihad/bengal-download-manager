@@ -1,9 +1,9 @@
-import pytest
 from core.services.gdrive_handler import (
     is_gdrive_url,
     merge_gdrive_cookies,
     extract_filename_from_headers,
-    format_bytes
+    format_bytes,
+    extract_gdrive_confirmation
 )
 
 def test_is_gdrive_url():
@@ -37,3 +37,57 @@ def test_merge_gdrive_cookies():
     merged = merge_gdrive_cookies(existing)
     assert "OSID=test_osid_val" in merged
     assert "__Secure-OSID=test_sec" in merged
+
+def test_extract_gdrive_confirmation_form_dangerous_file():
+    html = """
+    <html>
+    <head><title>virus_sample.exe - Google Drive</title></head>
+    <body>
+    <div class="uc-warning-caption">
+      Google Drive has detected that <strong>virus_sample.exe</strong> is infected with a virus.
+      Only download this file if you understand the risks.
+    </div>
+    <form id="download-form" action="https://drive.usercontent.google.com/download" method="get">
+      <input type="hidden" name="id" value="1UsrzxxPoqqq4lJoruEW53h44S0ES-H9z">
+      <input type="hidden" name="export" value="download">
+      <input type="hidden" name="authuser" value="0">
+      <input type="hidden" name="confirm" value="t">
+      <input type="hidden" name="uuid" value="b8e07d87-abf9-49ee-9ae3-eff338bae1bf">
+      <input type="hidden" name="at" value="AMrWOn1RU0Ue7DNMKbS5STxxrOHB:1788744255715">
+      <input type="submit" id="uc-download-link" value="Download infected file">
+    </form>
+    </body>
+    </html>
+    """
+    url, filename = extract_gdrive_confirmation(html, "https://drive.google.com/uc?id=1UsrzxxPoqqq4lJoruEW53h44S0ES-H9z&export=download")
+    assert url is not None
+    assert "drive.usercontent.google.com/download" in url
+    assert "id=1UsrzxxPoqqq4lJoruEW53h44S0ES-H9z" in url
+    assert "confirm=t" in url
+    assert "uuid=b8e07d87-abf9-49ee-9ae3-eff338bae1bf" in url
+    assert "at=AMrWOn1RU0Ue7DNMKbS5STxxrOHB%3A1788744255715" in url or "at=AMrWOn1RU0Ue7DNMKbS5STxxrOHB:1788744255715" in url
+    assert filename == "virus_sample.exe"
+
+def test_extract_gdrive_confirmation_anchor():
+    html = """
+    <div>
+      <span class="uc-name-size"><a href="/uc?export=download&id=abc123456789012345">large_archive.zip</a> (2.5GB)</span>
+      <a id="uc-download-link" class="btn" href="https://drive.usercontent.google.com/download?id=abc123456789012345&export=download">Download anyway</a>
+    </div>
+    """
+    url, filename = extract_gdrive_confirmation(html, "https://drive.google.com/uc?id=abc123456789012345&export=download")
+    assert url is not None
+    assert "confirm=t" in url
+    assert filename == "large_archive.zip"
+
+def test_extract_gdrive_confirmation_json():
+    html = """
+    <script>
+      var data = {"downloadUrl":"https:\\/\\/drive.usercontent.google.com\\/download?id=test123456789012345\\u0026export=download"};
+    </script>
+    """
+    url, filename = extract_gdrive_confirmation(html, "https://drive.google.com/uc?id=test123456789012345")
+    assert url is not None
+    assert "confirm=t" in url
+    assert "id=test123456789012345" in url
+

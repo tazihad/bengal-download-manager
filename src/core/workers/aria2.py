@@ -113,7 +113,7 @@ class Aria2Worker(QThread):
 
         if "googleusercontent.com" in self.url or "google.com" in self.url:
             headers.extend([
-                "Sec-Fetch-Dest: iframe",
+                "Sec-Fetch-Dest: document",
                 "Sec-Fetch-Mode: navigate",
                 "Sec-Fetch-Site: same-site",
                 "Upgrade-Insecure-Requests: 1"

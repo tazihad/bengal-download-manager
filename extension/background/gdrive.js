@@ -16,18 +16,22 @@ function isGoogleDriveUrl(url) {
 function resolveGoogleDriveConfirmation(htmlText, finalUrl) {
   if (!htmlText) return null;
   // 1. Virus scan warning form
-  const formMatch = htmlText.match(/<form[^>]*id=["']download-form["'][^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i) ||
-                    htmlText.match(/<form[^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i);
+  const formMatch = htmlText.match(/<form[^>]*action=["']([^"']+)["'][^>]*>([\s\S]*?)<\/form>/i);
   if (formMatch) {
     const formAction = formMatch[1].replace(/&amp;/g, '&');
     const formInner = formMatch[2];
     const inputs = [];
     const inputRegex = /<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi;
     let m;
+    let hasConfirm = false;
     while ((m = inputRegex.exec(formInner)) !== null) {
       if (m[1] && m[1] !== 'submit') {
+        if (m[1] === 'confirm') hasConfirm = true;
         inputs.push(`${encodeURIComponent(m[1])}=${encodeURIComponent(m[2])}`);
       }
+    }
+    if (!hasConfirm) {
+      inputs.push('confirm=t');
     }
     if (inputs.length > 0) {
       const baseUrl = new URL(formAction, finalUrl).href;
@@ -37,12 +41,26 @@ function resolveGoogleDriveConfirmation(htmlText, finalUrl) {
 
   // 2. Direct uc-download-link anchor
   const gdriveConfirmMatch = htmlText.match(/id=["']uc-download-link["'][^>]*href=["']([^"']+)["']/i) ||
-                             htmlText.match(/href=["'](\/uc\?export=download&[^"']+)["']/i) ||
-                             htmlText.match(/href=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i) ||
-                             htmlText.match(/action=["'](https:\/\/[^"']*googleusercontent\.com\/[^"']+)["']/i);
+                             htmlText.match(/href=["'](\/uc\?export=download[^"']+)["']/i) ||
+                             htmlText.match(/href=["'](https:\/\/[^"']*(?:googleusercontent\.com|drive\.google\.com)\/download[^"']+)["']/i);
   if (gdriveConfirmMatch && gdriveConfirmMatch[1]) {
     const cleanUrl = gdriveConfirmMatch[1].replace(/&amp;/g, '&').trim();
-    return new URL(cleanUrl, finalUrl).href;
+    let resUrl = new URL(cleanUrl, finalUrl).href;
+    if (!resUrl.includes('confirm=')) {
+      resUrl += (resUrl.includes('?') ? '&' : '?') + 'confirm=t';
+    }
+    return resUrl;
+  }
+
+  // 3. Embedded JSON downloadUrl
+  const jsonMatch = htmlText.match(/["']downloadUrl["']:\s*["']([^"']+)["']/i);
+  if (jsonMatch && jsonMatch[1]) {
+    const rawUrl = jsonMatch[1].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&').replace(/\\\//g, '/');
+    let resUrl = new URL(rawUrl, finalUrl).href;
+    if (!resUrl.includes('confirm=')) {
+      resUrl += (resUrl.includes('?') ? '&' : '?') + 'confirm=t';
+    }
+    return resUrl;
   }
 
   return null;

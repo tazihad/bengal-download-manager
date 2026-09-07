@@ -55,7 +55,7 @@ class SegmentWorker(QThread):
                 req.add_header('Cookie', self.cookies)
             
             if "googleusercontent.com" in self.url or "google.com" in self.url:
-                req.add_header('Sec-Fetch-Dest', 'iframe')
+                req.add_header('Sec-Fetch-Dest', 'document')
                 req.add_header('Sec-Fetch-Mode', 'navigate')
                 req.add_header('Sec-Fetch-Site', 'same-site')
                 req.add_header('Upgrade-Insecure-Requests', '1')
@@ -233,7 +233,7 @@ class DownloadWorker(QThread):
             if self.user_agent:
                 req.add_header('User-Agent', self.user_agent)
             if "googleusercontent.com" in self.url or "google.com" in self.url:
-                req.add_header('Sec-Fetch-Dest', 'iframe')
+                req.add_header('Sec-Fetch-Dest', 'document')
                 req.add_header('Sec-Fetch-Mode', 'navigate')
                 req.add_header('Sec-Fetch-Site', 'same-site')
                 req.add_header('Upgrade-Insecure-Requests', '1')
