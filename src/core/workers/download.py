@@ -1,11 +1,14 @@
 import time
 import os
 import json
+import logging
 from urllib.parse import urlparse, unquote
 import urllib.request
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex
-from core.utils import get_unique_filepath, resolve_filename, load_extension_config
+from core.utils import get_unique_filepath, resolve_filename, load_extension_config, is_debug_mode
 from core.memory_guard import MemoryGuard
+
+logger = logging.getLogger("bengal.worker.download")
 
 class SegmentWorker(QThread):
     progress_signal = pyqtSignal(int, object, object, float, str)
@@ -37,11 +40,15 @@ class SegmentWorker(QThread):
     def run(self):
         try:
             if self.downloaded >= self.total_size:
+                if is_debug_mode():
+                    logger.debug("[SegmentWorker #%d] Already complete (%d/%d bytes)", self.index, self.downloaded, self.total_size)
                 self.progress_signal.emit(self.index, self.downloaded, self.total_size, 0, "Complete")
                 self.finished_signal.emit(self.index, True)
                 return
 
             resume_offset = self.start_byte + self.downloaded
+            if is_debug_mode():
+                logger.debug("[SegmentWorker #%d] Opening Range: bytes=%d-%d (initial: %d)", self.index, resume_offset, self.end_byte, self.initial_downloaded)
             
             req = urllib.request.Request(self.url)
             # --- FULL BROWSER HEADERS (Mimic JD2) ---
@@ -236,6 +243,8 @@ class DownloadWorker(QThread):
                 total_size = int(response.info().get('Content-Length', 0))
                 accept_ranges = response.info().get('Accept-Ranges', 'none')
             
+            if is_debug_mode():
+                logger.debug("[DownloadWorker] HEAD response: total_size=%d bytes, accept_ranges=%s for %s", total_size, accept_ranges, self.url)
             self.log_signal.emit(f"File size: {self.format_bytes(total_size)}")
             
             segments_info = []
@@ -361,6 +370,8 @@ class DownloadWorker(QThread):
                          os.remove(self.target_path) 
                     shutil.move(self.save_path, self.target_path)
                     
+                    if is_debug_mode():
+                        logger.debug("[DownloadWorker] Download finalized successfully: %s (%d bytes)", self.target_path, total_size)
                     self.log_signal.emit("Download completed.")
                     self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size, 0))
                     self.finished_signal.emit(self.row_index, "Complete")
@@ -368,19 +379,25 @@ class DownloadWorker(QThread):
                     if os.path.exists(self.state_file):
                         os.remove(self.state_file)
                 except Exception as e:
+                    logger.error("[DownloadWorker] Error finalizing file: %s", e)
                     self.log_signal.emit(f"Error finalizing file: {e}")
                     self.finished_signal.emit(self.row_index, "Error")
             else:
                 self.save_state(total_size) 
                 
                 if self.is_paused:
+                    if is_debug_mode():
+                        logger.debug("[DownloadWorker] Download paused for row %d", self.row_index)
                     self.log_signal.emit("Download paused.")
                     self.finished_signal.emit(self.row_index, "Paused")
                 else:
+                    if is_debug_mode():
+                        logger.debug("[DownloadWorker] Download stopped/cancelled for row %d", self.row_index)
                     self.log_signal.emit("Download stopped/cancelled.")
                     self.finished_signal.emit(self.row_index, "Cancelled")
 
         except Exception as e:
+            logger.error("[DownloadWorker] Critical error on row %d: %s", self.row_index, e, exc_info=True)
             self.log_signal.emit(f"Critical Error: {str(e)}")
             self.finished_signal.emit(self.row_index, "Error")
         finally:

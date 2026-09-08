@@ -20,8 +20,12 @@ from PyQt6.QtGui import (
     QFont, QIcon, QKeySequence, QShortcut, QPixmap, QImage, QPainter,
     QPainterPath, QColor, QPen, QLinearGradient, QPalette
 )
+import logging
 from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
 from core.memory_guard import MemoryGuard
+from core.utils import is_debug_mode
+
+logger = logging.getLogger("bengal.dialog.media_downloader")
 
 
 def make_rounded_thumbnail(pixmap: QPixmap, width: int = 160, height: int = 90, radius: int = 8) -> QPixmap:
@@ -1080,6 +1084,9 @@ class MediaDownloaderDialog(QDialog):
 
         c_browser, c_file = self._get_cookies_args()
         effective_cookies = getattr(self, "_cookies", None) if not c_file else None
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Starting link analysis: url=%s, c_browser=%s, c_file=%s, referrer=%s",
+                         url, c_browser, c_file, getattr(self, "_referrer", None))
         self._worker = MediaExtractorWorker(
             url,
             cookies_browser=c_browser,
@@ -1101,6 +1108,10 @@ class MediaDownloaderDialog(QDialog):
         self._finish_loading()
         self._current_video_data = data
         self._current_playlist_data = None
+
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Single video ready: id=%s, title=%s, formats=%d, duration=%s",
+                         data.get("id"), data.get("title"), len(data.get("formats", [])), data.get("duration"))
 
         custom_title = getattr(self, "_custom_title", None)
         raw_title = data.get("title", "Untitled Media")
@@ -1396,6 +1407,10 @@ class MediaDownloaderDialog(QDialog):
         self._current_playlist_data = data
         self._current_video_data = None
 
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Playlist ready: title=%s, total_items=%s, entries=%d",
+                         data.get("title"), data.get("total_items"), len(data.get("entries", [])))
+
         title = data.get("title", "Playlist")
         total = data.get("total_items", 0)
         self.lbl_playlist_title.setText(f"{title} ({total} items)")
@@ -1472,6 +1487,8 @@ class MediaDownloaderDialog(QDialog):
         self.stack.setCurrentIndex(0)
 
     def _on_analysis_failed(self, error_msg: str):
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Analysis failed: %s", error_msg)
         self._finish_loading()
         self._current_video_data = None
         self._current_playlist_data = None
@@ -1946,6 +1963,9 @@ class MediaDownloaderDialog(QDialog):
                     total_size_bytes = estimated_size
 
             if hasattr(mw, "start_media_download"):
+                if is_debug_mode():
+                    logger.debug("[MediaDialog] Triggering start_media_download: filename=%s, format=%s, audio_only=%s, total_size=%s",
+                                 filename, format_spec, is_audio_only, total_size_bytes)
                 try:
                     mw.start_media_download(
                         url=webpage_url,
@@ -2037,6 +2057,9 @@ class MediaDownloaderDialog(QDialog):
                         filename = sanitize_media_filename(item_title, ext=ext)
 
                     if hasattr(mw, "start_media_download"):
+                        if is_debug_mode():
+                            logger.debug("[MediaDialog] Enqueueing playlist item [%d/%d]: filename=%s, url=%s",
+                                         r + 1, len(entries), filename, item_url)
                         try:
                             mw.start_media_download(
                                 url=item_url,

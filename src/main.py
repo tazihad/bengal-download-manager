@@ -25,7 +25,7 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
 from PyQt6.QtWidgets import QApplication, QStyle
 from PyQt6.QtCore import Qt, QTimer, qInstallMessageHandler, QtMsgType
 
-from core.utils import setup_logging, get_config_dir
+from core.utils import setup_logging, get_config_dir, is_debug_mode
 from core.services.ipc_service import (
     DM_CONNECTOR_PORT,
     SignalEmitter,
@@ -102,7 +102,7 @@ def main():
     except Exception:
         pass
 
-    is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1"
+    is_debug = is_debug_mode()
     logger = setup_logging(debug=is_debug)
     if is_debug:
         logger.debug("Command-line arguments: %s", sys.argv)

@@ -12,11 +12,20 @@ import logging
 import mimetypes
 from urllib.parse import urlparse, unquote, parse_qs
 
+def is_debug_mode() -> bool:
+    """Returns True if debug mode is active via CLI flag or environment variables."""
+    return "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or os.environ.get("BENGAL_DEBUG") == "1"
+
+
 def setup_logging(debug=False):
     """
     Configures application-wide logging levels and formatting.
     When debug=True (--debug flag), enables verbose DEBUG logs with file/line context.
     """
+    if debug:
+        os.environ["BENGAL_DEBUG"] = "1"
+        os.environ["DEBUG"] = "1"
+
     log_level = logging.DEBUG if debug else logging.INFO
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if debug else "[%(asctime)s] [%(levelname)s] %(message)s"
     
@@ -621,6 +630,11 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
         f"\r\n"
     ).encode('utf-8') + payload
     
+    debug_active = is_debug_mode()
+    rpc_logger = logging.getLogger("bengal.engine.rpc")
+    if debug_active and method != "aria2.tellStatus":
+        rpc_logger.debug("[Aria2RPC] >>> Call: %s (port=%s, params_count=%d)", method, port, len(params))
+
     s = None
     try:
         # Use low-level socket to avoid high-level library proxy logic
@@ -638,7 +652,10 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
             except socket.timeout:
                 break
         
-        if not response: return None
+        if not response:
+            if debug_active:
+                rpc_logger.debug("[Aria2RPC] <<< No response from aria2 on port %s for %s", port, method)
+            return None
         
         resp_str = response.decode('utf-8', errors='ignore')
         if "200 OK" in resp_str:
@@ -650,9 +667,16 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
                     j_start = body.find('{')
                     j_end = body.rfind('}')
                     if j_start != -1 and j_end != -1:
-                        return json.loads(body[j_start:j_end+1]).get("result")
+                        parsed_res = json.loads(body[j_start:j_end+1]).get("result")
+                        if debug_active and method != "aria2.tellStatus":
+                            rpc_logger.debug("[Aria2RPC] <<< Success for %s: %s", method, str(parsed_res)[:200])
+                        return parsed_res
+        if debug_active:
+            rpc_logger.debug("[Aria2RPC] <<< HTTP error response for %s: %s", method, resp_str[:200])
         return None
-    except:
+    except Exception as e:
+        if debug_active and method != "aria2.tellStatus":
+            rpc_logger.debug("[Aria2RPC] <<< Connection error on %s: %s", method, e)
         return None
     finally:
         if s:
@@ -742,8 +766,12 @@ def find_aria2():
     return None
 
 def ensure_aria2():
+    eng_logger = logging.getLogger("bengal.engine")
+    debug_active = is_debug_mode()
     found = find_aria2()
     if found:
+        if debug_active:
+            eng_logger.debug("[Aria2Setup] Found existing aria2c binary: %s", found)
         return found
     
     data_dir = get_data_dir()
@@ -759,8 +787,13 @@ def ensure_aria2():
             url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-aarch64-linux-musl_static.zip"
         elif arch == "i686":
             url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-i686-linux-musl_static.zip"
-        else: return None
+        else:
+            if debug_active:
+                eng_logger.warning("[Aria2Setup] Unsupported system architecture: %s", arch)
+            return None
             
+        if debug_active:
+            eng_logger.debug("[Aria2Setup] Downloading static aria2c (%s) from %s", arch, url)
         temp_file = os.path.join(data_dir, "aria2.zip")
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as resp:
@@ -784,8 +817,12 @@ def ensure_aria2():
         if not os.path.exists(symlink_path):
             try: os.symlink(local_aria2, symlink_path)
             except: pass
+        if debug_active:
+            eng_logger.debug("[Aria2Setup] Successfully installed aria2c at %s", local_aria2)
         return local_aria2
-    except Exception:
+    except Exception as e:
+        if debug_active:
+            eng_logger.error("[Aria2Setup] Failed to acquire aria2c: %s", e)
         return None
 
 def get_clean_env(extra_paths=None):

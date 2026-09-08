@@ -63,14 +63,17 @@ from ui.dialogs import (
     PropertiesDialog, DownloadCompleteDialog, ColumnDialog, DeleteDialog, RenameDialog,
     MediaDownloaderDialog, SchedulerDialog
 )
+import logging
 from core.config import load_category_config
 from core.utils import (
     get_data_dir, get_config_dir, get_unique_filepath, ensure_aria2, 
     load_proxy_config, load_extension_config, get_aria2_proxy_url,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
-    is_media_downloader_url, setup_logging, format_bytes, get_clean_env, get_process_memory,
-    get_user_downloads_dir
+    is_media_downloader_url, format_bytes, get_clean_env, is_debug_mode,
+    get_process_memory, get_user_downloads_dir
 )
+
+logger = logging.getLogger("bengal.main_window")
 from core.memory_guard import MemoryGuard
 
 from core.services.ipc_service import (
@@ -277,14 +280,32 @@ class MainWindow(QMainWindow):
             if proxy_url:
                 cmd.append(f"--all-proxy={proxy_url}")
 
+            debug_active = is_debug_mode()
+            if debug_active:
+                logger.debug("[Aria2Daemon] Launching daemon on port %s: %s", port, " ".join(cmd))
+
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE if debug_active else subprocess.DEVNULL,
                 env=get_clean_env()
             )
+
+            if debug_active and proc:
+                logger.debug("[Aria2Daemon] Process spawned with PID %s", proc.pid)
+                def _stream_aria2_stderr(p):
+                    try:
+                        for line in p.stderr:
+                            msg = line.decode('utf-8', errors='ignore').strip()
+                            if msg:
+                                logger.debug("[Aria2Daemon] %s", msg)
+                    except Exception:
+                        pass
+                threading.Thread(target=_stream_aria2_stderr, args=(proc,), daemon=True).start()
+
             return proc
-        except Exception:
+        except Exception as e:
+            logger.error("[Aria2Daemon] Failed to start aria2 daemon: %s", e, exc_info=True)
             return None
     def close(self):
         self._is_closing = True
@@ -3078,6 +3099,9 @@ class MainWindow(QMainWindow):
 
     def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
+        if is_debug_mode():
+            logger.debug("[MainWindow] process_incoming_url invoked with data: %s", data[:300])
+
         parts = data.split("|", 8)
         url = parts[0]
         user_agent = parts[1] if len(parts) > 1 else ""
@@ -3090,10 +3114,16 @@ class MainWindow(QMainWindow):
         size_str = parts[8] if len(parts) > 8 else ""
 
         if not url:
+            if is_debug_mode():
+                logger.debug("[MainWindow] process_incoming_url: Empty URL, skipping.")
             return
 
         from core.utils import is_media_downloader_url, is_canonical_media_page_url, is_generic_media_title, POPULAR_MEDIA_DOMAINS
         from urllib.parse import urlparse
+
+        if is_debug_mode():
+            logger.debug("[MainWindow] Parsed IPC input: url=%s, is_media_flag=%s, quality=%r, title=%r, size_str=%s",
+                         url, is_media_flag, selected_quality, custom_title, size_str or size_bytes)
 
         # Fail-safe: If referrer originates from a popular media platform (Facebook, YouTube, etc.)
         # and url is a CDN chunk, blob, or raw media segment, rewrite url to the canonical referrer page!
@@ -3683,6 +3713,10 @@ class MainWindow(QMainWindow):
         self.save_data()
 
     def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None):
+        if is_debug_mode():
+            logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s",
+                         url, custom_filename, custom_save_dir, start_paused, show_dialog)
+
         if show_dialog is None:
             silent = getattr(self, "settings", {}).get("silent_download", False)
             show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
@@ -3890,6 +3924,8 @@ class MainWindow(QMainWindow):
             use_aria2 = False
 
         if use_aria2:
+            if is_debug_mode():
+                logger.debug("[MainWindow] Routing '%s' to Aria2Worker engine (save_dir=%s)", resume_filename or target_filename, save_dir)
             worker = Aria2Worker(
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
@@ -3897,6 +3933,9 @@ class MainWindow(QMainWindow):
                 allow_resume=allow_resume
             )
         else:
+            if is_debug_mode():
+                logger.debug("[MainWindow] Routing '%s' to Python DownloadWorker engine (save_dir=%s, is_aria2_live=%s)",
+                             resume_filename or target_filename, save_dir, is_aria2_live)
             worker = DownloadWorker(
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
@@ -3947,6 +3986,8 @@ class MainWindow(QMainWindow):
         self.download_table.blockSignals(True)
         try:
             rows = set(item.row() for item in selected_items)
+            if is_debug_mode():
+                logger.debug("[MainWindow] Resuming downloads for rows: %s", rows)
             for row in rows:
                 item_name = self.download_table.item(row, 0)
                 if not item_name:
@@ -4038,6 +4079,8 @@ class MainWindow(QMainWindow):
         self.download_table.blockSignals(True)
         try:
             rows = set(item.row() for item in selected_items)
+            if is_debug_mode():
+                logger.debug("[MainWindow] Stopping/pausing downloads for rows: %s", rows)
             for r in rows:
                 item = self.download_table.item(r, 0)
                 if not item:
@@ -4815,6 +4858,10 @@ class MainWindow(QMainWindow):
     def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None):
         from core.media_downloader import YtDlpDownloadWorker
 
+        if is_debug_mode():
+            logger.debug("[MainWindow] start_media_download called: url=%s, filename=%s, format_spec=%s, is_audio=%s, total_size=%s",
+                         url, filename, format_spec, is_audio_only, total_size_bytes)
+
         config = load_category_config()
         categories = config.get("categories", {})
         media_defaults = config.get("media_downloader_defaults", {})
@@ -4912,6 +4959,9 @@ class MainWindow(QMainWindow):
         sanitized_filename = sanitize_media_filename(base_name, ext=ext)
         target_path = get_unique_media_filepath(save_dir, sanitized_filename)
         filename = os.path.basename(target_path)
+        if is_debug_mode():
+            logger.debug("[MainWindow] Resolved media target: filename=%s, target_path=%s, show_file_info=%s",
+                         filename, target_path, show_file_info)
 
         silent = getattr(self, "settings", {}).get("silent_download", False)
         show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
@@ -5100,6 +5150,9 @@ class MainWindow(QMainWindow):
             progress_dialog.hide()
 
         if not worker.isRunning():
+            if is_debug_mode():
+                logger.debug("[MainWindow] Starting YtDlpDownloadWorker for '%s' (format=%s, audio_only=%s)",
+                             filename, format_spec, is_audio_only)
             worker.start()
         self.download_table.setSortingEnabled(True)
         self.update_ui_states()

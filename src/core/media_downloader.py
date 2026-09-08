@@ -536,7 +536,7 @@ class MediaExtractorWorker(QThread):
             cmd.append(self.url)
 
             if is_debug:
-                logger.debug("[MediaExtractor] Running command: %s", " ".join(cmd))
+                logger.debug("[MediaExtractor] Running command (PID pending): %s", " ".join(cmd))
 
             self.process = subprocess.Popen(
                 cmd,
@@ -547,7 +547,17 @@ class MediaExtractorWorker(QThread):
                 encoding="utf-8"
             )
 
+            if is_debug:
+                logger.debug("[MediaExtractor] Process launched with PID %s", self.process.pid)
+
             stdout, stderr = self.process.communicate(timeout=60)
+
+            if is_debug:
+                logger.debug("[MediaExtractor] Process PID %s exited with rc=%s", self.process.pid, self.process.returncode)
+                if stderr:
+                    logger.debug("[MediaExtractor] Stderr:\n%s", stderr.strip())
+                if stdout:
+                    logger.debug("[MediaExtractor] Stdout preview (first 500 chars):\n%s", stdout[:500].strip())
 
             if self.process.returncode != 0:
                 err_text = (stderr or "") + " " + (stdout or "")
@@ -567,6 +577,8 @@ class MediaExtractorWorker(QThread):
                     elif has_cookie_err:
                         msg = "Cookies invalid or rejected, retrying clean metadata extraction..."
                     self.status_signal.emit(msg)
+                    if is_debug:
+                        logger.debug("[MediaExtractor] %s (err_lower=%s)", msg, err_lower[:200])
 
                     clean_cmd = [
                         yt_dlp_bin,
@@ -605,6 +617,8 @@ class MediaExtractorWorker(QThread):
                         encoding="utf-8"
                     )
                     stdout, stderr = self.process.communicate(timeout=60)
+                    if is_debug:
+                        logger.debug("[MediaExtractor] Retry PID %s exited with rc=%s", self.process.pid, self.process.returncode)
 
             if self.process.returncode != 0:
                 err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {self.process.returncode}"
@@ -616,6 +630,8 @@ class MediaExtractorWorker(QThread):
 
             try:
                 data = json.loads(stdout)
+                if is_debug:
+                    logger.debug("[MediaExtractor] JSON parsed successfully for %s", self.url)
             except json.JSONDecodeError as json_err:
                 logger.error("[MediaExtractor] Failed to parse yt-dlp metadata JSON: %s", json_err)
                 if is_debug and stdout:
@@ -625,9 +641,13 @@ class MediaExtractorWorker(QThread):
 
             if data.get("_type") == "playlist" or (isinstance(data.get("entries"), list) and len(data.get("entries")) > 0 and not data.get("formats")):
                 parsed_playlist = self._parse_playlist_data(data)
+                if is_debug:
+                    logger.debug("[MediaExtractor] Emitting playlist_analyzed: %d items", parsed_playlist.get("total_items", 0))
                 self.playlist_analyzed.emit(parsed_playlist)
             else:
                 parsed_video = self._parse_single_video_data(data)
+                if is_debug:
+                    logger.debug("[MediaExtractor] Emitting single_video_analyzed: title=%r, formats=%d", parsed_video.get("title"), len(parsed_video.get("formats", [])))
                 self.single_video_analyzed.emit(parsed_video)
 
         except Exception as e:
@@ -1167,6 +1187,9 @@ class YtDlpDownloadWorker(QThread):
                     bufsize=1
                 )
 
+                if is_debug:
+                    logger.debug("[YtDlpDownload] Process launched with PID %s for attempt %d", self.process.pid, attempt)
+
                 pct = 0.0
                 initial_total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
                 total_bytes = initial_total_bytes
@@ -1323,6 +1346,8 @@ class YtDlpDownloadWorker(QThread):
 
                 self.process.wait()
                 rc = self.process.returncode
+                if is_debug:
+                    logger.debug("[YtDlpDownload] Process PID %s finished with returncode %s", self.process.pid, rc)
 
                 if self.is_paused:
                     logger.info("[YtDlpDownload] yt-dlp paused by user for %s", self.url)
@@ -1387,6 +1412,8 @@ class YtDlpDownloadWorker(QThread):
                     final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
                     self.current_bytes = int(final_size)
                     self.total_bytes = int(final_size)
+                    if is_debug:
+                        logger.debug("[YtDlpDownload] Download successfully completed for %s -> %s (%s bytes)", self.url, final_path, final_size)
 
                     data_tuple = (
                         self.filename,
