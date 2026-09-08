@@ -899,14 +899,24 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
       }
       detectedMediaUrls.set(details.url, now);
 
+      if (details.tabId && details.tabId !== -1) {
+        recordSniffedMedia(details.tabId, details.url, contentType, "");
+        try {
+          chrome.tabs.sendMessage(details.tabId, {
+            action: "media_stream_detected",
+            stream: { url: details.url, contentType: contentType }
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
       const req = pendingMediaRequests.get(details.requestId);
 
       if (details.tabId && details.tabId !== -1) {
         chrome.tabs.get(details.tabId, (tab) => {
-          postMediaToBengalDM(details, req, tab);
+          postMediaToBengalDM(details, req, tab, contentType);
         });
       } else {
-        postMediaToBengalDM(details, req, null);
+        postMediaToBengalDM(details, req, null, contentType);
       }
     }
   };
@@ -1349,18 +1359,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const isPopular = isPopularMediaHost(host);
           const isDirectStream = isStreamingMedia(cleanUrl) || /\.(m3u8|mpd|mp4|webm|mkv|flv|vid|m4s)(\?|$)/i.test(parsedUrl.pathname);
 
-          if (!isPopular && !isDirectStream && sender && sender.tab && sender.tab.id) {
-            const streams = tabMediaStreams.get(sender.tab.id) || [];
-            if (streams.length > 0) {
-              const masterStream = streams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
-              const playlistStream = streams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
-              const directStream = streams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url) || (s.contentType && s.contentType.includes('video/')));
-              const best = masterStream || playlistStream || directStream || streams[streams.length - 1];
-              if (best && best.url) {
-                if (!request.referrer) {
-                  request.referrer = cleanUrl;
+          if (!isPopular && !isDirectStream) {
+            let tabId = (sender && sender.tab) ? sender.tab.id : null;
+            if (!tabId && chrome.tabs && chrome.tabs.query) {
+              try {
+                const [actTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (actTab) tabId = actTab.id;
+              } catch (e) {}
+            }
+            if (tabId) {
+              const streams = tabMediaStreams.get(tabId) || [];
+              if (streams.length > 0) {
+                const masterStream = streams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+                const playlistStream = streams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+                const directStream = streams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url) || (s.contentType && s.contentType.includes('video/')));
+                const best = masterStream || playlistStream || directStream || streams[streams.length - 1];
+                if (best && best.url) {
+                  if (!request.referrer) {
+                    request.referrer = cleanUrl;
+                  }
+                  cleanUrl = best.url;
                 }
-                cleanUrl = best.url;
               }
             }
           }

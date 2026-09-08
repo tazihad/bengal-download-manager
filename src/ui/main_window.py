@@ -3172,18 +3172,57 @@ class MainWindow(QMainWindow):
                 from core.utils import sanitize_media_filename
                 title = custom_title.strip() if custom_title and not is_generic_media_title(custom_title) else ""
                 video_id = ""
-                m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
-                if m_yt:
-                    video_id = m_yt.group(1)
-                elif referrer:
-                    m_ref = re.search(r"/(?:reel|reels|watch|videos?|p|v|status)/([A-Za-z0-9_-]+)", referrer)
+
+                # 1. TikTok: @<username>/video/<videoid> -> userid-videourl
+                m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
+                if m_tt:
+                    user_id = m_tt.group(1)
+                    v_id = m_tt.group(2)
+                    video_id = v_id
+                    if not title or is_generic_media_title(title):
+                        title = f"{user_id}-{v_id}"
+
+                # 2. YouTube
+                if not video_id:
+                    m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url or "") or (re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", referrer or "") if referrer else None)
+                    if m_yt:
+                        video_id = m_yt.group(1)
+
+                # 3. Twitter / X
+                if not title or is_generic_media_title(title):
+                    m_x = re.search(r"/(?:twitter|x)\.com/([^/?#&]+)/status/(\d+)", url or "") or (re.search(r"/(?:twitter|x)\.com/([^/?#&]+)/status/(\d+)", referrer or "") if referrer else None)
+                    if m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i"):
+                        video_id = m_x.group(2)
+                        title = f"{m_x.group(1)}-{m_x.group(2)}"
+
+                # 4. Other referrers or URLs with ID
+                if not video_id and referrer:
+                    m_ref = re.search(r"/(?:reel|reels|watch|videos?|p|v|status|post|embed)/([A-Za-z0-9_-]{5,})", referrer)
                     if m_ref:
                         video_id = m_ref.group(1)
 
-                if not title:
-                    title = f"video_{video_id}" if video_id else "video"
+                if not video_id:
+                    m_any_id = re.search(r"/(?:watch|video|v|post|embed|p)/([A-Za-z0-9_-]{5,})", url or "")
+                    if m_any_id:
+                        video_id = m_any_id.group(1)
 
-                if video_id:
+                if not title or is_generic_media_title(title):
+                    if video_id:
+                        host_label = ""
+                        try:
+                            from urllib.parse import urlparse
+                            parsed_src = urlparse(referrer or url)
+                            host_label = parsed_src.netloc.lower().replace("www.", "").split(".")[0]
+                        except Exception:
+                            pass
+                        title = f"{host_label}-{video_id}" if host_label and host_label not in ("video", "watch") else f"video_{video_id}"
+                    else:
+                        title = "video"
+
+                has_id_in_title = bool(video_id and video_id in title)
+                if has_id_in_title:
+                    full_title = f"{title} [{height}p]" if (height and not is_audio) else title
+                elif video_id:
                     full_title = f"{title} [{video_id}]" if is_audio else (f"{title} [{video_id}] [{height}p]" if height else f"{title} [{video_id}]")
                 elif height and not is_audio:
                     full_title = f"{title} [{height}p]"
@@ -4747,16 +4786,38 @@ class MainWindow(QMainWindow):
             except Exception:
                 save_dir = get_user_downloads_dir()
 
-        from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes
+        from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes, is_generic_media_title
         base_name, ext = os.path.splitext(filename)
         is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
-        if is_youtube and base_name.lower() in ("media", "media_download", "master", "index", "video", "videoplayback"):
-            m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
-            if m_yt:
-                video_id = m_yt.group(1)
+        if is_generic_media_title(base_name) or base_name.lower() in ("media", "media_download", "master", "index", "video", "videoplayback"):
+            m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
+            if m_tt:
+                user_id = m_tt.group(1)
+                v_id = m_tt.group(2)
                 m_h = re.search(r"height<=(\d{3,4})", format_spec)
                 h_tag = f" [{m_h.group(1)}p]" if (m_h and not is_audio_only) else ""
-                base_name = f"YouTube_{video_id}{h_tag}"
+                base_name = f"{user_id}-{v_id}{h_tag}"
+            elif is_youtube:
+                m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
+                if m_yt:
+                    video_id = m_yt.group(1)
+                    m_h = re.search(r"height<=(\d{3,4})", format_spec)
+                    h_tag = f" [{m_h.group(1)}p]" if (m_h and not is_audio_only) else ""
+                    base_name = f"YouTube_{video_id}{h_tag}"
+            else:
+                m_any_id = re.search(r"/(?:watch|video|v|post|embed|p)/([A-Za-z0-9_-]{5,})", referrer or url or "")
+                if m_any_id:
+                    v_id = m_any_id.group(1)
+                    host_label = ""
+                    try:
+                        from urllib.parse import urlparse
+                        host_label = urlparse(referrer or url).netloc.lower().replace("www.", "").split(".")[0]
+                    except Exception:
+                        pass
+                    m_h = re.search(r"height<=(\d{3,4})", format_spec)
+                    h_tag = f" [{m_h.group(1)}p]" if (m_h and not is_audio_only) else ""
+                    prefix = f"{host_label}-" if host_label and host_label not in ("video", "watch") else ""
+                    base_name = f"{prefix}{v_id}{h_tag}"
         sanitized_filename = sanitize_media_filename(base_name, ext=ext)
         target_path = get_unique_media_filepath(save_dir, sanitized_filename)
         filename = os.path.basename(target_path)

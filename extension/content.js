@@ -84,12 +84,25 @@
     if (!isAppConnected || !enableMediaSniffing) return;
     if (window.self === window.top) return;
     try {
+      let streamUrl = '';
+      if (sniffedMediaStreams.length > 0) {
+        const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+        const m3u8 = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+        const direct = sniffedMediaStreams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url));
+        streamUrl = m3u8 ? m3u8.url : (direct ? direct.url : sniffedMediaStreams[0].url);
+      } else if (video.currentSrc && video.currentSrc.startsWith('http')) {
+        streamUrl = video.currentSrc;
+      } else if (video.src && video.src.startsWith('http')) {
+        streamUrl = video.src;
+      }
+
       window.top.postMessage({
         type: '__BDM_IFRAME_VIDEO_STATE__',
         state: state,
         duration: video.duration || 0,
         currentTime: video.currentTime || 0,
         currentSrc: video.currentSrc || video.src || '',
+        streamUrl: streamUrl,
         videoWidth: video.videoWidth || 0,
         videoHeight: video.videoHeight || 0,
         title: getVideoTitle(video),
@@ -348,6 +361,9 @@
         if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
         if (activeVideo && isDropdownOpen) {
           populateDropdown();
+        }
+        if (window.self !== window.top && activeVideo) {
+          notifyTopFrameVideo(activeVideo, 'playing');
         }
       }
     }
@@ -1218,10 +1234,10 @@
       if (host.includes('youtube.com')) {
         return u.searchParams.has('v') || path.includes('/shorts/') || path.includes('/embed/') || path.includes('/watch');
       }
-      if (host.includes('reddit.com')) {
-        return path.includes('/comments/');
+      if (isPopularMediaHost(host)) {
+        return path.length > 1;
       }
-      return path.length > 1;
+      return /\.(m3u8|mpd|mp4|webm|mkv|flv|vid|m4s)(\?|$)/i.test(path);
     } catch (e) {
       return false;
     }
@@ -1433,6 +1449,31 @@
     }
     const slug = getSlugFromUrl(window.location.href) || ((cachedTabInfo && cachedTabInfo.url) ? getSlugFromUrl(cachedTabInfo.url) : "");
     if (slug && !isGenericTitle(slug)) return slug;
+
+    // Extract ID-based title for TikTok: @userid/video/123456789 -> userid-123456789
+    const testUrls = [window.location.href, (cachedTabInfo && cachedTabInfo.url) || ""];
+    for (const u of testUrls) {
+      if (u && u.includes('tiktok.com')) {
+        const m = u.match(/@([^/?#&]+)\/(?:video|v)\/(\d+)/i);
+        if (m) {
+          return `${m[1]}-${m[2]}`;
+        }
+      }
+      if (u && (u.includes('twitter.com') || u.includes('x.com'))) {
+        const m = u.match(/([^/?#&]+)\/status\/(\d+)/i);
+        if (m && !['home', 'explore', 'messages', 'i'].includes(m[1].toLowerCase())) {
+          return `${m[1]}-${m[2]}`;
+        }
+      }
+      if (u) {
+        const mAny = u.match(/\/(?:watch|video|v|post|embed|p)\/([A-Za-z0-9_-]{5,})/i);
+        if (mAny) {
+          const hostClean = window.location.hostname.replace(/^www\./, '').split('.')[0];
+          return `${hostClean}-${mAny[1]}`;
+        }
+      }
+    }
+
     return `${getPlatformName()} Video`;
   }
 
@@ -1697,24 +1738,57 @@
       }
     }
 
-    footerEl.classList.add('opening');
-    footerTextEl.textContent = 'Downloading with Bengal DM.';
+    function isHtmlOrEmbedUrl(u) {
+      if (!u) return true;
+      try {
+        const parsed = new URL(u);
+        const p = parsed.pathname.toLowerCase();
+        if (/\.(m3u8|mpd|mp4|webm|mkv|flv|vid|m4s)(\?|$)/i.test(p)) return false;
+        return true;
+      } catch {
+        return true;
+      }
+    }
 
-    chrome.runtime.sendMessage({
-      action: "send_to_bengal",
-      url: targetUrl,
-      referrer: (cachedTabInfo && cachedTabInfo.url) || window.location.href,
-      isMedia: true,
-      title: title,
-      filename: title,
-      quality: tier.quality,
-      sizeBytes: tier.sizeBytes || 0,
-      sizeStr: tier.size || ""
-    }, (response) => {
-      setTimeout(() => {
-        closeDropdown();
-      }, 1200);
-    });
+    const doSend = (finalTarget) => {
+      footerEl.classList.add('opening');
+      footerTextEl.textContent = 'Downloading with Bengal DM.';
+
+      chrome.runtime.sendMessage({
+        action: "send_to_bengal",
+        url: finalTarget,
+        referrer: (cachedTabInfo && cachedTabInfo.url) || window.location.href,
+        isMedia: true,
+        title: title,
+        filename: title,
+        quality: tier.quality,
+        sizeBytes: tier.sizeBytes || 0,
+        sizeStr: tier.size || ""
+      }, (response) => {
+        setTimeout(() => {
+          closeDropdown();
+        }, 1200);
+      });
+    };
+
+    const isPopular = isPopularMediaHost(window.location.hostname);
+    if (!isPopular && isHtmlOrEmbedUrl(targetUrl)) {
+      chrome.runtime.sendMessage({ action: "get_sniffed_media" }, (res) => {
+        if (res && Array.isArray(res.streams) && res.streams.length > 0) {
+          const master = res.streams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+          const m3u8 = master || res.streams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+          const direct = res.streams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url) || (s.contentType && s.contentType.includes('video/')));
+          const best = m3u8 || direct || res.streams[0];
+          if (best && best.url) {
+            targetUrl = best.url;
+          }
+        }
+        doSend(targetUrl);
+      });
+      return;
+    }
+
+    doSend(targetUrl);
   }
 
   // 12. Widget Display & Positioning

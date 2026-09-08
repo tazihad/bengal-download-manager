@@ -1158,4 +1158,30 @@ def test_process_incoming_url_cookies_option_vs_browser_check(qapp, tmp_path):
     mw.close()
 
 
+def test_tiktok_and_generic_video_url_id_filename_generation(qapp):
+    """Verify that TikTok videos and generic videos without title are named using userid-videourl and host-videoid."""
+    from unittest.mock import patch
+    from ui.main_window import MainWindow
+
+    mw = MainWindow(start_ipc=False)
+
+    # 1. TikTok: empty title -> fatima_jahann_01-7677262590728277266 [720p].mkv
+    raw_ipc_tiktok = "https://www.tiktok.com/@fatima_jahann_01/video/7677262590728277266|Mozilla/5.0|||1|720p||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_tiktok)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert "fatima_jahann_01-7677262590728277266" in call_kwargs["filename"]
+
+    # 2. External site: playmate.to/watch/KgCrV105XsCR -> playmate-KgCrV105XsCR [720p].mkv
+    raw_ipc_playmate = "https://playmate.to/watch/KgCrV105XsCR|Mozilla/5.0|||1|720p||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_playmate)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert "playmate-KgCrV105XsCR" in call_kwargs["filename"]
+
+    mw.close()
+
+
 

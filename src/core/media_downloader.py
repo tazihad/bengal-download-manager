@@ -1028,7 +1028,7 @@ class YtDlpDownloadWorker(QThread):
             has_brackets = bool(clean_base and "[" in clean_base and "]" in clean_base)
             is_generic = is_generic_media_title(clean_base)
 
-            if (is_popular_platform or is_generic) and not has_brackets:
+            if is_generic and not has_brackets:
                 if self.is_audio_only:
                     output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
                 else:
