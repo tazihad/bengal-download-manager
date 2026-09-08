@@ -23,6 +23,8 @@
   let isTopHandlingWidget = false;
   let isAppConnected = true;
   let enableMediaSniffing = true;
+  let enableInterception = true;
+  let blacklistUrls = [];
   let videoPanelPosition = 'top-right';
 
   const POPULAR_MEDIA_HOSTS = [
@@ -46,6 +48,62 @@
   function isPopularMediaHost(hostname) {
     const host = (hostname || window.location.hostname).toLowerCase();
     return POPULAR_MEDIA_HOSTS.some(h => host === h || host.endsWith('.' + h));
+  }
+
+  function isSiteBlacklisted() {
+    if (!enableInterception) return true;
+    if (!Array.isArray(blacklistUrls) || blacklistUrls.length === 0) return false;
+
+    const candidates = [];
+    if (window.location && window.location.hostname) {
+      candidates.push({
+        host: window.location.hostname.toLowerCase(),
+        url: (window.location.href || '').toLowerCase()
+      });
+    }
+    if (document.referrer && typeof document.referrer === 'string' && document.referrer.startsWith('http')) {
+      try {
+        const refUrl = new URL(document.referrer);
+        candidates.push({
+          host: refUrl.hostname.toLowerCase(),
+          url: document.referrer.toLowerCase()
+        });
+      } catch (e) {}
+    }
+
+    for (const item of blacklistUrls) {
+      if (!item || typeof item !== 'string') continue;
+      let p = item.trim().toLowerCase();
+      p = p.replace(/^https?:\/\//, '');
+      if (p.startsWith('*.')) p = p.substring(2);
+      else if (p.startsWith('*')) p = p.substring(1);
+
+      const slashIdx = p.indexOf('/');
+      let pHost = slashIdx !== -1 ? p.substring(0, slashIdx) : p;
+      let pPath = slashIdx !== -1 ? p.substring(slashIdx + 1) : '';
+      if (pHost.endsWith('/')) pHost = pHost.slice(0, -1);
+      if (pHost.includes(':')) pHost = pHost.split(':')[0];
+
+      if (!pHost) continue;
+
+      for (const cand of candidates) {
+        const hostMatches = (cand.host === pHost || cand.host.endsWith('.' + pHost));
+        if (hostMatches) {
+          if (pPath) {
+            try {
+              const parsed = new URL(cand.url);
+              const pathPart = parsed.pathname.toLowerCase().replace(/^\//, '');
+              if (pathPart.startsWith(pPath)) return true;
+            } catch (e) {
+              if (cand.url.includes('/' + pPath)) return true;
+            }
+          } else {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   function getPlatformName() {
@@ -81,7 +139,7 @@
   }
 
   function notifyTopFrameVideo(video, state = 'playing') {
-    if (!isAppConnected || !enableMediaSniffing) return;
+    if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
     if (window.self === window.top) return;
     try {
       let streamUrl = '';
@@ -116,7 +174,7 @@
     if (!event.data || typeof event.data !== 'object') return;
 
     if (event.data.type === '__BDM_IFRAME_VIDEO_STATE__') {
-      if (!isAppConnected || !enableMediaSniffing) return;
+      if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
       const data = event.data;
       const iframes = document.querySelectorAll('iframe');
       let targetIframe = null;
@@ -307,30 +365,48 @@
 
   try {
     chrome.storage.local.get({
+      enableInterception: true,
       enableMediaSniffing: true,
-      videoPanelPosition: 'top-right'
+      videoPanelPosition: 'top-right',
+      blacklistUrls: []
     }, (items) => {
       if (chrome.runtime.lastError) return;
+      enableInterception = items.enableInterception !== false;
       enableMediaSniffing = items.enableMediaSniffing !== false;
+      blacklistUrls = Array.isArray(items.blacklistUrls) ? items.blacklistUrls : [];
       if (items.videoPanelPosition) videoPanelPosition = items.videoPanelPosition;
-      if (!enableMediaSniffing || !isAppConnected) {
-        hideWidget();
+      if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
+        hideWidget('init_disabled_or_blacklisted');
       }
     });
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName === 'local') {
+        let shouldCheckVisibility = false;
+
+        if (changes.blacklistUrls !== undefined) {
+          blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
+          shouldCheckVisibility = true;
+        }
+        if (changes.enableInterception !== undefined) {
+          enableInterception = changes.enableInterception.newValue !== false;
+          shouldCheckVisibility = true;
+        }
         if (changes.enableMediaSniffing !== undefined) {
           enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
-          if (!enableMediaSniffing || !isAppConnected) {
-            hideWidget();
-          } else if (activeVideo && isAppConnected) {
-            showWidget();
-          }
+          shouldCheckVisibility = true;
         }
         if (changes.videoPanelPosition !== undefined) {
           videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
           updateWidgetPosition();
+        }
+
+        if (shouldCheckVisibility) {
+          if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
+            hideWidget('storage_changed_disabled_or_blacklisted');
+          } else if (activeVideo && isAppConnected && enableMediaSniffing) {
+            showWidget();
+          }
         }
       }
     });
@@ -340,8 +416,8 @@
     if (msg && msg.action === "connection_status_changed") {
       const wasConnected = isAppConnected;
       isAppConnected = Boolean(msg.online);
-      if (!isAppConnected) {
-        hideWidget();
+      if (!isAppConnected || isSiteBlacklisted()) {
+        hideWidget('connection_status_changed');
       } else if (!wasConnected && enableMediaSniffing) {
         if (activeVideo) {
           showWidget();
@@ -355,7 +431,7 @@
       return;
     }
     if (msg && msg.action === "media_stream_detected" && msg.stream) {
-      if (!isAppConnected || !enableMediaSniffing) return;
+      if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
       if (!sniffedMediaStreams.some(s => s.url === msg.stream.url)) {
         sniffedMediaStreams.unshift(msg.stream);
         if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
@@ -371,6 +447,7 @@
 
   // Request fresh media info periodically
   function requestMediaInfo() {
+    if (isSiteBlacklisted()) return;
     try {
       window.postMessage({ type: '__BDM_GET_MEDIA_INFO__' }, '*');
     } catch (e) {}
@@ -1953,8 +2030,9 @@
   function showWidget() {
     host.dataset.appConnected = String(isAppConnected);
     host.dataset.sniffing = String(enableMediaSniffing);
-    if (!isAppConnected || !enableMediaSniffing) {
-      hideWidget('showWidget_disconnected');
+    host.dataset.blacklisted = String(isSiteBlacklisted());
+    if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) {
+      hideWidget('showWidget_disabled_or_blacklisted');
       return;
     }
     ensureAttached();
@@ -2075,12 +2153,12 @@
 
   // 13. Video State Observation
   function onVideoState(video) {
-    if (!enableMediaSniffing) return;
+    if (!enableMediaSniffing || isSiteBlacklisted()) return;
     if (!video) return;
 
     if (!isAppConnected) {
       checkConnectionStatus((connected) => {
-        if (connected && video) {
+        if (connected && video && !isSiteBlacklisted()) {
           onVideoState(video);
         }
       });
@@ -2138,7 +2216,7 @@
 
   // Hover over video or custom player container (Facebook, X, YouTube, iframe embeds, etc.) to show widget
   document.addEventListener('mouseover', (e) => {
-    if (!enableMediaSniffing || isDropdownOpen) return;
+    if (!enableMediaSniffing || isDropdownOpen || isSiteBlacklisted()) return;
     const target = e.target;
     if (!target) return;
 
@@ -2191,12 +2269,14 @@
   }, { passive: true });
 
   document.addEventListener('play', (e) => {
+    if (isSiteBlacklisted()) return;
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
       setTimeout(() => onVideoState(e.target), 150);
     }
   }, true);
 
   document.addEventListener('playing', (e) => {
+    if (isSiteBlacklisted()) return;
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
       playedVideos.add(e.target);
       onVideoState(e.target);
@@ -2204,6 +2284,7 @@
   }, true);
 
   document.addEventListener('timeupdate', (e) => {
+    if (isSiteBlacklisted()) return;
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
       if (e.target.currentTime > 0.1) {
         playedVideos.add(e.target);
@@ -2215,6 +2296,7 @@
   }, true);
 
   document.addEventListener('loadedmetadata', (e) => {
+    if (isSiteBlacklisted()) return;
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
       if (!e.target.paused || playedVideos.has(e.target)) {
         onVideoState(e.target);
@@ -2223,6 +2305,7 @@
   }, true);
 
   document.addEventListener('canplay', (e) => {
+    if (isSiteBlacklisted()) return;
     if (e.target instanceof HTMLVideoElement || e.target.tagName === 'VIDEO') {
       if (!e.target.paused || playedVideos.has(e.target)) {
         onVideoState(e.target);
@@ -2246,6 +2329,12 @@
 
   // Periodic active video scanner (crucial for custom iframe video players and fullscreen transitions)
   setInterval(() => {
+    if (isSiteBlacklisted()) {
+      if (root.classList.contains('visible') || host.dataset.visible === 'true') {
+        hideWidget('interval_blacklisted');
+      }
+      return;
+    }
     if (!isAppConnected) {
       checkConnectionStatus();
     }

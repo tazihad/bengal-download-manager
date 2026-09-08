@@ -875,7 +875,25 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
     if (!details || !details.url || details.url.startsWith("http://127.0.0.1") || details.url.startsWith("http://localhost") || isIgnoredServiceUrl(details.url)) {
       return;
     }
-    if (cachedFilterRules.enableMediaSniffing === false || !cachedAppOnline) {
+    if (cachedFilterRules.enableMediaSniffing === false || cachedFilterRules.enableInterception === false || !cachedAppOnline) {
+      return;
+    }
+
+    const req = pendingMediaRequests.get(details.requestId);
+    let reqReferrer = "";
+    if (req && req.requestHeaders) {
+      const refH = req.requestHeaders.find(h => h.name && h.name.toLowerCase() === 'referer');
+      if (refH) reqReferrer = refH.value;
+    }
+
+    const bList = cachedFilterRules.blacklistUrls || [];
+    if (matchesUrlOrDomain(details.url, bList, reqReferrer || details.initiator || details.documentUrl)) {
+      return;
+    }
+    if (reqReferrer && matchesUrlOrDomain(reqReferrer, bList)) {
+      return;
+    }
+    if (details.initiator && matchesUrlOrDomain(details.initiator, bList)) {
       return;
     }
 
@@ -905,19 +923,18 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
       detectedMediaUrls.set(details.url, now);
 
       if (details.tabId && details.tabId !== -1) {
-        recordSniffedMedia(details.tabId, details.url, contentType, "");
-        try {
-          chrome.tabs.sendMessage(details.tabId, {
-            action: "media_stream_detected",
-            stream: { url: details.url, contentType: contentType }
-          }).catch(() => {});
-        } catch (e) {}
-      }
-
-      const req = pendingMediaRequests.get(details.requestId);
-
-      if (details.tabId && details.tabId !== -1) {
         chrome.tabs.get(details.tabId, (tab) => {
+          if (chrome.runtime.lastError || !tab) return;
+          if (tab.url && matchesUrlOrDomain(tab.url, cachedFilterRules.blacklistUrls)) {
+            return;
+          }
+          recordSniffedMedia(details.tabId, details.url, contentType, tab.title || "");
+          try {
+            chrome.tabs.sendMessage(details.tabId, {
+              action: "media_stream_detected",
+              stream: { url: details.url, contentType: contentType }
+            }).catch(() => {});
+          } catch (e) {}
           postMediaToBengalDM(details, req, tab, contentType);
         });
       } else {
@@ -1372,6 +1389,19 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "send_to_bengal") {
     (async () => {
+      const tabUrl = (sender && sender.tab) ? sender.tab.url : null;
+      const refUrl = request.referrer || tabUrl;
+      const rules = cachedFilterRules;
+      const bList = rules.blacklistUrls || [];
+
+      if (rules.enableInterception === false ||
+          matchesUrlOrDomain(request.url, bList, refUrl) ||
+          (tabUrl && matchesUrlOrDomain(tabUrl, bList)) ||
+          (refUrl && matchesUrlOrDomain(refUrl, bList))) {
+        sendResponse({ success: false, bypassed: true });
+        return;
+      }
+
       const cookieString = await getCookiesForUrl(request.url, sender && sender.tab ? sender.tab.cookieStoreId : undefined);
 
       if (isRecentlySent(request.url)) {
@@ -1522,6 +1552,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "get_sniffed_media") {
     const tabId = (sender && sender.tab) ? sender.tab.id : null;
+    const tabUrl = (sender && sender.tab) ? sender.tab.url : null;
+    const rules = cachedFilterRules;
+    if (rules.enableInterception === false || (tabUrl && matchesUrlOrDomain(tabUrl, rules.blacklistUrls))) {
+      sendResponse({ streams: [] });
+      return true;
+    }
     const streams = tabId ? (tabMediaStreams.get(tabId) || []) : [];
     sendResponse({ streams });
     return true;
