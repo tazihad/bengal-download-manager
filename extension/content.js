@@ -1416,12 +1416,44 @@
       }
     }
 
-    // 2. Instagram: url id (e.g. https://www.instagram.com/reels/DbfK-D7iCGd/ -> DbfK-D7iCGd)
+    // 2. Instagram: username_urlid
     for (const u of testUrls) {
       if (u && u.includes('instagram.com')) {
-        const m = u.match(/instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i) || u.match(/\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i);
-        if (m) {
-          return m[1];
+        const mId = u.match(/instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i) || u.match(/\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i);
+        if (mId) {
+          const vId = mId[1];
+          let username = "";
+          const mUser = u.match(/instagram\.com\/([A-Za-z0-9_.]+)\/(?:reels?|p|tv)\//i);
+          if (mUser && !['reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct'].includes(mUser[1].toLowerCase())) {
+            username = mUser[1];
+          }
+          if (!username && video) {
+            try {
+              const article = video.closest('article, [role="presentation"], main') || document;
+              const authorLinks = article.querySelectorAll('header a[role="link"], a[role="link"][tabindex="0"], a[role="link"]');
+              for (const a of authorLinks) {
+                const href = a.getAttribute('href') || '';
+                const mHref = href.match(/^\/([A-Za-z0-9_.]+)\/?$/);
+                if (mHref && !['explore', 'reels', 'reel', 'direct', 'stories', 'p', 'tv'].includes(mHref[1].toLowerCase())) {
+                  const text = a.innerText.trim();
+                  username = (text && !text.includes(' ') && text.length > 1) ? text : mHref[1];
+                  break;
+                }
+              }
+            } catch (e) {}
+          }
+          if (!username) {
+            const docTitle = document.title || '';
+            const mAt = docTitle.match(/@([A-Za-z0-9_.]+)/) || docTitle.match(/^([A-Za-z0-9_.]+)\s+on Instagram/i) || docTitle.match(/by\s+([A-Za-z0-9_.]+)\s+•/i);
+            if (mAt) {
+              username = mAt[1];
+            } else {
+              const ogTitle = document.querySelector('meta[property="og:title"]')?.content || '';
+              const mOgAt = ogTitle.match(/@([A-Za-z0-9_.]+)/) || ogTitle.match(/^([A-Za-z0-9_.]+)\s+on Instagram/i);
+              if (mOgAt) username = mOgAt[1];
+            }
+          }
+          return username ? `${username}_${vId}` : vId;
         }
       }
     }

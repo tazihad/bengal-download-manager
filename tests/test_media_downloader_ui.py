@@ -1172,7 +1172,23 @@ def test_tiktok_and_generic_video_url_id_filename_generation(qapp):
         call_kwargs = mock_start.call_args[1]
         assert call_kwargs["filename"] == "fatima_jahann_01_7677262590728277266.mkv"
 
-    # 2. Instagram: url id -> DbfK-D7iCGd.mkv
+    # 2. Instagram: username_urlid -> zuck_DbfK-D7iCGd.mkv
+    raw_ipc_ig_user = "https://www.instagram.com/zuck/reel/DbfK-D7iCGd/|Mozilla/5.0|||1|720p||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_ig_user)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["filename"] == "zuck_DbfK-D7iCGd.mkv"
+
+    # 2b. Instagram: urlid with title from extension -> zuck_DbfK-D7iCGd.mkv
+    raw_ipc_ig_title = "https://www.instagram.com/reels/DbfK-D7iCGd/|Mozilla/5.0|||1|720p|zuck_DbfK-D7iCGd||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_ig_title)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["filename"] == "zuck_DbfK-D7iCGd.mkv"
+
+    # 2c. Instagram: url id without username -> DbfK-D7iCGd.mkv
     raw_ipc_ig = "https://www.instagram.com/reels/DbfK-D7iCGd/|Mozilla/5.0|||1|720p||"
     with patch.object(mw, "start_media_download") as mock_start:
         mw.process_incoming_url(raw_ipc_ig)
