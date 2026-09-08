@@ -474,9 +474,11 @@ class MediaExtractorWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
+                yt_client = media_defaults.get("youtube_player_client", "all") or "all"
+                if yt_client.strip().lower() in ("default", ""):
+                    yt_client = "all"
             except Exception:
-                yt_client = "default"
+                yt_client = "all"
 
             cmd = [
                 yt_dlp_bin,
@@ -538,9 +540,25 @@ class MediaExtractorWorker(QThread):
             stdout, stderr = self.process.communicate(timeout=60)
 
             if self.process.returncode != 0:
-                # RETRY FALLBACK: If extraction failed with cookies, retry clean extraction without cookies
-                if (self.cookies_browser and self.cookies_browser.lower() not in ("none", "")) or (self.cookies_file and os.path.exists(str(self.cookies_file))) or getattr(self, "cookies", None):
-                    self.status_signal.emit("Cookies invalid or rejected, retrying clean metadata extraction...")
+                err_text = (stderr or "") + " " + (stdout or "")
+                err_lower = err_text.lower()
+                has_cookie_err = bool(
+                    (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
+                    or (self.cookies_file and os.path.exists(str(self.cookies_file)))
+                    or getattr(self, "cookies", None)
+                )
+                is_bot_or_client_err = any(e in err_lower for e in ("sign in", "bot", "429", "login_required", "format is not available"))
+
+                # RETRY FALLBACK: If extraction failed with cookies or client bot error, retry with optimal client ('all') and clean headers
+                if has_cookie_err or is_bot_or_client_err:
+                    retry_client = "all"
+                    msg = "Retrying clean metadata extraction..."
+                    if "bot" in err_lower or "sign in" in err_lower:
+                        msg = "YouTube bot check detected, retrying with multi-client bypass..."
+                    elif has_cookie_err:
+                        msg = "Cookies invalid or rejected, retrying clean metadata extraction..."
+                    self.status_signal.emit(msg)
+
                     clean_cmd = [
                         yt_dlp_bin,
                         "-J",
@@ -548,7 +566,7 @@ class MediaExtractorWorker(QThread):
                         "--playlist-end", "100",
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
-                        "--extractor-args", f"youtube:player_client={yt_client}",
+                        "--extractor-args", f"youtube:player_client={retry_client}",
                         "--add-header", "Accept-Language:en-US,en;q=0.9",
                     ]
                     if ffmpeg_bin:
@@ -923,9 +941,11 @@ class YtDlpDownloadWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
+                yt_client = media_defaults.get("youtube_player_client", "all") or "all"
+                if yt_client.strip().lower() in ("default", ""):
+                    yt_client = "all"
             except Exception:
-                yt_client = "default"
+                yt_client = "all"
 
             base_cmd = [
                 bin_path,
@@ -979,7 +999,7 @@ class YtDlpDownloadWorker(QThread):
                 or (self.cookies_file and os.path.exists(str(self.cookies_file)))
                 or getattr(self, "cookies", None)
             )
-            attempts = [1, 2] if has_cookies else [1]
+            attempts = [1, 2]
 
             for attempt in attempts:
                 if not self.is_running or self.is_paused:
@@ -997,6 +1017,11 @@ class YtDlpDownloadWorker(QThread):
                             cmd.extend(["--cookies", temp_cookies_file])
                         else:
                             cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
+                elif attempt == 2:
+                    # Attempt 2 clean retry: ensure client is 'all'
+                    for i, arg in enumerate(cmd):
+                        if arg.startswith("--extractor-args") and i + 1 < len(cmd):
+                            cmd[i + 1] = "youtube:player_client=all"
 
                 cmd.append(self.url)
 
@@ -1182,16 +1207,22 @@ class YtDlpDownloadWorker(QThread):
                     logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
                     return
 
-                if rc != 0 and attempt == 1 and has_cookies:
+                if rc != 0 and attempt == 1:
                     error_blob = " ".join(collected_errors).lower()
-                    cookie_failure = any(
-                        err in error_blob
-                        for err in ("413", "too large", "connection reset", "connection aborted", "cookie", "bot", "sign in")
-                    ) or (completed_streams_bytes + stream_downloaded_bytes == 0)
+                    is_bot_err = any(e in error_blob for e in ("sign in", "bot", "429", "login_required", "format is not available"))
+                    cookie_failure = has_cookies and (
+                        any(
+                            err in error_blob
+                            for err in ("413", "too large", "connection reset", "connection aborted", "cookie")
+                        ) or is_bot_err or (completed_streams_bytes + stream_downloaded_bytes == 0)
+                    )
 
-                    if cookie_failure:
-                        logger.warning("[YtDlpDownload] yt-dlp failed with cookies (rc=%d). Retrying clean download without cookies...", rc)
-                        self.log_signal.emit("Cookies invalid or rejected (HTTP 413 / network error), retrying clean download without cookies...")
+                    if cookie_failure or is_bot_err:
+                        retry_msg = "Retrying clean download without cookies..."
+                        if is_bot_err:
+                            retry_msg = "YouTube bot check detected, retrying clean download..."
+                        logger.warning("[YtDlpDownload] yt-dlp failed (rc=%d). %s", rc, retry_msg)
+                        self.log_signal.emit(f"Download issue detected, {retry_msg}")
                         if temp_cookies_file and os.path.exists(temp_cookies_file):
                             try:
                                 os.remove(temp_cookies_file)
