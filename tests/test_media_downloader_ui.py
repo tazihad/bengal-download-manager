@@ -1061,8 +1061,7 @@ def test_main_window_process_incoming_url_facebook_chunk_rewrites_to_referrer(qa
         assert mock_start.called
         call_kwargs = mock_start.call_args[1]
         assert call_kwargs["url"] == referrer
-        assert "26519773847685496" in call_kwargs["filename"]
-        assert "[720p]" in call_kwargs["filename"]
+        assert call_kwargs["filename"] == "26519773847685496.mkv"
 
     mw.close()
 
@@ -1159,21 +1158,37 @@ def test_process_incoming_url_cookies_option_vs_browser_check(qapp, tmp_path):
 
 
 def test_tiktok_and_generic_video_url_id_filename_generation(qapp):
-    """Verify that TikTok videos and generic videos without title are named using userid-videourl and host-videoid."""
+    """Verify special cases: TikTok username_id, Instagram url id, Facebook url id, and external video IDs."""
     from unittest.mock import patch
     from ui.main_window import MainWindow
 
     mw = MainWindow(start_ipc=False)
 
-    # 1. TikTok: empty title -> fatima_jahann_01-7677262590728277266 [720p].mkv
+    # 1. TikTok: username_id -> fatima_jahann_01_7677262590728277266.mkv
     raw_ipc_tiktok = "https://www.tiktok.com/@fatima_jahann_01/video/7677262590728277266|Mozilla/5.0|||1|720p||"
     with patch.object(mw, "start_media_download") as mock_start:
         mw.process_incoming_url(raw_ipc_tiktok)
         assert mock_start.called
         call_kwargs = mock_start.call_args[1]
-        assert "fatima_jahann_01-7677262590728277266" in call_kwargs["filename"]
+        assert call_kwargs["filename"] == "fatima_jahann_01_7677262590728277266.mkv"
 
-    # 2. External site: playmate.to/watch/KgCrV105XsCR -> playmate-KgCrV105XsCR [720p].mkv
+    # 2. Instagram: url id -> DbfK-D7iCGd.mkv
+    raw_ipc_ig = "https://www.instagram.com/reels/DbfK-D7iCGd/|Mozilla/5.0|||1|720p||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_ig)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["filename"] == "DbfK-D7iCGd.mkv"
+
+    # 3. Facebook: url id -> 1674054117674795.mkv
+    raw_ipc_fb = "https://www.facebook.com/reel/1674054117674795|Mozilla/5.0|||1|720p||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_fb)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["filename"] == "1674054117674795.mkv"
+
+    # 4. External site: playmate.to/watch/KgCrV105XsCR -> playmate-KgCrV105XsCR [720p].mkv
     raw_ipc_playmate = "https://playmate.to/watch/KgCrV105XsCR|Mozilla/5.0|||1|720p||"
     with patch.object(mw, "start_media_download") as mock_start:
         mw.process_incoming_url(raw_ipc_playmate)

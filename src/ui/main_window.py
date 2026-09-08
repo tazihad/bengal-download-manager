@@ -3172,30 +3172,55 @@ class MainWindow(QMainWindow):
                 from core.utils import sanitize_media_filename
                 title = custom_title.strip() if custom_title and not is_generic_media_title(custom_title) else ""
                 video_id = ""
+                is_special_case = False
 
-                # 1. TikTok: @<username>/video/<videoid> -> userid-videourl
+                # 1. TikTok: @<username>/video/<videoid> -> username_id
                 m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
                 if m_tt:
                     user_id = m_tt.group(1)
                     v_id = m_tt.group(2)
-                    video_id = v_id
-                    if not title or is_generic_media_title(title):
-                        title = f"{user_id}-{v_id}"
+                    title = f"{user_id}_{v_id}"
+                    video_id = title
+                    is_special_case = True
 
-                # 2. YouTube
+                # 2. Instagram: /reels/<id>, /reel/<id>, /p/<id>, /tv/<id> -> <id>
+                if not is_special_case:
+                    m_ig = (
+                        re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", url or "") or
+                        (re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", referrer or "") if referrer else None)
+                    )
+                    if m_ig:
+                        video_id = m_ig.group(1)
+                        title = video_id
+                        is_special_case = True
+
+                # 3. Facebook: /reel/<id>, /videos/<id>, ?v=<id> -> <id>
+                if not is_special_case:
+                    m_fb = (
+                        re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", url or "") or
+                        re.search(r"[?&]v=(\d+)", url or "") or
+                        (re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", referrer or "") if referrer else None) or
+                        (re.search(r"[?&]v=(\d+)", referrer or "") if referrer else None)
+                    )
+                    if m_fb:
+                        video_id = m_fb.group(1)
+                        title = video_id
+                        is_special_case = True
+
+                # 4. YouTube
                 if not video_id:
                     m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url or "") or (re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", referrer or "") if referrer else None)
                     if m_yt:
                         video_id = m_yt.group(1)
 
-                # 3. Twitter / X
+                # 5. Twitter / X
                 if not title or is_generic_media_title(title):
                     m_x = re.search(r"/(?:twitter|x)\.com/([^/?#&]+)/status/(\d+)", url or "") or (re.search(r"/(?:twitter|x)\.com/([^/?#&]+)/status/(\d+)", referrer or "") if referrer else None)
                     if m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i"):
                         video_id = m_x.group(2)
                         title = f"{m_x.group(1)}-{m_x.group(2)}"
 
-                # 4. Other referrers or URLs with ID
+                # 6. Other referrers or URLs with ID
                 if not video_id and referrer:
                     m_ref = re.search(r"/(?:reel|reels|watch|videos?|p|v|status|post|embed)/([A-Za-z0-9_-]{5,})", referrer)
                     if m_ref:
@@ -3219,15 +3244,18 @@ class MainWindow(QMainWindow):
                     else:
                         title = "video"
 
-                has_id_in_title = bool(video_id and video_id in title)
-                if has_id_in_title:
-                    full_title = f"{title} [{height}p]" if (height and not is_audio) else title
-                elif video_id:
-                    full_title = f"{title} [{video_id}]" if is_audio else (f"{title} [{video_id}] [{height}p]" if height else f"{title} [{video_id}]")
-                elif height and not is_audio:
-                    full_title = f"{title} [{height}p]"
-                else:
+                if is_special_case:
                     full_title = title
+                else:
+                    has_id_in_title = bool(video_id and video_id in title)
+                    if has_id_in_title:
+                        full_title = f"{title} [{height}p]" if (height and not is_audio) else title
+                    elif video_id:
+                        full_title = f"{title} [{video_id}]" if is_audio else (f"{title} [{video_id}] [{height}p]" if height else f"{title} [{video_id}]")
+                    elif height and not is_audio:
+                        full_title = f"{title} [{height}p]"
+                    else:
+                        full_title = title
                 filename = sanitize_media_filename(full_title, ext=ext)
 
                 self.start_media_download(
@@ -4789,15 +4817,34 @@ class MainWindow(QMainWindow):
         from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes, is_generic_media_title
         base_name, ext = os.path.splitext(filename)
         is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
-        if is_generic_media_title(base_name) or base_name.lower() in ("media", "media_download", "master", "index", "video", "videoplayback"):
+        is_tiktok = bool((url and "tiktok.com" in url.lower()) or (referrer and "tiktok.com" in referrer.lower()))
+        is_instagram = bool((url and "instagram.com" in url.lower()) or (referrer and "instagram.com" in referrer.lower()))
+        is_facebook = bool((url and ("facebook.com" in url.lower() or "fb.watch" in url.lower() or "fb.com" in url.lower())) or (referrer and ("facebook.com" in referrer.lower() or "fb.watch" in referrer.lower() or "fb.com" in referrer.lower())))
+
+        if is_tiktok:
             m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
             if m_tt:
                 user_id = m_tt.group(1)
                 v_id = m_tt.group(2)
-                m_h = re.search(r"height<=(\d{3,4})", format_spec)
-                h_tag = f" [{m_h.group(1)}p]" if (m_h and not is_audio_only) else ""
-                base_name = f"{user_id}-{v_id}{h_tag}"
-            elif is_youtube:
+                base_name = f"{user_id}_{v_id}"
+        elif is_instagram:
+            m_ig = (
+                re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", url or "") or
+                (re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", referrer or "") if referrer else None)
+            )
+            if m_ig:
+                base_name = m_ig.group(1)
+        elif is_facebook:
+            m_fb = (
+                re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", url or "") or
+                re.search(r"[?&]v=(\d+)", url or "") or
+                (re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", referrer or "") if referrer else None) or
+                (re.search(r"[?&]v=(\d+)", referrer or "") if referrer else None)
+            )
+            if m_fb:
+                base_name = m_fb.group(1)
+        elif is_generic_media_title(base_name) or base_name.lower() in ("media", "media_download", "master", "index", "video", "videoplayback"):
+            if is_youtube:
                 m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
                 if m_yt:
                     video_id = m_yt.group(1)

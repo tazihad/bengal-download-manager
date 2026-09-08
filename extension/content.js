@@ -1403,6 +1403,39 @@
   }
 
   function getVideoTitle(video) {
+    const testUrls = [window.location.href, (cachedTabInfo && cachedTabInfo.url) || ""];
+
+    // Special cases:
+    // 1. TikTok: username_id
+    for (const u of testUrls) {
+      if (u && u.includes('tiktok.com')) {
+        const m = u.match(/@([^/?#&]+)\/(?:video|v)\/(\d+)/i);
+        if (m) {
+          return `${m[1]}_${m[2]}`;
+        }
+      }
+    }
+
+    // 2. Instagram: url id (e.g. https://www.instagram.com/reels/DbfK-D7iCGd/ -> DbfK-D7iCGd)
+    for (const u of testUrls) {
+      if (u && u.includes('instagram.com')) {
+        const m = u.match(/instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i) || u.match(/\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i);
+        if (m) {
+          return m[1];
+        }
+      }
+    }
+
+    // 3. Facebook: url id (e.g. https://www.facebook.com/reel/1674054117674795 -> 1674054117674795)
+    for (const u of testUrls) {
+      if (u && (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('fb.com'))) {
+        const m = u.match(/(?:reel|reels|videos?|share\/[vr])\/([A-Za-z0-9_-]+)/i) || u.match(/[?&]v=(\d+)/i);
+        if (m) {
+          return m[1];
+        }
+      }
+    }
+
     if (activeIframeData && activeIframeData.title) {
       const t = cleanTitleString(activeIframeData.title);
       if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
@@ -1459,7 +1492,7 @@
       if (u && u.includes('tiktok.com')) {
         const m = u.match(/@([^/?#&]+)\/(?:video|v)\/(\d+)/i);
         if (m) {
-          return `${m[1]}-${m[2]}`;
+          return `${m[1]}_${m[2]}`;
         }
       }
       if (u && (u.includes('twitter.com') || u.includes('x.com'))) {
