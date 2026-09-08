@@ -1052,8 +1052,25 @@ class YtDlpDownloadWorker(QThread):
             m_ig_id = re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", self.url or (self.referrer or ""))
             ig_vid = m_ig_id.group(1) if m_ig_id else ""
 
-            if is_instagram and (not clean_base or is_generic or clean_base == ig_vid):
+            is_twitter_or_x = bool(
+                (self.url and ("x.com" in self.url.lower() or "twitter.com" in self.url.lower())) or
+                (self.referrer and ("x.com" in self.referrer.lower() or "twitter.com" in self.referrer.lower()))
+            )
+            m_x = re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", self.url or (self.referrer or ""))
+            x_username = m_x.group(1) if (m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i", "notifications", "search")) else ""
+            x_status_id = m_x.group(2) if m_x else ""
+            if not x_status_id:
+                m_x_alt = re.search(r"/status/(\d+)", self.url or (self.referrer or ""))
+                if m_x_alt:
+                    x_status_id = m_x_alt.group(1)
+
+            if is_instagram and (not clean_base or is_generic or clean_base == ig_vid or clean_base == f"instagram-{ig_vid}"):
                 output_tmpl = os.path.join(self.save_dir, "%(channel,uploader)s-%(id)s.%(ext)s")
+            elif is_twitter_or_x and x_username and x_status_id:
+                clean_base = f"{x_username}-{x_status_id}"
+                output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+            elif is_twitter_or_x and x_status_id and (not clean_base or is_generic or clean_base in (x_status_id, f"x-{x_status_id}")):
+                output_tmpl = os.path.join(self.save_dir, f"%(uploader_id,uploader)s-{x_status_id}.%(ext)s")
             elif is_generic and not has_brackets:
                 if self.is_audio_only:
                     output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
@@ -1226,12 +1243,17 @@ class YtDlpDownloadWorker(QThread):
                     dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
                     if dest_match:
                         dest_path = dest_match.group(1).strip()
+                        if not os.path.isabs(dest_path):
+                            dest_path = os.path.join(self.save_dir, dest_path)
                         dest_ext = os.path.splitext(dest_path)[1].lower()
                         if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
                             is_media_stream = False
                         elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                             is_media_stream = True
                             self.final_file_path = dest_path
+                            clean_cand = re.sub(r"\.f\w+(\.\w+)$", r"\1", os.path.basename(dest_path))
+                            if clean_cand and not is_generic_media_title(clean_cand):
+                                self.filename = clean_cand
                             if current_dest_file and current_dest_file != dest_path:
                                 # Multi-stream handover (e.g. video finished, now audio started)
                                 rollover = stream_downloaded_bytes if stream_downloaded_bytes > 0 else current_stream_total
@@ -1244,9 +1266,14 @@ class YtDlpDownloadWorker(QThread):
                     m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
                     if m_dest:
                         cand_path = m_dest.group(1).strip()
+                        if not os.path.isabs(cand_path):
+                            cand_path = os.path.join(self.save_dir, cand_path)
                         cand_ext = os.path.splitext(cand_path)[1].lower()
                         if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_path.endswith(".part"):
                             self.final_file_path = cand_path
+                            clean_cand = os.path.basename(cand_path)
+                            if clean_cand and not is_generic_media_title(clean_cand):
+                                self.filename = clean_cand
                             is_media_stream = True
 
                     # Parse yt-dlp / aria2c stdout for media streams only
@@ -1388,9 +1415,10 @@ class YtDlpDownloadWorker(QThread):
                         if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                             final_path = self.final_file_path
 
-                    target_expected = os.path.join(self.save_dir, self.filename)
-                    if os.path.exists(target_expected) and os.path.isfile(target_expected):
-                        final_path = target_expected
+                    if not final_path:
+                        target_expected = os.path.join(self.save_dir, self.filename)
+                        if os.path.exists(target_expected) and os.path.isfile(target_expected):
+                            final_path = target_expected
 
                     if not final_path or not os.path.exists(final_path):
                         candidates = []
@@ -1403,11 +1431,16 @@ class YtDlpDownloadWorker(QThread):
                                 if os.path.isfile(fpath):
                                     if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
                                         candidates.append(fpath)
+                                    elif ig_vid and ig_vid.lower() in fname.lower():
+                                        candidates.append(fpath)
+                                    elif x_status_id and x_status_id in fname:
+                                        candidates.append(fpath)
                         if candidates:
                             final_path = max(candidates, key=lambda p: os.path.getsize(p))
 
                     if final_path:
                         self.target_path = final_path
+                        self.filename = os.path.basename(final_path)
 
                     final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
                     self.current_bytes = int(final_size)

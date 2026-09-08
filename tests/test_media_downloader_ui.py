@@ -1212,7 +1212,15 @@ def test_tiktok_and_generic_video_url_id_filename_generation(qapp):
         call_kwargs = mock_start.call_args[1]
         assert call_kwargs["filename"] == "1674054117674795.mkv"
 
-    # 4. External site: playmate.to/watch/KgCrV105XsCR -> playmate-KgCrV105XsCR [720p].mkv
+    # 4. X.com / Twitter: username-status_id -> i_m_harshitsing-2095888237944525003.mkv
+    raw_ipc_x = "https://x.com/i_m_harshitsing/status/2095888237944525003/video/1|Mozilla/5.0|||1|720p||"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_x)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["filename"] == "i_m_harshitsing-2095888237944525003.mkv"
+
+    # 5. External site: playmate.to/watch/KgCrV105XsCR -> playmate-KgCrV105XsCR [720p].mkv
     raw_ipc_playmate = "https://playmate.to/watch/KgCrV105XsCR|Mozilla/5.0|||1|720p||"
     with patch.object(mw, "start_media_download") as mock_start:
         mw.process_incoming_url(raw_ipc_playmate)

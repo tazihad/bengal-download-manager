@@ -1039,3 +1039,71 @@ def test_ytdlp_worker_unsupported_url_triggers_fallback_retry(tmp_path):
         assert fallback_stream_url in second_cmd
 
 
+def test_ytdlp_worker_x_com_filename_template(tmp_path):
+    """Verify that YtDlpDownloadWorker configures output template with username-status_id for x.com."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = ["[download] 100% of 10.00MiB\n"]
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://x.com/i_m_harshitsing/status/2095888237944525003/video/1",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="media.mp4"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={}), \
+         patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+
+        worker.run()
+        cmd = mock_popen.call_args[0][0]
+        o_idx = cmd.index("-o")
+        output_template = cmd[o_idx + 1]
+        assert "i_m_harshitsing-2095888237944525003" in output_template
+
+
+def test_ytdlp_worker_instagram_channel_template_and_filename_update(tmp_path):
+    """Verify that YtDlpDownloadWorker updates filename upon completing Instagram download."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    downloaded_file = tmp_path / "filmygyan-Dc_7ZNGChot.mp4"
+    downloaded_file.write_bytes(b"test video data")
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = [
+        f'[Merger] Merging formats into "{downloaded_file.name}"\n',
+        "[download] 100% of 15.00B\n"
+    ]
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.instagram.com/reels/Dc_7ZNGChot/",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="Dc_7ZNGChot.mkv"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={}), \
+         patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+
+        worker.run()
+        cmd = mock_popen.call_args[0][0]
+        o_idx = cmd.index("-o")
+        output_template = cmd[o_idx + 1]
+        assert "%(channel,uploader)s-%(id)s.%(ext)s" in output_template
+        # Verify worker filename was updated to the resolved filename
+        assert worker.filename == "filmygyan-Dc_7ZNGChot.mp4"
+
+

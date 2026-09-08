@@ -1481,6 +1481,24 @@
 
   function getVideoTitle(video) {
     const testUrls = [window.location.href, (cachedTabInfo && cachedTabInfo.url) || ""];
+    if (video) {
+      try {
+        const pageUrl = getMediaPageUrl(video);
+        if (pageUrl && !testUrls.includes(pageUrl)) {
+          testUrls.unshift(pageUrl);
+        }
+      } catch (e) {}
+    }
+    try {
+      const ogUrl = document.querySelector('meta[property="og:url"]')?.content;
+      if (ogUrl && !testUrls.includes(ogUrl)) {
+        testUrls.push(ogUrl);
+      }
+      const canonicalHref = document.querySelector('link[rel="canonical"]')?.href;
+      if (canonicalHref && !testUrls.includes(canonicalHref)) {
+        testUrls.push(canonicalHref);
+      }
+    } catch (e) {}
 
     // Special cases:
     // 1. TikTok: username_id
@@ -1506,15 +1524,30 @@
           }
           if (!username && video) {
             try {
-              const article = video.closest('article, [role="presentation"], main') || document;
-              const authorLinks = article.querySelectorAll('header a[role="link"], a[role="link"][tabindex="0"], a[role="link"]');
+              // Search up to container or check document
+              let container = video.closest('article, [data-pagelet*="Reel"], [data-pagelet*="FeedUnit"], section, main');
+              if (!container || container.matches('[role="presentation"]')) {
+                let curr = video.parentElement;
+                for (let i = 0; i < 15 && curr && curr !== document.body; i++) {
+                  if (curr.querySelector('a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]') || curr.tagName === 'ARTICLE') {
+                    container = curr;
+                    break;
+                  }
+                  curr = curr.parentElement;
+                }
+              }
+              const scope = container || document;
+              const authorLinks = scope.querySelectorAll('header a, a[role="link"], a[href^="/"], a[href*="instagram.com/"]');
               for (const a of authorLinks) {
-                const href = a.getAttribute('href') || '';
-                const mHref = href.match(/^\/([A-Za-z0-9_.]+)\/?$/);
-                if (mHref && !['explore', 'reels', 'reel', 'direct', 'stories', 'p', 'tv', 'accounts', 'legal', 'about'].includes(mHref[1].toLowerCase())) {
-                  const text = a.innerText.trim();
-                  username = (text && !text.includes(' ') && text.length > 1) ? text : mHref[1];
-                  break;
+                const rawHref = a.getAttribute('href') || a.href || '';
+                const mHref = rawHref.match(/(?:instagram\.com)?\/([A-Za-z0-9_.]+)(?:\/|\?|$)/i);
+                if (mHref && mHref[1]) {
+                  const candidate = mHref[1];
+                  if (!['explore', 'reels', 'reel', 'direct', 'stories', 'p', 'tv', 'accounts', 'legal', 'about', 'help', 'developer'].includes(candidate.toLowerCase())) {
+                    const text = a.innerText.trim();
+                    username = (text && !text.includes(' ') && text.length > 1 && !text.includes('\n')) ? text : candidate;
+                    break;
+                  }
                 }
               }
             } catch (e) {}
@@ -1542,10 +1575,10 @@
             for (const t of titlesToTest) {
               if (!t) continue;
               const m = t.match(/@([A-Za-z0-9_.]+)/) ||
+                        t.match(/(?:^|[\s\-])([A-Za-z0-9_.]+)\s+on\s+(?:Instagram|[A-Za-z]+\s+\d+)/i) ||
                         t.match(/^([A-Za-z0-9_.]+)\s+on Instagram/i) ||
                         t.match(/(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)/i) ||
-                        t.match(/^([A-Za-z0-9_.]+)\s*•\s*Instagram/i) ||
-                        t.match(/([A-Za-z0-9_.]+)\s+on\s+(?:Instagram|[A-Z][a-z]+ \d+)/i);
+                        t.match(/^([A-Za-z0-9_.]+)\s*•\s*Instagram/i);
               if (m && m[1] && !['instagram', 'reels', 'reel', 'video', 'post'].includes(m[1].toLowerCase())) {
                 username = m[1];
                 break;
@@ -1563,6 +1596,20 @@
         const m = u.match(/(?:reel|reels|videos?|share\/[vr])\/([A-Za-z0-9_-]+)/i) || u.match(/[?&]v=(\d+)/i);
         if (m) {
           return m[1];
+        }
+      }
+    }
+
+    // 4. X.com / Twitter: username-status_id (e.g. https://x.com/i_m_harshitsing/status/2095888237944525003/video/1 -> i_m_harshitsing-2095888237944525003)
+    for (const u of testUrls) {
+      if (u && (u.includes('x.com') || u.includes('twitter.com'))) {
+        const m = u.match(/(?:x\.com|twitter\.com)\/([A-Za-z0-9_]+)\/status\/(\d+)/i);
+        if (m) {
+          const uName = m[1];
+          const sId = m[2];
+          if (!['i', 'home', 'explore', 'notifications', 'messages', 'search'].includes(uName.toLowerCase())) {
+            return `${uName}-${sId}`;
+          }
         }
       }
     }

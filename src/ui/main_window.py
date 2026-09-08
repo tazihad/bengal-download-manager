@@ -3238,8 +3238,11 @@ class MainWindow(QMainWindow):
                                 video_id = title
                             elif title and not is_generic_media_title(title) and title != v_id and not title.lower().startswith("instagram"):
                                 m_by = re.search(r"(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)", title, re.I)
+                                m_on = re.search(r"(?:^|[\s\-])([A-Za-z0-9_.]+)\s+on\s+instagram", title, re.I)
                                 if m_by:
                                     clean_u = m_by.group(1)
+                                elif m_on:
+                                    clean_u = m_on.group(1)
                                 else:
                                     clean_u = re.split(r"[-_]", title)[0]
                                 title = f"{clean_u}-{v_id}"
@@ -3262,7 +3265,25 @@ class MainWindow(QMainWindow):
                         title = video_id
                         is_special_case = True
 
-                # 4. YouTube
+                # 4. Twitter / X: username-status_id (e.g. i_m_harshitsing-2095888237944525003)
+                if not is_special_case:
+                    m_x = (
+                        re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", url or "") or
+                        (re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", referrer or "") if referrer else None)
+                    )
+                    if m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i", "notifications", "search"):
+                        username = m_x.group(1)
+                        status_id = m_x.group(2)
+                        title = f"{username}-{status_id}"
+                        video_id = title
+                        is_special_case = True
+                    elif m_x and m_x.group(1).lower() == "i":
+                        status_id = m_x.group(2)
+                        title = f"x-{status_id}"
+                        video_id = title
+                        is_special_case = True
+
+                # 5. YouTube
                 if not video_id:
                     m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url or "") or (re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", referrer or "") if referrer else None)
                     if m_yt:
@@ -4892,6 +4913,7 @@ class MainWindow(QMainWindow):
         is_tiktok = bool((url and "tiktok.com" in url.lower()) or (referrer and "tiktok.com" in referrer.lower()))
         is_instagram = bool((url and "instagram.com" in url.lower()) or (referrer and "instagram.com" in referrer.lower()))
         is_facebook = bool((url and ("facebook.com" in url.lower() or "fb.watch" in url.lower() or "fb.com" in url.lower())) or (referrer and ("facebook.com" in referrer.lower() or "fb.watch" in referrer.lower() or "fb.com" in referrer.lower())))
+        is_twitter_or_x = bool((url and ("x.com" in url.lower() or "twitter.com" in url.lower())) or (referrer and ("x.com" in referrer.lower() or "twitter.com" in referrer.lower())))
 
         if is_tiktok:
             m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
@@ -4918,8 +4940,11 @@ class MainWindow(QMainWindow):
                         base_name = f"{u}-{v_id}"
                     elif base_name and base_name != v_id and not is_generic_media_title(base_name) and not base_name.lower().startswith("instagram"):
                         m_by = re.search(r"(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)", base_name, re.I)
+                        m_on = re.search(r"(?:^|[\s\-])([A-Za-z0-9_.]+)\s+on\s+instagram", base_name, re.I)
                         if m_by:
                             clean_u = m_by.group(1)
+                        elif m_on:
+                            clean_u = m_on.group(1)
                         else:
                             clean_u = re.split(r"[-_]", base_name)[0]
                         base_name = f"{clean_u}-{v_id}"
@@ -4934,6 +4959,19 @@ class MainWindow(QMainWindow):
             )
             if m_fb:
                 base_name = m_fb.group(1)
+        elif is_twitter_or_x:
+            m_x = (
+                re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", url or "") or
+                (re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", referrer or "") if referrer else None)
+            )
+            if m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i", "notifications", "search"):
+                base_name = f"{m_x.group(1)}-{m_x.group(2)}"
+            elif m_x and m_x.group(1).lower() == "i":
+                base_name = f"x-{m_x.group(2)}"
+            elif base_name and is_generic_media_title(base_name):
+                m_x_id = re.search(r"/status/(\d+)", url or (referrer or ""))
+                if m_x_id:
+                    base_name = f"x-{m_x_id.group(1)}"
         elif is_generic_media_title(base_name) or base_name.lower() in ("media", "media_download", "master", "index", "video", "videoplayback"):
             if is_youtube:
                 m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
