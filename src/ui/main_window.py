@@ -3133,14 +3133,20 @@ class MainWindow(QMainWindow):
             from core.config import load_category_config
             cfg = load_category_config()
             media_defaults = cfg.get("media_downloader_defaults", {})
-            # When initiated through the browser popup / floating widget where resolution was selected,
-            # directly download without prompting with extra dialogs
-            if is_media_flag:
-                auto_start = True
-                target_preset = selected_quality or media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+
+            # Respect auto_start_media setting from Options
+            auto_start = bool(media_defaults.get("auto_start_media", False))
+            target_preset = selected_quality or media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+
+            # If cookies.txt in option is configured and exists, use it;
+            # otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
+            opt_cookies_path = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+            if opt_cookies_path and os.path.exists(opt_cookies_path):
+                effective_cookies_file = opt_cookies_path
+                effective_cookies = None
             else:
-                auto_start = bool(media_defaults.get("auto_start_media", False))
-                target_preset = media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
+                effective_cookies_file = None
+                effective_cookies = cookies
 
             try:
                 self.open_media_downloader(
@@ -3151,8 +3157,9 @@ class MainWindow(QMainWindow):
                     referrer=referrer,
                     user_agent=user_agent,
                     custom_title=custom_title,
-                    cookies=cookies,
-                    estimated_size_bytes=size_bytes
+                    cookies=effective_cookies,
+                    estimated_size_bytes=size_bytes,
+                    cookies_file=effective_cookies_file
                 )
             except TypeError:
                 try:
@@ -3163,7 +3170,9 @@ class MainWindow(QMainWindow):
                         target_preset=target_preset,
                         referrer=referrer,
                         user_agent=user_agent,
-                        custom_title=custom_title
+                        custom_title=custom_title,
+                        cookies=effective_cookies,
+                        estimated_size_bytes=size_bytes
                     )
                 except TypeError:
                     try:
@@ -3173,15 +3182,26 @@ class MainWindow(QMainWindow):
                             auto_start=auto_start,
                             target_preset=target_preset,
                             referrer=referrer,
-                            user_agent=user_agent
+                            user_agent=user_agent,
+                            custom_title=custom_title
                         )
                     except TypeError:
-                        self.open_media_downloader(
-                            url=url,
-                            auto_analyze=True,
-                            auto_start=auto_start,
-                            target_preset=target_preset
-                        )
+                        try:
+                            self.open_media_downloader(
+                                url=url,
+                                auto_analyze=True,
+                                auto_start=auto_start,
+                                target_preset=target_preset,
+                                referrer=referrer,
+                                user_agent=user_agent
+                            )
+                        except TypeError:
+                            self.open_media_downloader(
+                                url=url,
+                                auto_analyze=True,
+                                auto_start=auto_start,
+                                target_preset=target_preset
+                            )
             return
 
         GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
@@ -4593,12 +4613,12 @@ class MainWindow(QMainWindow):
         self._options_dlg.raise_()
         self._options_dlg.activateWindow()
 
-    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset="", referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0):
+    def open_media_downloader(self, url=None, auto_analyze=False, auto_start=False, target_preset="", referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0, cookies_file=None):
         from ui.dialogs import MediaDownloaderDialog
         if MemoryGuard.is_widget_alive(getattr(self, "_media_downloader_dlg", None)):
             if hasattr(self._media_downloader_dlg, "set_request_context"):
                 try:
-                    self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes)
+                    self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes, cookies_file=cookies_file)
                 except TypeError:
                     self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title)
             if not auto_start:
@@ -4609,15 +4629,13 @@ class MainWindow(QMainWindow):
                 if auto_start:
                     self._media_downloader_dlg.analyze_and_download(url, auto_start=True, target_preset=target_preset)
                 else:
-                    self._media_downloader_dlg.txt_url.setText(url)
-                    if auto_analyze:
-                        self._media_downloader_dlg._on_analyze_or_stop_clicked()
+                    self._media_downloader_dlg.analyze_and_download(url, auto_start=False, target_preset=target_preset)
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.finished.connect(lambda *_: setattr(self, "_media_downloader_dlg", None))
         if hasattr(self._media_downloader_dlg, "set_request_context"):
             try:
-                self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes)
+                self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes, cookies_file=cookies_file)
             except TypeError:
                 self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title)
         if not auto_start:
@@ -4628,9 +4646,7 @@ class MainWindow(QMainWindow):
             if auto_start:
                 self._media_downloader_dlg.analyze_and_download(url, auto_start=True, target_preset=target_preset)
             else:
-                self._media_downloader_dlg.txt_url.setText(url)
-                if auto_analyze:
-                    self._media_downloader_dlg._on_analyze_or_stop_clicked()
+                self._media_downloader_dlg.analyze_and_download(url, auto_start=False, target_preset=target_preset)
 
     def open_scheduler(self):
         from ui.dialogs import SchedulerDialog
@@ -4651,7 +4667,17 @@ class MainWindow(QMainWindow):
 
         config = load_category_config()
         categories = config.get("categories", {})
-        
+        media_defaults = config.get("media_downloader_defaults", {})
+
+        # If cookies.txt in option is set and exists, use it.
+        # If cookies.txt in option is empty, use the browser-sent cookies.
+        opt_cookies_path = config.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+        if not cookies_file and opt_cookies_path and os.path.exists(opt_cookies_path):
+            cookies_file = opt_cookies_path
+
+        if cookies_file and os.path.exists(cookies_file):
+            cookies = None
+
         final_category = "Video" if not is_audio_only else "Music"
         if final_category not in categories:
             final_category = "General"

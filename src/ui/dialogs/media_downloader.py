@@ -1035,17 +1035,23 @@ class MediaDownloaderDialog(QDialog):
             return None, None
         else:  # Netscape File Mode (Index 0 / Default)
             c_path = self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else ""
+            if not c_path:
+                c_path = getattr(self, "_cookies_file", "") or ""
             if c_path and os.path.exists(c_path):
                 return None, c_path
             return None, None
 
-    def set_request_context(self, referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0):
+    def set_request_context(self, referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0, cookies_file=None):
         """Sets incoming HTTP context (referrer, user-agent), cookies, custom title, and estimated size for media analysis and downloads."""
         self._referrer = referrer
         self._user_agent = user_agent
         self._custom_title = custom_title
         self._cookies = cookies
         self._estimated_size_bytes = estimated_size_bytes
+        if cookies_file:
+            self._cookies_file = cookies_file
+            if hasattr(self, "txt_cookies_path"):
+                self.txt_cookies_path.setText(cookies_file)
 
     def analyze_and_download(self, url: str, auto_start: bool = False, target_preset: str = ""):
         """Sets URL, applies auto-start flags, and initiates analysis."""
@@ -1073,13 +1079,14 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_status.setText("Analyzing link...")
 
         c_browser, c_file = self._get_cookies_args()
+        effective_cookies = getattr(self, "_cookies", None) if not c_file else None
         self._worker = MediaExtractorWorker(
             url,
             cookies_browser=c_browser,
             cookies_file=c_file,
             referrer=getattr(self, "_referrer", None),
             user_agent=getattr(self, "_user_agent", None),
-            cookies=getattr(self, "_cookies", None)
+            cookies=effective_cookies
         )
         self._worker.status_signal.connect(self._on_status_msg)
         self._worker.single_video_analyzed.connect(self._on_single_video_ready)
@@ -1170,27 +1177,29 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setText("Download Media")
         self.btn_download.setEnabled(True)
 
-        # Auto-start download execution if requested from browser integration
+        # Apply target quality preset if specified
+        target_preset = getattr(self, "_auto_start_preset", "")
+        if target_preset:
+            model = self.cmb_quality_preset.model()
+            res_match = re.search(r"(\d{3,4}p)", target_preset, re.IGNORECASE)
+            is_audio = "audio" in target_preset.lower() or "mp3" in target_preset.lower() or "opus" in target_preset.lower()
+            token = res_match.group(1).lower() if res_match else ("audio" if is_audio else target_preset.lower())
+
+            matched_idx = -1
+            for i in range(self.cmb_quality_preset.count()):
+                item = model.item(i) if model else None
+                if item and not item.isEnabled():
+                    continue
+                item_text = self.cmb_quality_preset.itemText(i).lower()
+                if token in item_text or target_preset.lower() in item_text:
+                    matched_idx = i
+                    break
+            if matched_idx != -1:
+                self.cmb_quality_preset.setCurrentIndex(matched_idx)
+
+        # Auto-start download execution if requested from browser integration and permitted by options check
         if getattr(self, "_auto_start_pending", False):
             self._auto_start_pending = False
-            target_preset = getattr(self, "_auto_start_preset", "")
-            if target_preset:
-                model = self.cmb_quality_preset.model()
-                res_match = re.search(r"(\d{3,4}p)", target_preset, re.IGNORECASE)
-                is_audio = "audio" in target_preset.lower() or "mp3" in target_preset.lower() or "opus" in target_preset.lower()
-                token = res_match.group(1).lower() if res_match else ("audio" if is_audio else target_preset.lower())
-
-                matched_idx = -1
-                for i in range(self.cmb_quality_preset.count()):
-                    item = model.item(i) if model else None
-                    if item and not item.isEnabled():
-                        continue
-                    item_text = self.cmb_quality_preset.itemText(i).lower()
-                    if token in item_text or target_preset.lower() in item_text:
-                        matched_idx = i
-                        break
-                if matched_idx != -1:
-                    self.cmb_quality_preset.setCurrentIndex(matched_idx)
             self._on_download_clicked()
 
     def _on_thumbnail_loaded(self, image_or_pixmap):

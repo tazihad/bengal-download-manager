@@ -1064,3 +1064,62 @@ def test_main_window_process_incoming_url_facebook_chunk_rewrites_to_referrer(qa
     mw.close()
 
 
+def test_process_incoming_url_auto_start_media_option_check(qapp):
+    """Verify MainWindow.process_incoming_url obeys auto_start_media option check."""
+    from ui.main_window import MainWindow
+    from unittest.mock import patch
+
+    mw = MainWindow()
+    raw_ipc = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|cookie_abc|https://www.youtube.com|1|1080p|Sample Title|1024|1 KB"
+
+    # 1. When auto_start_media is False (default)
+    with patch("core.config.load_category_config", return_value={"media_downloader_defaults": {"auto_start_media": False}}), \
+         patch.object(mw, "open_media_downloader") as mock_open:
+        mw.process_incoming_url(raw_ipc)
+        assert mock_open.called
+        assert mock_open.call_args[1]["auto_start"] is False
+        assert mock_open.call_args[1]["target_preset"] == "1080p"
+
+    # 2. When auto_start_media is True
+    with patch("core.config.load_category_config", return_value={"media_downloader_defaults": {"auto_start_media": True}}), \
+         patch.object(mw, "open_media_downloader") as mock_open:
+        mw.process_incoming_url(raw_ipc)
+        assert mock_open.called
+        assert mock_open.call_args[1]["auto_start"] is True
+        assert mock_open.call_args[1]["target_preset"] == "1080p"
+
+    mw.close()
+
+
+def test_process_incoming_url_cookies_option_vs_browser_check(qapp, tmp_path):
+    """Verify that browser-sent cookies are used if cookies.txt in option is empty, and options cookies.txt is used when set."""
+    from ui.main_window import MainWindow
+    from unittest.mock import patch
+
+    mw = MainWindow()
+    raw_ipc = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|browser_cookie=yes|https://www.youtube.com|1|1080p|Sample Title|1024|1 KB"
+
+    # 1. When cookies.txt in options is empty -> browser cookies used
+    with patch("core.config.load_category_config", return_value={"media_downloader_cookies_path": ""}), \
+         patch.object(mw, "open_media_downloader") as mock_open:
+        mw.process_incoming_url(raw_ipc)
+        assert mock_open.called
+        call_kwargs = mock_open.call_args[1]
+        assert call_kwargs["cookies"] == "browser_cookie=yes"
+        assert call_kwargs["cookies_file"] is None
+
+    # 2. When cookies.txt in options is set and exists -> cookies.txt file used
+    fake_cookies = tmp_path / "opt_cookies.txt"
+    fake_cookies.write_text("# Netscape cookies\n")
+    with patch("core.config.load_category_config", return_value={"media_downloader_cookies_path": str(fake_cookies)}), \
+         patch.object(mw, "open_media_downloader") as mock_open:
+        mw.process_incoming_url(raw_ipc)
+        assert mock_open.called
+        call_kwargs = mock_open.call_args[1]
+        assert call_kwargs["cookies_file"] == str(fake_cookies)
+        assert call_kwargs["cookies"] is None
+
+    mw.close()
+
+
+

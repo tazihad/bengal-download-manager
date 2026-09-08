@@ -474,11 +474,13 @@ class MediaExtractorWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "all") or "all"
-                if yt_client.strip().lower() in ("default", ""):
-                    yt_client = "all"
+                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
-                yt_client = "all"
+                cfg = {}
+                media_defaults = {}
+                yt_client = "default"
+
+            yt_client = yt_client.strip() or "default"
 
             cmd = [
                 yt_dlp_bin,
@@ -511,11 +513,19 @@ class MediaExtractorWorker(QThread):
             # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
             cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
+            # Resolve cookies: if cookies.txt in option/worker is configured and exists, use it.
+            # Otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
+            effective_cookies_file = self.cookies_file
+            if not effective_cookies_file:
+                opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+                if opt_cpath and os.path.exists(opt_cpath):
+                    effective_cookies_file = opt_cpath
+
             temp_cookies_file = None
-            if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+            if effective_cookies_file and os.path.exists(str(effective_cookies_file)):
+                cmd.extend(["--cookies", str(effective_cookies_file)])
+            elif self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
-            elif self.cookies_file and os.path.exists(self.cookies_file):
-                cmd.extend(["--cookies", self.cookies_file])
             elif getattr(self, "cookies", None):
                 temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
                 if temp_cookies_file and os.path.exists(temp_cookies_file):
@@ -544,17 +554,16 @@ class MediaExtractorWorker(QThread):
                 err_lower = err_text.lower()
                 has_cookie_err = bool(
                     (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
-                    or (self.cookies_file and os.path.exists(str(self.cookies_file)))
+                    or (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
                     or getattr(self, "cookies", None)
                 )
                 is_bot_or_client_err = any(e in err_lower for e in ("sign in", "bot", "429", "login_required", "format is not available"))
 
-                # RETRY FALLBACK: If extraction failed with cookies or client bot error, retry with optimal client ('all') and clean headers
+                # RETRY FALLBACK: If extraction failed with cookies or client bot error, retry with clean headers
                 if has_cookie_err or is_bot_or_client_err:
-                    retry_client = "all"
                     msg = "Retrying clean metadata extraction..."
                     if "bot" in err_lower or "sign in" in err_lower:
-                        msg = "YouTube bot check detected, retrying with multi-client bypass..."
+                        msg = "YouTube bot check detected, retrying clean extraction..."
                     elif has_cookie_err:
                         msg = "Cookies invalid or rejected, retrying clean metadata extraction..."
                     self.status_signal.emit(msg)
@@ -566,7 +575,7 @@ class MediaExtractorWorker(QThread):
                         "--playlist-end", "100",
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
-                        "--extractor-args", f"youtube:player_client={retry_client}",
+                        "--extractor-args", f"youtube:player_client={yt_client}",
                         "--add-header", "Accept-Language:en-US,en;q=0.9",
                     ]
                     if ffmpeg_bin:
@@ -941,11 +950,13 @@ class YtDlpDownloadWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "all") or "all"
-                if yt_client.strip().lower() in ("default", ""):
-                    yt_client = "all"
+                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
-                yt_client = "all"
+                cfg = {}
+                media_defaults = {}
+                yt_client = "default"
+
+            yt_client = yt_client.strip() or "default"
 
             base_cmd = [
                 bin_path,
@@ -992,14 +1003,22 @@ class YtDlpDownloadWorker(QThread):
             if getattr(self, "speed_limit_bytes", 0) > 0:
                 base_cmd.extend(["--limit-rate", str(self.speed_limit_bytes)])
 
+            # Resolve cookies: if cookies.txt in option/worker is configured and exists, use it.
+            # Otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
+            effective_cookies_file = self.cookies_file
+            if not effective_cookies_file:
+                opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+                if opt_cpath and os.path.exists(opt_cpath):
+                    effective_cookies_file = opt_cpath
+
             clean_env = get_clean_env(bin_dir)
             temp_cookies_file = None
             has_cookies = bool(
-                (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
-                or (self.cookies_file and os.path.exists(str(self.cookies_file)))
+                (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
+                or (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
                 or getattr(self, "cookies", None)
             )
-            attempts = [1, 2]
+            attempts = [1, 2] if has_cookies else [1]
 
             for attempt in attempts:
                 if not self.is_running or self.is_paused:
@@ -1007,21 +1026,16 @@ class YtDlpDownloadWorker(QThread):
 
                 cmd = list(base_cmd)
                 if attempt == 1 and has_cookies:
-                    if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+                    if effective_cookies_file and os.path.exists(str(effective_cookies_file)):
+                        cmd.extend(["--cookies", str(effective_cookies_file)])
+                    elif self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                         cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
-                    elif self.cookies_file and os.path.exists(str(self.cookies_file)):
-                        cmd.extend(["--cookies", self.cookies_file])
                     elif getattr(self, "cookies", None):
                         temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
                         if temp_cookies_file and os.path.exists(temp_cookies_file):
                             cmd.extend(["--cookies", temp_cookies_file])
                         else:
                             cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
-                elif attempt == 2:
-                    # Attempt 2 clean retry: ensure client is 'all'
-                    for i, arg in enumerate(cmd):
-                        if arg.startswith("--extractor-args") and i + 1 < len(cmd):
-                            cmd[i + 1] = "youtube:player_client=all"
 
                 cmd.append(self.url)
 
@@ -1207,22 +1221,22 @@ class YtDlpDownloadWorker(QThread):
                     logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
                     return
 
-                if rc != 0 and attempt == 1:
+                if rc != 0 and attempt == 1 and has_cookies:
                     error_blob = " ".join(collected_errors).lower()
                     is_bot_err = any(e in error_blob for e in ("sign in", "bot", "429", "login_required", "format is not available"))
-                    cookie_failure = has_cookies and (
+                    cookie_failure = (
                         any(
                             err in error_blob
                             for err in ("413", "too large", "connection reset", "connection aborted", "cookie")
                         ) or is_bot_err or (completed_streams_bytes + stream_downloaded_bytes == 0)
                     )
 
-                    if cookie_failure or is_bot_err:
+                    if cookie_failure:
                         retry_msg = "Retrying clean download without cookies..."
                         if is_bot_err:
                             retry_msg = "YouTube bot check detected, retrying clean download..."
-                        logger.warning("[YtDlpDownload] yt-dlp failed (rc=%d). %s", rc, retry_msg)
-                        self.log_signal.emit(f"Download issue detected, {retry_msg}")
+                        logger.warning("[YtDlpDownload] yt-dlp failed with cookies (rc=%d). %s", rc, retry_msg)
+                        self.log_signal.emit(f"Cookies issue detected, {retry_msg}")
                         if temp_cookies_file and os.path.exists(temp_cookies_file):
                             try:
                                 os.remove(temp_cookies_file)

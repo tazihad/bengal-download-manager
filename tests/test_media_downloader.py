@@ -406,7 +406,7 @@ def test_yt_dlp_extractor_args_youtube_player_client(tmp_path):
         cmd = mock_popen.call_args[0][0]
         assert "--extractor-args" in cmd
         ext_idx = cmd.index("--extractor-args")
-        assert cmd[ext_idx + 1] == "youtube:player_client=all"
+        assert cmd[ext_idx + 1] == "youtube:player_client=default"
 
 
 def test_media_downloader_headers_and_cookies(tmp_path):
@@ -760,7 +760,7 @@ def test_ytdlp_download_worker_http_413_cookie_retry(tmp_path):
 
 
 def test_youtube_bot_check_retry_extractor(tmp_path):
-    """Verify that MediaExtractorWorker retries with youtube:player_client=all when bot check error occurs."""
+    """Verify that MediaExtractorWorker retries clean extraction respecting options setting when bot check error occurs."""
     fake_bin = tmp_path / "yt-dlp"
     fake_bin.touch()
     fake_bin.chmod(0o755)
@@ -784,16 +784,15 @@ def test_youtube_bot_check_retry_extractor(tmp_path):
         extractor.run()
 
         assert mock_popen.call_count == 2
-        # Clean retry command must include player_client=all
         cmd2 = mock_popen.call_args_list[1][0][0]
         assert "--extractor-args" in cmd2
         ext_idx = cmd2.index("--extractor-args")
-        assert cmd2[ext_idx + 1] == "youtube:player_client=all"
+        assert cmd2[ext_idx + 1] == "youtube:player_client=default"
         assert any("bot" in m.lower() for m in status_msgs)
 
 
 def test_youtube_bot_check_retry_downloader(tmp_path):
-    """Verify that YtDlpDownloadWorker retries clean download when bot check error is encountered."""
+    """Verify that YtDlpDownloadWorker retries clean download without cookies when bot check error is encountered."""
     fake_bin = tmp_path / "yt-dlp"
     fake_bin.touch()
     fake_bin.chmod(0o755)
@@ -818,7 +817,8 @@ def test_youtube_bot_check_retry_downloader(tmp_path):
         url="https://www.youtube.com/watch?v=Rcu2AAjdTjE",
         row_index=0,
         save_dir=str(tmp_path),
-        filename="bot_test.mp4"
+        filename="bot_test.mp4",
+        cookies="SID=fake_browser_cookie"
     )
 
     completed_paths = []
@@ -830,10 +830,94 @@ def test_youtube_bot_check_retry_downloader(tmp_path):
         worker.run()
 
         assert mock_popen.call_count == 2
+        # Attempt 1: had cookies
+        cmd1 = mock_popen.call_args_list[0][0][0]
+        assert "--cookies" in cmd1 or any(a.startswith("Cookie:") for a in cmd1)
+        # Attempt 2: retry clean without cookies
         cmd2 = mock_popen.call_args_list[1][0][0]
+        assert "--cookies" not in cmd2
         ext_idx = cmd2.index("--extractor-args")
-        assert cmd2[ext_idx + 1] == "youtube:player_client=all"
+        assert cmd2[ext_idx + 1] == "youtube:player_client=default"
 
     assert len(completed_paths) == 1
     assert completed_paths[0] == str(test_file)
+
+
+def test_cookies_txt_in_option_used_when_set(tmp_path):
+    """Verify that if cookies.txt in options is configured and exists, it is used for media downloads."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    opt_cookies_file = tmp_path / "options_cookies.txt"
+    opt_cookies_file.write_text("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\topt_val\n")
+
+    test_file = tmp_path / "opt_cookie_test.mp4"
+    test_file.write_bytes(b"data")
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = [
+        f"[download] Destination: {str(test_file)}\n",
+        "[download] 100% of 4.00B at 1.00MiB/s ETA 00:00\n",
+    ]
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.youtube.com/watch?v=sample",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="opt_cookie_test.mp4",
+        cookies="browser_sent_cookie=xyz"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={"media_downloader_cookies_path": str(opt_cookies_file)}), \
+         patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        assert "--cookies" in cmd
+        c_idx = cmd.index("--cookies")
+        assert cmd[c_idx + 1] == str(opt_cookies_file)
+
+
+def test_cookies_txt_in_option_empty_uses_browser_cookies(tmp_path):
+    """Verify that if cookies.txt in options is empty, the browser-sent cookies are used."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    test_file = tmp_path / "browser_cookie_test.mp4"
+    test_file.write_bytes(b"data")
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = [
+        f"[download] Destination: {str(test_file)}\n",
+        "[download] 100% of 4.00B at 1.00MiB/s ETA 00:00\n",
+    ]
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://www.youtube.com/watch?v=sample",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="browser_cookie_test.mp4",
+        cookies="browser_sent_cookie=xyz"
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={"media_downloader_cookies_path": ""}), \
+         patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker.run()
+
+        assert mock_popen.called
+        cmd = mock_popen.call_args[0][0]
+        # Browser cookie was converted to temp cookies file or header
+        assert "--cookies" in cmd or any(a.startswith("Cookie:") for a in cmd)
+
 
