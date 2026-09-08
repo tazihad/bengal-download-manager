@@ -719,14 +719,16 @@ def test_extension_media_download_passes_size_to_file_info_dialog(qapp, tmp_path
     assert "125.40 MB" in file_info_dlg.lbl_size.text()
     file_info_dlg.close()
 
-    # 2. Test process_incoming_url parses 8-part IPC payload with size
+    # 2. Test process_incoming_url parses 8-part IPC payload with size and starts media download directly
     payload_data = "https://example.com/video2.m3u8|TestUA|TestCookie|https://referrer.com|1|1080p|Custom Video Title|150000000|150 MB"
-    with patch.object(mw, "open_media_downloader") as mock_open_media:
+    with patch.object(mw, "start_media_download") as mock_start_media:
         mw.process_incoming_url(payload_data)
-        assert mock_open_media.called
-        kwargs = mock_open_media.call_args[1]
-        assert kwargs["estimated_size_bytes"] == 150000000
-        assert kwargs["custom_title"] == "Custom Video Title"
+        assert mock_start_media.called
+        kwargs = mock_start_media.call_args[1]
+        assert kwargs["total_size_bytes"] == 150000000
+        assert "Custom Video Title" in kwargs["filename"]
+        assert kwargs["user_agent"] == "TestUA"
+        assert kwargs["cookies"] == "TestCookie"
 
     mw.close()
 
@@ -1044,49 +1046,64 @@ def test_generic_media_title_detection():
 
 
 def test_main_window_process_incoming_url_facebook_chunk_rewrites_to_referrer(qapp):
-    """Verify MainWindow.process_incoming_url rewrites a CDN chunk to the Facebook reel referrer."""
+    """Verify MainWindow.process_incoming_url rewrites a CDN chunk to the Facebook reel referrer and starts media download."""
     from ui.main_window import MainWindow
     from unittest.mock import patch
 
     mw = MainWindow()
-    # Payload: url|userAgent|cookies|referrer|is_media|quality|title|sizeBytes|sizeStr
+    # Payload from media popup: url|userAgent|cookies|referrer|is_media|quality|title|sizeBytes|sizeStr
     chunk_url = "https://video-iad3-1.xx.fbcdn.net/v/t39.25434-2/12345_n.mp4?bytestart=0&byteend=271955"
     referrer = "https://www.facebook.com/reel/26519773847685496"
     raw_ipc = f"{chunk_url}|Mozilla/5.0||{referrer}|1|720p|Facebook|271956|271 KB"
 
-    with patch.object(mw, "open_media_downloader") as mock_open:
+    with patch.object(mw, "start_media_download") as mock_start:
         mw.process_incoming_url(raw_ipc)
-        assert mock_open.called
-        call_kwargs = mock_open.call_args[1]
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
         assert call_kwargs["url"] == referrer
-        assert call_kwargs["custom_title"] == ""
+        assert "26519773847685496" in call_kwargs["filename"]
+        assert "[720p]" in call_kwargs["filename"]
 
     mw.close()
 
 
 def test_process_incoming_url_auto_start_media_option_check(qapp):
-    """Verify MainWindow.process_incoming_url obeys auto_start_media option check."""
+    """Verify MainWindow.process_incoming_url obeys auto_start_media option for popup direct download and context menu."""
     from ui.main_window import MainWindow
     from unittest.mock import patch
 
     mw = MainWindow()
-    raw_ipc = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|cookie_abc|https://www.youtube.com|1|1080p|Sample Title|1024|1 KB"
+    # 1. When triggered from media popup (is_media_flag = 1) -> start_media_download directly
+    raw_ipc_popup = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|cookie_abc|https://www.youtube.com|1|1080p|Sample Title|1024|1 KB"
 
-    # 1. When auto_start_media is False (default)
+    with patch("core.config.load_category_config", return_value={"media_downloader_defaults": {"auto_start_media": False}}), \
+         patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_popup)
+        assert mock_start.called
+        assert mock_start.call_args[1]["show_file_info"] is True
+
+    with patch("core.config.load_category_config", return_value={"media_downloader_defaults": {"auto_start_media": True}}), \
+         patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_popup)
+        assert mock_start.called
+        assert mock_start.call_args[1]["show_file_info"] is False
+
+    # 2. When triggered from context menu (is_media_flag = 0) -> open_media_downloader with auto_analyze=True
+    raw_ipc_context = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|cookie_abc|https://www.youtube.com"
+
     with patch("core.config.load_category_config", return_value={"media_downloader_defaults": {"auto_start_media": False}}), \
          patch.object(mw, "open_media_downloader") as mock_open:
-        mw.process_incoming_url(raw_ipc)
+        mw.process_incoming_url(raw_ipc_context)
         assert mock_open.called
         assert mock_open.call_args[1]["auto_start"] is False
-        assert mock_open.call_args[1]["target_preset"] == "1080p"
+        assert mock_open.call_args[1]["auto_analyze"] is True
 
-    # 2. When auto_start_media is True
     with patch("core.config.load_category_config", return_value={"media_downloader_defaults": {"auto_start_media": True}}), \
          patch.object(mw, "open_media_downloader") as mock_open:
-        mw.process_incoming_url(raw_ipc)
+        mw.process_incoming_url(raw_ipc_context)
         assert mock_open.called
         assert mock_open.call_args[1]["auto_start"] is True
-        assert mock_open.call_args[1]["target_preset"] == "1080p"
+        assert mock_open.call_args[1]["auto_analyze"] is True
 
     mw.close()
 
@@ -1097,23 +1114,42 @@ def test_process_incoming_url_cookies_option_vs_browser_check(qapp, tmp_path):
     from unittest.mock import patch
 
     mw = MainWindow()
-    raw_ipc = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|browser_cookie=yes|https://www.youtube.com|1|1080p|Sample Title|1024|1 KB"
+    raw_ipc_popup = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|browser_cookie=yes|https://www.youtube.com|1|1080p|Sample Title|1024|1 KB"
+    raw_ipc_context = "https://www.youtube.com/watch?v=sample123|Mozilla/5.0|browser_cookie=yes|https://www.youtube.com"
 
-    # 1. When cookies.txt in options is empty -> browser cookies used
+    # 1. Media Popup: When cookies.txt in options is empty -> browser cookies used
+    with patch("core.config.load_category_config", return_value={"media_downloader_cookies_path": ""}), \
+         patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_popup)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["cookies"] == "browser_cookie=yes"
+        assert call_kwargs["cookies_file"] is None
+
+    # 2. Media Popup: When cookies.txt in options is set and exists -> cookies.txt file used
+    fake_cookies = tmp_path / "opt_cookies.txt"
+    fake_cookies.write_text("# Netscape cookies\n")
+    with patch("core.config.load_category_config", return_value={"media_downloader_cookies_path": str(fake_cookies)}), \
+         patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_popup)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["cookies_file"] == str(fake_cookies)
+        assert call_kwargs["cookies"] is None
+
+    # 3. Context Menu: When cookies.txt in options is empty -> browser cookies passed to open_media_downloader
     with patch("core.config.load_category_config", return_value={"media_downloader_cookies_path": ""}), \
          patch.object(mw, "open_media_downloader") as mock_open:
-        mw.process_incoming_url(raw_ipc)
+        mw.process_incoming_url(raw_ipc_context)
         assert mock_open.called
         call_kwargs = mock_open.call_args[1]
         assert call_kwargs["cookies"] == "browser_cookie=yes"
         assert call_kwargs["cookies_file"] is None
 
-    # 2. When cookies.txt in options is set and exists -> cookies.txt file used
-    fake_cookies = tmp_path / "opt_cookies.txt"
-    fake_cookies.write_text("# Netscape cookies\n")
+    # 4. Context Menu: When cookies.txt in options is set -> cookies.txt passed to open_media_downloader
     with patch("core.config.load_category_config", return_value={"media_downloader_cookies_path": str(fake_cookies)}), \
          patch.object(mw, "open_media_downloader") as mock_open:
-        mw.process_incoming_url(raw_ipc)
+        mw.process_incoming_url(raw_ipc_context)
         assert mock_open.called
         call_kwargs = mock_open.call_args[1]
         assert call_kwargs["cookies_file"] == str(fake_cookies)

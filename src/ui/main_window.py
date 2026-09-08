@@ -3148,20 +3148,64 @@ class MainWindow(QMainWindow):
                 effective_cookies_file = None
                 effective_cookies = cookies
 
-            try:
-                self.open_media_downloader(
+            if is_media_flag:
+                # Direct download from media popup selecting resolution, skipping analysis
+                is_audio = bool(
+                    "audio" in selected_quality.lower() or 
+                    "mp3" in selected_quality.lower() or 
+                    "opus" in selected_quality.lower()
+                )
+                m_h = re.search(r"(\d{3,4})", selected_quality)
+                height = int(m_h.group(1)) if m_h else None
+
+                if is_audio:
+                    format_spec = "bestaudio/best"
+                    ext = ".mp3" if "mp3" in selected_quality.lower() else ".opus"
+                elif height:
+                    format_spec = f"bestvideo[height<={height}]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                    ext = ".mkv"
+                else:
+                    format_spec = "bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+                    ext = ".mkv"
+
+                # Construct appropriate filename
+                from core.utils import sanitize_media_filename
+                title = custom_title.strip() if custom_title and not is_generic_media_title(custom_title) else ""
+                video_id = ""
+                m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
+                if m_yt:
+                    video_id = m_yt.group(1)
+                elif referrer:
+                    m_ref = re.search(r"/(?:reel|reels|watch|videos?|p|v|status)/([A-Za-z0-9_-]+)", referrer)
+                    if m_ref:
+                        video_id = m_ref.group(1)
+
+                if not title:
+                    title = f"video_{video_id}" if video_id else "video"
+
+                if video_id:
+                    full_title = f"{title} [{video_id}]" if is_audio else (f"{title} [{video_id}] [{height}p]" if height else f"{title} [{video_id}]")
+                elif height and not is_audio:
+                    full_title = f"{title} [{height}p]"
+                else:
+                    full_title = title
+                filename = sanitize_media_filename(full_title, ext=ext)
+
+                self.start_media_download(
                     url=url,
-                    auto_analyze=True,
-                    auto_start=auto_start,
-                    target_preset=target_preset,
+                    filename=filename,
+                    format_spec=format_spec,
+                    is_audio_only=is_audio,
+                    cookies_file=effective_cookies_file,
+                    total_size_bytes=size_bytes,
                     referrer=referrer,
                     user_agent=user_agent,
-                    custom_title=custom_title,
-                    cookies=effective_cookies,
-                    estimated_size_bytes=size_bytes,
-                    cookies_file=effective_cookies_file
+                    show_file_info=not auto_start,
+                    cookies=effective_cookies
                 )
-            except TypeError:
+                return
+            else:
+                # Send link from context menu or raw URL: open media downloader and analyze
                 try:
                     self.open_media_downloader(
                         url=url,
@@ -3172,7 +3216,8 @@ class MainWindow(QMainWindow):
                         user_agent=user_agent,
                         custom_title=custom_title,
                         cookies=effective_cookies,
-                        estimated_size_bytes=size_bytes
+                        estimated_size_bytes=size_bytes,
+                        cookies_file=effective_cookies_file
                     )
                 except TypeError:
                     try:
@@ -3183,7 +3228,9 @@ class MainWindow(QMainWindow):
                             target_preset=target_preset,
                             referrer=referrer,
                             user_agent=user_agent,
-                            custom_title=custom_title
+                            custom_title=custom_title,
+                            cookies=effective_cookies,
+                            estimated_size_bytes=size_bytes
                         )
                     except TypeError:
                         try:
@@ -3193,16 +3240,27 @@ class MainWindow(QMainWindow):
                                 auto_start=auto_start,
                                 target_preset=target_preset,
                                 referrer=referrer,
-                                user_agent=user_agent
+                                user_agent=user_agent,
+                                custom_title=custom_title
                             )
                         except TypeError:
-                            self.open_media_downloader(
-                                url=url,
-                                auto_analyze=True,
-                                auto_start=auto_start,
-                                target_preset=target_preset
-                            )
-            return
+                            try:
+                                self.open_media_downloader(
+                                    url=url,
+                                    auto_analyze=True,
+                                    auto_start=auto_start,
+                                    target_preset=target_preset,
+                                    referrer=referrer,
+                                    user_agent=user_agent
+                                )
+                            except TypeError:
+                                self.open_media_downloader(
+                                    url=url,
+                                    auto_analyze=True,
+                                    auto_start=auto_start,
+                                    target_preset=target_preset
+                                )
+                return
 
         GENERIC_ENDPOINTS = {"uc", "download", "get", "fetch", "file", "files", "attachment", "export", "dl", "release", "index.php", "index.html", "view"}
 
