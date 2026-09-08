@@ -1518,15 +1518,8 @@
     const slug = getSlugFromUrl(window.location.href) || ((cachedTabInfo && cachedTabInfo.url) ? getSlugFromUrl(cachedTabInfo.url) : "");
     if (slug && !isGenericTitle(slug)) return slug;
 
-    // Extract ID-based title for TikTok: @userid/video/123456789 -> userid-123456789
-    const testUrls = [window.location.href, (cachedTabInfo && cachedTabInfo.url) || ""];
+    // Extract ID-based title for Twitter or generic platforms
     for (const u of testUrls) {
-      if (u && u.includes('tiktok.com')) {
-        const m = u.match(/@([^/?#&]+)\/(?:video|v)\/(\d+)/i);
-        if (m) {
-          return `${m[1]}_${m[2]}`;
-        }
-      }
       if (u && (u.includes('twitter.com') || u.includes('x.com'))) {
         const m = u.match(/([^/?#&]+)\/status\/(\d+)/i);
         if (m && !['home', 'explore', 'messages', 'i'].includes(m[1].toLowerCase())) {
