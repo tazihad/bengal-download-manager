@@ -921,3 +921,121 @@ def test_cookies_txt_in_option_empty_uses_browser_cookies(tmp_path):
         assert "--cookies" in cmd or any(a.startswith("Cookie:") for a in cmd)
 
 
+def test_try_extract_stream_fallback_direct_video_tag(tmp_path):
+    """Verify that _try_extract_stream_fallback extracts stream from <video src=...> or <source src=...>."""
+    worker = YtDlpDownloadWorker(
+        url="https://playmate.to/embed/xyz123",
+        row_index=0,
+        save_dir=str(tmp_path)
+    )
+
+    mock_html = """
+    <html>
+        <body>
+            <video src="https://cdn.example.com/videos/stream.mp4"></video>
+        </body>
+    </html>
+    """.encode("utf-8")
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = mock_html
+    mock_resp.headers.get_content_charset.return_value = "utf-8"
+    mock_resp.__enter__.return_value = mock_resp
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = worker._try_extract_stream_fallback("https://playmate.to/embed/xyz123")
+        assert res == "https://cdn.example.com/videos/stream.mp4"
+
+
+def test_try_extract_stream_fallback_m3u8_and_iframe(tmp_path):
+    """Verify that _try_extract_stream_fallback finds m3u8 playlists and searches iframes."""
+    worker = YtDlpDownloadWorker(
+        url="https://external.site/watch/123",
+        row_index=0,
+        save_dir=str(tmp_path)
+    )
+
+    page_html = """
+    <html>
+        <body>
+            <iframe src="https://external.site/embed/123"></iframe>
+        </body>
+    </html>
+    """.encode("utf-8")
+
+    embed_html = """
+    <html>
+        <script>
+            var playerConfig = {
+                file: "https://stream.cdn.net/hls/master.m3u8"
+            };
+        </script>
+    </html>
+    """.encode("utf-8")
+
+    def mock_urlopen(req, *args, **kwargs):
+        resp = MagicMock()
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "watch" in url:
+            resp.read.return_value = page_html
+        else:
+            resp.read.return_value = embed_html
+        resp.headers.get_content_charset.return_value = "utf-8"
+        resp.__enter__.return_value = resp
+        return resp
+
+    with patch("urllib.request.urlopen", side_effect=mock_urlopen):
+        res = worker._try_extract_stream_fallback("https://external.site/watch/123")
+        assert res == "https://stream.cdn.net/hls/master.m3u8"
+
+
+def test_ytdlp_worker_unsupported_url_triggers_fallback_retry(tmp_path):
+    """Verify that YtDlpDownloadWorker triggers stream fallback and retries when yt-dlp fails with Unsupported URL."""
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    test_file = tmp_path / "fallback_media.mp4"
+    test_file.write_bytes(b"data")
+
+    # First run fails with Unsupported URL, second run (with fallback stream) succeeds
+    mock_proc_fail = MagicMock()
+    mock_proc_fail.stdout = [
+        "ERROR: Unsupported URL: https://playmate.to/embed/HPF5phO6YPN3\n"
+    ]
+    mock_proc_fail.returncode = 1
+    mock_proc_fail.wait.return_value = 1
+
+    mock_proc_success = MagicMock()
+    mock_proc_success.stdout = [
+        f"[download] Destination: {str(test_file)}\n",
+        "[download] 100% of 4.00B at 1.00MiB/s ETA 00:00\n",
+    ]
+    mock_proc_success.returncode = 0
+    mock_proc_success.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://playmate.to/embed/HPF5phO6YPN3",
+        row_index=0,
+        save_dir=str(tmp_path),
+        filename="fallback_media.mp4"
+    )
+
+    fallback_stream_url = "https://cdn.example.com/hls/master.m3u8"
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={}), \
+         patch.object(worker, "_try_extract_stream_fallback", return_value=fallback_stream_url) as mock_extract, \
+         patch("subprocess.Popen", side_effect=[mock_proc_fail, mock_proc_success]) as mock_popen:
+
+        worker.run()
+
+        # Verify fallback was invoked
+        mock_extract.assert_called_once_with("https://playmate.to/embed/HPF5phO6YPN3")
+        assert mock_popen.call_count == 2
+        second_cmd = mock_popen.call_args_list[1][0][0]
+        # The second run used the fallback stream URL
+        assert fallback_stream_url in second_cmd
+
+

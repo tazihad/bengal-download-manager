@@ -911,6 +911,111 @@ class YtDlpDownloadWorker(QThread):
     def format_bytes_str(self, size: float) -> str:
         return self.format_bytes(size, precision=2, pad=False).replace("  ", " ")
 
+    def _try_extract_stream_fallback(self, target_url: str) -> str | None:
+        """Fallback extractor for generic / external streaming sites that yt-dlp
+        does not have a dedicated extractor for (e.g. playmate.to, sxyprn.net).
+        Attempts to scrape video/source tags, embedded m3u8/mpd/mp4/vid streams,
+        or iframe embeds.
+        """
+        if not target_url or not target_url.startswith(("http://", "https://")):
+            return None
+        import urllib.request
+        import urllib.parse
+        import ssl
+        import re
+
+        logger.info("[YtDlpDownload] Attempting fallback HTML stream extraction for %s", target_url)
+        self.log_signal.emit(f"Attempting fallback stream extraction for {target_url}...")
+
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        headers = {
+            "User-Agent": self.user_agent or "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if self.referrer:
+            headers["Referer"] = self.referrer
+        elif target_url:
+            headers["Referer"] = target_url
+
+        if getattr(self, "cookies", None) and isinstance(self.cookies, str):
+            headers["Cookie"] = self.cookies
+
+        urls_to_scan = [target_url]
+        scanned = set()
+        preview_patterns = (
+            "vidthumb", "thumb_preview", "hover_preview", "preview_video",
+            "preview.mp4", "trailer_preview", "storyboard", "_preview.",
+            "/preview/", "/thumbnails/"
+        )
+
+        while urls_to_scan:
+            current_url = urls_to_scan.pop(0)
+            if current_url in scanned:
+                continue
+            scanned.add(current_url)
+
+            try:
+                req = urllib.request.Request(current_url, headers=headers)
+                with urllib.request.urlopen(req, context=ctx, timeout=12) as resp:
+                    raw_content = resp.read()
+                    charset = resp.headers.get_content_charset() or "utf-8"
+                    html = raw_content.decode(charset, errors="ignore")
+            except Exception as e:
+                logger.debug("[YtDlpDownload] Fallback extractor failed to fetch %s: %s", current_url, e)
+                continue
+
+            # 1. Look for direct video/source tags
+            media_srcs = re.findall(r'<(?:video|source)\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            for m in media_srcs:
+                full_m = urllib.parse.urljoin(current_url, m.strip())
+                if full_m.startswith(("http://", "https://")) and not any(p in full_m.lower() for p in preview_patterns):
+                    if re.search(r'\.(?:m3u8|mpd|mp4|webm|vid|mkv)(\?|$)', full_m, re.IGNORECASE):
+                        return full_m
+
+            # 2. Look for JS stream references or config objects
+            js_stream_matches = re.findall(
+                r'(?:file|source|video_url|stream_url|contentUrl|src)["\']?\s*[:=]\s*["\'](https?://[^"\'\s<>]+\.(?:m3u8|mpd|mp4|webm|vid)[^"\'\s<>]*)["\']',
+                html,
+                re.IGNORECASE
+            )
+            for m in js_stream_matches:
+                clean_m = m.replace("\\/", "/").strip()
+                if not any(p in clean_m.lower() for p in preview_patterns):
+                    return clean_m
+
+            # 3. Regex scan for any direct .m3u8 / .mpd / .mp4 / .vid URLs in the response
+            all_media_urls = re.findall(r'https?://[^"\'\s<>]+\.(?:m3u8|mpd|mp4|webm|vid)[^"\'\s<>]*', html, re.IGNORECASE)
+            valid_candidates = []
+            for m in all_media_urls:
+                clean_m = m.replace("\\/", "/").strip()
+                if not any(p in clean_m.lower() for p in preview_patterns):
+                    valid_candidates.append(clean_m)
+
+            if valid_candidates:
+                master = next((c for c in valid_candidates if "master.m3u8" in c.lower() or "master.mpd" in c.lower()), None)
+                if master:
+                    return master
+                hls = next((c for c in valid_candidates if ".m3u8" in c.lower() or ".mpd" in c.lower()), None)
+                if hls:
+                    return hls
+                return valid_candidates[0]
+
+            # 4. If nothing found yet, check for iframe embeds to scan (depth 1)
+            if len(scanned) <= 2:
+                iframe_srcs = re.findall(r'<iframe\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
+                for if_src in iframe_srcs:
+                    full_if = urllib.parse.urljoin(current_url, if_src.strip())
+                    if full_if.startswith(("http://", "https://")) and full_if not in scanned:
+                        lower_if = full_if.lower()
+                        if not any(ad in lower_if for ad in ("google", "doubleclick", "adservice", "analytics", "facebook")):
+                            urls_to_scan.append(full_if)
+
+        return None
+
     def run(self):
         try:
             bin_path = YtDlpManager.ensure_binary()
@@ -1292,6 +1397,25 @@ class YtDlpDownloadWorker(QThread):
                     self.finished_signal.emit(self.row_index, final_path or "Complete")
                     break
                 else:
+                    error_blob = " ".join(collected_errors).lower()
+                    is_unsupported = any(e in error_blob for e in ("unsupported url", "is not a valid url", "unsupportedurl"))
+                    if is_unsupported and not getattr(self, "_fallback_attempted", False):
+                        self._fallback_attempted = True
+                        fallback_stream = self._try_extract_stream_fallback(self.url)
+                        if fallback_stream and fallback_stream != self.url:
+                            logger.info("[YtDlpDownload] Unsupported URL fallback found media stream: %s. Retrying download...", fallback_stream)
+                            self.log_signal.emit(f"Fallback extracted stream: {fallback_stream}, retrying...")
+                            if not self.referrer:
+                                self.referrer = self.url
+                            self.url = fallback_stream
+                            if temp_cookies_file and os.path.exists(temp_cookies_file):
+                                try:
+                                    os.remove(temp_cookies_file)
+                                except Exception:
+                                    pass
+                                temp_cookies_file = None
+                            return self.run()
+
                     logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
                     self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
                     data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)

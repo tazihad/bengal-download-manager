@@ -1516,26 +1516,30 @@
       }
     }
 
-    // B. If an HLS (m3u8) or DASH stream was sniffed for this tab (only on generic sites)
+    // B. If an HLS (m3u8), DASH, or direct media stream was sniffed for this tab (only on generic sites)
     const isPopular = isPopularMediaHost(window.location.hostname);
     if (!isPopular) {
       const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
       const m3u8Stream = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
-      if (m3u8Stream) {
+      const directStream = sniffedMediaStreams.slice().reverse().find(s => /\.(mp4|webm|vid|mkv)(\?|$)/i.test(s.url) || (s.contentType && s.contentType.includes('video/')));
+      const streamCandidate = m3u8Stream || directStream || (activeIframeData && activeIframeData.streamUrl ? { url: activeIframeData.streamUrl } : null);
+
+      if (streamCandidate) {
         const vh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 720;
         const resLabel = vh >= 1080 ? '1080p Full HD' : (vh >= 720 ? '720p HD' : (vh >= 480 ? '480p SD' : `${vh}p`));
         const resBadge = vh >= 1080 ? '1080p' : (vh >= 720 ? '720p' : (vh >= 480 ? '480p' : `${vh}p`));
         const resCls = vh >= 720 ? 'hd' : '';
+        const tag = m3u8Stream ? '(HLS Stream)' : '(Media Stream)';
 
         return [
           {
-            quality: `${resBadge} (HLS Stream)`,
+            quality: `${resBadge} ${tag}`,
             badge: resBadge,
-            label: `${resLabel} (HLS Stream)`,
+            label: `${resLabel} ${tag}`,
             height: vh,
             bitrate: vh >= 1080 ? 5000 : 2500,
             cls: resCls,
-            streamUrl: m3u8Stream.url,
+            streamUrl: streamCandidate.url,
             sizeBytes: estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
             size: estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
           },
@@ -1547,7 +1551,7 @@
             bitrate: 192,
             cls: 'audio',
             isAudio: true,
-            streamUrl: m3u8Stream.url,
+            streamUrl: streamCandidate.url,
             sizeBytes: estimateFileSizeBytes(duration, 192),
             size: estimateFileSize(duration, 192, true)
           }
@@ -1666,12 +1670,15 @@
         // 2. Sniffed m3u8 or media stream from background (prefer master playlist)
         const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
         const m3u8 = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
-        targetUrl = m3u8 ? m3u8.url : sniffedMediaStreams[0].url;
+        const direct = sniffedMediaStreams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url));
+        targetUrl = m3u8 ? m3u8.url : (direct ? direct.url : sniffedMediaStreams[0].url);
       } else if (activeIframeData && activeIframeData.currentSrc && (activeIframeData.currentSrc.startsWith('http://') || activeIframeData.currentSrc.startsWith('https://'))) {
         targetUrl = activeIframeData.currentSrc;
-      } else if (activeVideo.currentSrc && (activeVideo.currentSrc.startsWith('http://') || activeVideo.currentSrc.startsWith('https://'))) {
+      } else if (activeIframeData && activeIframeData.streamUrl && (activeIframeData.streamUrl.startsWith('http://') || activeIframeData.streamUrl.startsWith('https://'))) {
+        targetUrl = activeIframeData.streamUrl;
+      } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && (activeVideo.currentSrc.startsWith('http://') || activeVideo.currentSrc.startsWith('https://'))) {
         targetUrl = activeVideo.currentSrc;
-      } else if (activeVideo.src && (activeVideo.src.startsWith('http://') || activeVideo.src.startsWith('https://'))) {
+      } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && (activeVideo.src.startsWith('http://') || activeVideo.src.startsWith('https://'))) {
         targetUrl = activeVideo.src;
       } else if (cachedTabInfo && cachedTabInfo.url && isCanonicalMediaPage(cachedTabInfo.url)) {
         targetUrl = cachedTabInfo.url;
@@ -1681,7 +1688,13 @@
     }
 
     if (!targetUrl) {
-      targetUrl = activeVideo.currentSrc || activeVideo.src || window.location.href;
+      if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && activeVideo.currentSrc.startsWith('http')) {
+        targetUrl = activeVideo.currentSrc;
+      } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && activeVideo.src.startsWith('http')) {
+        targetUrl = activeVideo.src;
+      } else {
+        targetUrl = window.location.href;
+      }
     }
 
     footerEl.classList.add('opening');

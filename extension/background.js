@@ -655,9 +655,33 @@ if (chrome.tabs && chrome.tabs.onRemoved) {
 }
 
 // Dynamic media config, synchronized from Bengal DM app (or default fallback)
+const POPULAR_MEDIA_HOSTS = [
+  'youtube.com', 'youtu.be',
+  'facebook.com', 'fb.watch', 'fb.com',
+  'instagram.com',
+  'tiktok.com',
+  'twitter.com', 'x.com',
+  'reddit.com',
+  'vimeo.com',
+  'dailymotion.com',
+  'twitch.tv',
+  'bilibili.com',
+  'soundcloud.com',
+  'rumble.com',
+  'kick.com',
+  'streamable.com',
+  'pinterest.com'
+];
+
+function isPopularMediaHost(hostname) {
+  if (!hostname) return false;
+  const host = hostname.toLowerCase();
+  return POPULAR_MEDIA_HOSTS.some(h => host === h || host.endsWith('.' + h));
+}
+
 const dynamicMediaConfig = {
-  mediaTypes: ['application/x-mpegurl', 'application/vnd.apple.mpegurl', 'application/dash+xml', 'video/mp4', 'video/webm'],
-  mediaExts: ['m3u8', 'mpd', 'mp4', 'webm', 'mkv', 'flv'],
+  mediaTypes: ['application/x-mpegurl', 'application/vnd.apple.mpegurl', 'application/dash+xml', 'video/mp4', 'video/webm', 'video/', 'audio/'],
+  mediaExts: ['m3u8', 'mpd', 'mp4', 'webm', 'mkv', 'flv', 'vid', 'm4s', 'ts', 'f4v'],
   matchingHosts: [],
   blockedHosts: ['127.0.0.1', 'localhost', 'googlevideo.com']
 };
@@ -1314,7 +1338,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
 
       if (request.isMedia || isMediaUrl(request.url)) {
-        const cleanUrl = isMediaUrl(request.url) ? sanitizeMediaUrl(request.url) : request.url;
+        let cleanUrl = isMediaUrl(request.url) ? sanitizeMediaUrl(request.url) : request.url;
+
+        // Fallback: If cleanUrl points to an external domain (NOT a popular platform)
+        // and does NOT look like a direct streaming media file (e.g. it's an HTML page or iframe embed),
+        // check if tabMediaStreams has sniffed the real video stream for this tab.
+        try {
+          const parsedUrl = new URL(cleanUrl);
+          const host = parsedUrl.hostname.toLowerCase();
+          const isPopular = isPopularMediaHost(host);
+          const isDirectStream = isStreamingMedia(cleanUrl) || /\.(m3u8|mpd|mp4|webm|mkv|flv|vid|m4s)(\?|$)/i.test(parsedUrl.pathname);
+
+          if (!isPopular && !isDirectStream && sender && sender.tab && sender.tab.id) {
+            const streams = tabMediaStreams.get(sender.tab.id) || [];
+            if (streams.length > 0) {
+              const masterStream = streams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+              const playlistStream = streams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+              const directStream = streams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url) || (s.contentType && s.contentType.includes('video/')));
+              const best = masterStream || playlistStream || directStream || streams[streams.length - 1];
+              if (best && best.url) {
+                if (!request.referrer) {
+                  request.referrer = cleanUrl;
+                }
+                cleanUrl = best.url;
+              }
+            }
+          }
+        } catch (e) {}
+
         markRecentlySent(cleanUrl);
         const success = await sendToBengalDM({
           url: cleanUrl,
