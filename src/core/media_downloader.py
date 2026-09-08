@@ -1028,7 +1028,13 @@ class YtDlpDownloadWorker(QThread):
             has_brackets = bool(clean_base and "[" in clean_base and "]" in clean_base)
             is_generic = is_generic_media_title(clean_base)
 
-            if is_generic and not has_brackets:
+            is_instagram = bool((self.url and "instagram.com" in self.url.lower()) or (self.referrer and "instagram.com" in self.referrer.lower()))
+            m_ig_id = re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", self.url or (self.referrer or ""))
+            ig_vid = m_ig_id.group(1) if m_ig_id else ""
+
+            if is_instagram and (not clean_base or is_generic or clean_base == ig_vid):
+                output_tmpl = os.path.join(self.save_dir, "%(channel,uploader)s-%(id)s.%(ext)s")
+            elif is_generic and not has_brackets:
                 if self.is_audio_only:
                     output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
                 else:

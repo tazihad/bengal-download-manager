@@ -1844,7 +1844,45 @@ class MediaDownloaderDialog(QDialog):
                 if m_yt:
                     video_id = m_yt.group(1)
 
-            if (is_youtube or is_popular_platform) and video_id:
+            is_tiktok = ("tiktok.com" in webpage_url.lower() or
+                         self._current_video_data.get("extractor", "").lower() == "tiktok" or
+                         "tiktok" in self._current_video_data.get("extractor_key", "").lower())
+            is_instagram = ("instagram.com" in webpage_url.lower() or
+                            self._current_video_data.get("extractor", "").lower() == "instagram" or
+                            "instagram" in self._current_video_data.get("extractor_key", "").lower())
+            is_facebook = (any(d in webpage_url.lower() for d in ("facebook.com", "fb.watch", "fb.com")) or
+                           self._current_video_data.get("extractor", "").lower() == "facebook" or
+                           "facebook" in self._current_video_data.get("extractor_key", "").lower())
+
+            if is_tiktok:
+                v_id = self._current_video_data.get("id") or ""
+                u = self._current_video_data.get("uploader_id") or self._current_video_data.get("uploader") or ""
+                if not u or u.lower() == "unknown":
+                    m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", webpage_url)
+                    if m_tt:
+                        u = m_tt.group(1)
+                        if not v_id: v_id = m_tt.group(2)
+                filename = sanitize_media_filename(f"{u}_{v_id}" if (u and v_id) else (v_id or title), ext=ext)
+            elif is_instagram:
+                v_id = self._current_video_data.get("id") or ""
+                u = self._current_video_data.get("channel") or self._current_video_data.get("uploader") or ""
+                if not u or u.lower() == "unknown":
+                    m_ig_u = re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", webpage_url)
+                    if m_ig_u and m_ig_u.group(1).lower() not in ('reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct', 'accounts'):
+                        u = m_ig_u.group(1)
+                        if not v_id: v_id = m_ig_u.group(2)
+                if not u or u.lower() == "unknown":
+                    m_by = re.search(r"(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)", yt_title, re.I)
+                    if m_by:
+                        u = m_by.group(1)
+                filename = sanitize_media_filename(f"{u}-{v_id}" if (u and v_id) else (v_id or title), ext=ext)
+            elif is_facebook:
+                v_id = self._current_video_data.get("id") or ""
+                if not v_id:
+                    m_fb = re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", webpage_url) or re.search(r"[?&]v=(\d+)", webpage_url)
+                    if m_fb: v_id = m_fb.group(1)
+                filename = sanitize_media_filename(v_id or title, ext=ext)
+            elif (is_youtube or is_popular_platform) and video_id:
                 clean_title = title.strip()
                 if is_audio_only:
                     full_title = f"{clean_title} [{video_id}]"

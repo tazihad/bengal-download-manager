@@ -3183,16 +3183,16 @@ class MainWindow(QMainWindow):
                     video_id = title
                     is_special_case = True
 
-                # 2. Instagram: /<username>/reels/<id> or /reels/<id> -> username_urlid
+                # 2. Instagram: /<username>/reels/<id> or /reels/<id> -> username-urlid (e.g. filmygyan-Dc_7ZNGChot)
                 if not is_special_case:
                     m_ig_user = (
                         re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", url or "") or
                         (re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", referrer or "") if referrer else None)
                     )
-                    if m_ig_user and m_ig_user.group(1).lower() not in ('reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct'):
+                    if m_ig_user and m_ig_user.group(1).lower() not in ('reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct', 'accounts'):
                         username = m_ig_user.group(1)
                         v_id = m_ig_user.group(2)
-                        title = f"{username}_{v_id}"
+                        title = f"{username}-{v_id}"
                         video_id = title
                         is_special_case = True
                     else:
@@ -3202,11 +3202,17 @@ class MainWindow(QMainWindow):
                         )
                         if m_ig:
                             v_id = m_ig.group(1)
-                            if title and title.endswith(f"_{v_id}"):
+                            if title and (title.endswith(f"-{v_id}") or title.endswith(f"_{v_id}")):
+                                u = re.split(r"[-_]", title)[0]
+                                title = f"{u}-{v_id}"
                                 video_id = title
-                            elif title and not is_generic_media_title(title) and title != v_id:
-                                clean_u = title.split("_")[0] if "_" in title else title
-                                title = f"{clean_u}_{v_id}"
+                            elif title and not is_generic_media_title(title) and title != v_id and not title.lower().startswith("instagram"):
+                                m_by = re.search(r"(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)", title, re.I)
+                                if m_by:
+                                    clean_u = m_by.group(1)
+                                else:
+                                    clean_u = re.split(r"[-_]", title)[0]
+                                title = f"{clean_u}-{v_id}"
                                 video_id = title
                             else:
                                 title = v_id
@@ -4851,8 +4857,8 @@ class MainWindow(QMainWindow):
                 re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", url or "") or
                 (re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", referrer or "") if referrer else None)
             )
-            if m_ig_user and m_ig_user.group(1).lower() not in ('reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct'):
-                base_name = f"{m_ig_user.group(1)}_{m_ig_user.group(2)}"
+            if m_ig_user and m_ig_user.group(1).lower() not in ('reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct', 'accounts'):
+                base_name = f"{m_ig_user.group(1)}-{m_ig_user.group(2)}"
             else:
                 m_ig = (
                     re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", url or "") or
@@ -4860,11 +4866,16 @@ class MainWindow(QMainWindow):
                 )
                 if m_ig:
                     v_id = m_ig.group(1)
-                    if base_name and base_name.endswith(f"_{v_id}"):
-                        pass
+                    if base_name and (base_name.endswith(f"-{v_id}") or base_name.endswith(f"_{v_id}")):
+                        u = re.split(r"[-_]", base_name)[0]
+                        base_name = f"{u}-{v_id}"
                     elif base_name and base_name != v_id and not is_generic_media_title(base_name) and not base_name.lower().startswith("instagram"):
-                        clean_u = base_name.split("_")[0] if "_" in base_name else base_name
-                        base_name = f"{clean_u}_{v_id}"
+                        m_by = re.search(r"(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)", base_name, re.I)
+                        if m_by:
+                            clean_u = m_by.group(1)
+                        else:
+                            clean_u = re.split(r"[-_]", base_name)[0]
+                        base_name = f"{clean_u}-{v_id}"
                     else:
                         base_name = v_id
         elif is_facebook:
