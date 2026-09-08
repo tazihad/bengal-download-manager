@@ -642,7 +642,12 @@ function recordSniffedMedia(tabId, url, contentType, title) {
     list = [];
     tabMediaStreams.set(tabId, list);
   }
-  if (!list.some(item => item.url === url)) {
+  const existing = list.find(item => item.url === url);
+  if (existing) {
+    if (title && !existing.title) existing.title = title;
+    if (contentType && !existing.contentType) existing.contentType = contentType;
+    existing.timestamp = Date.now();
+  } else {
     list.push({ url, contentType: contentType || "", title: title || "", timestamp: Date.now() });
     if (list.length > 30) list.shift();
   }
@@ -1313,6 +1318,33 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
       const resolved = await resolveDownloadTarget(targetUrl, navigator.userAgent, cookieString);
       if (resolved.isHtmlLanding) {
+        // Fallback check (XDM style): If user right-clicked a page or link that is an HTML landing,
+        // but this tab has sniffed media streams, send the sniffed media stream!
+        const tabStreams = (tab && tab.id) ? (tabMediaStreams.get(tab.id) || []) : [];
+        if (tabStreams.length > 0) {
+          const masterStream = tabStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+          const playlistStream = tabStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+          const directStream = tabStreams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url) || (s.contentType && s.contentType.includes('video/')));
+          const best = masterStream || playlistStream || directStream || tabStreams[tabStreams.length - 1];
+          if (best && best.url) {
+            markRecentlySent(best.url);
+            const success = await sendToBengalDM({
+              url: best.url,
+              userAgent: navigator.userAgent,
+              cookies: sanitizeMediaCookies(cookieString, best.url),
+              referrer: targetUrl,
+              title: (tab && tab.title) ? tab.title : "",
+              filename: (tab && tab.title) ? tab.title : "",
+              isMedia: true
+            });
+            if (success) {
+              notifyUser("Bengal DM", "Media stream sent to Bengal DM!");
+            } else {
+              notifyUser("Bengal DM Error", "Could not send to Bengal DM. Is the application running?");
+            }
+            return;
+          }
+        }
         notifyUser("Bengal DM Warning", "The link is a web page, not a direct download file.");
         return;
       }

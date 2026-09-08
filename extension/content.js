@@ -1234,10 +1234,13 @@
       if (host.includes('youtube.com')) {
         return u.searchParams.has('v') || path.includes('/shorts/') || path.includes('/embed/') || path.includes('/watch');
       }
+      if (host.includes('reddit.com')) {
+        return path.includes('/comments/');
+      }
       if (isPopularMediaHost(host)) {
         return path.length > 1;
       }
-      return /\.(m3u8|mpd|mp4|webm|mkv|flv|vid|m4s)(\?|$)/i.test(path);
+      return path.length > 1;
     } catch (e) {
       return false;
     }
