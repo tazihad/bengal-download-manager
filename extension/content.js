@@ -1068,9 +1068,16 @@
     e.stopPropagation();
     e.preventDefault();
     if (activeVideo) {
+      dismissedVideos.add(activeVideo);
       dismissedVideos.add(getVideoKey(activeVideo));
     }
-    hideWidget();
+    if (activeIframeVideo) {
+      dismissedVideos.add(activeIframeVideo);
+      dismissedVideos.add(getVideoKey(activeIframeVideo));
+    }
+    hideWidget('user_dismissed');
+    activeVideo = null;
+    activeIframeVideo = null;
   });
 
   function getVideoKey(video) {
@@ -1094,7 +1101,7 @@
     }
 
     // Dismissed for this session
-    if (dismissedVideos.has(getVideoKey(video))) {
+    if (dismissedVideos.has(video) || dismissedVideos.has(getVideoKey(video))) {
       return false;
     }
 
@@ -2090,6 +2097,26 @@
     resetIdleTimer();
   }
 
+  let videoResizeObserver = null;
+  function observeVideoGeometry(video) {
+    if (videoResizeObserver) {
+      videoResizeObserver.disconnect();
+      videoResizeObserver = null;
+    }
+    if (!video || typeof ResizeObserver === 'undefined') return;
+    try {
+      videoResizeObserver = new ResizeObserver(() => {
+        if (activeVideo === video && root.classList.contains('visible')) {
+          updateWidgetPosition();
+        }
+      });
+      videoResizeObserver.observe(video);
+      if (video.parentElement) {
+        videoResizeObserver.observe(video.parentElement);
+      }
+    } catch (e) {}
+  }
+
   function hideWidget(reason = 'unknown') {
     host.dataset.visible = 'false';
     host.dataset.hideReason = reason;
@@ -2233,25 +2260,7 @@
       }
     }
 
-    let videoResizeObserver = null;
-    function observeVideoGeometry(video) {
-      if (videoResizeObserver) {
-        videoResizeObserver.disconnect();
-        videoResizeObserver = null;
-      }
-      if (!video || typeof ResizeObserver === 'undefined') return;
-      try {
-        videoResizeObserver = new ResizeObserver(() => {
-          if (activeVideo === video && root.classList.contains('visible')) {
-            updateWidgetPosition();
-          }
-        });
-        videoResizeObserver.observe(video);
-        if (video.parentElement) {
-          videoResizeObserver.observe(video.parentElement);
-        }
-      } catch (e) {}
-    }
+
 
     if (activeVideo !== video) {
       activeVideo = video;
@@ -2274,6 +2283,9 @@
     }
 
     if (activeIframeVideo && (target === activeIframeVideo || (target.contains && target.contains(activeIframeVideo)) || (target.closest && target.closest('#player, .player, .movieplayer, .videocontainer, .playcontainer')))) {
+      if (dismissedVideos.has(activeIframeVideo) || dismissedVideos.has(getVideoKey(activeIframeVideo))) {
+        return;
+      }
       if (!root.classList.contains('visible')) {
         showWidget();
       }
@@ -2391,7 +2403,7 @@
         updateWidgetPosition();
         return;
       }
-      if (!document.contains(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo))) {
+      if (!document.contains(activeVideo) || dismissedVideos.has(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo))) {
         hideWidget();
         activeVideo = null;
       } else if (activeVideo.tagName === 'VIDEO' && !isValidPlayedVideo(activeVideo, true)) {
