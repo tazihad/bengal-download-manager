@@ -674,7 +674,7 @@ class OptionsDialog(QDialog):
 
         layout.addWidget(grp_save)
         
-        grp_temp = QGroupBox("Temporary directory")
+        grp_temp = QGroupBox("Temporary / Cache directory")
         temp_layout = QVBoxLayout(grp_temp)
         temp_layout.setContentsMargins(10, 15, 10, 15)
         temp_layout.setSpacing(10)
@@ -682,11 +682,11 @@ class OptionsDialog(QDialog):
         temp_dir_row = QHBoxLayout()
         self.txt_temp_path = QLineEdit()
         self.txt_temp_path.setText(self.config_data.get("temp_dir", ""))
-        self.txt_temp_path.setToolTip("Temporary directory used for downloading chunks before merging")
+        self.txt_temp_path.setToolTip("Temporary and cache directory used for downloading chunks, video stream fragments, and incomplete downloads before merging")
         temp_dir_row.addWidget(self.txt_temp_path)
         
         btn_browse_temp = QPushButton("Browse")
-        btn_browse_temp.setToolTip("Browse folder for temporary chunk storage")
+        btn_browse_temp.setToolTip("Browse folder for temporary chunk and cache storage")
         btn_browse_temp.clicked.connect(lambda: self.browse_folder(self.txt_temp_path))
         temp_layout.addLayout(temp_dir_row)
         

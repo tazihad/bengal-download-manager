@@ -1662,7 +1662,8 @@ class MainWindow(QMainWindow):
                     is_audio_only = bool(item_name.data(Qt.ItemDataRole.UserRole + 7))
                     cookies_browser = item_name.data(Qt.ItemDataRole.UserRole + 9)
                     cookies_file = item_name.data(Qt.ItemDataRole.UserRole + 10)
-                    raw_cookies = item_name.data(Qt.ItemDataRole.UserRole + 5) or item_name.data(Qt.ItemDataRole.UserRole + 17)
+                    config = load_category_config()
+                    temp_dir = config.get("temp_dir")
                     worker = YtDlpDownloadWorker(
                         url=url,
                         row_index=r,
@@ -1674,7 +1675,8 @@ class MainWindow(QMainWindow):
                         cookies_file=cookies_file,
                         referrer=item_name.data(Qt.ItemDataRole.UserRole + 15),
                         user_agent=item_name.data(Qt.ItemDataRole.UserRole + 16),
-                        cookies=raw_cookies
+                        cookies=raw_cookies,
+                        temp_dir=temp_dir
                     )
                     progress_dialog = DownloadProgressDialog(worker, None)
                     progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
@@ -3560,13 +3562,25 @@ class MainWindow(QMainWindow):
         # Clean all existing partial or target files on disk
         dirs_to_clean = [d for d in [custom_save_dir, temp_dir] if d and os.path.exists(d)]
         for d in dirs_to_clean:
-            for ext_pattern in ["", ".aria2", ".tmpbdm", ".tmpbdm.bdmx"]:
+            for ext_pattern in ["", ".aria2", ".tmpbdm", ".tmpbdm.bdmx", ".part", ".ytdl"]:
                 fp = os.path.join(d, filename + ext_pattern)
                 if os.path.exists(fp):
                     try:
                         os.remove(fp)
                     except Exception:
                         pass
+            try:
+                clean_base = os.path.splitext(filename)[0] if filename else ""
+                for f in os.listdir(d):
+                    fl = f.lower()
+                    if (".part" in fl or ".frag" in fl or fl.endswith(".ytdl")):
+                        if (filename and filename.lower() in fl) or (clean_base and clean_base.lower() in fl):
+                            try:
+                                os.remove(os.path.join(d, f))
+                            except Exception:
+                                pass
+            except Exception:
+                pass
 
         # Start worker with allow_resume=False for clean restart
         self._start_download_worker(
@@ -3846,6 +3860,9 @@ class MainWindow(QMainWindow):
             raw_cookies = cookies or item_ref.data(Qt.ItemDataRole.UserRole + 5) or item_ref.data(Qt.ItemDataRole.UserRole + 17)
             row = item_ref.row()
 
+            config = load_category_config()
+            temp_dir = config.get("temp_dir")
+
             est_size_str = self.download_table.item(row, 1).text() if self.download_table.item(row, 1) else ""
             est_bytes = parse_size_to_bytes(est_size_str)
             worker = YtDlpDownloadWorker(
@@ -3860,7 +3877,8 @@ class MainWindow(QMainWindow):
                 referrer=referrer or item_ref.data(Qt.ItemDataRole.UserRole + 15),
                 user_agent=user_agent or item_ref.data(Qt.ItemDataRole.UserRole + 16),
                 cookies=raw_cookies,
-                total_bytes=est_bytes
+                total_bytes=est_bytes,
+                temp_dir=temp_dir
             )
             if est_bytes > 0:
                 worker.total_bytes = est_bytes
@@ -4550,6 +4568,25 @@ class MainWindow(QMainWindow):
             try: os.remove(internal_state)
             except: pass
 
+        # 3. yt-dlp partial and fragment files (.part, .ytdl, fragments)
+        clean_base = os.path.splitext(filename)[0] if filename else ""
+        saved_path = item_name.data(Qt.ItemDataRole.UserRole + 1)
+        save_dir = os.path.dirname(saved_path) if saved_path else None
+        dirs_to_clean = [d for d in [temp_dir, save_dir] if d and os.path.exists(d)]
+        for d in dirs_to_clean:
+            try:
+                for f in os.listdir(d):
+                    fl = f.lower()
+                    if not (".part" in fl or ".frag" in fl or fl.endswith(".ytdl")):
+                        continue
+                    if (filename and filename.lower() in fl) or (clean_base and clean_base.lower() in fl):
+                        try:
+                            os.remove(os.path.join(d, f))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
     def clear_finished_downloads(self):
         rows_to_clear = []
         for row in range(self.download_table.rowCount()):
@@ -5152,6 +5189,8 @@ class MainWindow(QMainWindow):
             self.save_data()
             return item_name
 
+        config = load_category_config()
+        temp_dir = config.get("temp_dir")
         worker = YtDlpDownloadWorker(
             url=url,
             row_index=row,
@@ -5164,7 +5203,8 @@ class MainWindow(QMainWindow):
             referrer=referrer,
             user_agent=user_agent,
             cookies=cookies,
-            total_bytes=total_size_bytes
+            total_bytes=total_size_bytes,
+            temp_dir=temp_dir
         )
         if total_size_bytes > 0:
             worker.total_bytes = total_size_bytes
@@ -5243,6 +5283,8 @@ class MainWindow(QMainWindow):
 
             self._set_status_text(row, "Starting...")
             from core.media_downloader import YtDlpDownloadWorker
+            config = load_category_config()
+            temp_dir = config.get("temp_dir")
             worker = YtDlpDownloadWorker(
                 url=file_info["url"],
                 row_index=row,
@@ -5255,7 +5297,8 @@ class MainWindow(QMainWindow):
                 referrer=referrer,
                 user_agent=user_agent,
                 cookies=cookies,
-                total_bytes=file_info.get("size_bytes", 0)
+                total_bytes=file_info.get("size_bytes", 0),
+                temp_dir=temp_dir
             )
             if file_info.get("size_bytes"):
                 worker.total_bytes = file_info["size_bytes"]
@@ -5404,6 +5447,8 @@ class MainWindow(QMainWindow):
                             raw_cookies = item_ref.data(Qt.ItemDataRole.UserRole + 5) or item_ref.data(Qt.ItemDataRole.UserRole + 17)
                             est_size_str = self.download_table.item(r, 1).text() if self.download_table.item(r, 1) else ""
                             est_bytes = parse_size_to_bytes(est_size_str)
+                            config = load_category_config()
+                            temp_dir = config.get("temp_dir")
                             worker = YtDlpDownloadWorker(
                                 url=url,
                                 row_index=r,
@@ -5416,7 +5461,8 @@ class MainWindow(QMainWindow):
                                 referrer=item_ref.data(Qt.ItemDataRole.UserRole + 15),
                                 user_agent=item_ref.data(Qt.ItemDataRole.UserRole + 16),
                                 cookies=raw_cookies,
-                                total_bytes=est_bytes
+                                total_bytes=est_bytes,
+                                temp_dir=temp_dir
                             )
                             if est_bytes > 0:
                                 worker.total_bytes = est_bytes

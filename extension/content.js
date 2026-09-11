@@ -141,6 +141,7 @@
   function notifyTopFrameVideo(video, state = 'playing') {
     if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
     if (window.self === window.top) return;
+    if (dismissedVideos.has(video) || dismissedVideos.has(getVideoKey(video))) return;
     try {
       let streamUrl = '';
       if (sniffedMediaStreams.length > 0) {
@@ -238,6 +239,20 @@
       }
 
       if (targetIframe) {
+        const isDismissed = dismissedVideos.has(targetIframe) ||
+          dismissedVideos.has(getVideoKey(targetIframe)) ||
+          (data.currentSrc && dismissedVideos.has(data.currentSrc)) ||
+          (data.frameUrl && dismissedVideos.has(data.frameUrl)) ||
+          (data.streamUrl && dismissedVideos.has(data.streamUrl));
+
+        if (isDismissed) {
+          try {
+            event.source.postMessage({ type: '__BDM_TOP_HANDLING_VIDEO__' }, '*');
+            event.source.postMessage({ type: '__BDM_DISMISS_VIDEO__' }, '*');
+          } catch (e) {}
+          return;
+        }
+
         try {
           event.source.postMessage({ type: '__BDM_TOP_HANDLING_VIDEO__' }, '*');
         } catch (e) {}
@@ -264,10 +279,31 @@
           }
         }
       }
+    } else if (event.data.type === '__BDM_DISMISS_VIDEO__') {
+      if (activeVideo) {
+        dismissedVideos.add(activeVideo);
+        dismissedVideos.add(getVideoKey(activeVideo));
+      }
+      if (activeIframeVideo) {
+        dismissedVideos.add(activeIframeVideo);
+        dismissedVideos.add(getVideoKey(activeIframeVideo));
+      }
+      const iframes = document.querySelectorAll('iframe');
+      for (const f of iframes) {
+        if (f.contentWindow === event.source) {
+          dismissedVideos.add(f);
+          dismissedVideos.add(getVideoKey(f));
+          break;
+        }
+      }
+      hideWidget('dismiss_message');
+      activeVideo = null;
+      activeIframeVideo = null;
+      activeIframeData = null;
     } else if (event.data.type === '__BDM_TOP_HANDLING_VIDEO__') {
       isTopHandlingWidget = true;
       if (!document.fullscreenElement) {
-        hideWidget();
+        hideWidget('top_is_handling');
       }
     }
   });
@@ -456,11 +492,24 @@
   }
 
   // 2. Create Shadow DOM Container on document.documentElement
+  function cleanupDuplicateHosts() {
+    try {
+      const docks = document.querySelectorAll('bdm-video-dock');
+      docks.forEach(d => {
+        if (d !== host && d.parentNode) {
+          d.parentNode.removeChild(d);
+        }
+      });
+    } catch (e) {}
+  }
+
   const host = document.createElement('bdm-video-dock');
   host.style.cssText = 'position: fixed; z-index: 2147483647; pointer-events: none; top: 0; left: 0;';
   const shadow = host.attachShadow({ mode: 'open' });
+  cleanupDuplicateHosts();
 
   function ensureAttached() {
+    cleanupDuplicateHosts();
     let targetParent = document.fullscreenElement || document.documentElement || document.body;
     if (targetParent && (targetParent instanceof HTMLVideoElement || targetParent.tagName === 'VIDEO')) {
       targetParent = targetParent.parentElement || document.documentElement || document.body;
@@ -491,11 +540,20 @@
             showWidget();
             return;
           }
+        } else if (window.self !== window.top && isTopHandlingWidget) {
+          hideWidget('exit_fullscreen_iframe');
+          activeVideo = null;
+          return;
         }
         updateWidgetPosition();
       }, 100);
       setTimeout(() => {
         ensureAttached();
+        if (window.self !== window.top && isTopHandlingWidget && !document.fullscreenElement) {
+          hideWidget('exit_fullscreen_iframe');
+          activeVideo = null;
+          return;
+        }
         updateWidgetPosition();
       }, 400);
     }, true);
@@ -1070,24 +1128,50 @@
     if (activeVideo) {
       dismissedVideos.add(activeVideo);
       dismissedVideos.add(getVideoKey(activeVideo));
+      if (activeVideo.currentSrc) dismissedVideos.add(activeVideo.currentSrc);
+      if (activeVideo.src) dismissedVideos.add(activeVideo.src);
+      if (activeVideo.tagName === 'IFRAME') {
+        try {
+          if (activeVideo.contentWindow) {
+            activeVideo.contentWindow.postMessage({ type: '__BDM_DISMISS_VIDEO__' }, '*');
+          }
+        } catch (err) {}
+      }
     }
     if (activeIframeVideo) {
       dismissedVideos.add(activeIframeVideo);
       dismissedVideos.add(getVideoKey(activeIframeVideo));
+      if (activeIframeData) {
+        if (activeIframeData.currentSrc) dismissedVideos.add(activeIframeData.currentSrc);
+        if (activeIframeData.frameUrl) dismissedVideos.add(activeIframeData.frameUrl);
+      }
+      try {
+        if (activeIframeVideo.contentWindow) {
+          activeIframeVideo.contentWindow.postMessage({ type: '__BDM_DISMISS_VIDEO__' }, '*');
+        }
+      } catch (err) {}
+    }
+    if (window.self !== window.top) {
+      try {
+        window.top.postMessage({ type: '__BDM_DISMISS_VIDEO__' }, '*');
+      } catch (err) {}
     }
     hideWidget('user_dismissed');
     activeVideo = null;
     activeIframeVideo = null;
+    activeIframeData = null;
   });
 
   function getVideoKey(video) {
     if (!video) return window.location.href;
     if (video.tagName === 'IFRAME') {
-      return (activeIframeData && activeIframeData.currentSrc) || video.src || window.location.href;
+      return (activeIframeData && (activeIframeData.currentSrc || activeIframeData.frameUrl)) || video.src || window.location.href;
     }
-    if (window.location.hostname.includes('youtube.com')) {
+    if (window.location.hostname.includes('youtube.com') || window.location.hostname.includes('youtu.be')) {
       const v = new URLSearchParams(window.location.search).get('v');
       if (v) return `yt_${v}`;
+      const mShorts = window.location.pathname.match(/\/shorts\/([A-Za-z0-9_-]+)/);
+      if (mShorts) return `yt_${mShorts[1]}`;
     }
     return video.currentSrc || video.src || window.location.href;
   }
@@ -2009,20 +2093,19 @@
   function updateWidgetPosition() {
     if (!activeVideo || !root.classList.contains('visible') || !isAppConnected || !enableMediaSniffing) return;
 
+    const rect = activeVideo.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
+      root.style.display = 'none';
+      return;
+    }
+
     if (isUserPositioned) {
+      root.style.display = 'flex';
       root.style.left = `${userCoords.left}px`;
       root.style.top = `${userCoords.top}px`;
       root.style.right = 'auto';
       root.style.bottom = 'auto';
       return;
-    }
-
-    const rect = activeVideo.getBoundingClientRect();
-    if (rect.bottom <= 0 || rect.top >= window.innerHeight) {
-      root.style.display = 'none';
-      return;
-    } else {
-      root.style.display = 'flex';
     }
 
     const pillW = pill.offsetWidth || 34;
@@ -2072,9 +2155,22 @@
     validPositions.forEach(p => root.classList.remove(`pos-${p}`));
     root.classList.add(validPositions.includes(videoPanelPosition) ? activePosClass : 'pos-top-right');
 
+    // Horizontal bounds: keep pill within window margins if video is on screen
     left = Math.max(8, Math.min(window.innerWidth - pillW - 8, left));
-    top = Math.max(8, Math.min(window.innerHeight - pillH - 8, top));
 
+    // Vertical bounds:
+    // If the widget's calculated position is completely outside the viewport
+    // (e.g. video top has scrolled off the top of the browser screen), hide it.
+    // NEVER clamp top with Math.max(8, ...), which freezes the popup at the top of the screen!
+    if (top + pillH <= 0 || top >= window.innerHeight) {
+      root.style.display = 'none';
+      if (isDropdownOpen) {
+        closeDropdown();
+      }
+      return;
+    }
+
+    root.style.display = 'flex';
     root.style.left = `${left}px`;
     root.style.top = `${top}px`;
     root.style.right = 'auto';
@@ -2082,6 +2178,18 @@
   }
 
   function showWidget() {
+    if (window.self !== window.top && isTopHandlingWidget && !document.fullscreenElement) {
+      hideWidget('iframe_top_handling');
+      return;
+    }
+    if (activeVideo && (dismissedVideos.has(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo)))) {
+      hideWidget('activeVideo_dismissed');
+      return;
+    }
+    if (activeIframeVideo && (dismissedVideos.has(activeIframeVideo) || dismissedVideos.has(getVideoKey(activeIframeVideo)))) {
+      hideWidget('activeIframeVideo_dismissed');
+      return;
+    }
     host.dataset.appConnected = String(isAppConnected);
     host.dataset.sniffing = String(enableMediaSniffing);
     host.dataset.blacklisted = String(isSiteBlacklisted());
@@ -2230,6 +2338,14 @@
     if (!enableMediaSniffing || isSiteBlacklisted()) return;
     if (!video) return;
 
+    if (dismissedVideos.has(video) || dismissedVideos.has(getVideoKey(video))) {
+      if (activeVideo === video) {
+        hideWidget('video_dismissed');
+        activeVideo = null;
+      }
+      return;
+    }
+
     if (!isAppConnected) {
       checkConnectionStatus((connected) => {
         if (connected && video && !isSiteBlacklisted()) {
@@ -2253,14 +2369,24 @@
     }
 
     // If inside an iframe, delegate to top window so user can move icon outside iframe
-    if (window.self !== window.top) {
+    if (window.self !== window.top && !document.fullscreenElement) {
       notifyTopFrameVideo(video, video.paused ? 'paused' : 'playing');
-      if (isTopHandlingWidget && !document.fullscreenElement) {
+      if (isTopHandlingWidget) {
+        hideWidget('top_is_handling');
+        activeVideo = video;
         return;
       }
+      // Debounce showing in iframe to allow top frame handshake to complete
+      setTimeout(() => {
+        if (!isTopHandlingWidget && !document.fullscreenElement && (activeVideo === video || !activeVideo)) {
+          if (isValidPlayedVideo(video, true)) {
+            activeVideo = video;
+            showWidget();
+          }
+        }
+      }, 300);
+      return;
     }
-
-
 
     if (activeVideo !== video) {
       activeVideo = video;
@@ -2272,6 +2398,7 @@
 
   // Hover over video or custom player container (Facebook, X, YouTube, iframe embeds, etc.) to show widget
   document.addEventListener('mouseover', (e) => {
+    if (window.self !== window.top && isTopHandlingWidget && !document.fullscreenElement) return;
     if (!enableMediaSniffing || isDropdownOpen || isSiteBlacklisted()) return;
     const target = e.target;
     if (!target) return;
@@ -2296,6 +2423,9 @@
     // Moving the mouse over the video, its player wrapper, or its native controls frame (e.g. TikTok frame)
     // MUST NEVER disrupt, swap, or hide activeVideo!
     if (activeVideo && !activeVideo.paused && isValidPlayedVideo(activeVideo, false)) {
+      if (dismissedVideos.has(activeVideo) || dismissedVideos.has(getVideoKey(activeVideo))) {
+        return;
+      }
       const isOverActive = target === activeVideo ||
         (activeVideo.parentElement && activeVideo.parentElement.contains(target)) ||
         (target.closest && (
@@ -2388,6 +2518,13 @@
 
   // Periodic active video scanner (crucial for custom iframe video players and fullscreen transitions)
   setInterval(() => {
+    if (window.self !== window.top && isTopHandlingWidget && !document.fullscreenElement) {
+      if (root.classList.contains('visible') || host.dataset.visible === 'true') {
+        hideWidget('interval_iframe_top_handling');
+      }
+      return;
+    }
+
     if (isSiteBlacklisted()) {
       if (root.classList.contains('visible') || host.dataset.visible === 'true') {
         hideWidget('interval_blacklisted');
@@ -2465,6 +2602,6 @@
     }
   }, 500);
 
-  window.addEventListener('scroll', updateWidgetPosition, { passive: true });
+  window.addEventListener('scroll', updateWidgetPosition, { passive: true, capture: true });
   window.addEventListener('resize', updateWidgetPosition, { passive: true });
 })();

@@ -791,7 +791,7 @@ class YtDlpDownloadWorker(QThread):
     init_segments_signal = pyqtSignal(int)
     segment_update_signal = pyqtSignal(int, int, int, float, str)
 
-    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0):
+    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -804,6 +804,21 @@ class YtDlpDownloadWorker(QThread):
         self.referrer = referrer
         self.user_agent = user_agent
         self.cookies = cookies
+        self.temp_dir = temp_dir
+        if not self.temp_dir:
+            try:
+                from core.config import load_category_config
+                cfg = load_category_config()
+                self.temp_dir = cfg.get("temp_dir")
+            except Exception:
+                pass
+        if not self.temp_dir:
+            from core.utils import get_cache_dir
+            self.temp_dir = os.path.join(get_cache_dir(), "downloads")
+        try:
+            os.makedirs(self.temp_dir, exist_ok=True)
+        except Exception:
+            pass
         self.is_running = True
         self.is_paused = False
         self.supports_resume = True
@@ -1064,18 +1079,46 @@ class YtDlpDownloadWorker(QThread):
                 if m_x_alt:
                     x_status_id = m_x_alt.group(1)
 
+            # Migrate any incomplete partial / fragment files (.part, .frag, .ytdl) from save_dir
+            # to temp_dir (cache) to avoid polluting the user's folder and allow resuming
+            if self.save_dir and self.temp_dir and self.save_dir != self.temp_dir and os.path.exists(self.save_dir):
+                patterns = [p for p in (self.filename, clean_base, ig_vid, x_status_id) if p]
+                try:
+                    for f in os.listdir(self.save_dir):
+                        fl = f.lower()
+                        if not (".part" in fl or ".frag" in fl or fl.endswith(".ytdl")):
+                            continue
+                        if any(p.lower() in fl for p in patterns):
+                            src_p = os.path.join(self.save_dir, f)
+                            dst_p = os.path.join(self.temp_dir, f)
+                            if os.path.isfile(src_p):
+                                try:
+                                    if os.path.exists(dst_p):
+                                        if os.path.getsize(src_p) > os.path.getsize(dst_p):
+                                            os.remove(dst_p)
+                                            shutil.move(src_p, dst_p)
+                                        else:
+                                            os.remove(src_p)
+                                    else:
+                                        shutil.move(src_p, dst_p)
+                                    logger.info("[YtDlpDownload] Migrated incomplete partial file '%s' to cache: %s", f, self.temp_dir)
+                                except Exception as e:
+                                    logger.warning("[YtDlpDownload] Could not migrate partial file '%s': %s", f, e)
+                except Exception as e:
+                    logger.warning("[YtDlpDownload] Error checking save_dir for partial files: %s", e)
+
             if is_instagram and (not clean_base or is_generic or clean_base == ig_vid or clean_base == f"instagram-{ig_vid}"):
-                output_tmpl = os.path.join(self.save_dir, "%(channel,uploader)s-%(id)s.%(ext)s")
+                output_tmpl = "%(channel,uploader)s-%(id)s.%(ext)s"
             elif is_twitter_or_x and x_username and x_status_id:
                 clean_base = f"{x_username}-{x_status_id}"
-                output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+                output_tmpl = f"{clean_base}.%(ext)s"
             elif is_twitter_or_x and x_status_id and (not clean_base or is_generic or clean_base in (x_status_id, f"x-{x_status_id}")):
-                output_tmpl = os.path.join(self.save_dir, f"%(uploader_id,uploader)s-{x_status_id}.%(ext)s")
+                output_tmpl = f"%(uploader_id,uploader)s-{x_status_id}.%(ext)s"
             elif is_generic and not has_brackets:
                 if self.is_audio_only:
-                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
+                    output_tmpl = "%(title).100B [%(id)s].%(ext)s"
                 else:
-                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s")
+                    output_tmpl = "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s"
             elif not is_generic:
                 pattern = r'^(.*?)(\s*(?:\[[^\]]+\]|\(\d+\))+(?:\s*(?:\[[^\]]+\]|\(\d+\)))*)$'
                 m_suf = re.search(pattern, clean_base)
@@ -1088,12 +1131,12 @@ class YtDlpDownloadWorker(QThread):
                 else:
                     while len(clean_base.encode("utf-8")) > 100:
                         clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").rstrip("_ ").strip()
-                output_tmpl = os.path.join(self.save_dir, f"{clean_base}.%(ext)s")
+                output_tmpl = f"{clean_base}.%(ext)s"
             else:
                 if self.is_audio_only:
-                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s].%(ext)s")
+                    output_tmpl = "%(title).100B [%(id)s].%(ext)s"
                 else:
-                    output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s")
+                    output_tmpl = "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s"
 
             try:
                 cfg = load_category_config()
@@ -1115,6 +1158,10 @@ class YtDlpDownloadWorker(QThread):
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",
                 "--restrict-filenames",
+                "--paths", f"home:{self.save_dir}",
+                "--paths", f"temp:{self.temp_dir}",
+                "--continue",
+                "--no-keep-fragments",
                 "--extractor-args", f"youtube:player_client={yt_client}",
                 "--format", self.format_spec,
                 "-o", output_tmpl
@@ -1243,15 +1290,14 @@ class YtDlpDownloadWorker(QThread):
                     dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
                     if dest_match:
                         dest_path = dest_match.group(1).strip()
-                        if not os.path.isabs(dest_path):
-                            dest_path = os.path.join(self.save_dir, dest_path)
-                        dest_ext = os.path.splitext(dest_path)[1].lower()
+                        dest_base = os.path.basename(dest_path)
+                        dest_ext = os.path.splitext(dest_base)[1].lower()
                         if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
                             is_media_stream = False
                         elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                             is_media_stream = True
-                            self.final_file_path = dest_path
-                            clean_cand = re.sub(r"\.f\w+(\.\w+)$", r"\1", os.path.basename(dest_path))
+                            clean_cand = re.sub(r"\.f\w+(\.\w+)$", r"\1", dest_base)
+                            self.final_file_path = os.path.join(self.save_dir, clean_cand)
                             if clean_cand and not is_generic_media_title(clean_cand):
                                 self.filename = clean_cand
                             if current_dest_file and current_dest_file != dest_path:
@@ -1266,15 +1312,24 @@ class YtDlpDownloadWorker(QThread):
                     m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
                     if m_dest:
                         cand_path = m_dest.group(1).strip()
-                        if not os.path.isabs(cand_path):
-                            cand_path = os.path.join(self.save_dir, cand_path)
-                        cand_ext = os.path.splitext(cand_path)[1].lower()
-                        if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_path.endswith(".part"):
-                            self.final_file_path = cand_path
-                            clean_cand = os.path.basename(cand_path)
+                        cand_base = os.path.basename(cand_path)
+                        self.final_file_path = os.path.join(self.save_dir, cand_base)
+                        cand_ext = os.path.splitext(cand_base)[1].lower()
+                        if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_base.endswith(".part"):
+                            clean_cand = cand_base
                             if clean_cand and not is_generic_media_title(clean_cand):
                                 self.filename = clean_cand
                             is_media_stream = True
+
+                    # Capture MoveFiles when yt-dlp moves finished file from temp to home
+                    m_move = re.search(r"\[MoveFiles\]\s+Moving file\s+\"?[^\"]+\"?\s+to\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
+                    if m_move:
+                        moved_path = m_move.group(1).strip()
+                        moved_base = os.path.basename(moved_path)
+                        self.final_file_path = os.path.join(self.save_dir, moved_base)
+                        if moved_base and not is_generic_media_title(moved_base):
+                            self.filename = moved_base
+                        is_media_stream = True
 
                     # Parse yt-dlp / aria2c stdout for media streams only
                     if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
@@ -1438,9 +1493,57 @@ class YtDlpDownloadWorker(QThread):
                         if candidates:
                             final_path = max(candidates, key=lambda p: os.path.getsize(p))
 
+                    # If completed file remains in cache/temp_dir, move it to save_dir
+                    if (not final_path or not os.path.exists(final_path)) and self.temp_dir and os.path.exists(self.temp_dir):
+                        candidates_temp = []
+                        for fname in os.listdir(self.temp_dir):
+                            fext = os.path.splitext(fname)[1].lower()
+                            if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                                continue
+                            fpath = os.path.join(self.temp_dir, fname)
+                            if os.path.isfile(fpath):
+                                if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
+                                    candidates_temp.append(fpath)
+                                elif ig_vid and ig_vid.lower() in fname.lower():
+                                    candidates_temp.append(fpath)
+                                elif x_status_id and x_status_id in fname:
+                                    candidates_temp.append(fpath)
+                        if candidates_temp:
+                            best_temp = max(candidates_temp, key=lambda p: os.path.getsize(p))
+                            dest_in_save = os.path.join(self.save_dir, os.path.basename(best_temp))
+                            try:
+                                shutil.move(best_temp, dest_in_save)
+                                final_path = dest_in_save
+                            except Exception as e:
+                                logger.error("[YtDlpDownload] Failed to move completed file from cache to save_dir: %s", e)
+
+                    if final_path and self.temp_dir and final_path.startswith(self.temp_dir) and os.path.exists(final_path):
+                        dest_in_save = os.path.join(self.save_dir, os.path.basename(final_path))
+                        try:
+                            shutil.move(final_path, dest_in_save)
+                            final_path = dest_in_save
+                        except Exception as e:
+                            logger.error("[YtDlpDownload] Failed to move completed file from cache to save_dir: %s", e)
+
                     if final_path:
                         self.target_path = final_path
                         self.filename = os.path.basename(final_path)
+
+                    # Clean up any leftover fragment or partial files in temp_dir and save_dir
+                    patterns = [p for p in (self.filename, clean_base, ig_vid, x_status_id) if p]
+                    for d in [self.temp_dir, self.save_dir]:
+                        if d and os.path.exists(d):
+                            try:
+                                for f in os.listdir(d):
+                                    fl = f.lower()
+                                    if (".part" in fl or ".frag" in fl or fl.endswith(".ytdl")):
+                                        if any(p.lower() in fl for p in patterns):
+                                            try:
+                                                os.remove(os.path.join(d, f))
+                                            except Exception:
+                                                pass
+                            except Exception:
+                                pass
 
                     final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
                     self.current_bytes = int(final_size)
