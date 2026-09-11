@@ -1228,6 +1228,24 @@ def test_tiktok_and_generic_video_url_id_filename_generation(qapp):
         call_kwargs = mock_start.call_args[1]
         assert "playmate-KgCrV105XsCR" in call_kwargs["filename"]
 
+    # 6. Community native video post: comments URL with custom post title
+    raw_ipc_reddit = "https://www.reddit.com/r/videos/comments/1wc4vfw/new_video/|Mozilla/5.0||https://www.reddit.com/r/videos/|1|720p|New Video Title|1000|1 MB"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_reddit)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["url"] == "https://www.reddit.com/r/videos/comments/1wc4vfw/new_video/"
+        assert "New Video Title" in call_kwargs["filename"]
+
+    # 7. External embed on community post: RedGifs watch URL is preserved and not rewritten to referrer
+    raw_ipc_redgifs = "https://www.redgifs.com/watch/clevercutecat|Mozilla/5.0||https://www.reddit.com/r/sources4porn/comments/1abcde/test/|1|720p||1000|1 MB"
+    with patch.object(mw, "start_media_download") as mock_start:
+        mw.process_incoming_url(raw_ipc_redgifs)
+        assert mock_start.called
+        call_kwargs = mock_start.call_args[1]
+        assert call_kwargs["url"] == "https://www.redgifs.com/watch/clevercutecat"
+        assert "redgifs-clevercutecat" in call_kwargs["filename"]
+
     mw.close()
 
 

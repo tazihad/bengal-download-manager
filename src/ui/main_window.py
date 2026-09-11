@@ -3150,7 +3150,9 @@ class MainWindow(QMainWindow):
                         "/dash/" in url.lower() or
                         (url_domain != ref_domain and not is_media_downloader_url(url))
                     )
-                    if is_chunk:
+                    # Never rewrite if the URL itself is already an external canonical media page (e.g. RedGifs watch URL embedded on another platform)!
+                    is_external_canonical = any(url_domain == d or url_domain.endswith("." + d) for d in POPULAR_MEDIA_DOMAINS) and is_canonical_media_page_url(url)
+                    if is_chunk and not is_external_canonical:
                         url = referrer
                         is_media_flag = True
             except Exception:
@@ -3298,23 +3300,38 @@ class MainWindow(QMainWindow):
                         video_id = m_x.group(2)
                         title = f"{m_x.group(1)}-{m_x.group(2)}"
 
-                # 6. Other referrers or URLs with ID
-                if not video_id and referrer:
-                    m_ref = re.search(r"/(?:reel|reels|watch|videos?|p|v|status|post|embed)/([A-Za-z0-9_-]{5,})", referrer)
-                    if m_ref:
-                        video_id = m_ref.group(1)
+                # 6. RedGifs: /watch/<id> or /ifr/<id>
+                if not video_id:
+                    m_rg = re.search(r"redgifs\.com/(?:watch|ifr)/([A-Za-z0-9_-]+)", url or "") or (re.search(r"redgifs\.com/(?:watch|ifr)/([A-Za-z0-9_-]+)", referrer or "") if referrer else None)
+                    if m_rg:
+                        video_id = m_rg.group(1)
 
+                # 7. Reddit: /comments/<post_id>/ or v.redd.it/<id>
+                if not video_id:
+                    m_rd = re.search(r"/comments/([A-Za-z0-9]+)", url or "") or re.search(r"v\.redd\.it/([A-Za-z0-9]+)", url or "")
+                    if not m_rd and referrer and ("reddit.com" in referrer or "redd.it" in referrer):
+                        m_rd = re.search(r"/comments/([A-Za-z0-9]+)", referrer)
+                    if m_rd:
+                        video_id = m_rd.group(1)
+
+                # 8. Other referrers or URLs with ID
                 if not video_id:
                     m_any_id = re.search(r"/(?:watch|video|v|post|embed|p)/([A-Za-z0-9_-]{5,})", url or "")
                     if m_any_id:
                         video_id = m_any_id.group(1)
+
+                if not video_id and referrer:
+                    m_ref = re.search(r"/(?:reel|reels|watch|videos?|p|v|status|post|embed)/([A-Za-z0-9_-]{5,})", referrer)
+                    if m_ref:
+                        video_id = m_ref.group(1)
 
                 if not title or is_generic_media_title(title):
                     if video_id:
                         host_label = ""
                         try:
                             from urllib.parse import urlparse
-                            parsed_src = urlparse(referrer or url)
+                            src_to_parse = url if (video_id and url and video_id in url) else (referrer or url)
+                            parsed_src = urlparse(src_to_parse)
                             host_label = parsed_src.netloc.lower().replace("www.", "").split(".")[0]
                         except Exception:
                             pass

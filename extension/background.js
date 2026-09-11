@@ -667,6 +667,7 @@ const POPULAR_MEDIA_HOSTS = [
   'tiktok.com',
   'twitter.com', 'x.com',
   'reddit.com',
+  'redgifs.com',
   'vimeo.com',
   'dailymotion.com',
   'twitch.tv',
@@ -1237,7 +1238,7 @@ if (chrome.downloads && chrome.downloads.onChanged) {
 // --- POPULAR STREAMING MEDIA DOMAINS (yt-dlp supported) ---
 const POPULAR_MEDIA_DOMAINS = [
   "youtube.com", "youtu.be", "vimeo.com", "tiktok.com", "instagram.com",
-  "twitter.com", "x.com", "facebook.com", "fb.watch", "reddit.com",
+  "twitter.com", "x.com", "facebook.com", "fb.watch", "reddit.com", "redgifs.com",
   "twitch.tv", "bilibili.com", "soundcloud.com", "rumble.com",
   "kick.com", "dailymotion.com", "streamable.com", "pinterest.com"
 ];

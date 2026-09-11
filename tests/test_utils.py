@@ -28,6 +28,8 @@ def test_is_media_downloader_url():
     assert is_media_downloader_url("https://dai.ly/x1234") is True
     assert is_media_downloader_url("https://clips.twitch.tv/AbcXyz") is True
     assert is_media_downloader_url("https://v.redd.it/abc123xyz") is True
+    assert is_media_downloader_url("https://www.reddit.com/r/videos/comments/1abcde/video_title/") is True
+    assert is_media_downloader_url("https://www.redgifs.com/watch/clevercutecat") is True
 
     # Bare homepages/feeds must NOT be treated as media downloader URLs
     assert is_media_downloader_url("https://www.tiktok.com/") is False
@@ -36,6 +38,8 @@ def test_is_media_downloader_url():
     assert is_media_downloader_url("https://www.facebook.com/") is False
     assert is_media_downloader_url("https://x.com/home") is False
     assert is_media_downloader_url("https://www.youtube.com/") is False
+    assert is_media_downloader_url("https://www.reddit.com/r/videos/") is False
+    assert is_media_downloader_url("https://www.redgifs.com/") is False
 
     # Streaming media manifests (.m3u8, .mpd) & media flags
     assert is_media_downloader_url("https://edge-xx.vidvara.cc/hls/test/master.m3u8") is True
@@ -71,12 +75,23 @@ def test_is_canonical_media_page_url():
     assert is_canonical_media_page_url("https://www.youtube.com/shorts/abc12345") is True
     assert is_canonical_media_page_url("https://www.youtube.com/") is False
 
+    assert is_canonical_media_page_url("https://www.reddit.com/r/videos/comments/1abcde/video_title/") is True
+    assert is_canonical_media_page_url("https://www.reddit.com/r/videos/") is False
+    assert is_canonical_media_page_url("https://www.reddit.com/") is False
+    assert is_canonical_media_page_url("https://v.redd.it/wy70c7vyiloh1") is True
+
+    assert is_canonical_media_page_url("https://www.redgifs.com/watch/clevercutecat") is True
+    assert is_canonical_media_page_url("https://www.redgifs.com/ifr/clevercutecat") is True
+    assert is_canonical_media_page_url("https://www.redgifs.com/") is False
+
 
 def test_is_generic_media_title():
     assert is_generic_media_title("Facebook") is True
     assert is_generic_media_title("Facebook.mp4") is True
     assert is_generic_media_title("TikTok") is True
     assert is_generic_media_title("TikTok Video") is False
+    assert is_generic_media_title("RedGifs") is True
+    assert is_generic_media_title("redgif") is True
     assert is_generic_media_title("Watch") is True
     assert is_generic_media_title("(5) Facebook") is True
     assert is_generic_media_title("Facebook - Log In or Sign Up") is True

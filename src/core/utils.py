@@ -1664,6 +1664,8 @@ POPULAR_MEDIA_DOMAINS = {
     "twitch.tv", "www.twitch.tv", "m.twitch.tv", "clips.twitch.tv",
     # Reddit
     "reddit.com", "www.reddit.com", "old.reddit.com", "v.redd.it",
+    # RedGifs
+    "redgifs.com", "www.redgifs.com", "v3.redgifs.com",
     # Other popular media sites
     "bilibili.com", "www.bilibili.com",
     "soundcloud.com", "www.soundcloud.com", "m.soundcloud.com",
@@ -1682,7 +1684,7 @@ POPULAR_MEDIA_DOMAINS = {
 
 GENERIC_MEDIA_TITLES = {
     "facebook", "fb", "youtube", "yt", "instagram", "tiktok", "twitter", "x",
-    "reddit", "vimeo", "dailymotion", "twitch", "bilibili", "soundcloud",
+    "reddit", "redgifs", "redgif", "vimeo", "dailymotion", "twitch", "bilibili", "soundcloud",
     "rumble", "kick", "streamable", "pinterest", "video", "videos", "watch",
     "reel", "reels", "shorts", "clip", "media", "media stream", "video stream",
     "untitled", "untitled media", "master", "index", "videoplayback", "stream",
@@ -1704,9 +1706,9 @@ def is_generic_media_title(title: str) -> bool:
     base, _ = os.path.splitext(t)
     if base in GENERIC_MEDIA_TITLES:
         return True
-    if re.match(r"^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit)", t):
+    if re.match(r"^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit|redgifs)", t):
         return True
-    if re.match(r"^(facebook|twitter|instagram)\s*[-–—|]", t):
+    if re.match(r"^(facebook|twitter|instagram|redgifs)\s*[-–—|]", t):
         return True
     return False
 
@@ -1774,6 +1776,19 @@ def is_canonical_media_page_url(data: str) -> bool:
             if not query or not ("v=" in query or "video_id=" in query or "watch" in query):
                 return False
 
+        # CDN media streams and chunk segments are never canonical media web pages
+        clean_url = raw_url.lower().split("?")[0].split("#")[0]
+        if (
+            clean_url.endswith((".m4s", ".ts")) or
+            "fbcdn.net" in netloc or
+            "googlevideo.com" in netloc or
+            "twimg.com" in netloc or
+            "tiktokcdn.com" in netloc or
+            "redditmedia.com" in netloc or
+            "/videoplayback" in path
+        ):
+            return False
+
         # Short link and clip domains are always canonical video links if they have a path
         if any(short in netloc for short in ("vt.tiktok.com", "vm.tiktok.com", "fb.watch", "youtu.be", "dai.ly", "pin.it", "v.redd.it", "clips.twitch.tv")):
             return len(path) > 1
@@ -1791,6 +1806,8 @@ def is_canonical_media_page_url(data: str) -> bool:
             return "v=" in query or "/shorts/" in path or "/embed/" in path or "/watch" in path
         if "reddit.com" in netloc:
             return "/comments/" in path
+        if "redgifs.com" in netloc:
+            return "/watch/" in path or "/ifr/" in path
 
         # For generic sites, if path has more than just '/'
         return len(path) > 1

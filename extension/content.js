@@ -34,6 +34,7 @@
     'tiktok.com',
     'twitter.com', 'x.com',
     'reddit.com',
+    'redgifs.com',
     'vimeo.com',
     'dailymotion.com',
     'twitch.tv',
@@ -123,7 +124,7 @@
 
   const GENERIC_TITLES = new Set([
     'facebook', 'youtube', 'instagram', 'tiktok', 'twitter', 'x', 'reddit',
-    'vimeo', 'dailymotion', 'twitch', 'bilibili', 'video stream', 'media stream',
+    'redgifs', 'redgif', 'vimeo', 'dailymotion', 'twitch', 'bilibili', 'video stream', 'media stream',
     'media', 'untitled', 'untitled media', 'video', 'videos', 'watch', 'index', 'master',
     'videoplayback', 'stream', 'unknown', 'post', 'status', 'clip', 'reels', 'reel'
   ]);
@@ -133,8 +134,8 @@
     const s = str.trim().toLowerCase();
     if (!s || s.length < 2) return true;
     if (GENERIC_TITLES.has(s)) return true;
-    if (/^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit)/i.test(s)) return true;
-    if (/^(facebook|twitter|instagram)\s*[-–—|]/i.test(s)) return true;
+    if (/^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit|redgifs)/i.test(s)) return true;
+    if (/^(facebook|twitter|instagram|redgifs)\s*[-–—|]/i.test(s)) return true;
     return false;
   }
 
@@ -1369,7 +1370,7 @@
     // Strip common leading noise
     clean = clean.replace(/^(Watch\s*[:-]?\s*|Streaming\s*[:-]?\s*|Play\s*[:-]?\s*)/i, '');
     // Strip trailing site brandings like "- Vidara", "| Vidara", "- YouTube", "- Vidara.so", " | 123movies", etc.
-    clean = clean.replace(/\s*[-–—|]\s*([a-zA-Z0-9.-]+\.(com|org|net|so|to|is|io|me|tv|cc|cx)|Vidara|YouTube|Vimeo|Dailymotion|StreamTape|SuperStream|Flixtor|Fmovies|123movies|BiliBili|Twitch|SoundCloud|Facebook|Twitter|TikTok|Reddit)[^|\-–—]*$/i, '');
+    clean = clean.replace(/\s*[-–—|]\s*([a-zA-Z0-9.-]+\.(com|org|net|so|to|is|io|me|tv|cc|cx)|Vidara|YouTube|Vimeo|Dailymotion|StreamTape|SuperStream|Flixtor|Fmovies|123movies|BiliBili|Twitch|SoundCloud|Facebook|Twitter|TikTok|Reddit|RedGifs)[^|\-–—]*$/i, '');
     clean = clean.replace(/\s*[-–—|]\s*Watch\s+.*$/i, '');
     clean = clean.replace(/\s*[-–—|]\s*Official\s+(Website|Site|Stream|Video).*$/i, '');
     return clean.trim();
@@ -1404,6 +1405,9 @@
       }
       if (host.includes('reddit.com')) {
         return path.includes('/comments/');
+      }
+      if (host.includes('redgifs.com')) {
+        return path.includes('/watch/') || path.includes('/ifr/') || path.length > 1;
       }
       if (isPopularMediaHost(host)) {
         return path.length > 1;
@@ -1509,6 +1513,18 @@
       return null;
     }
 
+    // RedGifs
+    if (host.includes('redgifs.com')) {
+      if (isCanonicalMediaPage(currentUrl)) {
+        const m = currentUrl.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+        if (m) {
+          return `https://www.redgifs.com/watch/${m[1]}`;
+        }
+        return currentUrl;
+      }
+      return null;
+    }
+
     // Reddit
     if (host.includes('reddit.com')) {
       if (isCanonicalMediaPage(currentUrl)) {
@@ -1516,11 +1532,95 @@
       }
       if (video) {
         try {
-          const container = video.closest('[data-test-id="post-container"], shreddit-post') || video.parentElement;
+          // If video is an iframe or activeIframeData exists for RedGifs embed
+          if (activeIframeData && activeIframeData.frameUrl && activeIframeData.frameUrl.includes('redgifs.com')) {
+            const m = activeIframeData.frameUrl.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+            if (m) return `https://www.redgifs.com/watch/${m[1]}`;
+          }
+
+          // Traverse out of shadow DOM if necessary to find the post container
+          let container = null;
+          let curr = video;
+          while (curr) {
+            if (curr.matches && curr.matches('shreddit-post, [data-test-id="post-container"], .Post, .thing, article')) {
+              container = curr;
+              break;
+            }
+            if (curr.parentElement) {
+              curr = curr.parentElement;
+            } else {
+              const root = curr.getRootNode ? curr.getRootNode() : null;
+              if (root && root instanceof ShadowRoot && root.host) {
+                curr = root.host;
+              } else {
+                break;
+              }
+            }
+          }
+          if (!container && video.closest) {
+            container = video.closest('shreddit-post, [data-test-id="post-container"], .Post, .thing, article') || video.parentElement;
+          }
+
           if (container) {
-            const permalinkEl = container.querySelector('a[href*="/comments/"], a[data-click-id="body"]');
+            // A. Check for external media embed (e.g. RedGifs, YouTube, Streamable)
+            const contentHref = container.getAttribute('content-href');
+            if (contentHref) {
+              const lowerHref = contentHref.toLowerCase();
+              if (lowerHref.includes('redgifs.com')) {
+                const m = contentHref.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+                if (m) return `https://www.redgifs.com/watch/${m[1]}`;
+                return contentHref;
+              }
+              if (isPopularMediaHost(lowerHref) && isCanonicalMediaPage(contentHref)) {
+                return contentHref;
+              }
+            }
+
+            // Check if post contains an iframe or anchor to redgifs
+            const redgifsIframe = container.querySelector('iframe[src*="redgifs.com"], iframe[data-src*="redgifs.com"]');
+            if (redgifsIframe) {
+              const src = redgifsIframe.getAttribute('src') || redgifsIframe.getAttribute('data-src') || redgifsIframe.src;
+              if (src) {
+                const m = src.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+                if (m) return `https://www.redgifs.com/watch/${m[1]}`;
+                return src;
+              }
+            }
+            const redgifsLink = container.querySelector('a[href*="redgifs.com"]');
+            if (redgifsLink && redgifsLink.href) {
+              const m = redgifsLink.href.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+              if (m) return `https://www.redgifs.com/watch/${m[1]}`;
+              return redgifsLink.href;
+            }
+
+            // B. Canonical post permalink on shreddit-post or legacy post
+            let permalink = container.getAttribute('permalink') || container.getAttribute('data-permalink');
+            if (permalink) {
+              try {
+                const fullUrl = new URL(permalink, window.location.origin).href;
+                if (isCanonicalMediaPage(fullUrl)) {
+                  return fullUrl;
+                }
+              } catch (e) {}
+            }
+
+            // Fallback link selectors for comments page
+            const permalinkEl = container.querySelector('a[slot="full-post-link"], a[slot="title"], a.post-title, a[data-click-id="body"], a[href*="/comments/"]');
             if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
               return permalinkEl.href;
+            }
+
+            // C. Old reddit data-url
+            const dataUrl = container.getAttribute('data-url');
+            if (dataUrl) {
+              if (dataUrl.includes('redgifs.com')) {
+                const m = dataUrl.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+                if (m) return `https://www.redgifs.com/watch/${m[1]}`;
+                return dataUrl;
+              }
+              if (isCanonicalMediaPage(dataUrl)) {
+                return dataUrl;
+              }
             }
           }
         } catch (e) {}
@@ -1701,6 +1801,52 @@
           if (!['i', 'home', 'explore', 'notifications', 'messages', 'search'].includes(uName.toLowerCase())) {
             return `${uName}-${sId}`;
           }
+        }
+      }
+    // 5. Reddit post title
+    if (window.location.hostname.includes('reddit.com') && video) {
+      try {
+        let container = null;
+        let curr = video;
+        while (curr) {
+          if (curr.matches && curr.matches('shreddit-post, [data-test-id="post-container"], .Post, .thing, article')) {
+            container = curr;
+            break;
+          }
+          if (curr.parentElement) {
+            curr = curr.parentElement;
+          } else {
+            const root = curr.getRootNode ? curr.getRootNode() : null;
+            if (root && root instanceof ShadowRoot && root.host) {
+              curr = root.host;
+            } else {
+              break;
+            }
+          }
+        }
+        if (!container && video.closest) {
+          container = video.closest('shreddit-post, [data-test-id="post-container"], .Post, .thing, article');
+        }
+        if (container) {
+          const postTitle = container.getAttribute('post-title');
+          if (postTitle && !isGenericTitle(postTitle)) {
+            return cleanTitleString(postTitle);
+          }
+          const titleEl = container.querySelector('a[slot="title"], h1[slot="title"], h3, [data-test-id="post-title"], a.title');
+          if (titleEl && titleEl.textContent) {
+            const t = cleanTitleString(titleEl.textContent);
+            if (t && !isGenericTitle(t)) return t;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 6. RedGifs id title
+    for (const u of testUrls) {
+      if (u && u.includes('redgifs.com')) {
+        const m = u.match(/redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)/i);
+        if (m) {
+          return `redgifs-${m[1]}`;
         }
       }
     }
@@ -2027,12 +2173,44 @@
     }
 
     if (!targetUrl) {
-      if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && activeVideo.currentSrc.startsWith('http')) {
-        targetUrl = activeVideo.currentSrc;
-      } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && activeVideo.src.startsWith('http')) {
-        targetUrl = activeVideo.src;
-      } else {
-        targetUrl = window.location.href;
+      try {
+        let playerEl = null;
+        let curr = activeVideo;
+        while (curr) {
+          if (curr.matches && curr.matches('shreddit-player')) {
+            playerEl = curr;
+            break;
+          }
+          if (curr.parentElement) {
+            curr = curr.parentElement;
+          } else {
+            const root = curr.getRootNode ? curr.getRootNode() : null;
+            if (root && root instanceof ShadowRoot && root.host) {
+              curr = root.host;
+            } else {
+              break;
+            }
+          }
+        }
+        if (!playerEl && activeVideo.closest) {
+          playerEl = activeVideo.closest('shreddit-player');
+        }
+        if (playerEl) {
+          const pSrc = playerEl.getAttribute('src');
+          if (pSrc && (pSrc.startsWith('http://') || pSrc.startsWith('https://'))) {
+            targetUrl = pSrc;
+          }
+        }
+      } catch (e) {}
+
+      if (!targetUrl) {
+        if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && activeVideo.currentSrc.startsWith('http')) {
+          targetUrl = activeVideo.currentSrc;
+        } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && activeVideo.src.startsWith('http')) {
+          targetUrl = activeVideo.src;
+        } else {
+          targetUrl = window.location.href;
+        }
       }
     }
 
