@@ -231,10 +231,10 @@ chrome.storage.local.get({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
 
-    // 1. Ping the Python app on port 9000
+    // 1. Ping the Python app on port 56900
     let bdmData = null;
     try {
-      const response = await fetch("http://127.0.0.1:9000/", {
+      const response = await fetch("http://127.0.0.1:56900/", {
         method: 'GET',
         signal: controller.signal
       });
@@ -243,7 +243,7 @@ chrome.storage.local.get({
       }
     } catch {
       try {
-        const response = await fetch("http://localhost:9000/", {
+        const response = await fetch("http://localhost:56900/", {
           method: 'GET',
           signal: controller.signal
         });

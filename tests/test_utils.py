@@ -12,20 +12,22 @@ from main import parse_size_to_bytes, parse_time_to_sec, format_timestamp_relati
 
 def test_is_media_downloader_url():
     # Popular media URLs & short links
-    assert is_media_downloader_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is True
-    assert is_media_downloader_url("https://youtu.be/dQw4w9WgXcQ") is True
+    assert is_media_downloader_url("https://www.youtube.com/watch?v=YE7VzlLtp-4") is True
+    assert is_media_downloader_url("https://youtu.be/YE7VzlLtp-4") is True
     assert is_media_downloader_url("https://youtube.com/shorts/abc12345") is True
-    assert is_media_downloader_url("https://x.com/user/status/12345678") is True
+    assert is_media_downloader_url("https://x.com/Blender/status/2085758910376366198/video/1") is True
     assert is_media_downloader_url("https://twitter.com/user/status/12345678") is True
-    assert is_media_downloader_url("https://www.facebook.com/watch/?v=123") is True
+    assert is_media_downloader_url("https://www.facebook.com/reel/2281597032594351") is True
     assert is_media_downloader_url("https://fb.watch/abc123/") is True
-    assert is_media_downloader_url("https://www.tiktok.com/@user/video/123") is True
+    assert is_media_downloader_url("https://www.tiktok.com/@blender_org/video/7661965166036127009") is True
     assert is_media_downloader_url("https://vt.tiktok.com/ZS12345/") is True
-    assert is_media_downloader_url("https://www.instagram.com/reel/C123/") is True
-    assert is_media_downloader_url("https://vimeo.com/123456") is True
+    assert is_media_downloader_url("https://www.instagram.com/blender.official/reel/DPOB9eUCsAd") is True
+    assert is_media_downloader_url("https://vimeo.com/34321188") is True
+    assert is_media_downloader_url("https://www.dailymotion.com/video/x9hclzq") is True
     assert is_media_downloader_url("https://dai.ly/x1234") is True
+    assert is_media_downloader_url("https://www.twitch.tv/noclip/clip/ColdbloodedImportantSamosaVoHiYo") is True
     assert is_media_downloader_url("https://clips.twitch.tv/AbcXyz") is True
-    assert is_media_downloader_url("https://v.redd.it/abc123xyz") is True
+    assert is_media_downloader_url("https://v.redd.it/u120i0af281e1/DASH_720.mp4") is True
 
     # Standard non-media file links
     assert is_media_downloader_url("https://releases.ubuntu.com/22.04/ubuntu.iso") is False
@@ -48,7 +50,7 @@ def test_resolve_filename():
     assert resolve_filename(apk_url, {}) == "ChromePublic.apk"
 
     # 3. Azure/S3 Redirect URL with UUID path and response-content-disposition query parameter
-    redirect_url = "https://release-assets.githubusercontent.com/github-production-release-asset/1083868986/0562723c-f190-4894-b57c-2b2b2c955bfd?sp=r&response-content-disposition=attachment%3B%20filename%3DChromePublic.apk"
+    redirect_url = "https://s3.amazonaws.com/example-bucket/0562723c-f190-4894-b57c-2b2b2c955bfd?response-content-disposition=attachment%3B%20filename%3DChromePublic.apk"
     assert resolve_filename(redirect_url, {}) == "ChromePublic.apk"
 
     # 4. Unknown MIME type with filename in URL path (must download as-is)
@@ -314,8 +316,8 @@ def test_sanitize_media_url():
     from core.utils import sanitize_media_url
 
     # 1. YouTube Mix / Radio link from search results (must strip list=RD... & start_radio=1 & pp=...)
-    mix_url = "https://www.youtube.com/watch?v=obBcRhl57Zg&list=RDobBcRhl57Zg&start_radio=1&pp=ygUGamFobnZpoAcB"
-    assert sanitize_media_url(mix_url) == "https://www.youtube.com/watch?v=obBcRhl57Zg"
+    mix_url = "https://www.youtube.com/watch?v=YE7VzlLtp-4&list=RDYE7VzlLtp-4&start_radio=1&pp=ygUGamFobnZpoAcB"
+    assert sanitize_media_url(mix_url) == "https://www.youtube.com/watch?v=YE7VzlLtp-4"
 
     # 2. Genuine YouTube Playlist (must be preserved)
     real_playlist = "https://www.youtube.com/playlist?list=PL1234567890abcdef"
@@ -326,12 +328,12 @@ def test_sanitize_media_url():
     assert sanitize_media_url(short_url) == "https://www.youtube.com/shorts/abcdef12345"
 
     # 4. Youtu.be short URL
-    short_yt = "https://youtu.be/obBcRhl57Zg?si=track123&feature=shared"
-    assert sanitize_media_url(short_yt) == "https://youtu.be/obBcRhl57Zg"
+    short_yt = "https://youtu.be/YE7VzlLtp-4?si=track123&feature=shared"
+    assert sanitize_media_url(short_yt) == "https://youtu.be/YE7VzlLtp-4"
 
     # 5. TikTok tracking parameters
-    tiktok_url = "https://www.tiktok.com/@creator/video/71234567890?is_from_webapp=1&sender_device=pc"
-    assert sanitize_media_url(tiktok_url) == "https://www.tiktok.com/@creator/video/71234567890"
+    tiktok_url = "https://www.tiktok.com/@blender_org/video/7661965166036127009?is_from_webapp=1&sender_device=pc"
+    assert sanitize_media_url(tiktok_url) == "https://www.tiktok.com/@blender_org/video/7661965166036127009"
 
     # 6. Plain URL without tracking
 def test_show_in_folder_linux(monkeypatch, tmp_path):

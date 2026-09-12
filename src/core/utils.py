@@ -12,11 +12,20 @@ import logging
 import mimetypes
 from urllib.parse import urlparse, unquote, parse_qs
 
+def is_debug_mode() -> bool:
+    """Returns True if debug mode is active via CLI flag or environment variables."""
+    return "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or os.environ.get("BENGAL_DEBUG") == "1"
+
+
 def setup_logging(debug=False):
     """
     Configures application-wide logging levels and formatting.
     When debug=True (--debug flag), enables verbose DEBUG logs with file/line context.
     """
+    if debug:
+        os.environ["BENGAL_DEBUG"] = "1"
+        os.environ["DEBUG"] = "1"
+
     log_level = logging.DEBUG if debug else logging.INFO
     log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if debug else "[%(asctime)s] [%(levelname)s] %(message)s"
     
@@ -621,6 +630,11 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
         f"\r\n"
     ).encode('utf-8') + payload
     
+    debug_active = is_debug_mode()
+    rpc_logger = logging.getLogger("bengal.engine.rpc")
+    if debug_active and method != "aria2.tellStatus":
+        rpc_logger.debug("[Aria2RPC] >>> Call: %s (port=%s, params_count=%d)", method, port, len(params))
+
     s = None
     try:
         # Use low-level socket to avoid high-level library proxy logic
@@ -638,7 +652,10 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
             except socket.timeout:
                 break
         
-        if not response: return None
+        if not response:
+            if debug_active:
+                rpc_logger.debug("[Aria2RPC] <<< No response from aria2 on port %s for %s", port, method)
+            return None
         
         resp_str = response.decode('utf-8', errors='ignore')
         if "200 OK" in resp_str:
@@ -650,9 +667,16 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
                     j_start = body.find('{')
                     j_end = body.rfind('}')
                     if j_start != -1 and j_end != -1:
-                        return json.loads(body[j_start:j_end+1]).get("result")
+                        parsed_res = json.loads(body[j_start:j_end+1]).get("result")
+                        if debug_active and method != "aria2.tellStatus":
+                            rpc_logger.debug("[Aria2RPC] <<< Success for %s: %s", method, str(parsed_res)[:200])
+                        return parsed_res
+        if debug_active:
+            rpc_logger.debug("[Aria2RPC] <<< HTTP error response for %s: %s", method, resp_str[:200])
         return None
-    except:
+    except Exception as e:
+        if debug_active and method != "aria2.tellStatus":
+            rpc_logger.debug("[Aria2RPC] <<< Connection error on %s: %s", method, e)
         return None
     finally:
         if s:
@@ -742,8 +766,12 @@ def find_aria2():
     return None
 
 def ensure_aria2():
+    eng_logger = logging.getLogger("bengal.engine")
+    debug_active = is_debug_mode()
     found = find_aria2()
     if found:
+        if debug_active:
+            eng_logger.debug("[Aria2Setup] Found existing aria2c binary: %s", found)
         return found
     
     data_dir = get_data_dir()
@@ -759,8 +787,13 @@ def ensure_aria2():
             url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-aarch64-linux-musl_static.zip"
         elif arch == "i686":
             url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-i686-linux-musl_static.zip"
-        else: return None
+        else:
+            if debug_active:
+                eng_logger.warning("[Aria2Setup] Unsupported system architecture: %s", arch)
+            return None
             
+        if debug_active:
+            eng_logger.debug("[Aria2Setup] Downloading static aria2c (%s) from %s", arch, url)
         temp_file = os.path.join(data_dir, "aria2.zip")
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as resp:
@@ -784,8 +817,12 @@ def ensure_aria2():
         if not os.path.exists(symlink_path):
             try: os.symlink(local_aria2, symlink_path)
             except: pass
+        if debug_active:
+            eng_logger.debug("[Aria2Setup] Successfully installed aria2c at %s", local_aria2)
         return local_aria2
-    except Exception:
+    except Exception as e:
+        if debug_active:
+            eng_logger.error("[Aria2Setup] Failed to acquire aria2c: %s", e)
         return None
 
 def get_clean_env(extra_paths=None):
@@ -1643,14 +1680,55 @@ POPULAR_MEDIA_DOMAINS = {
 }
 
 
+GENERIC_MEDIA_TITLES = {
+    "facebook", "fb", "youtube", "yt", "instagram", "tiktok", "twitter", "x",
+    "reddit", "vimeo", "dailymotion", "twitch", "bilibili", "soundcloud",
+    "rumble", "kick", "streamable", "pinterest", "video", "videos", "watch",
+    "reel", "reels", "shorts", "clip", "media", "media stream", "video stream",
+    "untitled", "untitled media", "master", "index", "videoplayback", "stream",
+    "unknown", "post", "status", "media_download"
+}
+
+
+def is_generic_media_title(title: str) -> bool:
+    """
+    Returns True if the title is absent, empty, too short, or a generic platform name / placeholder.
+    """
+    if not title or not isinstance(title, str):
+        return True
+    t = title.strip().lower()
+    if not t or len(t) < 2:
+        return True
+    if t in GENERIC_MEDIA_TITLES:
+        return True
+    base, _ = os.path.splitext(t)
+    if base in GENERIC_MEDIA_TITLES:
+        return True
+    if re.match(r"^\(\d+\)\s*(facebook|twitter|x|instagram|notifications|reddit)", t):
+        return True
+    if re.match(r"^(facebook|twitter|instagram)\s*[-–—|]", t):
+        return True
+    return False
+
+
 def is_media_downloader_url(data):
     """
     Checks if the provided URL string originates from a popular media/video source
-    supported by yt-dlp.
+    supported by yt-dlp, or represents an HLS/DASH streaming manifest (.m3u8, .mpd).
     """
     if not data:
         return False
-    raw_url = str(data).split("|", 1)[0].strip()
+    parts = str(data).split("|")
+    raw_url = parts[0].strip()
+    if len(parts) > 4 and parts[4] in ("1", "true", "True"):
+        try:
+            parsed = urlparse(raw_url)
+            netloc = parsed.netloc.lower().split(":")[0]
+            if any(netloc == d or netloc.endswith("." + d) for d in POPULAR_MEDIA_DOMAINS):
+                return is_canonical_media_page_url(raw_url)
+        except Exception:
+            pass
+        return True
     try:
         parsed = urlparse(raw_url)
         netloc = parsed.netloc.lower()
@@ -1660,10 +1738,64 @@ def is_media_downloader_url(data):
             return False
         for domain in POPULAR_MEDIA_DOMAINS:
             if netloc == domain or netloc.endswith("." + domain):
-                return True
+                return is_canonical_media_page_url(raw_url)
+        clean_url = raw_url.lower().split("?")[0].split("#")[0]
+        if (clean_url.endswith((".m3u8", ".mpd", ".m4s")) or
+            ".m3u8" in raw_url.lower() or
+            ".mpd" in raw_url.lower() or
+            "/videoplayback" in raw_url.lower() or
+            "/hls/" in raw_url.lower() or
+            "/hls2/" in raw_url.lower() or
+            "/dash/" in raw_url.lower()):
+            return True
     except Exception:
         pass
     return False
+
+
+def is_canonical_media_page_url(data: str) -> bool:
+    """
+    Checks if a URL is a specific video/media page (with video ID/path),
+    and NOT just a root domain, home feed, or landing page (e.g. https://www.tiktok.com/).
+    """
+    if not data:
+        return False
+    raw_url = str(data).split("|")[0].strip()
+    try:
+        parsed = urlparse(raw_url)
+        path = parsed.path.rstrip("/").lower()
+        query = parsed.query.lower()
+        netloc = parsed.netloc.lower()
+        if ":" in netloc:
+            netloc = netloc.split(":")[0]
+
+        # Bare root or feed pages are NEVER single media pages
+        if not path or path in ("", "/", "/foryou", "/following", "/explore", "/live", "/home", "/feed"):
+            if not query or not ("v=" in query or "video_id=" in query or "watch" in query):
+                return False
+
+        # Short link and clip domains are always canonical video links if they have a path
+        if any(short in netloc for short in ("vt.tiktok.com", "vm.tiktok.com", "fb.watch", "youtu.be", "dai.ly", "pin.it", "v.redd.it", "clips.twitch.tv")):
+            return len(path) > 1
+
+        # Platform specific checks:
+        if "tiktok.com" in netloc:
+            return "/video/" in path or "/v/" in path or bool(re.search(r"/\d{18,20}", path))
+        if "facebook.com" in netloc:
+            return "/reel/" in path or "/watch" in path or "/videos/" in path or "v=" in query
+        if "instagram.com" in netloc:
+            return "/reel/" in path or "/p/" in path or "/tv/" in path or "/reels/" in path
+        if "twitter.com" in netloc or "x.com" in netloc:
+            return "/status/" in path
+        if "youtube.com" in netloc:
+            return "v=" in query or "/shorts/" in path or "/embed/" in path or "/watch" in path
+        if "reddit.com" in netloc:
+            return "/comments/" in path
+
+        # For generic sites, if path has more than just '/'
+        return len(path) > 1
+    except Exception:
+        return False
 
 
 def sanitize_media_url(data: str) -> str:
@@ -1725,9 +1857,10 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
     if not clean_base:
         clean_base = "media"
 
-    # Extract any existing duplicate counter suffix like " (1)", " (2)"
-    m = re.search(r'^(.*?)(\s*\(\d+\))$', clean_base)
-    if m:
+    # Extract any existing tags or duplicate counter suffixes like " [id] [1080p]", " (1)", " [id] (1)"
+    pattern = r'^(.*?)(\s*(?:\[[^\]]+\]|\(\d+\))+(?:\s*(?:\[[^\]]+\]|\(\d+\)))*)$'
+    m = re.search(pattern, clean_base)
+    if m and m.group(2).strip():
         main_part, suffix = m.group(1), m.group(2)
         eff_limit = max(10, max_len - len(suffix.encode("utf-8")))
         while len(main_part.encode("utf-8")) > eff_limit:

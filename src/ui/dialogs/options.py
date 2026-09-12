@@ -460,15 +460,30 @@ class OptionsDialog(QDialog):
         self.chk_show_queue_complete_dialog.setChecked(_get_setting("show_queue_complete_dialog", False))
         vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
 
-        def _on_silent_toggled(checked):
-            self.chk_show_start_dialog.setEnabled(not checked)
-            self.chk_show_progress_dialog.setEnabled(not checked)
-            self.chk_show_complete_dialog.setEnabled(not checked)
-            self.chk_show_queue_complete_dialog.setEnabled(not checked)
+        default_progress_tooltip = "Show popup progress dialog during active file transfer"
+        disabled_by_start_tooltip = "Show popup progress dialog during active file transfer (Requires 'Show start download dialog' to be enabled)"
+        disabled_by_silent_tooltip = "Show popup progress dialog during active file transfer (Disabled when Silent Download is enabled)"
 
-        self.chk_silent_download.toggled.connect(_on_silent_toggled)
-        if self.chk_silent_download.isChecked():
-            _on_silent_toggled(True)
+        def _update_dialog_checkbox_states():
+            silent = self.chk_silent_download.isChecked()
+            start_enabled = not silent
+            self.chk_show_start_dialog.setEnabled(start_enabled)
+
+            prog_enabled = start_enabled and self.chk_show_start_dialog.isChecked()
+            self.chk_show_progress_dialog.setEnabled(prog_enabled)
+            if silent:
+                self.chk_show_progress_dialog.setToolTip(disabled_by_silent_tooltip)
+            elif not self.chk_show_start_dialog.isChecked():
+                self.chk_show_progress_dialog.setToolTip(disabled_by_start_tooltip)
+            else:
+                self.chk_show_progress_dialog.setToolTip(default_progress_tooltip)
+
+            self.chk_show_complete_dialog.setEnabled(not silent)
+            self.chk_show_queue_complete_dialog.setEnabled(not silent)
+
+        self.chk_silent_download.toggled.connect(lambda _: _update_dialog_checkbox_states())
+        self.chk_show_start_dialog.toggled.connect(lambda _: _update_dialog_checkbox_states())
+        _update_dialog_checkbox_states()
 
         grp_dialogs.setLayout(vbox_dialogs)
         layout.addWidget(grp_dialogs)
@@ -659,7 +674,7 @@ class OptionsDialog(QDialog):
 
         layout.addWidget(grp_save)
         
-        grp_temp = QGroupBox("Temporary directory")
+        grp_temp = QGroupBox("Temporary / Cache directory")
         temp_layout = QVBoxLayout(grp_temp)
         temp_layout.setContentsMargins(10, 15, 10, 15)
         temp_layout.setSpacing(10)
@@ -667,11 +682,11 @@ class OptionsDialog(QDialog):
         temp_dir_row = QHBoxLayout()
         self.txt_temp_path = QLineEdit()
         self.txt_temp_path.setText(self.config_data.get("temp_dir", ""))
-        self.txt_temp_path.setToolTip("Temporary directory used for downloading chunks before merging")
+        self.txt_temp_path.setToolTip("Temporary and cache directory used for downloading chunks, video stream fragments, and incomplete downloads before merging")
         temp_dir_row.addWidget(self.txt_temp_path)
         
         btn_browse_temp = QPushButton("Browse")
-        btn_browse_temp.setToolTip("Browse folder for temporary chunk storage")
+        btn_browse_temp.setToolTip("Browse folder for temporary chunk and cache storage")
         btn_browse_temp.clicked.connect(lambda: self.browse_folder(self.txt_temp_path))
         temp_layout.addLayout(temp_dir_row)
         
@@ -1324,6 +1339,8 @@ class OptionsDialog(QDialog):
         return self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
 
     def get_show_progress_dialog(self) -> bool:
+        if hasattr(self, "chk_show_start_dialog") and not self.chk_show_start_dialog.isChecked():
+            return False
         return self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
 
     def get_show_complete_dialog(self) -> bool:

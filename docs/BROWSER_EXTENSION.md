@@ -23,12 +23,12 @@ This document provides a comprehensive technical guide to the **Bengal Download 
 |  +-----------------------------------------------------------------------------+  |
 +-----------------------------------------------------------------------------------+
                                             |
-                            [Local HTTP REST POST - Port 9000]
+                            [Local HTTP REST POST - Port 56900]
                                             v
 +-----------------------------------------------------------------------------------+
 |                        Bengal Download Manager Core Application                   |
 |  +-----------------------------------------------------------------------------+  |
-|  |                 IPC TCP Listener (src/main.py - Port 9000)                  |  |
+|  |                 IPC TCP Listener (src/main.py - Port 56900)                 |  |
 |  +-----------------------------------------------------------------------------+  |
 +-----------------------------------------------------------------------------------+
 ```
@@ -100,14 +100,14 @@ For authenticated downloads (e.g. private cloud storage, user portals), download
 
 ---
 
-## 6. IPC Communication Bridge (Port 9000)
+## 6. IPC Communication Bridge (Port 56900)
 
-The extension communicates with the desktop application via a local HTTP REST bridge server hosted by `src/main.py` on port **9000**.
+The extension communicates with the desktop application via a local HTTP REST bridge server hosted by `src/main.py` on port **56900**.
 
 ### Health Check Ping (`GET /`)
 Before attempting download interception, `isBengalDMOnline()` performs an aborted HTTP GET request:
 ```http
-GET http://127.0.0.1:9000/ HTTP/1.1
+GET http://127.0.0.1:56900/ HTTP/1.1
 ```
 * **Response 200 OK:** Extension intercepts download and passes payload to Bengal DM.
 * **Connection Error / Refused:** Extension bypasses capture and lets the browser handle the download natively.
@@ -115,7 +115,7 @@ GET http://127.0.0.1:9000/ HTTP/1.1
 ### Download Dispatch Payload (`POST /`)
 When a download is captured, `sendToBengalDM()` sends a JSON POST request:
 ```json
-POST http://127.0.0.1:9000/ HTTP/1.1
+POST http://127.0.0.1:56900/ HTTP/1.1
 Content-Type: application/json
 
 {
@@ -136,6 +136,6 @@ Content-Type: application/json
   - Quick toggle switch for **Automatic Download Capture**.
   - Direct link to open Bengal DM settings.
 - **Options Tab Page (`options.html` / `options.js`):**
-  - **Local Port Configuration:** Change IPC port (Default: `9000`).
+  - **Local Port Configuration:** Change Aria2 RPC port (Default: `56800`).
   - **Custom Extension Filters:** Add or remove file extensions triggering auto-capture.
   - **Site Bypass List:** Add domains excluded from auto-capture.

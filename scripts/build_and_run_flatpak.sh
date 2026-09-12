@@ -11,7 +11,16 @@ BUILD_DIR="flatpak_app_dir"
 
 echo "=== 1. Building PyInstaller Application ==="
 rm -rf build dist
-PYTHONPATH=src venv/bin/pyinstaller \
+PYINSTALLER_BIN="pyinstaller"
+if command -v uv >/dev/null 2>&1; then
+    PYINSTALLER_BIN="uv run pyinstaller"
+elif [ -f ".venv/bin/pyinstaller" ]; then
+    PYINSTALLER_BIN=".venv/bin/pyinstaller"
+elif [ -f "venv/bin/pyinstaller" ]; then
+    PYINSTALLER_BIN="venv/bin/pyinstaller"
+fi
+
+PYTHONPATH=src $PYINSTALLER_BIN \
     --name "bengal-download-manager" \
     --onedir \
     --clean \

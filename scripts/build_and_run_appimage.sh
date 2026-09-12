@@ -12,12 +12,25 @@ REPO_OWNER="tazihad"
 REPO_NAME="bengal-download-manager"
 
 echo "=== 1. Checking / Building PyInstaller Executable ==="
+PYINSTALLER_BIN="pyinstaller"
+PY_BIN="python3"
+if command -v uv >/dev/null 2>&1; then
+    PYINSTALLER_BIN="uv run pyinstaller"
+    PY_BIN="uv run python"
+elif [ -f ".venv/bin/pyinstaller" ]; then
+    PYINSTALLER_BIN=".venv/bin/pyinstaller"
+    PY_BIN=".venv/bin/python"
+elif [ -f "venv/bin/pyinstaller" ]; then
+    PYINSTALLER_BIN="venv/bin/pyinstaller"
+    PY_BIN="venv/bin/python"
+fi
+
 if [ ! -f "dist/bengal-download-manager" ]; then
-    PYTHONPATH=src venv/bin/pyinstaller --noconfirm bengal-download-manager.spec
+    PYTHONPATH=src $PYINSTALLER_BIN --noconfirm bengal-download-manager.spec
 fi
 
 echo "=== 2. Preparing Icon & AppDir Structure ==="
-venv/bin/python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/io.github.tazihad.bengal-download-manager.png')"
+$PY_BIN -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/io.github.tazihad.bengal-download-manager.png')"
 cp assets/io.github.tazihad.bengal-download-manager.png assets/bengal-download-manager.png
 
 rm -rf AppDir

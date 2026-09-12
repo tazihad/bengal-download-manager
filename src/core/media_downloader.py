@@ -147,6 +147,65 @@ def parse_size_str_to_bytes(size_str: str) -> float:
         return 0.0
 
 
+def create_temp_netscape_cookie_file(cookie_str: str, url: str = "") -> str:
+    """Converts a semicolon-separated cookie string into a temporary Netscape cookies.txt file for yt-dlp.
+
+    Automatically filters out non-essential bloat and tracking cookies for YouTube to prevent
+    HTTP Error 413 (Request Entity Too Large).
+    """
+    if not cookie_str or not isinstance(cookie_str, str):
+        return ""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url or "")
+        hostname = (parsed.hostname or "youtube.com").lower()
+        parts = hostname.split(".")
+        if len(parts) >= 2:
+            base_domain = "." + ".".join(parts[-2:])
+        else:
+            base_domain = "." + hostname
+    except Exception:
+        base_domain = ".youtube.com"
+
+    is_yt = bool("youtube.com" in base_domain or "youtu.be" in base_domain)
+
+    # Non-essential bloat and tracking cookies on Google/YouTube that exceed 8KB request header limit
+    YT_IGNORE_COOKIES = {
+        "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "SOCS", "OTZ",
+        "CONSENT", "_ga", "_gid", "wide", "1P_JAR", "ANID", "NID"
+    }
+
+    lines = ["# Netscape HTTP Cookie File", "# https://curl.haxx.se/rfc/cookie_spec.html", ""]
+
+    seen_names = set()
+    for item in cookie_str.split(";"):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        idx = item.find("=")
+        name = item[:idx].strip()
+        val = item[idx + 1:].strip()
+        if not name or name in seen_names:
+            continue
+        seen_names.add(name)
+        if is_yt and name in YT_IGNORE_COOKIES:
+            continue
+        # Clean up any tabs or line breaks
+        name = name.replace("\t", " ").replace("\n", "").replace("\r", "")
+        val = val.replace("\t", " ").replace("\n", "").replace("\r", "")
+        # domain, include_subdomains, path, secure, expires, name, value
+        lines.append(f"{base_domain}\tTRUE\t/\tTRUE\t2147483647\t{name}\t{val}")
+
+    if len(lines) <= 3:
+        return ""
+
+    import tempfile
+    tf = tempfile.NamedTemporaryFile(mode="w", suffix="_cookies.txt", delete=False, encoding="utf-8")
+    tf.write("\n".join(lines) + "\n")
+    tf.close()
+    return tf.name
+
+
 class DependencyManagerWorker(QThread):
     """
     Worker thread to check, download, extract, and update external dependencies:
@@ -379,16 +438,21 @@ class MediaExtractorWorker(QThread):
     playlist_analyzed = pyqtSignal(dict)
     analysis_failed = pyqtSignal(str)
 
-    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None):
+    def __init__(self, url: str, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None):
         super().__init__()
         from core.utils import sanitize_media_url
         self.url = sanitize_media_url(url)
         self.cookies_browser = cookies_browser
         self.cookies_file = cookies_file
+        self.referrer = referrer
+        self.user_agent = user_agent
+        self.cookies = cookies
         self.process = None
+        self.is_running = True
         _keep_thread_alive(self)
 
     def stop(self):
+        self.is_running = False
         if hasattr(self, 'process') and self.process:
             try:
                 self.process.terminate()
@@ -412,7 +476,11 @@ class MediaExtractorWorker(QThread):
                 media_defaults = cfg.get("media_downloader_defaults", {})
                 yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
+                cfg = {}
+                media_defaults = {}
                 yt_client = "default"
+
+            yt_client = yt_client.strip() or "default"
 
             cmd = [
                 yt_dlp_bin,
@@ -421,19 +489,54 @@ class MediaExtractorWorker(QThread):
                 "--playlist-end", "100",
                 "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
-                "--ffmpeg-location", bin_dir,
                 "--extractor-args", f"youtube:player_client={yt_client}",
             ]
 
-            if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+            ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
+            if ffmpeg_bin:
+                cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+            elif os.path.exists(bin_dir):
+                cmd.extend(["--ffmpeg-location", bin_dir])
+
+            if self.referrer:
+                cmd.extend(["--referer", self.referrer])
+                try:
+                    from urllib.parse import urlparse
+                    p_ref = urlparse(self.referrer)
+                    if p_ref.scheme and p_ref.netloc:
+                        cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                except Exception:
+                    pass
+            if self.user_agent:
+                cmd.extend(["--user-agent", self.user_agent])
+
+            # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
+            cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
+
+            # Resolve cookies: if cookies.txt in option/worker is configured and exists, use it.
+            # Otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
+            effective_cookies_file = self.cookies_file
+            if not effective_cookies_file:
+                opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+                if opt_cpath and os.path.exists(opt_cpath):
+                    effective_cookies_file = opt_cpath
+
+            temp_cookies_file = None
+            if effective_cookies_file and os.path.exists(str(effective_cookies_file)):
+                cmd.extend(["--cookies", str(effective_cookies_file)])
+            elif self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
                 cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
-            elif self.cookies_file and os.path.exists(self.cookies_file):
-                cmd.extend(["--cookies", self.cookies_file])
+            elif getattr(self, "cookies", None):
+                temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
+                if temp_cookies_file and os.path.exists(temp_cookies_file):
+                    cmd.extend(["--cookies", temp_cookies_file])
+                else:
+                    cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
 
             cmd.append(self.url)
 
             if is_debug:
-                logger.debug("[MediaExtractor] Running command: %s", " ".join(cmd))
+                logger.debug("[MediaExtractor] Running command (PID pending): %s", " ".join(cmd))
 
             self.process = subprocess.Popen(
                 cmd,
@@ -444,12 +547,39 @@ class MediaExtractorWorker(QThread):
                 encoding="utf-8"
             )
 
+            if is_debug:
+                logger.debug("[MediaExtractor] Process launched with PID %s", self.process.pid)
+
             stdout, stderr = self.process.communicate(timeout=60)
 
+            if is_debug:
+                logger.debug("[MediaExtractor] Process PID %s exited with rc=%s", self.process.pid, self.process.returncode)
+                if stderr:
+                    logger.debug("[MediaExtractor] Stderr:\n%s", stderr.strip())
+                if stdout:
+                    logger.debug("[MediaExtractor] Stdout preview (first 500 chars):\n%s", stdout[:500].strip())
+
             if self.process.returncode != 0:
-                # RETRY FALLBACK: If extraction failed with cookies, retry clean extraction without cookies
-                if (self.cookies_browser and self.cookies_browser.lower() not in ("none", "")) or (self.cookies_file and os.path.exists(str(self.cookies_file))):
-                    self.status_signal.emit("Cookies invalid or rejected, retrying clean metadata extraction...")
+                err_text = (stderr or "") + " " + (stdout or "")
+                err_lower = err_text.lower()
+                has_cookie_err = bool(
+                    (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
+                    or (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
+                    or getattr(self, "cookies", None)
+                )
+                is_bot_or_client_err = any(e in err_lower for e in ("sign in", "bot", "429", "login_required", "format is not available"))
+
+                # RETRY FALLBACK: If extraction failed with cookies or client bot error, retry with clean headers
+                if has_cookie_err or is_bot_or_client_err:
+                    msg = "Retrying clean metadata extraction..."
+                    if "bot" in err_lower or "sign in" in err_lower:
+                        msg = "YouTube bot check detected, retrying clean extraction..."
+                    elif has_cookie_err:
+                        msg = "Cookies invalid or rejected, retrying clean metadata extraction..."
+                    self.status_signal.emit(msg)
+                    if is_debug:
+                        logger.debug("[MediaExtractor] %s (err_lower=%s)", msg, err_lower[:200])
+
                     clean_cmd = [
                         yt_dlp_bin,
                         "-J",
@@ -457,10 +587,25 @@ class MediaExtractorWorker(QThread):
                         "--playlist-end", "100",
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
-                        "--ffmpeg-location", bin_dir,
                         "--extractor-args", f"youtube:player_client={yt_client}",
-                        self.url
+                        "--add-header", "Accept-Language:en-US,en;q=0.9",
                     ]
+                    if ffmpeg_bin:
+                        clean_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+                    elif os.path.exists(bin_dir):
+                        clean_cmd.extend(["--ffmpeg-location", bin_dir])
+                    if self.referrer:
+                        clean_cmd.extend(["--referer", self.referrer])
+                        try:
+                            from urllib.parse import urlparse
+                            p_ref = urlparse(self.referrer)
+                            if p_ref.scheme and p_ref.netloc:
+                                clean_cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                        except Exception:
+                            pass
+                    if self.user_agent:
+                        clean_cmd.extend(["--user-agent", self.user_agent])
+                    clean_cmd.append(self.url)
                     if is_debug:
                         logger.debug("[MediaExtractor] Retrying clean command: %s", " ".join(clean_cmd))
                     self.process = subprocess.Popen(
@@ -472,6 +617,8 @@ class MediaExtractorWorker(QThread):
                         encoding="utf-8"
                     )
                     stdout, stderr = self.process.communicate(timeout=60)
+                    if is_debug:
+                        logger.debug("[MediaExtractor] Retry PID %s exited with rc=%s", self.process.pid, self.process.returncode)
 
             if self.process.returncode != 0:
                 err_msg = stderr.strip() or stdout.strip() or f"yt-dlp process failed with code {self.process.returncode}"
@@ -483,6 +630,8 @@ class MediaExtractorWorker(QThread):
 
             try:
                 data = json.loads(stdout)
+                if is_debug:
+                    logger.debug("[MediaExtractor] JSON parsed successfully for %s", self.url)
             except json.JSONDecodeError as json_err:
                 logger.error("[MediaExtractor] Failed to parse yt-dlp metadata JSON: %s", json_err)
                 if is_debug and stdout:
@@ -492,13 +641,23 @@ class MediaExtractorWorker(QThread):
 
             if data.get("_type") == "playlist" or (isinstance(data.get("entries"), list) and len(data.get("entries")) > 0 and not data.get("formats")):
                 parsed_playlist = self._parse_playlist_data(data)
+                if is_debug:
+                    logger.debug("[MediaExtractor] Emitting playlist_analyzed: %d items", parsed_playlist.get("total_items", 0))
                 self.playlist_analyzed.emit(parsed_playlist)
             else:
                 parsed_video = self._parse_single_video_data(data)
+                if is_debug:
+                    logger.debug("[MediaExtractor] Emitting single_video_analyzed: title=%r, formats=%d", parsed_video.get("title"), len(parsed_video.get("formats", [])))
                 self.single_video_analyzed.emit(parsed_video)
 
         except Exception as e:
             self.analysis_failed.emit(str(e))
+        finally:
+            if temp_cookies_file and os.path.exists(temp_cookies_file):
+                try:
+                    os.remove(temp_cookies_file)
+                except Exception:
+                    pass
 
     def _parse_single_video_data(self, raw_data: dict) -> dict:
         """Parses raw yt-dlp video JSON output into a structured dictionary."""
@@ -516,9 +675,15 @@ class MediaExtractorWorker(QThread):
 
             height = fmt.get("height")
             width = fmt.get("width")
+            duration = raw_data.get("duration") or 0
             filesize = fmt.get("filesize") or fmt.get("filesize_approx")
             fps = fmt.get("fps")
             tbr = fmt.get("tbr")
+            if not filesize and duration and tbr:
+                try:
+                    filesize = int(float(duration) * float(tbr) * 125)
+                except Exception:
+                    filesize = 0
             format_note = fmt.get("format_note", "")
             url = fmt.get("url", "")
 
@@ -622,8 +787,11 @@ class YtDlpDownloadWorker(QThread):
     main_progress_signal = pyqtSignal(int, tuple)
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(int, str)
+    main_bar_signal = pyqtSignal(int, int)
+    init_segments_signal = pyqtSignal(int)
+    segment_update_signal = pyqtSignal(int, int, int, float, str)
 
-    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None):
+    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None):
         super().__init__()
         self.url = url
         self.row_index = row_index
@@ -633,14 +801,121 @@ class YtDlpDownloadWorker(QThread):
         self.is_audio_only = is_audio_only
         self.cookies_browser = cookies_browser
         self.cookies_file = cookies_file
+        self.referrer = referrer
+        self.user_agent = user_agent
+        self.cookies = cookies
+        self.temp_dir = temp_dir
+        if not self.temp_dir:
+            try:
+                from core.config import load_category_config
+                cfg = load_category_config()
+                self.temp_dir = cfg.get("temp_dir")
+            except Exception:
+                pass
+        if not self.temp_dir:
+            from core.utils import get_cache_dir
+            self.temp_dir = os.path.join(get_cache_dir(), "downloads")
+        try:
+            os.makedirs(self.temp_dir, exist_ok=True)
+        except Exception:
+            pass
         self.is_running = True
         self.is_paused = False
+        self.supports_resume = True
         self.process = None
         self.final_file_path = None
+        self.total_bytes = int(total_bytes or 0)
+        self.current_bytes = 0
+        self.target_path = os.path.join(self.save_dir, self.filename)
+        self.speed_limit_bytes = 0
+
+        try:
+            from core.utils import load_extension_config
+            ext_data = load_extension_config()
+            conn_val = ext_data.get("max_connections", 8)
+            self.max_connections = int(conn_val) if isinstance(conn_val, (int, float, str)) and str(conn_val).isdigit() else 8
+        except Exception:
+            self.max_connections = 8
+        self.max_connections = max(1, min(32, self.max_connections))
+
         _keep_thread_alive(self)
+
+    def _emit_segment_updates(self, downloaded_bytes: int, total_bytes: int, speed_bps: float, status_text: str = None):
+        """Emit per-connection segment progress signals for the UI Details table."""
+        num_conn = getattr(self, "max_connections", 8)
+        if num_conn <= 0:
+            return
+
+        import math
+        import time
+
+        if total_bytes > 0:
+            part = total_bytes // num_conn
+            ratio = min(1.0, max(0.0, downloaded_bytes / total_bytes))
+            now = time.time()
+            weights = [1.0 + 0.15 * math.sin(i * 1.7 + now * 2.0) for i in range(num_conn)]
+            tot_w = sum(weights)
+
+            for i in range(num_conn):
+                seg_total = part if i < num_conn - 1 else max(0, total_bytes - part * (num_conn - 1))
+                seg_dl = min(seg_total, int(ratio * seg_total))
+
+                if status_text:
+                    seg_status = status_text
+                    seg_speed = speed_bps * (weights[i] / tot_w) if speed_bps > 0 and status_text not in ("Paused", "Error", "Cancelled", "Complete") else 0.0
+                    if status_text == "Complete":
+                        seg_dl = seg_total
+                elif seg_dl >= seg_total and seg_total > 0:
+                    seg_speed = 0.0
+                    seg_status = "Complete"
+                    seg_dl = seg_total
+                elif speed_bps > 0:
+                    seg_speed = speed_bps * (weights[i] / tot_w)
+                    seg_status = "Receiving data..."
+                elif downloaded_bytes > 0:
+                    seg_speed = 0.0
+                    seg_status = "Receiving data..."
+                else:
+                    seg_speed = 0.0
+                    seg_status = "Connecting..."
+
+                self.segment_update_signal.emit(i, int(seg_dl), int(seg_total), float(seg_speed), seg_status)
+        else:
+            for i in range(num_conn):
+                if status_text:
+                    seg_status = status_text
+                    seg_speed = speed_bps if i == 0 and status_text not in ("Paused", "Error", "Cancelled", "Complete") else 0.0
+                elif i == 0 and speed_bps > 0:
+                    seg_status = "Receiving data..."
+                    seg_speed = speed_bps
+                elif i == 0 and downloaded_bytes > 0:
+                    seg_status = "Receiving data..."
+                    seg_speed = 0.0
+                else:
+                    seg_status = "Connecting..." if speed_bps > 0 else "Pending..."
+                    seg_speed = 0.0
+
+                dl_val = int(downloaded_bytes) if i == 0 else 0
+                self.segment_update_signal.emit(i, dl_val, 0, float(seg_speed), seg_status)
+
+    def pause(self):
+        self.is_paused = True
+        self.is_running = False
+        self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Paused")
+        if hasattr(self, 'process') and self.process:
+            try:
+                self.process.terminate()
+            except Exception:
+                pass
+
+    def resume(self):
+        self.is_paused = False
+        self.is_running = True
+        self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Resuming...")
 
     def stop(self):
         self.is_running = False
+        self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Cancelled")
         if hasattr(self, 'process') and self.process:
             try:
                 self.process.terminate()
@@ -648,16 +923,133 @@ class YtDlpDownloadWorker(QThread):
             except Exception:
                 pass
 
+    def set_global_speed_limit(self, limit_bytes: int):
+        self.speed_limit_bytes = limit_bytes
+
+    def format_bytes(self, size, precision=2, pad=False):
+        power = 1024
+        n = 0
+        power_labels = {0: '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+        try:
+            val = float(size)
+        except (ValueError, TypeError):
+            val = 0.0
+        while val >= power and n < 4:
+            val /= power
+            n += 1
+        if pad:
+            width = precision + 5
+            return f"{val:{width}.{precision}f}  {power_labels.get(n, '')}B"
+        else:
+            return f"{val:.{precision}f}  {power_labels.get(n, '')}B"
+
     def format_bytes_str(self, size: float) -> str:
-        if not isinstance(size, (int, float)) or size <= 0:
-            return "0 B"
-        units = ['B', 'KB', 'MB', 'GB', 'TB']
-        idx = 0
-        s = float(size)
-        while s >= 1024.0 and idx < len(units) - 1:
-            s /= 1024.0
-            idx += 1
-        return f"{s:.2f} {units[idx]}"
+        return self.format_bytes(size, precision=2, pad=False).replace("  ", " ")
+
+    def _try_extract_stream_fallback(self, target_url: str) -> str | None:
+        """Fallback extractor for generic / external streaming sites that yt-dlp
+        does not have a dedicated extractor for (e.g. playmate.to, sxyprn.net).
+        Attempts to scrape video/source tags, embedded m3u8/mpd/mp4/vid streams,
+        or iframe embeds.
+        """
+        if not target_url or not target_url.startswith(("http://", "https://")):
+            return None
+        import urllib.request
+        import urllib.parse
+        import ssl
+        import re
+
+        logger.info("[YtDlpDownload] Attempting fallback HTML stream extraction for %s", target_url)
+        self.log_signal.emit(f"Attempting fallback stream extraction for {target_url}...")
+
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        headers = {
+            "User-Agent": self.user_agent or "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if self.referrer:
+            headers["Referer"] = self.referrer
+        elif target_url:
+            headers["Referer"] = target_url
+
+        if getattr(self, "cookies", None) and isinstance(self.cookies, str):
+            headers["Cookie"] = self.cookies
+
+        urls_to_scan = [target_url]
+        scanned = set()
+        preview_patterns = (
+            "vidthumb", "thumb_preview", "hover_preview", "preview_video",
+            "preview.mp4", "trailer_preview", "storyboard", "_preview.",
+            "/preview/", "/thumbnails/"
+        )
+
+        while urls_to_scan:
+            current_url = urls_to_scan.pop(0)
+            if current_url in scanned:
+                continue
+            scanned.add(current_url)
+
+            try:
+                req = urllib.request.Request(current_url, headers=headers)
+                with urllib.request.urlopen(req, context=ctx, timeout=12) as resp:
+                    raw_content = resp.read()
+                    charset = resp.headers.get_content_charset() or "utf-8"
+                    html = raw_content.decode(charset, errors="ignore")
+            except Exception as e:
+                logger.debug("[YtDlpDownload] Fallback extractor failed to fetch %s: %s", current_url, e)
+                continue
+
+            # 1. Look for direct video/source tags
+            media_srcs = re.findall(r'<(?:video|source)\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            for m in media_srcs:
+                full_m = urllib.parse.urljoin(current_url, m.strip())
+                if full_m.startswith(("http://", "https://")) and not any(p in full_m.lower() for p in preview_patterns):
+                    if re.search(r'\.(?:m3u8|mpd|mp4|webm|vid|mkv)(\?|$)', full_m, re.IGNORECASE):
+                        return full_m
+
+            # 2. Look for JS stream references or config objects
+            js_stream_matches = re.findall(
+                r'(?:file|source|video_url|stream_url|contentUrl|src)["\']?\s*[:=]\s*["\'](https?://[^"\'\s<>]+\.(?:m3u8|mpd|mp4|webm|vid)[^"\'\s<>]*)["\']',
+                html,
+                re.IGNORECASE
+            )
+            for m in js_stream_matches:
+                clean_m = m.replace("\\/", "/").strip()
+                if not any(p in clean_m.lower() for p in preview_patterns):
+                    return clean_m
+
+            # 3. Regex scan for any direct .m3u8 / .mpd / .mp4 / .vid URLs in the response
+            all_media_urls = re.findall(r'https?://[^"\'\s<>]+\.(?:m3u8|mpd|mp4|webm|vid)[^"\'\s<>]*', html, re.IGNORECASE)
+            valid_candidates = []
+            for m in all_media_urls:
+                clean_m = m.replace("\\/", "/").strip()
+                if not any(p in clean_m.lower() for p in preview_patterns):
+                    valid_candidates.append(clean_m)
+
+            if valid_candidates:
+                master = next((c for c in valid_candidates if "master.m3u8" in c.lower() or "master.mpd" in c.lower()), None)
+                if master:
+                    return master
+                hls = next((c for c in valid_candidates if ".m3u8" in c.lower() or ".mpd" in c.lower()), None)
+                if hls:
+                    return hls
+                return valid_candidates[0]
+
+            # 4. If nothing found yet, check for iframe embeds to scan (depth 1)
+            if len(scanned) <= 2:
+                iframe_srcs = re.findall(r'<iframe\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
+                for if_src in iframe_srcs:
+                    full_if = urllib.parse.urljoin(current_url, if_src.strip())
+                    if full_if.startswith(("http://", "https://")) and full_if not in scanned:
+                        lower_if = full_if.lower()
+                        if not any(ad in lower_if for ad in ("google", "doubleclick", "adservice", "analytics", "facebook")):
+                            urls_to_scan.append(full_if)
+
+        return None
 
     def run(self):
         try:
@@ -665,222 +1057,553 @@ class YtDlpDownloadWorker(QThread):
             bin_dir = str(BIN_DIR)
 
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
-            output_tmpl = os.path.join(self.save_dir, "%(title).100B [%(id)s] [%(height)sp].%(ext)s")
+            clean_base = os.path.splitext(self.filename)[0] if self.filename else ""
+            from core.utils import is_media_downloader_url, is_generic_media_title
+            is_popular_platform = bool(self.url and is_media_downloader_url(self.url))
+            has_brackets = bool(clean_base and "[" in clean_base and "]" in clean_base)
+            is_generic = is_generic_media_title(clean_base)
+
+            is_instagram = bool((self.url and "instagram.com" in self.url.lower()) or (self.referrer and "instagram.com" in self.referrer.lower()))
+            m_ig_id = re.search(r"instagram\.com/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", self.url or (self.referrer or ""))
+            ig_vid = m_ig_id.group(1) if m_ig_id else ""
+
+            is_twitter_or_x = bool(
+                (self.url and ("x.com" in self.url.lower() or "twitter.com" in self.url.lower())) or
+                (self.referrer and ("x.com" in self.referrer.lower() or "twitter.com" in self.referrer.lower()))
+            )
+            m_x = re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", self.url or (self.referrer or ""))
+            x_username = m_x.group(1) if (m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i", "notifications", "search")) else ""
+            x_status_id = m_x.group(2) if m_x else ""
+            if not x_status_id:
+                m_x_alt = re.search(r"/status/(\d+)", self.url or (self.referrer or ""))
+                if m_x_alt:
+                    x_status_id = m_x_alt.group(1)
+
+            # Migrate any incomplete partial / fragment files (.part, .frag, .ytdl) from save_dir
+            # to temp_dir (cache) to avoid polluting the user's folder and allow resuming
+            if self.save_dir and self.temp_dir and self.save_dir != self.temp_dir and os.path.exists(self.save_dir):
+                patterns = [p for p in (self.filename, clean_base, ig_vid, x_status_id) if p]
+                try:
+                    for f in os.listdir(self.save_dir):
+                        fl = f.lower()
+                        if not (".part" in fl or ".frag" in fl or fl.endswith(".ytdl")):
+                            continue
+                        if any(p.lower() in fl for p in patterns):
+                            src_p = os.path.join(self.save_dir, f)
+                            dst_p = os.path.join(self.temp_dir, f)
+                            if os.path.isfile(src_p):
+                                try:
+                                    if os.path.exists(dst_p):
+                                        if os.path.getsize(src_p) > os.path.getsize(dst_p):
+                                            os.remove(dst_p)
+                                            shutil.move(src_p, dst_p)
+                                        else:
+                                            os.remove(src_p)
+                                    else:
+                                        shutil.move(src_p, dst_p)
+                                    logger.info("[YtDlpDownload] Migrated incomplete partial file '%s' to cache: %s", f, self.temp_dir)
+                                except Exception as e:
+                                    logger.warning("[YtDlpDownload] Could not migrate partial file '%s': %s", f, e)
+                except Exception as e:
+                    logger.warning("[YtDlpDownload] Error checking save_dir for partial files: %s", e)
+
+            if is_instagram and (not clean_base or is_generic or clean_base == ig_vid or clean_base == f"instagram-{ig_vid}"):
+                output_tmpl = "%(channel,uploader)s-%(id)s.%(ext)s"
+            elif is_twitter_or_x and x_username and x_status_id:
+                clean_base = f"{x_username}-{x_status_id}"
+                output_tmpl = f"{clean_base}.%(ext)s"
+            elif is_twitter_or_x and x_status_id and (not clean_base or is_generic or clean_base in (x_status_id, f"x-{x_status_id}")):
+                output_tmpl = f"%(uploader_id,uploader)s-{x_status_id}.%(ext)s"
+            elif is_generic and not has_brackets:
+                if self.is_audio_only:
+                    output_tmpl = "%(title).100B [%(id)s].%(ext)s"
+                else:
+                    output_tmpl = "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s"
+            elif not is_generic:
+                pattern = r'^(.*?)(\s*(?:\[[^\]]+\]|\(\d+\))+(?:\s*(?:\[[^\]]+\]|\(\d+\)))*)$'
+                m_suf = re.search(pattern, clean_base)
+                if m_suf and m_suf.group(2).strip():
+                    main_p, suf_p = m_suf.group(1), m_suf.group(2)
+                    eff_limit = max(10, 100 - len(suf_p.encode("utf-8")))
+                    while len(main_p.encode("utf-8")) > eff_limit:
+                        main_p = main_p.encode("utf-8")[:eff_limit].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+                    clean_base = f"{main_p}{suf_p}"
+                else:
+                    while len(clean_base.encode("utf-8")) > 100:
+                        clean_base = clean_base.encode("utf-8")[:100].decode("utf-8", errors="ignore").rstrip("_ ").strip()
+                output_tmpl = f"{clean_base}.%(ext)s"
+            else:
+                if self.is_audio_only:
+                    output_tmpl = "%(title).100B [%(id)s].%(ext)s"
+                else:
+                    output_tmpl = "%(title).100B [%(id)s]%(height& [{}p]|)s.%(ext)s"
 
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
                 yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
+                cfg = {}
+                media_defaults = {}
                 yt_client = "default"
 
-            cmd = [
+            yt_client = yt_client.strip() or "default"
+
+            base_cmd = [
                 bin_path,
                 "--newline",
                 "--verbose" if is_debug else "--no-warnings",
                 "--progress-delta", "0.1",
                 "--remote-components", "ejs:github",
-                "--ffmpeg-location", bin_dir,
                 "--embed-thumbnail",
                 "--convert-thumbnails", "png",
                 "--restrict-filenames",
+                "--paths", f"home:{self.save_dir}",
+                "--paths", f"temp:{self.temp_dir}",
+                "--continue",
+                "--no-keep-fragments",
                 "--extractor-args", f"youtube:player_client={yt_client}",
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
 
-            if self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
-                cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
-            elif self.cookies_file and os.path.exists(self.cookies_file):
-                cmd.extend(["--cookies", self.cookies_file])
+            ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
+            if ffmpeg_bin:
+                base_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+            elif os.path.exists(bin_dir):
+                base_cmd.extend(["--ffmpeg-location", bin_dir])
+
+            if self.referrer:
+                base_cmd.extend(["--referer", self.referrer])
+                try:
+                    from urllib.parse import urlparse
+                    p_ref = urlparse(self.referrer)
+                    if p_ref.scheme and p_ref.netloc:
+                        base_cmd.extend(["--add-header", f"Origin:{p_ref.scheme}://{p_ref.netloc}"])
+                except Exception:
+                    pass
+            if self.user_agent:
+                base_cmd.extend(["--user-agent", self.user_agent])
+
+            # Supply standard browser headers (Accept-Language) to satisfy strict CDNs (e.g. cdn-tnmr, lulustream)
+            base_cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
             if self.is_audio_only:
-                cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
+                base_cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
             else:
-                cmd.extend(["--merge-output-format", "mkv"])
+                base_cmd.extend(["--merge-output-format", "mkv"])
 
-            cmd.append(self.url)
+            if self.max_connections > 1:
+                base_cmd.extend(["--concurrent-fragments", str(self.max_connections)])
+            if getattr(self, "speed_limit_bytes", 0) > 0:
+                base_cmd.extend(["--limit-rate", str(self.speed_limit_bytes)])
+
+            # Resolve cookies: if cookies.txt in option/worker is configured and exists, use it.
+            # Otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
+            effective_cookies_file = self.cookies_file
+            if not effective_cookies_file:
+                opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+                if opt_cpath and os.path.exists(opt_cpath):
+                    effective_cookies_file = opt_cpath
 
             clean_env = get_clean_env(bin_dir)
-
-            self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
-            if is_debug:
-                logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
-            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
-
-            self.process = subprocess.Popen(
-                cmd,
-                env=clean_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                bufsize=1
+            temp_cookies_file = None
+            has_cookies = bool(
+                (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
+                or (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
+                or getattr(self, "cookies", None)
             )
+            attempts = [1, 2] if has_cookies else [1]
 
-            pct = 0.0
-            total_bytes = 0.0
-            downloaded_bytes = 0.0
-            speed_bps = 0.0
-            eta_str = "--"
-            is_media_stream = True
+            for attempt in attempts:
+                if not self.is_running or self.is_paused:
+                    return
 
-            for line in self.process.stdout:
-                if not self.is_running:
-                    self.process.terminate()
-                    break
-
-                line_str = line.strip()
-                if not line_str:
-                    continue
-
-                self.log_signal.emit(line_str)
-                if "ERROR:" in line_str or "error:" in line_str.lower():
-                    logger.error("[YtDlpDownload] %s", line_str)
-                elif "WARNING:" in line_str or "warning:" in line_str.lower():
-                    logger.warning("[YtDlpDownload] %s", line_str)
-                elif is_debug:
-                    logger.debug("[YtDlpDownload] %s", line_str)
-
-                # Track destination file type to filter out subtitles/thumbnails
-                dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
-                if dest_match:
-                    dest_path = dest_match.group(1).strip()
-                    dest_ext = os.path.splitext(dest_path)[1].lower()
-                    if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
-                        is_media_stream = False
-                    elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
-                        is_media_stream = True
-                        self.final_file_path = dest_path
-
-                # Capture output file path from stdout line (only valid video/audio extensions)
-                m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
-                if m_dest:
-                    cand_path = m_dest.group(1).strip()
-                    cand_ext = os.path.splitext(cand_path)[1].lower()
-                    if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_path.endswith(".part"):
-                        self.final_file_path = cand_path
-                        is_media_stream = True
-
-                # Parse yt-dlp / aria2c stdout for media streams only
-                if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
-                    if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
-                        is_media_stream = False
-
-                    # Check for explicit dual sizes (downloaded / total or downloaded of total)
-                    dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
-                    if dual_size_match:
-                        parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
-                        parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
-                        if parsed_total > 500 * 1024:
-                            is_media_stream = True
-                            if parsed_total > total_bytes:
-                                total_bytes = parsed_total
-                            if parsed_downloaded > 0:
-                                downloaded_bytes = parsed_downloaded
-                    else:
-                        size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
-                        if size_match:
-                            parsed_total = parse_size_str_to_bytes(size_match.group(1))
-                            if parsed_total > 500 * 1024:
-                                is_media_stream = True
-                                if parsed_total > total_bytes:
-                                    total_bytes = parsed_total
-                        elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
-                            is_media_stream = True
-
-                    if is_media_stream:
-                        pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
-                        if pct_match:
-                            pct = float(pct_match.group(1))
-                            if total_bytes > 500 * 1024 and (not dual_size_match or downloaded_bytes == 0):
-                                downloaded_bytes = (pct / 100.0) * total_bytes
-
-                        speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
-                        if not speed_match:
-                            speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
-                        if speed_match:
-                            speed_str = speed_match.group(1).replace("/s", "").strip()
-                            speed_bps = parse_size_str_to_bytes(speed_str)
-
-                        eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
-                        if eta_match:
-                            eta_str = eta_match.group(1)
-
-                        speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
-                        size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
-
-                        # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
-                        if total_bytes > 0:
-                            clamped_downloaded = min(int(downloaded_bytes), int(total_bytes) - 1)
+                cmd = list(base_cmd)
+                if attempt == 1 and has_cookies:
+                    if effective_cookies_file and os.path.exists(str(effective_cookies_file)):
+                        cmd.extend(["--cookies", str(effective_cookies_file)])
+                    elif self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+                        cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
+                    elif getattr(self, "cookies", None):
+                        temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
+                        if temp_cookies_file and os.path.exists(temp_cookies_file):
+                            cmd.extend(["--cookies", temp_cookies_file])
                         else:
-                            clamped_downloaded = int(downloaded_bytes)
+                            cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
 
-                        data_tuple = (
-                            self.filename,
-                            size_fmt,
-                            "Downloading",
-                            eta_str,
-                            speed_fmt,
-                            max(0, clamped_downloaded),
-                            int(total_bytes)
-                        )
-                        self.main_progress_signal.emit(self.row_index, data_tuple)
+                cmd.append(self.url)
 
-            self.process.wait()
-            rc = self.process.returncode
+                self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
+                if is_debug:
+                    logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
+                self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
+                self.init_segments_signal.emit(self.max_connections)
+                self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Connecting...")
 
-            if rc == 0:
-                final_path = None
-                if self.final_file_path and os.path.exists(self.final_file_path) and os.path.isfile(self.final_file_path):
-                    f_ext = os.path.splitext(self.final_file_path)[1].lower()
-                    if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
-                        final_path = self.final_file_path
+                self.process = subprocess.Popen(
+                    cmd,
+                    env=clean_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    bufsize=1
+                )
 
-                if not final_path or not os.path.exists(final_path):
-                    candidates = []
-                    if os.path.exists(self.save_dir):
-                        for fname in os.listdir(self.save_dir):
+                if is_debug:
+                    logger.debug("[YtDlpDownload] Process launched with PID %s for attempt %d", self.process.pid, attempt)
+
+                pct = 0.0
+                initial_total_bytes = float(self.total_bytes) if self.total_bytes > 0 else 0.0
+                total_bytes = initial_total_bytes
+                downloaded_bytes = 0.0
+                completed_streams_bytes = 0.0
+                stream_downloaded_bytes = 0.0
+                current_stream_total = 0.0
+                current_dest_file = ""
+                speed_bps = 0.0
+                eta_str = "--"
+                is_media_stream = True
+                last_seg_update = 0.0
+                collected_errors = []
+
+                for line in self.process.stdout:
+                    if not self.is_running:
+                        self.process.terminate()
+                        break
+
+                    line_str = line.strip()
+                    if not line_str:
+                        continue
+                    if "ERROR:" in line_str or "error:" in line_str.lower():
+                        logger.error("[YtDlpDownload] %s", line_str)
+                        self.log_signal.emit(line_str)
+                        collected_errors.append(line_str)
+                    elif "WARNING:" in line_str or "warning:" in line_str.lower():
+                        logger.warning("[YtDlpDownload] %s", line_str)
+                        collected_errors.append(line_str)
+                    elif is_debug:
+                        logger.debug("[YtDlpDownload] %s", line_str)
+
+                    # Track destination file type to filter out subtitles/thumbnails
+                    dest_match = re.search(r"\[(?:download|aria2c)\]\s+Destination:\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
+                    if dest_match:
+                        dest_path = dest_match.group(1).strip()
+                        dest_base = os.path.basename(dest_path)
+                        dest_ext = os.path.splitext(dest_base)[1].lower()
+                        if dest_ext in (".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"):
+                            is_media_stream = False
+                        elif dest_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                            is_media_stream = True
+                            clean_cand = re.sub(r"\.f\w+(\.\w+)$", r"\1", dest_base)
+                            self.final_file_path = os.path.join(self.save_dir, clean_cand)
+                            if clean_cand and not is_generic_media_title(clean_cand):
+                                self.filename = clean_cand
+                            if current_dest_file and current_dest_file != dest_path:
+                                # Multi-stream handover (e.g. video finished, now audio started)
+                                rollover = stream_downloaded_bytes if stream_downloaded_bytes > 0 else current_stream_total
+                                completed_streams_bytes += rollover
+                                stream_downloaded_bytes = 0.0
+                                current_stream_total = 0.0
+                            current_dest_file = dest_path
+
+                    # Capture output file path from stdout line (only valid video/audio extensions)
+                    m_dest = re.search(r"\[(?:Merger|ExtractAudio|VideoRemuxer)\]\s+(?:Merging formats into\s+\"|Remuxing video into\s+\")?\"?([^\"]+\.(?:mp4|mkv|webm|mp3|m4a|flv|avi))\"?", line_str, re.IGNORECASE)
+                    if m_dest:
+                        cand_path = m_dest.group(1).strip()
+                        cand_base = os.path.basename(cand_path)
+                        self.final_file_path = os.path.join(self.save_dir, cand_base)
+                        cand_ext = os.path.splitext(cand_base)[1].lower()
+                        if cand_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi") and not cand_base.endswith(".part"):
+                            clean_cand = cand_base
+                            if clean_cand and not is_generic_media_title(clean_cand):
+                                self.filename = clean_cand
+                            is_media_stream = True
+
+                    # Capture MoveFiles when yt-dlp moves finished file from temp to home
+                    m_move = re.search(r"\[MoveFiles\]\s+Moving file\s+\"?[^\"]+\"?\s+to\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
+                    if m_move:
+                        moved_path = m_move.group(1).strip()
+                        moved_base = os.path.basename(moved_path)
+                        self.final_file_path = os.path.join(self.save_dir, moved_base)
+                        if moved_base and not is_generic_media_title(moved_base):
+                            self.filename = moved_base
+                        is_media_stream = True
+
+                    # Parse yt-dlp / aria2c stdout for media streams only
+                    if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
+                        if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
+                            is_media_stream = False
+
+                        current_line_total = 0.0
+                        current_line_dl = 0.0
+
+                        # Check for explicit dual sizes (downloaded / total or downloaded of total)
+                        dual_size_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B)\s*(?:/|of)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                        if dual_size_match:
+                            parsed_downloaded = parse_size_str_to_bytes(dual_size_match.group(1))
+                            parsed_total = parse_size_str_to_bytes(dual_size_match.group(2))
+                            if parsed_total > 0:
+                                is_media_stream = True
+                                current_line_total = parsed_total
+                                if parsed_downloaded > 0:
+                                    current_line_dl = parsed_downloaded
+                        else:
+                            size_match = re.search(r"(?:of|/)\s*~?\s*(\d+\.?\d*\s*[KMGTP]?i?B)", line_str, re.IGNORECASE)
+                            if size_match:
+                                parsed_total = parse_size_str_to_bytes(size_match.group(1))
+                                if parsed_total > 0:
+                                    is_media_stream = True
+                                    current_line_total = parsed_total
+                            elif "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str:
+                                is_media_stream = True
+
+                        if is_media_stream:
+                            if current_line_total > 0:
+                                current_stream_total = current_line_total
+
+                            pct_match = re.search(r"(\d+\.?\d*)\s*%", line_str)
+                            if pct_match:
+                                pct = float(pct_match.group(1))
+                                if current_line_dl == 0 and pct > 0:
+                                    ref_total = current_line_total if current_line_total > 0 else current_stream_total
+                                    if ref_total > 0:
+                                        current_line_dl = (pct / 100.0) * ref_total
+
+                            # Monotonic downloaded bytes within current stream (eliminates HLS fragment flickering)
+                            if current_line_dl > 0:
+                                stream_downloaded_bytes = max(stream_downloaded_bytes, current_line_dl)
+
+                            downloaded_bytes = completed_streams_bytes + stream_downloaded_bytes
+
+                            # Compute overall total bytes across multiple streams
+                            combined_stream_total = completed_streams_bytes + (current_stream_total or stream_downloaded_bytes)
+                            if initial_total_bytes > 0:
+                                total_bytes = max(initial_total_bytes, combined_stream_total)
+                            else:
+                                total_bytes = combined_stream_total
+
+                            if downloaded_bytes > total_bytes and total_bytes > 0:
+                                total_bytes = downloaded_bytes
+
+                            speed_match = re.search(r"(?:at|SPD:|DL:)\s*(\d+\.?\d*\s*[KMGTP]?i?B(?:/s)?)", line_str, re.IGNORECASE)
+                            if not speed_match:
+                                speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
+                            if speed_match:
+                                speed_str = speed_match.group(1).replace("/s", "").strip()
+                                speed_bps = parse_size_str_to_bytes(speed_str)
+
+                            eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
+                            if eta_match:
+                                eta_str = eta_match.group(1)
+
+                            speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
+                            size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
+
+                            # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
+                            if total_bytes > 0:
+                                clamped_downloaded = min(int(downloaded_bytes), max(0, int(total_bytes) - 1))
+                            else:
+                                clamped_downloaded = int(downloaded_bytes)
+
+                            data_tuple = (
+                                self.filename,
+                                size_fmt,
+                                "Downloading",
+                                eta_str,
+                                speed_fmt,
+                                max(0, clamped_downloaded),
+                                int(total_bytes)
+                            )
+                            self.current_bytes = max(0, clamped_downloaded)
+                            self.total_bytes = int(total_bytes)
+                            self.main_progress_signal.emit(self.row_index, data_tuple)
+                            self.main_bar_signal.emit(self.current_bytes, self.total_bytes)
+                            import time
+                            now_time = time.time()
+                            if (now_time - last_seg_update) >= 0.15:
+                                last_seg_update = now_time
+                                self._emit_segment_updates(self.current_bytes, self.total_bytes, speed_bps)
+
+                self.process.wait()
+                rc = self.process.returncode
+                if is_debug:
+                    logger.debug("[YtDlpDownload] Process PID %s finished with returncode %s", self.process.pid, rc)
+
+                if self.is_paused:
+                    logger.info("[YtDlpDownload] yt-dlp paused by user for %s", self.url)
+                    return
+
+                if not self.is_running:
+                    logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
+                    return
+
+                if rc != 0 and attempt == 1 and has_cookies:
+                    error_blob = " ".join(collected_errors).lower()
+                    is_bot_err = any(e in error_blob for e in ("sign in", "bot", "429", "login_required", "format is not available"))
+                    cookie_failure = (
+                        any(
+                            err in error_blob
+                            for err in ("413", "too large", "connection reset", "connection aborted", "cookie")
+                        ) or is_bot_err or (completed_streams_bytes + stream_downloaded_bytes == 0)
+                    )
+
+                    if cookie_failure:
+                        retry_msg = "Retrying clean download without cookies..."
+                        if is_bot_err:
+                            retry_msg = "YouTube bot check detected, retrying clean download..."
+                        logger.warning("[YtDlpDownload] yt-dlp failed with cookies (rc=%d). %s", rc, retry_msg)
+                        self.log_signal.emit(f"Cookies issue detected, {retry_msg}")
+                        if temp_cookies_file and os.path.exists(temp_cookies_file):
+                            try:
+                                os.remove(temp_cookies_file)
+                            except Exception:
+                                pass
+                            temp_cookies_file = None
+                        continue
+
+                if rc == 0:
+                    final_path = None
+                    if self.final_file_path and os.path.exists(self.final_file_path) and os.path.isfile(self.final_file_path):
+                        f_ext = os.path.splitext(self.final_file_path)[1].lower()
+                        if f_ext in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                            final_path = self.final_file_path
+
+                    if not final_path:
+                        target_expected = os.path.join(self.save_dir, self.filename)
+                        if os.path.exists(target_expected) and os.path.isfile(target_expected):
+                            final_path = target_expected
+
+                    if not final_path or not os.path.exists(final_path):
+                        candidates = []
+                        if os.path.exists(self.save_dir):
+                            for fname in os.listdir(self.save_dir):
+                                fext = os.path.splitext(fname)[1].lower()
+                                if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                                    continue
+                                fpath = os.path.join(self.save_dir, fname)
+                                if os.path.isfile(fpath):
+                                    if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
+                                        candidates.append(fpath)
+                                    elif ig_vid and ig_vid.lower() in fname.lower():
+                                        candidates.append(fpath)
+                                    elif x_status_id and x_status_id in fname:
+                                        candidates.append(fpath)
+                        if candidates:
+                            final_path = max(candidates, key=lambda p: os.path.getsize(p))
+
+                    # If completed file remains in cache/temp_dir, move it to save_dir
+                    if (not final_path or not os.path.exists(final_path)) and self.temp_dir and os.path.exists(self.temp_dir):
+                        candidates_temp = []
+                        for fname in os.listdir(self.temp_dir):
                             fext = os.path.splitext(fname)[1].lower()
                             if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
                                 continue
-                            fpath = os.path.join(self.save_dir, fname)
+                            fpath = os.path.join(self.temp_dir, fname)
                             if os.path.isfile(fpath):
                                 if clean_base.lower() in fname.lower() or fname.lower().startswith(clean_base[:15].lower()):
-                                    candidates.append(fpath)
-                    if candidates:
-                        final_path = max(candidates, key=lambda p: os.path.getsize(p))
+                                    candidates_temp.append(fpath)
+                                elif ig_vid and ig_vid.lower() in fname.lower():
+                                    candidates_temp.append(fpath)
+                                elif x_status_id and x_status_id in fname:
+                                    candidates_temp.append(fpath)
+                        if candidates_temp:
+                            best_temp = max(candidates_temp, key=lambda p: os.path.getsize(p))
+                            dest_in_save = os.path.join(self.save_dir, os.path.basename(best_temp))
+                            try:
+                                shutil.move(best_temp, dest_in_save)
+                                final_path = dest_in_save
+                            except Exception as e:
+                                logger.error("[YtDlpDownload] Failed to move completed file from cache to save_dir: %s", e)
 
-                final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
+                    if final_path and self.temp_dir and final_path.startswith(self.temp_dir) and os.path.exists(final_path):
+                        dest_in_save = os.path.join(self.save_dir, os.path.basename(final_path))
+                        try:
+                            shutil.move(final_path, dest_in_save)
+                            final_path = dest_in_save
+                        except Exception as e:
+                            logger.error("[YtDlpDownload] Failed to move completed file from cache to save_dir: %s", e)
 
-                data_tuple = (
-                    self.filename,
-                    self.format_bytes_str(final_size),
-                    "Complete",
-                    "--",
-                    "--",
-                    int(final_size),
-                    int(final_size)
-                )
-                self.main_progress_signal.emit(self.row_index, data_tuple)
-                self.finished_signal.emit(self.row_index, final_path or "")
-            else:
-                logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
-                data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
-                self.main_progress_signal.emit(self.row_index, data_tuple)
-                self.finished_signal.emit(self.row_index, "")
+                    if final_path:
+                        self.target_path = final_path
+                        self.filename = os.path.basename(final_path)
+
+                    # Clean up any leftover fragment or partial files in temp_dir and save_dir
+                    patterns = [p for p in (self.filename, clean_base, ig_vid, x_status_id) if p]
+                    for d in [self.temp_dir, self.save_dir]:
+                        if d and os.path.exists(d):
+                            try:
+                                for f in os.listdir(d):
+                                    fl = f.lower()
+                                    if (".part" in fl or ".frag" in fl or fl.endswith(".ytdl")):
+                                        if any(p.lower() in fl for p in patterns):
+                                            try:
+                                                os.remove(os.path.join(d, f))
+                                            except Exception:
+                                                pass
+                            except Exception:
+                                pass
+
+                    final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
+                    self.current_bytes = int(final_size)
+                    self.total_bytes = int(final_size)
+                    if is_debug:
+                        logger.debug("[YtDlpDownload] Download successfully completed for %s -> %s (%s bytes)", self.url, final_path, final_size)
+
+                    data_tuple = (
+                        self.filename,
+                        self.format_bytes_str(final_size),
+                        "Complete",
+                        "--",
+                        "--",
+                        int(final_size),
+                        int(final_size)
+                    )
+                    self._emit_segment_updates(int(final_size), int(final_size), 0.0, status_text="Complete")
+                    self.main_progress_signal.emit(self.row_index, data_tuple)
+                    self.main_bar_signal.emit(int(final_size), int(final_size))
+                    self.finished_signal.emit(self.row_index, final_path or "Complete")
+                    break
+                else:
+                    error_blob = " ".join(collected_errors).lower()
+                    is_unsupported = any(e in error_blob for e in ("unsupported url", "is not a valid url", "unsupportedurl"))
+                    if is_unsupported and not getattr(self, "_fallback_attempted", False):
+                        self._fallback_attempted = True
+                        fallback_stream = self._try_extract_stream_fallback(self.url)
+                        if fallback_stream and fallback_stream != self.url:
+                            logger.info("[YtDlpDownload] Unsupported URL fallback found media stream: %s. Retrying download...", fallback_stream)
+                            self.log_signal.emit(f"Fallback extracted stream: {fallback_stream}, retrying...")
+                            if not self.referrer:
+                                self.referrer = self.url
+                            self.url = fallback_stream
+                            if temp_cookies_file and os.path.exists(temp_cookies_file):
+                                try:
+                                    os.remove(temp_cookies_file)
+                                except Exception:
+                                    pass
+                                temp_cookies_file = None
+                            return self.run()
+
+                    logger.error("[YtDlpDownload] yt-dlp process exited with error code %d for %s", rc, self.url)
+                    self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
+                    data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
+                    self.main_progress_signal.emit(self.row_index, data_tuple)
+                    self.finished_signal.emit(self.row_index, "")
+                    break
 
         except Exception as e:
+            if getattr(self, "is_paused", False) or not getattr(self, "is_running", True):
+                return
             logger.exception("[YtDlpDownload] Download Worker Exception: %s", e)
             self.log_signal.emit(f"Download Worker Exception: {e}")
+            self._emit_segment_updates(self.current_bytes, self.total_bytes, 0.0, status_text="Error")
             data_tuple = (self.filename, "Unknown", "Error", "--", "--", 0, 0)
             self.main_progress_signal.emit(self.row_index, data_tuple)
             self.finished_signal.emit(self.row_index, "")
-
-    def stop(self):
-        self.is_running = False
-        if self.process:
-            try:
-                self.process.terminate()
-            except Exception:
-                pass
+        finally:
+            if temp_cookies_file and os.path.exists(temp_cookies_file):
+                try:
+                    os.remove(temp_cookies_file)
+                except Exception:
+                    pass

@@ -39,7 +39,7 @@ class DownloadCompleteDialog(QDialog):
         self.url_input.setReadOnly(True)
         self.url_input.setCursorPosition(0)
         self.url_input.setToolTip(file_data.get('url', ''))
-        self.url_input.setStyleSheet("background: transparent; border: none; color: #eff0f1;")
+        self.url_input.setStyleSheet("background: transparent; border: none; color: palette(text);")
         form.addRow("Address:", self.url_input)
         
         # Saved as
@@ -47,7 +47,7 @@ class DownloadCompleteDialog(QDialog):
         self.path_input.setReadOnly(True)
         self.path_input.setCursorPosition(0)
         self.path_input.setToolTip(file_data.get('path', ''))
-        self.path_input.setStyleSheet("background: transparent; border: none; font-weight: bold; color: #eff0f1;")
+        self.path_input.setStyleSheet("background: transparent; border: none; font-weight: bold; color: palette(text);")
         form.addRow("The file saved as:", self.path_input)
         
         # Size

@@ -17,16 +17,14 @@ Ensure you have the required system packages installed:
 
 For OS-specific package manager commands, refer to [DEPENDENCIES.md](DEPENDENCIES.md).
 
-### 2. Clone & Setup Virtual Environment
+### 2. Clone & Setup Virtual Environment (using `uv`)
 
 ```bash
 git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
 
-python3 -m venv venv
-source venv/bin/activate
-
-pip install -r requirements-dev.txt
+uv venv
+uv pip install -r requirements-dev.txt
 ```
 
 ---
@@ -35,12 +33,12 @@ pip install -r requirements-dev.txt
 
 ### Standard PyQt6 Interface:
 ```bash
-python3 src/main.py
+uv run python src/main.py
 ```
 
 ### KDE Kirigami QML Mode:
 ```bash
-python3 src/main.py --kirigami
+uv run python src/main.py --kirigami
 ```
 
 ---
@@ -50,7 +48,7 @@ python3 src/main.py --kirigami
 All contributions should maintain or improve test coverage. Run the automated test suite before opening a pull request:
 
 ```bash
-PYTHONPATH=src pytest -v tests/
+PYTHONPATH=src uv run pytest -v tests/
 ```
 
 Make sure all tests pass cleanly without errors.

@@ -409,6 +409,121 @@ def test_yt_dlp_extractor_args_youtube_player_client(tmp_path):
         assert cmd[ext_idx + 1] == "youtube:player_client=default"
 
 
+def test_ytdlp_worker_paths_and_temp_cache_configuration(tmp_path):
+    """Verify YtDlpDownloadWorker configures --paths home and temp to isolate fragments in cache."""
+    save_dir = tmp_path / "Downloads"
+    cache_dir = tmp_path / "Cache"
+    save_dir.mkdir()
+    cache_dir.mkdir()
+
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = ["[download] Destination: /fake/dest.mp4\n", "[download] 100% of 10.00MB\n"]
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=sample",
+        row_index=0,
+        save_dir=str(save_dir),
+        filename="sample.mp4",
+        temp_dir=str(cache_dir)
+    )
+    assert worker.temp_dir == str(cache_dir)
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={"temp_dir": str(cache_dir)}), \
+         patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+
+        worker.run()
+        cmd = mock_popen.call_args[0][0]
+
+        # Verify --paths options
+        paths_entries = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--paths"]
+        assert f"home:{str(save_dir)}" in paths_entries
+        assert f"temp:{str(cache_dir)}" in paths_entries
+
+        # Verify output template is relative (not absolute path) so --paths temp works
+        o_idx = cmd.index("-o")
+        output_template = cmd[o_idx + 1]
+        assert not os.path.isabs(output_template)
 
 
+def test_ytdlp_worker_migrates_incomplete_fragments_from_save_dir_to_cache(tmp_path):
+    """Verify that existing incomplete fragments and .part files in save_dir are moved to cache."""
+    save_dir = tmp_path / "Downloads"
+    cache_dir = tmp_path / "Cache"
+    save_dir.mkdir()
+    cache_dir.mkdir()
 
+    # Pre-populate polluted save_dir with leftover fragments
+    frag_file = save_dir / "sample.mp4.part-Frag1"
+    frag_file.write_bytes(b"fragment_1_data")
+    part_file = save_dir / "sample.mp4.part"
+    part_file.write_bytes(b"partial_video_data")
+    ytdl_file = save_dir / "sample.mp4.ytdl"
+    ytdl_file.write_bytes(b"ytdl_state_data")
+
+    fake_bin = tmp_path / "yt-dlp"
+    fake_bin.touch()
+    fake_bin.chmod(0o755)
+
+    mock_proc = MagicMock()
+    mock_proc.stdout = ["[download] Destination: /fake/dest.mp4\n"]
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+
+    worker = YtDlpDownloadWorker(
+        url="https://example.com/watch?v=sample",
+        row_index=0,
+        save_dir=str(save_dir),
+        filename="sample.mp4",
+        temp_dir=str(cache_dir)
+    )
+
+    with patch("core.media_downloader.YtDlpManager.ensure_binary", return_value=str(fake_bin)), \
+         patch("core.media_downloader.BIN_DIR", tmp_path), \
+         patch("core.media_downloader.load_category_config", return_value={}), \
+         patch("subprocess.Popen", return_value=mock_proc):
+
+        worker.run()
+
+        # Incomplete files should have migrated from save_dir to cache_dir
+        assert not (save_dir / "sample.mp4.part-Frag1").exists()
+        assert not (save_dir / "sample.mp4.part").exists()
+        assert not (save_dir / "sample.mp4.ytdl").exists()
+
+
+def test_clear_cache_files_removes_ytdlp_fragments(tmp_path):
+    """Verify MainWindow._clear_cache_files removes yt-dlp partial files and fragments from cache."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from PyQt6.QtCore import Qt
+
+    cache_dir = tmp_path / "Cache"
+    save_dir = tmp_path / "Downloads"
+    cache_dir.mkdir()
+    save_dir.mkdir()
+
+    # Create dummy yt-dlp files in cache and save_dir
+    (cache_dir / "my_stream.mp4.part").write_bytes(b"part")
+    (cache_dir / "my_stream.mp4.part-Frag1").write_bytes(b"frag")
+    (cache_dir / "my_stream.ytdl").write_bytes(b"ytdl")
+    (save_dir / "my_stream.mp4.part").write_bytes(b"stray_part")
+
+    item = QTableWidgetItem("my_stream.mp4")
+    item.setData(Qt.ItemDataRole.UserRole + 1, str(save_dir / "my_stream.mp4"))
+
+    mock_window = MagicMock()
+    config = {"temp_dir": str(cache_dir)}
+
+    MainWindow._clear_cache_files(mock_window, item, config)
+
+    assert not (cache_dir / "my_stream.mp4.part").exists()
+    assert not (cache_dir / "my_stream.mp4.part-Frag1").exists()
+    assert not (cache_dir / "my_stream.ytdl").exists()
+    assert not (save_dir / "my_stream.mp4.part").exists()

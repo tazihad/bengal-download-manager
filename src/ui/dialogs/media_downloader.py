@@ -20,8 +20,12 @@ from PyQt6.QtGui import (
     QFont, QIcon, QKeySequence, QShortcut, QPixmap, QImage, QPainter,
     QPainterPath, QColor, QPen, QLinearGradient, QPalette
 )
+import logging
 from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
 from core.memory_guard import MemoryGuard
+from core.utils import is_debug_mode
+
+logger = logging.getLogger("bengal.dialog.media_downloader")
 
 
 def make_rounded_thumbnail(pixmap: QPixmap, width: int = 160, height: int = 90, radius: int = 8) -> QPixmap:
@@ -1035,9 +1039,23 @@ class MediaDownloaderDialog(QDialog):
             return None, None
         else:  # Netscape File Mode (Index 0 / Default)
             c_path = self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else ""
+            if not c_path:
+                c_path = getattr(self, "_cookies_file", "") or ""
             if c_path and os.path.exists(c_path):
                 return None, c_path
             return None, None
+
+    def set_request_context(self, referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0, cookies_file=None):
+        """Sets incoming HTTP context (referrer, user-agent), cookies, custom title, and estimated size for media analysis and downloads."""
+        self._referrer = referrer
+        self._user_agent = user_agent
+        self._custom_title = custom_title
+        self._cookies = cookies
+        self._estimated_size_bytes = estimated_size_bytes
+        if cookies_file:
+            self._cookies_file = cookies_file
+            if hasattr(self, "txt_cookies_path"):
+                self.txt_cookies_path.setText(cookies_file)
 
     def analyze_and_download(self, url: str, auto_start: bool = False, target_preset: str = ""):
         """Sets URL, applies auto-start flags, and initiates analysis."""
@@ -1065,7 +1083,18 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_status.setText("Analyzing link...")
 
         c_browser, c_file = self._get_cookies_args()
-        self._worker = MediaExtractorWorker(url, cookies_browser=c_browser, cookies_file=c_file)
+        effective_cookies = getattr(self, "_cookies", None) if not c_file else None
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Starting link analysis: url=%s, c_browser=%s, c_file=%s, referrer=%s",
+                         url, c_browser, c_file, getattr(self, "_referrer", None))
+        self._worker = MediaExtractorWorker(
+            url,
+            cookies_browser=c_browser,
+            cookies_file=c_file,
+            referrer=getattr(self, "_referrer", None),
+            user_agent=getattr(self, "_user_agent", None),
+            cookies=effective_cookies
+        )
         self._worker.status_signal.connect(self._on_status_msg)
         self._worker.single_video_analyzed.connect(self._on_single_video_ready)
         self._worker.playlist_analyzed.connect(self._on_playlist_ready)
@@ -1080,7 +1109,22 @@ class MediaDownloaderDialog(QDialog):
         self._current_video_data = data
         self._current_playlist_data = None
 
-        self.lbl_video_title.setText(data.get("title", "Untitled Media"))
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Single video ready: id=%s, title=%s, formats=%d, duration=%s",
+                         data.get("id"), data.get("title"), len(data.get("formats", [])), data.get("duration"))
+
+        custom_title = getattr(self, "_custom_title", None)
+        raw_title = data.get("title", "Untitled Media")
+        from core.utils import is_generic_media_title
+        is_raw_generic = is_generic_media_title(raw_title)
+        is_custom_generic = is_generic_media_title(custom_title)
+        if not is_raw_generic:
+            display_title = raw_title
+        elif not is_custom_generic:
+            display_title = custom_title
+        else:
+            display_title = raw_title or "Media"
+        self.lbl_video_title.setText(display_title)
         dur_sec = int(data.get("duration") or 0)
         dur_str = f"{dur_sec // 60}m {dur_sec % 60:02d}s" if dur_sec else "Unknown"
         uploader = data.get("uploader") or "Unknown"
@@ -1144,23 +1188,29 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setText("Download Media")
         self.btn_download.setEnabled(True)
 
-        # Auto-start download execution if requested from browser integration
+        # Apply target quality preset if specified
+        target_preset = getattr(self, "_auto_start_preset", "")
+        if target_preset:
+            model = self.cmb_quality_preset.model()
+            res_match = re.search(r"(\d{3,4}p)", target_preset, re.IGNORECASE)
+            is_audio = "audio" in target_preset.lower() or "mp3" in target_preset.lower() or "opus" in target_preset.lower()
+            token = res_match.group(1).lower() if res_match else ("audio" if is_audio else target_preset.lower())
+
+            matched_idx = -1
+            for i in range(self.cmb_quality_preset.count()):
+                item = model.item(i) if model else None
+                if item and not item.isEnabled():
+                    continue
+                item_text = self.cmb_quality_preset.itemText(i).lower()
+                if token in item_text or target_preset.lower() in item_text:
+                    matched_idx = i
+                    break
+            if matched_idx != -1:
+                self.cmb_quality_preset.setCurrentIndex(matched_idx)
+
+        # Auto-start download execution if requested from browser integration and permitted by options check
         if getattr(self, "_auto_start_pending", False):
             self._auto_start_pending = False
-            target_preset = getattr(self, "_auto_start_preset", "")
-            if target_preset:
-                model = self.cmb_quality_preset.model()
-                matched_idx = -1
-                for i in range(self.cmb_quality_preset.count()):
-                    item = model.item(i) if model else None
-                    if item and not item.isEnabled():
-                        continue
-                    item_text = self.cmb_quality_preset.itemText(i)
-                    if target_preset.lower() in item_text.lower():
-                        matched_idx = i
-                        break
-                if matched_idx != -1:
-                    self.cmb_quality_preset.setCurrentIndex(matched_idx)
             self._on_download_clicked()
 
     def _on_thumbnail_loaded(self, image_or_pixmap):
@@ -1357,6 +1407,10 @@ class MediaDownloaderDialog(QDialog):
         self._current_playlist_data = data
         self._current_video_data = None
 
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Playlist ready: title=%s, total_items=%s, entries=%d",
+                         data.get("title"), data.get("total_items"), len(data.get("entries", [])))
+
         title = data.get("title", "Playlist")
         total = data.get("total_items", 0)
         self.lbl_playlist_title.setText(f"{title} ({total} items)")
@@ -1433,6 +1487,8 @@ class MediaDownloaderDialog(QDialog):
         self.stack.setCurrentIndex(0)
 
     def _on_analysis_failed(self, error_msg: str):
+        if is_debug_mode():
+            logger.debug("[MediaDialog] Analysis failed: %s", error_msg)
         self._finish_loading()
         self._current_video_data = None
         self._current_playlist_data = None
@@ -1756,30 +1812,227 @@ class MediaDownloaderDialog(QDialog):
         c_browser, c_file = self._get_cookies_args()
 
         if self.stack.currentWidget() == self.page_video and self._current_video_data:
-            title = self._current_video_data.get("title", "video")
+            custom_title = getattr(self, "_custom_title", None)
+            yt_title = self._current_video_data.get("title", "")
             webpage_url = self._current_video_data.get("webpage_url") or self.txt_url.text().strip()
+            is_youtube = ("youtube.com" in webpage_url.lower() or "youtu.be" in webpage_url.lower() or
+                          self._current_video_data.get("extractor", "").lower() == "youtube" or
+                          "youtube" in self._current_video_data.get("extractor_key", "").lower())
+            from core.utils import is_generic_media_title, is_media_downloader_url
+            is_popular_platform = is_youtube or bool(is_media_downloader_url(webpage_url))
+
+            is_raw_generic = is_generic_media_title(yt_title)
+            is_custom_generic = is_generic_media_title(custom_title)
+
+            if not is_raw_generic:
+                title = yt_title
+            elif not is_custom_generic:
+                title = custom_title
+            else:
+                ref = getattr(self, "_referrer", None) or webpage_url
+                video_id = self._current_video_data.get("id")
+                if not video_id:
+                    m = re.search(r"/(?:reel|reels|watch|videos?|p|v|status)/([A-Za-z0-9_-]+)", ref)
+                    video_id = m.group(1) if m else ""
+                title = f"video_{video_id}" if video_id else "video"
+
             format_spec, is_audio_only = self._get_single_video_format_spec()
 
             from core.utils import sanitize_media_filename
             ext = ".opus" if is_audio_only else ".mkv"
-            filename = sanitize_media_filename(title, ext=ext)
+
+            preset_idx = self.cmb_quality_preset.currentIndex()
+            target_height = None
+            if preset_idx == 1: target_height = 2160
+            elif preset_idx == 2: target_height = 1440
+            elif preset_idx == 3: target_height = 1080
+            elif preset_idx == 4: target_height = 720
+            elif preset_idx == 5: target_height = 480
+            elif preset_idx == 6: target_height = 360
+            else:
+                # Best Quality: check formats for best height
+                v_heights = [fmt.get("height") or 0 for fmt in self._current_video_data.get("formats", []) if fmt.get("height") and fmt.get("is_video")]
+                if v_heights:
+                    target_height = max(v_heights)
+
+            video_id = self._current_video_data.get("id") or ""
+            if not video_id:
+                m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", webpage_url)
+                if m_yt:
+                    video_id = m_yt.group(1)
+
+            is_tiktok = ("tiktok.com" in webpage_url.lower() or
+                         self._current_video_data.get("extractor", "").lower() == "tiktok" or
+                         "tiktok" in self._current_video_data.get("extractor_key", "").lower())
+            is_instagram = ("instagram.com" in webpage_url.lower() or
+                            self._current_video_data.get("extractor", "").lower() == "instagram" or
+                            "instagram" in self._current_video_data.get("extractor_key", "").lower())
+            is_facebook = (any(d in webpage_url.lower() for d in ("facebook.com", "fb.watch", "fb.com")) or
+                           self._current_video_data.get("extractor", "").lower() == "facebook" or
+                           "facebook" in self._current_video_data.get("extractor_key", "").lower())
+            is_twitter_or_x = (any(d in webpage_url.lower() for d in ("twitter.com", "x.com")) or
+                               self._current_video_data.get("extractor", "").lower() in ("twitter", "x") or
+                               any(k in self._current_video_data.get("extractor_key", "").lower() for k in ("twitter", "x")))
+
+            if is_tiktok:
+                v_id = self._current_video_data.get("id") or ""
+                u = self._current_video_data.get("uploader_id") or self._current_video_data.get("uploader") or ""
+                if not u or u.lower() == "unknown":
+                    m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", webpage_url)
+                    if m_tt:
+                        u = m_tt.group(1)
+                        if not v_id: v_id = m_tt.group(2)
+                filename = sanitize_media_filename(f"{u}_{v_id}" if (u and v_id) else (v_id or title), ext=ext)
+            elif is_instagram:
+                v_id = self._current_video_data.get("id") or ""
+                u = self._current_video_data.get("channel") or ""
+                if not u or u.lower() == "unknown" or " " in u:
+                    m_by = re.search(r"(?:video|reel)?\s*by\s+([A-Za-z0-9_.]+)", yt_title, re.I)
+                    if m_by:
+                        u = m_by.group(1)
+                if not u or u.lower() == "unknown":
+                    m_ig_u = re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", webpage_url)
+                    if m_ig_u and m_ig_u.group(1).lower() not in ('reels', 'reel', 'p', 'tv', 'explore', 'stories', 'direct', 'accounts'):
+                        u = m_ig_u.group(1)
+                        if not v_id: v_id = m_ig_u.group(2)
+                if not u or u.lower() == "unknown":
+                    u = self._current_video_data.get("uploader") or ""
+                    if u and " " in u:
+                        m_on = re.search(r"(?:^|[\s\-])([A-Za-z0-9_.]+)\s+on\s+instagram", u, re.I)
+                        if m_on:
+                            u = m_on.group(1)
+                        else:
+                            u = u.replace(" ", "").lower()
+                filename = sanitize_media_filename(f"{u}-{v_id}" if (u and v_id) else (v_id or title), ext=ext)
+            elif is_facebook:
+                v_id = self._current_video_data.get("id") or ""
+                if not v_id:
+                    m_fb = re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", webpage_url) or re.search(r"[?&]v=(\d+)", webpage_url)
+                    if m_fb: v_id = m_fb.group(1)
+                filename = sanitize_media_filename(v_id or title, ext=ext)
+            elif is_twitter_or_x:
+                v_id = ""
+                m_x = re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", webpage_url)
+                if m_x and m_x.group(1).lower() not in ("home", "explore", "messages", "i", "notifications", "search"):
+                    u = m_x.group(1)
+                    v_id = m_x.group(2)
+                else:
+                    u = self._current_video_data.get("uploader_id") or ""
+                    if not u or u.lower() == "unknown":
+                        u = self._current_video_data.get("uploader") or ""
+                    if m_x and m_x.group(1).lower() == "i":
+                        v_id = m_x.group(2)
+                    elif not v_id:
+                        m_x_id = re.search(r"/status/(\d+)", webpage_url)
+                        v_id = m_x_id.group(1) if m_x_id else (self._current_video_data.get("id") or "")
+                filename = sanitize_media_filename(f"{u}-{v_id}" if (u and v_id) else (v_id or title), ext=ext)
+            elif (is_youtube or is_popular_platform) and video_id:
+                clean_title = title.strip()
+                if is_audio_only:
+                    full_title = f"{clean_title} [{video_id}]"
+                else:
+                    h_tag = f" [{target_height}p]" if target_height else ""
+                    full_title = f"{clean_title} [{video_id}]{h_tag}"
+                filename = sanitize_media_filename(full_title, ext=ext)
+            else:
+                filename = sanitize_media_filename(title, ext=ext)
 
             total_size_bytes = 0
+            estimated_size = int(getattr(self, "_estimated_size_bytes", 0) or 0)
+            dur = self._current_video_data.get("duration") or 0
+
+            best_video_size = 0
+            best_audio_size = 0
+            premerged_size = 0
+
             for fmt in self._current_video_data.get("formats", []):
+                vcodec = fmt.get("vcodec")
+                acodec = fmt.get("acodec")
+                h = fmt.get("height")
                 f_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
-                if f_size > total_size_bytes:
-                    total_size_bytes = f_size
+                if not f_size and dur and fmt.get("tbr"):
+                    try:
+                        f_size = int(float(dur) * float(fmt["tbr"]) * 125)
+                    except Exception:
+                        f_size = 0
+                if not f_size:
+                    continue
+
+                is_v_only = bool(vcodec and vcodec != "none" and (not acodec or acodec == "none"))
+                is_a_only = bool(acodec and acodec != "none" and (not vcodec or vcodec == "none"))
+                is_premerged = bool(vcodec and vcodec != "none" and acodec and acodec != "none")
+
+                if target_height:
+                    if h == target_height:
+                        if is_v_only and f_size > best_video_size:
+                            best_video_size = f_size
+                        elif is_premerged and f_size > premerged_size:
+                            premerged_size = f_size
+                else:
+                    if is_v_only and f_size > best_video_size:
+                        best_video_size = f_size
+                    elif is_premerged and f_size > premerged_size:
+                        premerged_size = f_size
+
+                if is_a_only and f_size > best_audio_size:
+                    best_audio_size = f_size
+
+            if is_audio_only:
+                total_size_bytes = best_audio_size
+            else:
+                merged_total = best_video_size + best_audio_size
+                total_size_bytes = max(merged_total, premerged_size)
+
+            # Prioritize estimated size from extension when preset is Best Quality / Auto,
+            # or when format calculation yielded 0 or an underestimate compared to extension's detected tier
+            if estimated_size > 0:
+                if preset_idx == 0 or total_size_bytes == 0 or (estimated_size > total_size_bytes and not target_height):
+                    total_size_bytes = estimated_size
 
             if hasattr(mw, "start_media_download"):
-                mw.start_media_download(
-                    url=webpage_url,
-                    filename=filename,
-                    format_spec=format_spec,
-                    is_audio_only=is_audio_only,
-                    cookies_browser=c_browser,
-                    cookies_file=c_file,
-                    total_size_bytes=total_size_bytes
-                )
+                if is_debug_mode():
+                    logger.debug("[MediaDialog] Triggering start_media_download: filename=%s, format=%s, audio_only=%s, total_size=%s",
+                                 filename, format_spec, is_audio_only, total_size_bytes)
+                try:
+                    mw.start_media_download(
+                        url=webpage_url,
+                        filename=filename,
+                        format_spec=format_spec,
+                        is_audio_only=is_audio_only,
+                        cookies_browser=c_browser,
+                        cookies_file=c_file,
+                        total_size_bytes=total_size_bytes,
+                        referrer=getattr(self, "_referrer", None),
+                        user_agent=getattr(self, "_user_agent", None),
+                        show_file_info=True,
+                        cookies=getattr(self, "_cookies", None)
+                    )
+                except TypeError:
+                    try:
+                        mw.start_media_download(
+                            url=webpage_url,
+                            filename=filename,
+                            format_spec=format_spec,
+                            is_audio_only=is_audio_only,
+                            cookies_browser=c_browser,
+                            cookies_file=c_file,
+                            total_size_bytes=total_size_bytes,
+                            referrer=getattr(self, "_referrer", None),
+                            user_agent=getattr(self, "_user_agent", None),
+                            show_file_info=True
+                        )
+                    except TypeError:
+                        mw.start_media_download(
+                            url=webpage_url,
+                            filename=filename,
+                            format_spec=format_spec,
+                            is_audio_only=is_audio_only,
+                            cookies_browser=c_browser,
+                            cookies_file=c_file,
+                            total_size_bytes=total_size_bytes,
+                            referrer=getattr(self, "_referrer", None),
+                            user_agent=getattr(self, "_user_agent", None)
+                        )
             else:
                 mw.process_incoming_url(webpage_url)
 
@@ -1795,24 +2048,68 @@ class MediaDownloaderDialog(QDialog):
             from core.utils import sanitize_media_filename
             enqueued = 0
 
+            pl_idx = self.cmb_playlist_quality.currentIndex()
+            pl_h = None
+            if pl_idx == 1: pl_h = 2160
+            elif pl_idx == 2: pl_h = 1440
+            elif pl_idx == 3: pl_h = 1080
+            elif pl_idx == 4: pl_h = 720
+            elif pl_idx == 5: pl_h = 480
+
             for r in range(self.tbl_playlist.rowCount()):
                 chk_item = self.tbl_playlist.item(r, 0)
                 if chk_item and chk_item.checkState() == Qt.CheckState.Checked and r < len(entries):
                     entry = entries[r]
                     item_url = entry["url"]
                     item_title = entry.get("title", f"video_{r+1}")
+                    item_id = entry.get("id", "")
+                    if not item_id:
+                        m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", item_url)
+                        if m_yt:
+                            item_id = m_yt.group(1)
                     ext = ".opus" if is_audio_only else ".mkv"
-                    filename = sanitize_media_filename(item_title, ext=ext)
+
+                    is_yt_item = ("youtube.com" in item_url.lower() or "youtu.be" in item_url.lower() or
+                                  entry.get("extractor", "").lower() == "youtube" or
+                                  "youtube" in entry.get("extractor_key", "").lower())
+
+                    if is_yt_item and item_id:
+                        if is_audio_only:
+                            yt_item_title = f"{item_title} [{item_id}]"
+                        else:
+                            h_tag = f" [{pl_h}p]" if pl_h else ""
+                            yt_item_title = f"{item_title} [{item_id}]{h_tag}"
+                        filename = sanitize_media_filename(yt_item_title, ext=ext)
+                    else:
+                        filename = sanitize_media_filename(item_title, ext=ext)
 
                     if hasattr(mw, "start_media_download"):
-                        mw.start_media_download(
-                            url=item_url,
-                            filename=filename,
-                            format_spec=format_spec,
-                            is_audio_only=is_audio_only,
-                            cookies_browser=c_browser,
-                            cookies_file=c_file
-                        )
+                        if is_debug_mode():
+                            logger.debug("[MediaDialog] Enqueueing playlist item [%d/%d]: filename=%s, url=%s",
+                                         r + 1, len(entries), filename, item_url)
+                        try:
+                            mw.start_media_download(
+                                url=item_url,
+                                filename=filename,
+                                format_spec=format_spec,
+                                is_audio_only=is_audio_only,
+                                cookies_browser=c_browser,
+                                cookies_file=c_file,
+                                referrer=getattr(self, "_referrer", None),
+                                user_agent=getattr(self, "_user_agent", None),
+                                cookies=getattr(self, "_cookies", None)
+                            )
+                        except TypeError:
+                            mw.start_media_download(
+                                url=item_url,
+                                filename=filename,
+                                format_spec=format_spec,
+                                is_audio_only=is_audio_only,
+                                cookies_browser=c_browser,
+                                cookies_file=c_file,
+                                referrer=getattr(self, "_referrer", None),
+                                user_agent=getattr(self, "_user_agent", None)
+                            )
                     else:
                         mw.process_incoming_url(item_url)
                     enqueued += 1

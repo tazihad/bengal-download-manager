@@ -39,12 +39,14 @@ These are listed in `requirements.txt` and should be installed in a virtual envi
 | `pytest` | Framework for running automated tests. |
 | `pytest-qt` | Plugin for testing Qt applications. |
 
-### Installation:
+### Installation (using `uv`):
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # For development/testing
+# Create virtual environment with uv
+uv venv
+
+# Install project dependencies
+uv pip install -r requirements.txt
+uv pip install -r requirements-dev.txt  # For development/testing
 ```
 
 ---
@@ -61,7 +63,7 @@ pip install -r requirements-dev.txt  # For development/testing
 The Chrome/Firefox extension requires:
 - A modern browser (Chrome, Edge, Firefox, Brave, etc.).
 - The extension files located in the `extension/` directory.
-- The application must be running to receive downloads via the local TCP port (9000).
+- The application must be running to receive downloads via the local TCP port (56900).
 
 ---
 
