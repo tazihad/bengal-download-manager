@@ -635,7 +635,7 @@ const pendingMediaRequests = new Map(); // requestId -> { url, method, requestHe
 const detectedMediaUrls = new Map();    // url -> timestamp (5-second deduplication)
 const tabMediaStreams = new Map();      // tabId -> Array of { url, contentType, title, timestamp }
 
-function recordSniffedMedia(tabId, url, contentType, title) {
+function recordSniffedMedia(tabId, url, contentType, title, sizeBytes = 0) {
   if (!tabId || tabId === -1 || !url) return;
   let list = tabMediaStreams.get(tabId);
   if (!list) {
@@ -646,9 +646,10 @@ function recordSniffedMedia(tabId, url, contentType, title) {
   if (existing) {
     if (title && !existing.title) existing.title = title;
     if (contentType && !existing.contentType) existing.contentType = contentType;
+    if (sizeBytes && !existing.sizeBytes) existing.sizeBytes = sizeBytes;
     existing.timestamp = Date.now();
   } else {
-    list.push({ url, contentType: contentType || "", title: title || "", timestamp: Date.now() });
+    list.push({ url, contentType: contentType || "", title: title || "", sizeBytes: sizeBytes || 0, timestamp: Date.now() });
     if (list.length > 30) list.shift();
   }
 }
@@ -858,11 +859,16 @@ async function postMediaToBengalDM(details, req, tab) {
 
   // 1. Record sniffed media for this tab so the on-page floating popup can offer it
   if (details.tabId && details.tabId !== -1) {
-    recordSniffedMedia(details.tabId, details.url, "", tab ? tab.title : "");
+    let cl = 0;
+    if (details.responseHeaders) {
+      const clH = details.responseHeaders.find(h => (h.name || '').toLowerCase() === 'content-length');
+      if (clH) cl = parseInt(clH.value, 10) || 0;
+    }
+    recordSniffedMedia(details.tabId, details.url, "", tab ? tab.title : "", cl);
     try {
       chrome.tabs.sendMessage(details.tabId, {
         action: "media_stream_detected",
-        stream: { url: details.url, title: tab ? tab.title : "" }
+        stream: { url: details.url, title: tab ? tab.title : "", sizeBytes: cl }
       }).catch(() => {});
     } catch (e) {}
   }
@@ -899,6 +905,7 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
 
     let contentType = "";
     let isAttachment = false;
+    let contentLength = 0;
 
     for (const h of (details.responseHeaders || [])) {
       const name = (h.name || '').toLowerCase();
@@ -907,6 +914,9 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
         contentType = val;
       } else if (name === 'content-disposition' && (val.includes('attachment') || val.includes('filename='))) {
         isAttachment = true;
+      } else if (name === 'content-length') {
+        const cl = parseInt(val, 10);
+        if (!isNaN(cl) && cl > 0) contentLength = cl;
       }
     }
 
@@ -928,11 +938,11 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
           if (tab.url && matchesUrlOrDomain(tab.url, cachedFilterRules.blacklistUrls)) {
             return;
           }
-          recordSniffedMedia(details.tabId, details.url, contentType, tab.title || "");
+          recordSniffedMedia(details.tabId, details.url, contentType, tab.title || "", contentLength);
           try {
             chrome.tabs.sendMessage(details.tabId, {
               action: "media_stream_detected",
-              stream: { url: details.url, contentType: contentType }
+              stream: { url: details.url, contentType: contentType, sizeBytes: contentLength }
             }).catch(() => {});
           } catch (e) {}
           postMediaToBengalDM(details, req, tab, contentType);
@@ -974,6 +984,19 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
         }).catch(() => {});
       } catch {}
     }
+  });
+}
+
+// 5. Close media popup dropdown when switching tabs or window focus
+if (chrome.tabs && chrome.tabs.onActivated) {
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    chrome.tabs.query({}, (tabs) => {
+      for (const t of (tabs || [])) {
+        if (t.id && t.id !== activeInfo.tabId) {
+          chrome.tabs.sendMessage(t.id, { action: "close_dropdown" }).catch(() => {});
+        }
+      }
+    });
   });
 }
 

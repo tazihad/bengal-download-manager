@@ -17,6 +17,7 @@
   let userCoords = { left: 0, top: 0 };
   let isDropdownOpen = false;
   let ytMediaInfo = null;
+  let platformMediaInfo = null;
   const dismissedVideos = new Set();
   let activeIframeVideo = null;
   let activeIframeData = null;
@@ -319,10 +320,11 @@
     }
   } catch (e) {}
 
-  // Listen for media info from main world
+  // Listen for media info from main world (Universal Media & Resolution Bridge)
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data) return;
     if (event.data.type === '__BDM_MEDIA_INFO__' && event.data.data) {
+      platformMediaInfo = event.data.data;
       ytMediaInfo = event.data.data;
       if (activeVideo && isDropdownOpen) {
         populateDropdown();
@@ -449,6 +451,12 @@
   } catch {}
 
   chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.action === "close_dropdown") {
+      if (isDropdownOpen) {
+        closeDropdown();
+      }
+      return;
+    }
     if (msg && msg.action === "connection_status_changed") {
       const wasConnected = isAppConnected;
       isAppConnected = Boolean(msg.online);
@@ -468,7 +476,11 @@
     }
     if (msg && msg.action === "media_stream_detected" && msg.stream) {
       if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
-      if (!sniffedMediaStreams.some(s => s.url === msg.stream.url)) {
+      const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
+      if (existing) {
+        if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
+        if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
+      } else {
         sniffedMediaStreams.unshift(msg.stream);
         if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
         if (activeVideo && isDropdownOpen) {
@@ -484,6 +496,14 @@
   // Request fresh media info periodically
   function requestMediaInfo() {
     if (isSiteBlacklisted()) return;
+    if (activeVideo && activeVideo.tagName === 'VIDEO') {
+      try {
+        document.querySelectorAll('video[data-bdm-active="true"]').forEach(v => {
+          if (v !== activeVideo) delete v.dataset.bdmActive;
+        });
+        activeVideo.dataset.bdmActive = 'true';
+      } catch (e) {}
+    }
     try {
       window.postMessage({ type: '__BDM_GET_MEDIA_INFO__' }, '*');
     } catch (e) {}
@@ -580,7 +600,7 @@
       font-variant-numeric: tabular-nums;
       pointer-events: auto;
       z-index: 2147483647;
-      opacity: 0.95;
+      opacity: 0.35;
       transition: opacity 0.25s ease, transform 0.2s ease;
     }
 
@@ -589,7 +609,7 @@
     }
 
     .bdm-root.idle {
-      opacity: 0.4;
+      opacity: 0.35;
     }
 
     /* If hovered, active, open, or dragging, show up completely */
@@ -1390,8 +1410,8 @@
       if (host.includes('tiktok.com')) {
         return path.includes('/video/') || path.includes('/v/') || /\/\d{18,20}/.test(path);
       }
-      if (host.includes('facebook.com')) {
-        return path.includes('/reel/') || path.includes('/watch') || path.includes('/videos/') || u.searchParams.has('v');
+      if (host.includes('facebook.com') || host.includes('fb.watch') || host.includes('fb.com')) {
+        return path.includes('/reel/') || path.includes('/watch') || path.includes('/videos/') || u.searchParams.has('v') || path.includes('/story.php') || u.searchParams.has('story_fbid') || path.includes('/posts/') || path.includes('/permalink/');
       }
       if (host.includes('instagram.com')) {
         return path.includes('/reel/') || path.includes('/p/') || path.includes('/tv/') || path.includes('/reels/');
@@ -1420,14 +1440,24 @@
 
     // Facebook & Reels
     if (host.includes('facebook.com') || host.includes('fb.watch') || host.includes('fb.com')) {
+      // 1. Exact canonical link if platformMediaInfo (React Fiber) extracted videoFBID
+      if (platformMediaInfo && platformMediaInfo.platform === 'facebook' && platformMediaInfo.videoId) {
+        return `https://www.facebook.com/watch/?v=${platformMediaInfo.videoId}`;
+      }
       if (isCanonicalMediaPage(currentUrl)) {
         return currentUrl;
       }
       if (video) {
         try {
-          const container = video.closest('[role="article"], [data-pagelet*="FeedUnit"], [data-pagelet*="Reel"], div[role="main"]') || video.parentElement;
+          if (video.dataset && video.dataset.videoFbid) {
+            return `https://www.facebook.com/watch/?v=${video.dataset.videoFbid}`;
+          }
+          const container = video.closest('[role="article"], [data-pagelet*="FeedUnit"], [data-pagelet*="Reel"], div[role="main"], div[data-video-id]') || video.parentElement;
           if (container) {
-            const permalinkEl = container.querySelector('a[href*="/reel/"], a[href*="/watch"], a[href*="/videos/"]');
+            if (container.dataset && container.dataset.videoId) {
+              return `https://www.facebook.com/watch/?v=${container.dataset.videoId}`;
+            }
+            const permalinkEl = container.querySelector('a[href*="/reel/"], a[href*="/watch"], a[href*="/videos/"], a[href*="/posts/"], a[href*="/permalink/"]');
             if (permalinkEl && permalinkEl.href && isCanonicalMediaPage(permalinkEl.href)) {
               return permalinkEl.href;
             }
@@ -1784,16 +1814,26 @@
     return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
   }
 
+  function formatFileSize(bytes, isGuessed = false) {
+    if (!bytes || isNaN(bytes) || !isFinite(bytes) || bytes <= 0) {
+      return isGuessed ? "~ MB" : "";
+    }
+    const prefix = isGuessed ? "~ " : "";
+    if (bytes >= 1073741824) {
+      return prefix + (bytes / 1073741824).toFixed(1) + " GB";
+    } else if (bytes >= 1048576) {
+      return prefix + (bytes / 1048576).toFixed(1) + " MB";
+    } else if (bytes >= 1024) {
+      return prefix + (bytes / 1024).toFixed(0) + " KB";
+    } else {
+      return prefix + bytes + " B";
+    }
+  }
+
   function estimateFileSize(durationSec, bitrateKbps, isAudio) {
     if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return "~ MB";
     const bytes = durationSec * bitrateKbps * 125;
-    if (bytes >= 1073741824) {
-      return (bytes / 1073741824).toFixed(1) + " GB";
-    } else if (bytes >= 1048576) {
-      return (bytes / 1048576).toFixed(1) + " MB";
-    } else {
-      return (bytes / 1024).toFixed(0) + " KB";
-    }
+    return formatFileSize(bytes, true);
   }
 
   function estimateFileSizeBytes(durationSec, bitrateKbps) {
@@ -1801,14 +1841,38 @@
     return Math.round(durationSec * (bitrateKbps || 2500) * 125);
   }
 
-  // 9. Supported Resolutions Filtering (Never show unsupported qualities!)
+  function findMatchingFileSizeBytes(streamUrl, video) {
+    if (streamUrl && Array.isArray(sniffedMediaStreams)) {
+      const found = sniffedMediaStreams.find(s => s.url === streamUrl && s.sizeBytes > 0);
+      if (found) return found.sizeBytes;
+    }
+    if (video && Array.isArray(sniffedMediaStreams)) {
+      const vSrc = video.currentSrc || video.src;
+      if (vSrc) {
+        const found = sniffedMediaStreams.find(s => s.url === vSrc && s.sizeBytes > 0);
+        if (found) return found.sizeBytes;
+      }
+    }
+    if (activeIframeData && Array.isArray(sniffedMediaStreams)) {
+      const iSrc = activeIframeData.streamUrl || activeIframeData.currentSrc;
+      if (iSrc) {
+        const found = sniffedMediaStreams.find(s => s.url === iSrc && s.sizeBytes > 0);
+        if (found) return found.sizeBytes;
+      }
+    }
+    return 0;
+  }
+
+  // 9. Supported Resolutions Filtering (Preserves existing site logic + special Facebook IDM case)
   function getSupportedResolutions(video) {
     const isYouTube = window.location.hostname.includes('youtube.com');
-    const duration = (ytMediaInfo && ytMediaInfo.duration) ||
+    const isFacebook = window.location.hostname.includes('facebook.com') || window.location.hostname.includes('fb.watch') || window.location.hostname.includes('fb.com');
+    const duration = (platformMediaInfo && platformMediaInfo.duration) ||
+                     (ytMediaInfo && ytMediaInfo.duration) ||
                      (activeIframeData && activeIframeData.duration) ||
                      (video && video.duration) || 0;
 
-    // A. Check YouTube Player API Levels
+    // A. Check YouTube Player API Levels (Untouched)
     if (isYouTube && ytMediaInfo && Array.isArray(ytMediaInfo.levels) && ytMediaInfo.levels.length > 0) {
       const ytLevelMap = {
         'highres': { quality: '4K (2160p)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
@@ -1855,7 +1919,7 @@
       }
     }
 
-    // B. If an HLS (m3u8), DASH, or direct media stream was sniffed for this tab (only on generic sites)
+    // B. If an HLS (m3u8), DASH, or direct media stream was sniffed for this tab (only on generic sites - Untouched)
     const isPopular = isPopularMediaHost(window.location.hostname);
     if (!isPopular) {
       const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
@@ -1870,6 +1934,9 @@
         const resCls = vh >= 720 ? 'hd' : '';
         const tag = m3u8Stream ? '(HLS Stream)' : '(Media Stream)';
 
+        const exactFileBytes = findMatchingFileSizeBytes(streamCandidate.url, video) || (streamCandidate.sizeBytes > 0 ? streamCandidate.sizeBytes : 0);
+        const hasExactFile = exactFileBytes > 0;
+
         return [
           {
             quality: `${resBadge} ${tag}`,
@@ -1879,8 +1946,8 @@
             bitrate: vh >= 1080 ? 5000 : 2500,
             cls: resCls,
             streamUrl: streamCandidate.url,
-            sizeBytes: estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
-            size: estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
+            sizeBytes: hasExactFile ? exactFileBytes : estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
+            size: hasExactFile ? formatFileSize(exactFileBytes, false) : estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
           },
           {
             quality: 'Audio Only (MP3)',
@@ -1898,7 +1965,114 @@
       }
     }
 
-    // C. Standard Video Height Filtering (Generic sites or fallback)
+    // Special Facebook Case (IDM React Fiber & DASH Manifest Method)
+    if (isFacebook) {
+      const fbTiers = [
+        { quality: '2160p (4K)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
+        { quality: '1440p (2K)', badge: '2K', label: '2K Quad HD', height: 1440, bitrate: 12000, cls: 'uhd' },
+        { quality: '1080p', badge: '1080p', label: '1080p Full HD', height: 1080, bitrate: 5000, cls: 'hd' },
+        { quality: '720p', badge: '720p', label: '720p HD', height: 720, bitrate: 2500, cls: 'hd' },
+        { quality: '480p', badge: '480p', label: '480p SD', height: 480, bitrate: 1200, cls: '' },
+        { quality: '360p', badge: '360p', label: '360p', height: 360, bitrate: 700, cls: '' }
+      ];
+
+      // If Facebook React Fiber or DASH manifest extracted explicit resolution levels
+      if (platformMediaInfo && platformMediaInfo.platform === 'facebook' && Array.isArray(platformMediaInfo.resolutions) && platformMediaInfo.resolutions.length > 0) {
+        const seenQualities = new Set();
+        const result = [];
+        for (const h of platformMediaInfo.resolutions) {
+          let tier = fbTiers.find(t => t.height === h) ||
+                     fbTiers.find(t => Math.abs(t.height - h) <= 60);
+          if (!tier) {
+            const isHD = h >= 720;
+            tier = {
+              quality: `${h}p`,
+              badge: `${h}p`,
+              label: `${h}p ${isHD ? 'HD' : 'SD'}`,
+              height: h,
+              bitrate: h >= 1080 ? 5000 : (h >= 720 ? 2500 : 1200),
+              cls: isHD ? 'hd' : ''
+            };
+          }
+          if (!seenQualities.has(tier.quality)) {
+            seenQualities.add(tier.quality);
+            const item = {
+              ...tier,
+              sizeBytes: estimateFileSizeBytes(duration, tier.bitrate),
+              size: estimateFileSize(duration, tier.bitrate, false)
+            };
+            if (tier.height >= 720 && platformMediaInfo.hdUrl) item.streamUrl = platformMediaInfo.hdUrl;
+            else if (platformMediaInfo.sdUrl) item.streamUrl = platformMediaInfo.sdUrl;
+
+            const exactBytes = findMatchingFileSizeBytes(item.streamUrl, video);
+            if (exactBytes > 0) {
+              item.sizeBytes = exactBytes;
+              item.size = formatFileSize(exactBytes, false);
+            }
+            result.push(item);
+          }
+        }
+        if (result.length > 0) {
+          result.push({
+            quality: 'Audio Only (MP3)',
+            badge: 'MP3',
+            label: 'Audio Only',
+            height: 0,
+            bitrate: 192,
+            cls: 'audio',
+            isAudio: true,
+            sizeBytes: estimateFileSizeBytes(duration, 192),
+            size: estimateFileSize(duration, 192, true)
+          });
+          return result;
+        }
+      }
+
+      // If Facebook video is HD or adaptive buffer hasn't reached full quality yet:
+      const rawVh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 0;
+      const rawVw = (activeIframeData && activeIframeData.videoWidth) || (video && video.videoWidth) || 0;
+      const vh = Math.max(rawVh, rawVw) || 720;
+      const isFbHD = (platformMediaInfo && platformMediaInfo.isHD) || vh >= 720;
+      const maxH = isFbHD ? Math.max(vh, 1080) : Math.max(vh, 480);
+      const exactFbBytes = findMatchingFileSizeBytes(null, video);
+
+      let filtered = fbTiers
+        .filter(t => t.height <= maxH)
+        .map(t => {
+          const hasExact = exactFbBytes > 0 && t.height === vh;
+          return {
+            ...t,
+            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
+            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          };
+        });
+
+      if (filtered.length === 0) {
+        filtered = fbTiers.slice(2).map(t => {
+          const hasExact = exactFbBytes > 0 && t.height === vh;
+          return {
+            ...t,
+            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
+            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          };
+        });
+      }
+
+      filtered.push({
+        quality: 'Audio Only (MP3)',
+        badge: 'MP3',
+        label: 'Audio Only',
+        height: 0,
+        bitrate: 192,
+        cls: 'audio',
+        isAudio: true,
+        sizeBytes: estimateFileSizeBytes(duration, 192),
+        size: estimateFileSize(duration, 192, true)
+      });
+      return filtered;
+    }
+
+    // C. Standard Video Height Filtering (Generic sites or fallback - Untouched for TikTok, Instagram, Twitter, etc.)
     const rawVh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 0;
     const rawVw = (activeIframeData && activeIframeData.videoWidth) || (video && video.videoWidth) || 0;
     // For vertical videos (TikTok, YouTube Shorts, Reels), use maximum dimension to preserve 720p/1080p options
@@ -1912,22 +2086,30 @@
       { quality: '360p', badge: '360p', label: '360p', height: 360, bitrate: 700, cls: '' }
     ];
 
+    const exactVideoBytes = findMatchingFileSizeBytes(null, video);
+
     // Strictly filter out any resolution tier higher than the video's actual dimensions
     let filtered = allTiers
       .filter(t => t.height <= vh)
-      .map(t => ({
-        ...t,
-        sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
-        size: estimateFileSize(duration, t.bitrate, false)
-      }));
+      .map((t, idx) => {
+        const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
+        return {
+          ...t,
+          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+        };
+      });
 
     // If dimensions check was overly strict or metadata not ready, provide standard tiers (1080p, 720p, 480p, 360p)
     if (filtered.length === 0) {
-      filtered = allTiers.slice(2).map(t => ({
-        ...t,
-        sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
-        size: estimateFileSize(duration, t.bitrate, false)
-      }));
+      filtered = allTiers.slice(2).map((t, idx) => {
+        const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
+        return {
+          ...t,
+          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+        };
+      });
     }
 
     // Add Audio Option
@@ -2324,11 +2506,45 @@
     resetIdleTimer();
   }
 
-  // Close dropdown on outside click
-  document.addEventListener('click', (e) => {
-    if (Date.now() - lastOpenedTime < 350) return;
+  // Close dropdown on outside click or pointerdown
+  function handleOutsideInteraction(e) {
+    if (!isDropdownOpen) return;
+    if (Date.now() - lastOpenedTime < 100) return;
     const path = e.composedPath ? e.composedPath() : [];
-    if (isDropdownOpen && !path.includes(host) && !host.contains(e.target)) {
+    if (path.includes(host) || path.includes(root) || (host && host.contains(e.target))) {
+      return;
+    }
+    closeDropdown();
+  }
+
+  // Use capture phase on both window and document to guarantee receiving events even if the site stops propagation
+  window.addEventListener('click', handleOutsideInteraction, true);
+  document.addEventListener('click', handleOutsideInteraction, true);
+  window.addEventListener('pointerdown', handleOutsideInteraction, true);
+  document.addEventListener('pointerdown', handleOutsideInteraction, true);
+
+  // Close dropdown on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isDropdownOpen) {
+      closeDropdown();
+    }
+  }, true);
+
+  // Close dropdown when switching to another tab or window loses focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isDropdownOpen) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener('blur', () => {
+    if (isDropdownOpen) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener('pagehide', () => {
+    if (isDropdownOpen) {
       closeDropdown();
     }
   });
