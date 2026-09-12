@@ -3206,17 +3206,23 @@ class MainWindow(QMainWindow):
                 video_id = ""
                 is_special_case = False
 
+                is_tiktok = bool((url and "tiktok.com" in url.lower()) or (referrer and "tiktok.com" in referrer.lower()))
+                is_instagram = bool((url and "instagram.com" in url.lower()) or (referrer and "instagram.com" in referrer.lower()))
+                is_facebook = bool((url and ("facebook.com" in url.lower() or "fb.watch" in url.lower() or "fb.com" in url.lower())) or (referrer and ("facebook.com" in referrer.lower() or "fb.watch" in referrer.lower() or "fb.com" in referrer.lower())))
+                is_twitter_or_x = bool((url and ("x.com" in url.lower() or "twitter.com" in url.lower())) or (referrer and ("x.com" in referrer.lower() or "twitter.com" in referrer.lower())))
+
                 # 1. TikTok: @<username>/video/<videoid> -> username_id
-                m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
-                if m_tt:
-                    user_id = m_tt.group(1)
-                    v_id = m_tt.group(2)
-                    title = f"{user_id}_{v_id}"
-                    video_id = title
-                    is_special_case = True
+                if is_tiktok:
+                    m_tt = re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", url or "") or (re.search(r"@([^/?#&]+)/(?:video|v)/(\d+)", referrer or "") if referrer else None)
+                    if m_tt:
+                        user_id = m_tt.group(1)
+                        v_id = m_tt.group(2)
+                        title = f"{user_id}_{v_id}"
+                        video_id = title
+                        is_special_case = True
 
                 # 2. Instagram: /<username>/reels/<id> or /reels/<id> -> username-urlid (e.g. filmygyan-Dc_7ZNGChot)
-                if not is_special_case:
+                if not is_special_case and is_instagram:
                     m_ig_user = (
                         re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", url or "") or
                         (re.search(r"instagram\.com/([A-Za-z0-9_.]+)/(?:reels?|p|tv)/([A-Za-z0-9_-]+)", referrer or "") if referrer else None)
@@ -3255,7 +3261,7 @@ class MainWindow(QMainWindow):
                             is_special_case = True
 
                 # 3. Facebook: /reel/<id>, /videos/<id>, ?v=<id> -> <id>
-                if not is_special_case:
+                if not is_special_case and is_facebook:
                     m_fb = (
                         re.search(r"(?:facebook\.com|fb\.watch|fb\.com)/(?:reel|reels|videos?|share/[vr])/([A-Za-z0-9_-]+)", url or "") or
                         re.search(r"[?&]v=(\d+)", url or "") or
@@ -3268,7 +3274,7 @@ class MainWindow(QMainWindow):
                         is_special_case = True
 
                 # 4. Twitter / X: username-status_id (e.g. i_m_harshitsing-2095888237944525003)
-                if not is_special_case:
+                if not is_special_case and is_twitter_or_x:
                     m_x = (
                         re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", url or "") or
                         (re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)/status/(\d+)", referrer or "") if referrer else None)

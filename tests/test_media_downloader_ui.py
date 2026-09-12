@@ -170,3 +170,81 @@ def test_playlist_download_enqueues_to_main_queue(qapp, tmp_path):
 
     mw.close()
     dlg.close()
+
+
+def test_youtube_media_popup_filename_numeric_video_id(qapp):
+    """
+    Verify that YouTube URLs with IDs starting with digits (e.g. 31wLxwewzlM, 27C4pfRsf9g)
+    do not mistakenly trigger the Facebook numeric ?v=(\d+) parser and generate '31.mkv' or '27.mkv'.
+    """
+    mw = MainWindow(start_ipc=False)
+    with patch.object(mw, "start_media_download") as mock_start:
+        # Simulate IPC from extension media popup:
+        # url | user_agent | cookies | referrer | is_media_flag | quality | title | size_bytes | size_str
+        ipc_data_1 = (
+            "https://www.youtube.com/watch?v=31wLxwewzlM|"
+            "Mozilla/5.0|"
+            "|"
+            "https://www.youtube.com/|"
+            "1|"
+            "1080p|"
+            "Laila Full Video - Shootout At Wadala | John Abraham|"
+            "104857600|"
+            "~100 MB"
+        )
+        mw.process_incoming_url(ipc_data_1)
+        assert mock_start.called
+        kwargs_1 = mock_start.call_args.kwargs
+        filename_1 = kwargs_1.get("filename")
+        assert filename_1 != "31.mkv"
+        assert "31wLxwewzlM" in filename_1
+        assert "Laila Full Video" in filename_1
+        assert "1080p" in filename_1
+
+        mock_start.reset_mock()
+        ipc_data_2 = (
+            "https://www.youtube.com/watch?v=27C4pfRsf9g|"
+            "Mozilla/5.0|"
+            "|"
+            "https://www.youtube.com/|"
+            "1|"
+            "720p|"
+            "Test Video Title|"
+            "52428800|"
+            "~50 MB"
+        )
+        mw.process_incoming_url(ipc_data_2)
+        assert mock_start.called
+        kwargs_2 = mock_start.call_args.kwargs
+        filename_2 = kwargs_2.get("filename")
+        assert filename_2 != "27.mkv"
+        assert "27C4pfRsf9g" in filename_2
+        assert "Test Video Title" in filename_2
+        assert "720p" in filename_2
+
+    mw.close()
+
+
+def test_facebook_media_popup_filename(qapp):
+    """Verify that Facebook URLs continue to extract video ID properly."""
+    mw = MainWindow(start_ipc=False)
+    with patch.object(mw, "start_media_download") as mock_start:
+        ipc_data_fb = (
+            "https://www.facebook.com/watch/?v=10214828192847192|"
+            "Mozilla/5.0|"
+            "|"
+            "https://www.facebook.com/|"
+            "1|"
+            "720p|"
+            "Facebook Video|"
+            "52428800|"
+            "~50 MB"
+        )
+        mw.process_incoming_url(ipc_data_fb)
+        assert mock_start.called
+        kwargs_fb = mock_start.call_args.kwargs
+        filename_fb = kwargs_fb.get("filename")
+        assert filename_fb == "10214828192847192.mkv"
+
+    mw.close()
+
