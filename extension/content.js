@@ -1681,7 +1681,7 @@
       }
     }
 
-    // 3. Facebook: url id (e.g. https://www.facebook.com/reel/1674054117674795 -> 1674054117674795)
+    // 3. Facebook: url id (e.g. /reel/<id> or ?v=<id>)
     for (const u of testUrls) {
       if (u && (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('fb.com'))) {
         const m = u.match(/(?:reel|reels|videos?|share\/[vr])\/([A-Za-z0-9_-]+)/i) || u.match(/[?&]v=(\d+)/i);
@@ -1691,7 +1691,7 @@
       }
     }
 
-    // 4. X.com / Twitter: username-status_id (e.g. https://x.com/i_m_harshitsing/status/2095888237944525003/video/1 -> i_m_harshitsing-2095888237944525003)
+    // 4. X.com / Twitter: username-status_id (e.g. /<username>/status/<id>)
     for (const u of testUrls) {
       if (u && (u.includes('x.com') || u.includes('twitter.com'))) {
         const m = u.match(/(?:x\.com|twitter\.com)\/([A-Za-z0-9_]+)\/status\/(\d+)/i);

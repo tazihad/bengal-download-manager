@@ -190,7 +190,7 @@ const filterLists = {
 function normalizeUrlOrDomainInput(input) {
   if (!input || typeof input !== 'string') return "";
   let val = input.trim().toLowerCase();
-  // If user pasted a full URL with protocol and no path or just root path e.g. https://mirror.xeonbd.com/
+  // If user pasted a full URL with protocol and no path or just root path (e.g. https://example.com/)
   try {
     if (val.startsWith('http://') || val.startsWith('https://')) {
       const parsed = new URL(val);
