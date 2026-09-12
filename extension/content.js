@@ -470,7 +470,11 @@
     }
     if (msg && msg.action === "media_stream_detected" && msg.stream) {
       if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
-      if (!sniffedMediaStreams.some(s => s.url === msg.stream.url)) {
+      const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
+      if (existing) {
+        if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
+        if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
+      } else {
         sniffedMediaStreams.unshift(msg.stream);
         if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
         if (activeVideo && isDropdownOpen) {
@@ -1804,21 +1808,53 @@
     return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
   }
 
+  function formatFileSize(bytes, isGuessed = false) {
+    if (!bytes || isNaN(bytes) || !isFinite(bytes) || bytes <= 0) {
+      return isGuessed ? "~ MB" : "";
+    }
+    const prefix = isGuessed ? "~ " : "";
+    if (bytes >= 1073741824) {
+      return prefix + (bytes / 1073741824).toFixed(1) + " GB";
+    } else if (bytes >= 1048576) {
+      return prefix + (bytes / 1048576).toFixed(1) + " MB";
+    } else if (bytes >= 1024) {
+      return prefix + (bytes / 1024).toFixed(0) + " KB";
+    } else {
+      return prefix + bytes + " B";
+    }
+  }
+
   function estimateFileSize(durationSec, bitrateKbps, isAudio) {
     if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return "~ MB";
     const bytes = durationSec * bitrateKbps * 125;
-    if (bytes >= 1073741824) {
-      return (bytes / 1073741824).toFixed(1) + " GB";
-    } else if (bytes >= 1048576) {
-      return (bytes / 1048576).toFixed(1) + " MB";
-    } else {
-      return (bytes / 1024).toFixed(0) + " KB";
-    }
+    return formatFileSize(bytes, true);
   }
 
   function estimateFileSizeBytes(durationSec, bitrateKbps) {
     if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return 0;
     return Math.round(durationSec * (bitrateKbps || 2500) * 125);
+  }
+
+  function findMatchingFileSizeBytes(streamUrl, video) {
+    if (streamUrl && Array.isArray(sniffedMediaStreams)) {
+      const found = sniffedMediaStreams.find(s => s.url === streamUrl && s.sizeBytes > 0);
+      if (found) return found.sizeBytes;
+    }
+    if (video && Array.isArray(sniffedMediaStreams)) {
+      const vSrc = video.currentSrc || video.src;
+      if (vSrc) {
+        const found = sniffedMediaStreams.find(s => s.url === vSrc && s.sizeBytes > 0);
+        if (found) return found.sizeBytes;
+      }
+    }
+    if (activeIframeData && Array.isArray(sniffedMediaStreams)) {
+      const iSrc = activeIframeData.streamUrl || activeIframeData.currentSrc;
+      if (iSrc) {
+        const found = sniffedMediaStreams.find(s => s.url === iSrc && s.sizeBytes > 0);
+        if (found) return found.sizeBytes;
+      }
+    }
+    return 0;
   }
 
   // 9. Supported Resolutions Filtering (Preserves existing site logic + special Facebook IDM case)
@@ -1892,6 +1928,9 @@
         const resCls = vh >= 720 ? 'hd' : '';
         const tag = m3u8Stream ? '(HLS Stream)' : '(Media Stream)';
 
+        const exactFileBytes = findMatchingFileSizeBytes(streamCandidate.url, video) || (streamCandidate.sizeBytes > 0 ? streamCandidate.sizeBytes : 0);
+        const hasExactFile = exactFileBytes > 0;
+
         return [
           {
             quality: `${resBadge} ${tag}`,
@@ -1901,8 +1940,8 @@
             bitrate: vh >= 1080 ? 5000 : 2500,
             cls: resCls,
             streamUrl: streamCandidate.url,
-            sizeBytes: estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
-            size: estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
+            sizeBytes: hasExactFile ? exactFileBytes : estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
+            size: hasExactFile ? formatFileSize(exactFileBytes, false) : estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
           },
           {
             quality: 'Audio Only (MP3)',
@@ -1958,6 +1997,12 @@
             };
             if (tier.height >= 720 && platformMediaInfo.hdUrl) item.streamUrl = platformMediaInfo.hdUrl;
             else if (platformMediaInfo.sdUrl) item.streamUrl = platformMediaInfo.sdUrl;
+
+            const exactBytes = findMatchingFileSizeBytes(item.streamUrl, video);
+            if (exactBytes > 0) {
+              item.sizeBytes = exactBytes;
+              item.size = formatFileSize(exactBytes, false);
+            }
             result.push(item);
           }
         }
@@ -1983,21 +2028,28 @@
       const vh = Math.max(rawVh, rawVw) || 720;
       const isFbHD = (platformMediaInfo && platformMediaInfo.isHD) || vh >= 720;
       const maxH = isFbHD ? Math.max(vh, 1080) : Math.max(vh, 480);
+      const exactFbBytes = findMatchingFileSizeBytes(null, video);
 
       let filtered = fbTiers
         .filter(t => t.height <= maxH)
-        .map(t => ({
-          ...t,
-          sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
-          size: estimateFileSize(duration, t.bitrate, false)
-        }));
+        .map(t => {
+          const hasExact = exactFbBytes > 0 && t.height === vh;
+          return {
+            ...t,
+            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
+            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          };
+        });
 
       if (filtered.length === 0) {
-        filtered = fbTiers.slice(2).map(t => ({
-          ...t,
-          sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
-          size: estimateFileSize(duration, t.bitrate, false)
-        }));
+        filtered = fbTiers.slice(2).map(t => {
+          const hasExact = exactFbBytes > 0 && t.height === vh;
+          return {
+            ...t,
+            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
+            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          };
+        });
       }
 
       filtered.push({
@@ -2028,22 +2080,30 @@
       { quality: '360p', badge: '360p', label: '360p', height: 360, bitrate: 700, cls: '' }
     ];
 
+    const exactVideoBytes = findMatchingFileSizeBytes(null, video);
+
     // Strictly filter out any resolution tier higher than the video's actual dimensions
     let filtered = allTiers
       .filter(t => t.height <= vh)
-      .map(t => ({
-        ...t,
-        sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
-        size: estimateFileSize(duration, t.bitrate, false)
-      }));
+      .map((t, idx) => {
+        const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
+        return {
+          ...t,
+          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+        };
+      });
 
     // If dimensions check was overly strict or metadata not ready, provide standard tiers (1080p, 720p, 480p, 360p)
     if (filtered.length === 0) {
-      filtered = allTiers.slice(2).map(t => ({
-        ...t,
-        sizeBytes: estimateFileSizeBytes(duration, t.bitrate),
-        size: estimateFileSize(duration, t.bitrate, false)
-      }));
+      filtered = allTiers.slice(2).map((t, idx) => {
+        const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
+        return {
+          ...t,
+          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+        };
+      });
     }
 
     // Add Audio Option
