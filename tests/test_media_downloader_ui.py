@@ -131,7 +131,7 @@ def test_start_media_download_unique_naming_when_file_exists(qapp, tmp_path):
 
     with patch("core.media_downloader.YtDlpDownloadWorker.start") as mock_start:
         item_ref = mw.start_media_download(
-            url="https://youtube.com/watch?v=sample",
+            url="https://www.youtube.com/watch?v=YE7VzlLtp-4",
             filename="My_Video.mp4",
             format_spec="bestvideo+bestaudio/best",
             custom_save_dir=save_dir

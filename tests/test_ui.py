@@ -150,14 +150,14 @@ def test_process_incoming_url_routes_media_link_to_media_downloader(qapp, monkey
     monkeypatch.setattr(win, "open_media_downloader", mock_open_media_downloader)
 
     # 1. Standard YouTube URL
-    win.process_incoming_url("https://www.youtube.com/watch?v=sample_vid|Mozilla/5.0|cookie1=val")
-    assert called_url == "https://www.youtube.com/watch?v=sample_vid"
+    win.process_incoming_url("https://www.youtube.com/watch?v=YE7VzlLtp-4|Mozilla/5.0|cookie1=val")
+    assert called_url == "https://www.youtube.com/watch?v=YE7VzlLtp-4"
     assert called_preset is not None
 
     # 2. Vimeo URL
     called_url = None
-    win.process_incoming_url("https://vimeo.com/76979871||")
-    assert called_url == "https://vimeo.com/76979871"
+    win.process_incoming_url("https://vimeo.com/34321188||")
+    assert called_url == "https://vimeo.com/34321188"
 
     win.close()
 
