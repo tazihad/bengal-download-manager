@@ -212,6 +212,7 @@ def create_git_tag_and_commit(ver: str):
         VERSION_FILE,
         SNAPCRAFT_FILE,
         METAINFO_FILE,
+        os.path.join(ROOT_DIR, "index.html"),
     ]
     staged = [f for f in files_to_stage if os.path.exists(f)]
     subprocess.run(["git", "add"] + staged, check=True, cwd=ROOT_DIR)
