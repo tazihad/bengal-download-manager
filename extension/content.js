@@ -590,7 +590,7 @@
       font-variant-numeric: tabular-nums;
       pointer-events: auto;
       z-index: 2147483647;
-      opacity: 0.95;
+      opacity: 0.35;
       transition: opacity 0.25s ease, transform 0.2s ease;
     }
 
@@ -599,7 +599,7 @@
     }
 
     .bdm-root.idle {
-      opacity: 0.4;
+      opacity: 0.35;
     }
 
     /* If hovered, active, open, or dragging, show up completely */
