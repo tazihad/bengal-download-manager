@@ -987,6 +987,19 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
   });
 }
 
+// 5. Close media popup dropdown when switching tabs or window focus
+if (chrome.tabs && chrome.tabs.onActivated) {
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    chrome.tabs.query({}, (tabs) => {
+      for (const t of (tabs || [])) {
+        if (t.id && t.id !== activeInfo.tabId) {
+          chrome.tabs.sendMessage(t.id, { action: "close_dropdown" }).catch(() => {});
+        }
+      }
+    });
+  });
+}
+
 // --- HTTP REQUEST & RESPONSE MONITORING SYSTEM (IDM Integration Module Style) ---
 if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
   const setupListener = (extraSpec) => {

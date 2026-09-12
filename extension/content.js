@@ -451,6 +451,12 @@
   } catch {}
 
   chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.action === "close_dropdown") {
+      if (isDropdownOpen) {
+        closeDropdown();
+      }
+      return;
+    }
     if (msg && msg.action === "connection_status_changed") {
       const wasConnected = isAppConnected;
       isAppConnected = Boolean(msg.online);
@@ -2500,11 +2506,45 @@
     resetIdleTimer();
   }
 
-  // Close dropdown on outside click
-  document.addEventListener('click', (e) => {
-    if (Date.now() - lastOpenedTime < 350) return;
+  // Close dropdown on outside click or pointerdown
+  function handleOutsideInteraction(e) {
+    if (!isDropdownOpen) return;
+    if (Date.now() - lastOpenedTime < 100) return;
     const path = e.composedPath ? e.composedPath() : [];
-    if (isDropdownOpen && !path.includes(host) && !host.contains(e.target)) {
+    if (path.includes(host) || path.includes(root) || (host && host.contains(e.target))) {
+      return;
+    }
+    closeDropdown();
+  }
+
+  // Use capture phase on both window and document to guarantee receiving events even if the site stops propagation
+  window.addEventListener('click', handleOutsideInteraction, true);
+  document.addEventListener('click', handleOutsideInteraction, true);
+  window.addEventListener('pointerdown', handleOutsideInteraction, true);
+  document.addEventListener('pointerdown', handleOutsideInteraction, true);
+
+  // Close dropdown on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isDropdownOpen) {
+      closeDropdown();
+    }
+  }, true);
+
+  // Close dropdown when switching to another tab or window loses focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isDropdownOpen) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener('blur', () => {
+    if (isDropdownOpen) {
+      closeDropdown();
+    }
+  });
+
+  window.addEventListener('pagehide', () => {
+    if (isDropdownOpen) {
       closeDropdown();
     }
   });
