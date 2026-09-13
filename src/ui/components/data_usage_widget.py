@@ -340,9 +340,6 @@ class DataUsageWidget(QFrame):
 
         # Update labels and dynamic tooltips
         files_tip = f"{today_files_count} file{'s' if today_files_count != 1 else ''} downloaded today"
-        active_tip = f"{active_count} active download{'s' if active_count != 1 else ''} in progress"
-        speed_str = format_bytes(current_speed) + "/s" if current_speed > 0 else "0 B/s"
-        speed_tip = f"Current transfer rate: {speed_str}"
         downloaded_tip = f"{format_bytes(today_completed_bytes)} completed today (click to view calendar graph)"
 
         self.lbl_downloaded_val.setText(format_bytes(today_completed_bytes))
@@ -355,13 +352,23 @@ class DataUsageWidget(QFrame):
         self.lbl_files_val.setToolTip(files_tip)
         self.badge_files.setToolTip(files_tip)
 
-        self.lbl_active_val.setText(str(active_count))
-        self.lbl_active_val.setToolTip(active_tip)
-        self.badge_active.setToolTip(active_tip)
+        self.update_live_speed(current_speed, active_count)
 
-        self.lbl_speed_val.setText(speed_str)
-        self.lbl_speed_val.setToolTip(speed_tip)
-        self.badge_speed.setToolTip(speed_tip)
+    def update_live_speed(self, current_speed: float = 0.0, active_count: int = 0):
+        """Immediately updates the speed and active downloads badge in sync with download status updates."""
+        speed_str = format_bytes(current_speed) + "/s" if current_speed > 0 else "0 B/s"
+        if self.lbl_speed_val.text() != speed_str:
+            self.lbl_speed_val.setText(speed_str)
+            speed_tip = f"Current transfer rate: {speed_str}"
+            self.lbl_speed_val.setToolTip(speed_tip)
+            self.badge_speed.setToolTip(speed_tip)
+
+        active_str = str(active_count)
+        if self.lbl_active_val.text() != active_str:
+            self.lbl_active_val.setText(active_str)
+            active_tip = f"{active_count} active download{'s' if active_count != 1 else ''} in progress"
+            self.lbl_active_val.setToolTip(active_tip)
+            self.badge_active.setToolTip(active_tip)
 
         # 2. Download Storage Meter
         try:

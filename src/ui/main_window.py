@@ -1150,6 +1150,10 @@ class MainWindow(QMainWindow):
         total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
         active_count = len(self.active_downloads) or len(self.active_speeds)
 
+        # Immediately update Data Usage Widget speed and active count in sync with download status
+        if hasattr(self, "data_usage_widget") and self.data_usage_widget and hasattr(self.data_usage_widget, "update_live_speed"):
+            self.data_usage_widget.update_live_speed(total_speed, active_count)
+
         # Update Tray Icon ToolTip
         if hasattr(self, "tray_icon") and self.tray_icon:
             try:

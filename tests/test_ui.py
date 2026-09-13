@@ -281,6 +281,20 @@ def test_main_window_data_usage_widget(qapp):
     assert widget.storage_progress.minimum() == 0
     assert widget.storage_progress.maximum() == 100
 
+    # Test real-time live speed synchronization with download status updates
+    assert widget.lbl_speed_val.text() == "0 B/s"
+    win.active_speeds["test_dl"] = 3.5 * 1024 * 1024
+    win.active_downloads["test_dl"] = True
+    win.update_status_bar_speed()
+    assert "3.50 MB/s" in widget.lbl_speed_val.text() or "3.5 MB/s" in widget.lbl_speed_val.text()
+    assert widget.lbl_active_val.text() == "1"
+
+    win.active_speeds.pop("test_dl")
+    win.active_downloads.pop("test_dl")
+    win.update_status_bar_speed()
+    assert widget.lbl_speed_val.text() == "0 B/s"
+    assert widget.lbl_active_val.text() == "0"
+
     # Test toggling data usage summary via View menu action
     assert hasattr(win, "action_data_usage_toggle")
     assert win.action_data_usage_toggle.isChecked()
