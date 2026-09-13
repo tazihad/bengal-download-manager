@@ -115,6 +115,13 @@ def test_main_window_grabber_toolbar_position(qapp):
     assert idx_grabber == idx_scheduler + 1, f"Grabber ({idx_grabber}) must be immediately after Scheduler ({idx_scheduler})"
     assert idx_options == idx_grabber + 1, f"Options ({idx_options}) must be immediately after Grabber ({idx_grabber})"
 
+    # Verify ToolbarHoverFilter mapping and glow icon generation
+    assert "action_grabber" in win.toolbar_hover_filter._action_icon_map
+    assert win.toolbar_hover_filter._action_icon_map["action_grabber"] == "grabber"
+
+    glow_icon = win.toolbar_hover_filter.get_glow_icon("grabber")
+    assert not glow_icon.isNull()
+
     win.close()
 
 
