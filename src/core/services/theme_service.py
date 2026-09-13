@@ -874,7 +874,8 @@ FREEDESKTOP_MAP = {
     "finished": ["emblem-default", "dialog-ok", "check"],
     "exit": ["application-exit", "system-log-out", "exit"],
     "show_hide": ["window-new", "view-restore", "go-home"],
-    "scheduler": ["chronometer", "appointment-soon", "alarm-clock"]
+    "scheduler": ["chronometer", "appointment-soon", "alarm-clock"],
+    "grabber": ["applications-internet", "web-browser", "download"]
 }
 
 

@@ -589,6 +589,10 @@ class MainWindow(QMainWindow):
             self.action_scheduler.setToolTip(self.tr("Manage download queues and scheduling"))
             self.action_scheduler.triggered.connect(self.open_scheduler)
 
+            self.action_grabber = QAction(get_themed_icon("grabber"), self.tr("Site Grabber"), self)
+            self.action_grabber.setToolTip(self.tr("Crawl websites and batch download media, documents, and files"))
+            self.action_grabber.triggered.connect(self.open_grabber)
+
             self.action_media_downloader = QAction(get_themed_icon("media_downloader"), self.tr("Media Downloader"), self)
             self.action_media_downloader.setToolTip(self.tr("Parse and download video or audio streams and playlists from media sites"))
             self.action_media_downloader.triggered.connect(self.open_media_downloader)
@@ -621,6 +625,8 @@ class MainWindow(QMainWindow):
             self.action_options.setToolTip(self.tr("Configure download manager options, connection limits, and engine settings"))
             self.action_scheduler.setText(self.tr("Scheduler"))
             self.action_scheduler.setToolTip(self.tr("Manage download queues and scheduling"))
+            self.action_grabber.setText(self.tr("Site Grabber"))
+            self.action_grabber.setToolTip(self.tr("Crawl websites and batch download media, documents, and files"))
             self.action_media_downloader.setText(self.tr("Media Downloader"))
             self.action_media_downloader.setToolTip(self.tr("Parse and download video or audio streams and playlists from media sites"))
             self.action_open_folder.setText(self.tr("Open Downloads Folder"))
@@ -634,6 +640,7 @@ class MainWindow(QMainWindow):
         tasks_menu = menu_bar.addMenu(self.tr("&Tasks"))
         tasks_menu.addAction(self.action_add_url)
         tasks_menu.addAction(self.action_paste_url)
+        tasks_menu.addAction(self.action_grabber)
         tasks_menu.addSeparator()
         tasks_menu.addAction(self.action_exit)
 
@@ -655,6 +662,8 @@ class MainWindow(QMainWindow):
         downloads_menu.addAction(self.action_delete)
         downloads_menu.addAction(self.action_clear)
         downloads_menu.addSeparator()
+        downloads_menu.addAction(self.action_scheduler)
+        downloads_menu.addAction(self.action_grabber)
         downloads_menu.addAction(self.action_options)
         downloads_menu.addAction(self.action_media_downloader)
 
@@ -849,7 +858,8 @@ class MainWindow(QMainWindow):
         else:
             for action in toolbar.actions():
                 toolbar.removeAction(action)
-        
+        self.toolbar = toolbar
+
         toolbar.setMovable(False)
         toolbar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -863,6 +873,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.action_delete) 
         toolbar.addAction(self.action_clear)
         toolbar.addAction(self.action_scheduler)
+        toolbar.addAction(self.action_grabber)
         toolbar.addAction(self.action_options)
         toolbar.addAction(self.action_media_downloader)
 
@@ -2922,6 +2933,7 @@ class MainWindow(QMainWindow):
             "action_options": ("options", False),
             "action_open_folder": ("open_folder", False),
             "action_scheduler": ("scheduler", False),
+            "action_grabber": ("grabber", False),
             "action_media_downloader": ("media_downloader", False)
         }
         _fi = make_faded_icon
@@ -5456,6 +5468,18 @@ class MainWindow(QMainWindow):
         self._scheduler_dlg.show()
         self._scheduler_dlg.raise_()
         self._scheduler_dlg.activateWindow()
+
+    def open_grabber(self):
+        from ui.dialogs import GrabberDialog
+        if MemoryGuard.is_widget_alive(getattr(self, "_grabber_dlg", None)):
+            self._grabber_dlg.raise_()
+            self._grabber_dlg.activateWindow()
+            return
+        self._grabber_dlg = GrabberDialog(parent=self)
+        self._grabber_dlg.finished.connect(lambda *_: setattr(self, "_grabber_dlg", None))
+        self._grabber_dlg.show()
+        self._grabber_dlg.raise_()
+        self._grabber_dlg.activateWindow()
 
     def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None):
         from core.media_downloader import YtDlpDownloadWorker

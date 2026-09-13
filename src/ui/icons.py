@@ -299,9 +299,21 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(cx - r * 0.55, cy + r + s * 0.02), QPointF(cx - r * 0.80, cy + r + s * 0.10))
         painter.drawLine(QPointF(cx + r * 0.55, cy + r + s * 0.02), QPointF(cx + r * 0.80, cy + r + s * 0.10))
 
+    elif name in ("grabber", "site_grabber"):
+        # Globe with crawl / download arrow
+        cx, cy, r = s * 0.42, s * 0.46, s * 0.30
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        painter.drawEllipse(QRectF(cx - r * 0.48, cy - r, r * 0.96, r * 2))
+        painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+        arr_x, arr_y = s * 0.76, s * 0.68
+        painter.drawLine(QPointF(arr_x, arr_y - s * 0.22), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x - s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x + s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+
     else:
         # Generic stroke circle dot fallback
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))
+
 
 
 def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24, disabled_color: QColor = None, glow: bool = False, glow_color: QColor = None, active_color: QColor = None) -> QIcon:
@@ -763,6 +775,28 @@ def draw_colorful_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(cx, cy), QPointF(cx - r * 0.40, cy - r * 0.50))
         painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - r * 0.65))
 
+    elif name in ("grabber", "site_grabber"):
+        # Vibrant Cyan/Blue Web Globe with download arrow
+        grad = QLinearGradient(0, 0, s, s)
+        grad.setColorAt(0.0, QColor("#06b6d4"))
+        grad.setColorAt(1.0, QColor("#0284c7"))
+        painter.setBrush(grad)
+        painter.setPen(Qt.PenStyle.NoPen)
+        cx, cy, r = s * 0.42, s * 0.46, s * 0.30
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QRectF(cx - r * 0.48, cy - r, r * 0.96, r * 2))
+        painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+
+        # Down arrow badge
+        arr_x, arr_y = s * 0.76, s * 0.68
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(arr_x, arr_y - s * 0.20), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x - s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x + s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+
     elif name in ("exit", "quit"):
         # Vibrant Ruby Red Power Button
         grad = QLinearGradient(0, 0, s, s)
@@ -1091,6 +1125,20 @@ def draw_yaru_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(cx + r * 0.70, cy - r * 0.90), QPointF(cx + r * 0.30, cy - r * 1.10))
         painter.drawLine(QPointF(cx, cy), QPointF(cx - r * 0.40, cy - r * 0.50))
         painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - r * 0.65))
+
+    elif name in ("grabber", "site_grabber"):
+        _draw_squircle("#0073e6")
+        cx, cy, r = s * 0.44, s * 0.46, s * 0.25
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        painter.drawEllipse(QRectF(cx - r * 0.45, cy - r, r * 0.90, r * 2))
+        painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+
+        arr_x, arr_y = s * 0.72, s * 0.68
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(arr_x, arr_y - s * 0.18), QPointF(arr_x, arr_y + s * 0.08))
+        painter.drawLine(QPointF(arr_x - s * 0.09, arr_y - s * 0.01), QPointF(arr_x, arr_y + s * 0.08))
+        painter.drawLine(QPointF(arr_x + s * 0.09, arr_y - s * 0.01), QPointF(arr_x, arr_y + s * 0.08))
 
     elif name in ("exit", "quit"):
         _draw_squircle("#c7162b")
