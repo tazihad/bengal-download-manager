@@ -566,3 +566,26 @@ def test_stellar_theme_accent_and_icons(qapp):
     # Revert to default
     apply_app_theme("BDM Dark (Default)", accent_name="BDM (Default)", icon_theme_name="BDM Auto (Default)")
 
+
+def test_menu_outer_accent_border_and_clean_menubar(qapp):
+    """Verify that popup menus (QMenu) have a 1px accent border enclosing options, and menubar is clean."""
+    from core.services.theme_service import apply_app_theme
+    from PyQt6.QtWidgets import QMainWindow
+
+    apply_app_theme("BDM Dark (Default)", accent_name="BDM (Default)")
+    app_sheet = qapp.styleSheet()
+
+    # Outer border of QMenu options must be 1px solid palette(highlight)
+    assert "border: 1px solid palette(highlight)" in app_sheet
+    assert "QMenu {" in app_sheet
+
+    # Menubar itself should not have a bottom border
+    assert "border-bottom: 1px solid palette(highlight)" not in app_sheet
+
+    # Menubar should have no overriding border-bottom stylesheet
+    win = QMainWindow()
+    mb = win.menuBar()
+    assert "border-bottom" not in (mb.styleSheet() or "")
+    win.close()
+
+

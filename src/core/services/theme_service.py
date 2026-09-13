@@ -714,8 +714,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         ensure_adaptive_icon_theme(app)
 
-    if not app.styleSheet():
-        app.setStyleSheet("""
+    app.setStyleSheet("""
             QMenuBar {
                 background-color: palette(window);
                 color: palette(window-text);
@@ -736,7 +735,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             QMenu {
                 background-color: palette(window);
                 color: palette(window-text);
-                border: 1px solid palette(mid);
+                border: 1px solid palette(highlight);
                 padding: 4px;
             }
             QMenu::item {

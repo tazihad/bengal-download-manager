@@ -118,7 +118,7 @@ class SchedulerDialog(QDialog):
             QMenu {
                 background-color: palette(window);
                 color: palette(window-text);
-                border: 1px solid palette(mid);
+                border: 1px solid palette(highlight);
                 padding: 4px;
             }
             QMenu::item {
