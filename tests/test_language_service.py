@@ -99,9 +99,10 @@ def test_options_dialog_language_integration(qapp, monkeypatch, tmp_path):
     dummy_win = DummyMainWindow()
     dlg = OptionsDialog(dummy_win)
 
-    # Check that combo_language exists on General tab
+    # Check that combo_language exists on General tab and is scrollable/compact
     assert hasattr(dlg, "combo_language")
     assert dlg.combo_language.count() > 70
+    assert dlg.combo_language.maxVisibleItems() == 10
     assert dlg.combo_language.currentText() == "Bengali - বাংলা"
     assert dlg.get_language() == "bn"
 

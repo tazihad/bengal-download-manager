@@ -383,6 +383,8 @@ class OptionsDialog(QDialog):
         lbl_scale.setToolTip("Set user interface scale factor")
         self.combo_scale = QComboBox()
         self.combo_scale.setToolTip("Set user interface scale factor")
+        self.combo_scale.setMaxVisibleItems(10)
+        self.combo_scale.setStyleSheet("QComboBox { combobox-popup: 0; }")
         scale_options = [
             "50%", "75%", "90%", "100%", "110%", "115%", "125%", 
             "135%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"
@@ -408,6 +410,11 @@ class OptionsDialog(QDialog):
         lbl_language.setToolTip("Select user interface language")
         self.combo_language = QComboBox()
         self.combo_language.setToolTip("Select interface language (Restart recommended to apply changes to all windows)")
+        self.combo_language.setMaxVisibleItems(10)
+        self.combo_language.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_lang = self.combo_language.view()
+        if view_lang:
+            view_lang.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         from core.services.language_service import (
             get_available_languages, get_language_display
