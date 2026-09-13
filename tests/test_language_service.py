@@ -114,3 +114,41 @@ def test_options_dialog_language_integration(qapp, monkeypatch, tmp_path):
 
     dlg.close()
     dlg.deleteLater()
+
+
+def test_json_catalog_and_tr(qapp):
+    from core.services.language_service import tr, JsonCatalogTranslator
+    # Apply Bengali language catalog
+    res = apply_language(qapp, "bn")
+    assert res is True
+    assert tr("&Tasks") == "টাস্ক"
+    assert tr("Add URL") == "URL যোগ করুন"
+    assert tr("File Name") == "ফাইলের নাম"
+    assert tr("NonExistentString12345") == "NonExistentString12345"
+
+    # Font should be adapted
+    font = qapp.font()
+    assert font.pointSize() == 10
+
+
+def test_main_window_retranslate_ui(qapp):
+    from ui.main_window import MainWindow
+    apply_language(qapp, "en")
+    win = MainWindow()
+    assert win.action_add_url.text() == "Add URL"
+    assert win.download_table.horizontalHeaderItem(0).text() == "File Name"
+
+    # Dynamically switch to Bengali
+    apply_language(qapp, "bn")
+    win.retranslate_ui()
+    assert win.action_add_url.text() == "URL যোগ করুন"
+    assert win.download_table.horizontalHeaderItem(0).text() == "ফাইলের নাম"
+
+    # Switch back to English
+    apply_language(qapp, "en")
+    win.retranslate_ui()
+    assert win.action_add_url.text() == "Add URL"
+    assert win.download_table.horizontalHeaderItem(0).text() == "File Name"
+
+    win.deleteLater()
+    qapp.processEvents()

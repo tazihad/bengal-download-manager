@@ -17,7 +17,7 @@ from typing import Optional, Tuple, List
 
 from PyQt6.QtWidgets import QApplication, QStyle, QFileIconProvider
 from PyQt6.QtGui import QColor, QPalette, QIcon, QFont, QPixmap, QImage, QPainter
-from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase
+from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale
 
 from core.utils import get_data_dir
 
@@ -473,14 +473,21 @@ def is_monochrome_icon_theme(icon_theme_name=None) -> bool:
     )
 
 
-def init_app_font() -> QFont:
+def init_app_font(lang_code: Optional[str] = None) -> QFont:
     """
     Initializes the primary application font.
+    Adapts font family and sizing based on active UI language (e.g. Bengali fonts for 'bn').
     Loads the bundled modern Inter font family from assets/fonts if available,
     with robust fallback to system UI fonts.
     Enforces OpenType tabular figures (tnum) for smooth numeric alignment across the entire UI.
     """
     from PyQt6.QtGui import QFontDatabase
+    from core.services.language_service import get_current_language_code
+
+    if lang_code is None:
+        lang_code = get_current_language_code()
+    lang_code = (lang_code or "system").lower()
+
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     fonts_dir = os.path.join(base_dir, "assets", "fonts")
     if os.path.isdir(fonts_dir):
@@ -489,14 +496,32 @@ def init_app_font() -> QFont:
                 QFontDatabase.addApplicationFont(os.path.join(fonts_dir, font_file))
 
     available = set(QFontDatabase.families())
-    candidates = ["Inter", "Segoe UI", "Noto Sans", "Ubuntu", "Cantarell", "Liberation Sans", "DejaVu Sans"]
+
+    font_size = 9
+    if lang_code == "bn" or (lang_code == "system" and "bn" in QLocale.system().name().lower()):
+        # Prioritize Bengali fonts installed on system
+        candidates = [
+            "Hind Siliguri", "Kalpurush", "Noto Sans Bengali", "Nikosh",
+            "SolaimanLipi", "Mitra", "Mukti", "Akaash", "Bangla",
+            "Inter", "Segoe UI", "Noto Sans", "Ubuntu", "DejaVu Sans"
+        ]
+        font_size = 10  # Bengali text is much more legible at 10pt
+    elif lang_code in ("ar", "fa", "ur"):
+        candidates = ["Noto Sans Arabic", "Segoe UI", "Tahoma", "Inter", "Ubuntu"]
+        font_size = 10
+    elif lang_code in ("zh_cn", "zh_tw", "ja", "ko"):
+        candidates = ["Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "Noto Sans CJK KR", "Microsoft YaHei", "Meiryo", "Malgun Gothic", "Inter"]
+    else:
+        candidates = ["Inter", "Segoe UI", "Noto Sans", "Ubuntu", "Cantarell", "Liberation Sans", "DejaVu Sans"]
+
     chosen_family = "Inter"
     for candidate in candidates:
         if candidate in available:
             chosen_family = candidate
             break
 
-    app_font = QFont(chosen_family, 9)
+    app_font = QFont(chosen_family, font_size)
+    app_font.setFamilies(candidates)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
     app_font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
     return app_font

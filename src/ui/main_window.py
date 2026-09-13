@@ -522,84 +522,114 @@ class MainWindow(QMainWindow):
 
 
     def setup_actions(self):
-        self.action_add_url = QAction(get_themed_icon("add_url"), "Add URL", self)
-        self.action_add_url.setShortcut(QKeySequence("Ctrl+N"))
-        self.action_add_url.setToolTip("Add a new download URL address (Ctrl+N)")
-        self.action_add_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=False))
-
-        self.action_paste_url = QAction(get_themed_icon("add_url"), "Paste URL", self)
-        self.action_paste_url.setShortcut(QKeySequence("Ctrl+V"))
-        self.action_paste_url.setToolTip("Paste URL address from clipboard (Ctrl+V)")
-        self.action_paste_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=True))
-
-        self.action_exit = QAction(get_themed_icon("exit"), "Exit", self)
-        self.action_exit.setToolTip("Exit Bengal Download Manager")
-        self.action_exit.triggered.connect(self.quit_app)
-
         _fi = make_faded_icon  # shorthand
 
-        self.action_stop = QAction(_fi(get_themed_icon("stop")), "Stop/Pause", self)
-        self.action_stop.setToolTip("Pause or stop selected download(s)")
-        self.action_stop.triggered.connect(self.stop_selected_download)
-        self.action_stop.setEnabled(False)
+        if not hasattr(self, "action_add_url"):
+            self.action_add_url = QAction(get_themed_icon("add_url"), self.tr("Add URL"), self)
+            self.action_add_url.setShortcut(QKeySequence("Ctrl+N"))
+            self.action_add_url.setToolTip(self.tr("Add a new download URL address (Ctrl+N)"))
+            self.action_add_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=False))
 
-        self.action_stop_all = QAction(_fi(get_themed_icon("stop_all")), "Stop All", self)
-        self.action_stop_all.setToolTip("Pause or stop all currently active downloads")
-        self.action_stop_all.triggered.connect(self.stop_all_downloads)
-        self.action_stop_all.setEnabled(False)
+            self.action_paste_url = QAction(get_themed_icon("add_url"), self.tr("Paste URL"), self)
+            self.action_paste_url.setShortcut(QKeySequence("Ctrl+V"))
+            self.action_paste_url.setToolTip(self.tr("Paste URL address from clipboard (Ctrl+V)"))
+            self.action_paste_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=True))
 
-        self.action_resume = QAction(_fi(get_themed_icon("resume")), "Resume", self)
-        self.action_resume.setToolTip("Resume downloading selected file(s)")
-        self.action_resume.triggered.connect(self.resume_selected_download)
-        self.action_resume.setEnabled(False)
+            self.action_exit = QAction(get_themed_icon("exit"), self.tr("Exit"), self)
+            self.action_exit.setToolTip(self.tr("Exit Bengal Download Manager"))
+            self.action_exit.triggered.connect(self.quit_app)
 
-        self.action_download_now = QAction(_fi(get_themed_icon("resume")), "Download Now", self)
-        self.action_download_now.setToolTip("Start downloading selected file immediately")
-        self.action_download_now.triggered.connect(self.resume_selected_download)
+            self.action_stop = QAction(_fi(get_themed_icon("stop")), self.tr("Stop/Pause"), self)
+            self.action_stop.setToolTip(self.tr("Pause or stop selected download(s)"))
+            self.action_stop.triggered.connect(self.stop_selected_download)
+            self.action_stop.setEnabled(False)
 
-        self.action_redownload = QAction(_fi(get_themed_icon("unfinished")), "Redownload", self)
-        self.action_redownload.setToolTip("Restart download from the beginning")
-        self.action_redownload.triggered.connect(self.redownload_selected)
+            self.action_stop_all = QAction(_fi(get_themed_icon("stop_all")), self.tr("Stop All"), self)
+            self.action_stop_all.setToolTip(self.tr("Pause or stop all currently active downloads"))
+            self.action_stop_all.triggered.connect(self.stop_all_downloads)
+            self.action_stop_all.setEnabled(False)
 
-        self.action_delete = QAction(_fi(get_themed_icon("delete")), "Delete", self)
-        self.action_delete.setToolTip("Delete selected download(s) from the list (Delete key)")
-        self.action_delete.triggered.connect(self.delete_selected_download)
-        self.action_delete.setEnabled(False)
-        self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
+            self.action_resume = QAction(_fi(get_themed_icon("resume")), self.tr("Resume"), self)
+            self.action_resume.setToolTip(self.tr("Resume downloading selected file(s)"))
+            self.action_resume.triggered.connect(self.resume_selected_download)
+            self.action_resume.setEnabled(False)
 
-        self.action_clear = QAction(get_themed_icon("clear_completed"), "Clear Completed", self)
-        self.action_clear.setToolTip("Remove completed downloads from the list")
-        self.action_clear.triggered.connect(self.clear_finished_downloads)
-        
-        self.action_options = QAction(get_themed_icon("options"), "Options", self)
-        self.action_options.setToolTip("Configure download manager options, connection limits, and engine settings")
-        self.action_options.triggered.connect(self.open_options)
+            self.action_download_now = QAction(_fi(get_themed_icon("resume")), self.tr("Download Now"), self)
+            self.action_download_now.setToolTip(self.tr("Start downloading selected file immediately"))
+            self.action_download_now.triggered.connect(self.resume_selected_download)
 
-        self.action_scheduler = QAction(get_themed_icon("scheduler"), "Scheduler", self)
-        self.action_scheduler.setToolTip("Manage download queues and scheduling")
-        self.action_scheduler.triggered.connect(self.open_scheduler)
+            self.action_redownload = QAction(_fi(get_themed_icon("unfinished")), self.tr("Redownload"), self)
+            self.action_redownload.setToolTip(self.tr("Restart download from the beginning"))
+            self.action_redownload.triggered.connect(self.redownload_selected)
 
-        self.action_media_downloader = QAction(get_themed_icon("media_downloader"), "Media Downloader", self)
-        self.action_media_downloader.setToolTip("Parse and download video or audio streams and playlists from media sites")
-        self.action_media_downloader.triggered.connect(self.open_media_downloader)
+            self.action_delete = QAction(_fi(get_themed_icon("delete")), self.tr("Delete"), self)
+            self.action_delete.setToolTip(self.tr("Delete selected download(s) from the list (Delete key)"))
+            self.action_delete.triggered.connect(self.delete_selected_download)
+            self.action_delete.setEnabled(False)
+            self.action_delete.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.action_open_folder = QAction(get_themed_icon("open_folder"), "Open Downloads Folder", self)
-        self.action_open_folder.setToolTip("Open default downloads directory")
-        self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
+            self.action_clear = QAction(get_themed_icon("clear_completed"), self.tr("Clear Completed"), self)
+            self.action_clear.setToolTip(self.tr("Remove completed downloads from the list"))
+            self.action_clear.triggered.connect(self.clear_finished_downloads)
+
+            self.action_options = QAction(get_themed_icon("options"), self.tr("Options"), self)
+            self.action_options.setToolTip(self.tr("Configure download manager options, connection limits, and engine settings"))
+            self.action_options.triggered.connect(self.open_options)
+
+            self.action_scheduler = QAction(get_themed_icon("scheduler"), self.tr("Scheduler"), self)
+            self.action_scheduler.setToolTip(self.tr("Manage download queues and scheduling"))
+            self.action_scheduler.triggered.connect(self.open_scheduler)
+
+            self.action_media_downloader = QAction(get_themed_icon("media_downloader"), self.tr("Media Downloader"), self)
+            self.action_media_downloader.setToolTip(self.tr("Parse and download video or audio streams and playlists from media sites"))
+            self.action_media_downloader.triggered.connect(self.open_media_downloader)
+
+            self.action_open_folder = QAction(get_themed_icon("open_folder"), self.tr("Open Downloads Folder"), self)
+            self.action_open_folder.setToolTip(self.tr("Open default downloads directory"))
+            self.action_open_folder.triggered.connect(self.open_downloads_folder_generic)
+        else:
+            self.action_add_url.setText(self.tr("Add URL"))
+            self.action_add_url.setToolTip(self.tr("Add a new download URL address (Ctrl+N)"))
+            self.action_paste_url.setText(self.tr("Paste URL"))
+            self.action_paste_url.setToolTip(self.tr("Paste URL address from clipboard (Ctrl+V)"))
+            self.action_exit.setText(self.tr("Exit"))
+            self.action_exit.setToolTip(self.tr("Exit Bengal Download Manager"))
+            self.action_stop.setText(self.tr("Stop/Pause"))
+            self.action_stop.setToolTip(self.tr("Pause or stop selected download(s)"))
+            self.action_stop_all.setText(self.tr("Stop All"))
+            self.action_stop_all.setToolTip(self.tr("Pause or stop all currently active downloads"))
+            self.action_resume.setText(self.tr("Resume"))
+            self.action_resume.setToolTip(self.tr("Resume downloading selected file(s)"))
+            self.action_download_now.setText(self.tr("Download Now"))
+            self.action_download_now.setToolTip(self.tr("Start downloading selected file immediately"))
+            self.action_redownload.setText(self.tr("Redownload"))
+            self.action_redownload.setToolTip(self.tr("Restart download from the beginning"))
+            self.action_delete.setText(self.tr("Delete"))
+            self.action_delete.setToolTip(self.tr("Delete selected download(s) from the list (Delete key)"))
+            self.action_clear.setText(self.tr("Clear Completed"))
+            self.action_clear.setToolTip(self.tr("Remove completed downloads from the list"))
+            self.action_options.setText(self.tr("Options"))
+            self.action_options.setToolTip(self.tr("Configure download manager options, connection limits, and engine settings"))
+            self.action_scheduler.setText(self.tr("Scheduler"))
+            self.action_scheduler.setToolTip(self.tr("Manage download queues and scheduling"))
+            self.action_media_downloader.setText(self.tr("Media Downloader"))
+            self.action_media_downloader.setToolTip(self.tr("Parse and download video or audio streams and playlists from media sites"))
+            self.action_open_folder.setText(self.tr("Open Downloads Folder"))
+            self.action_open_folder.setToolTip(self.tr("Open default downloads directory"))
 
     def setup_menu_bar(self):
         menu_bar = self.menuBar()
         menu_bar.clear()
 
         # 1. Tasks
-        tasks_menu = menu_bar.addMenu("&Tasks")
+        tasks_menu = menu_bar.addMenu(self.tr("&Tasks"))
         tasks_menu.addAction(self.action_add_url)
         tasks_menu.addAction(self.action_paste_url)
         tasks_menu.addSeparator()
         tasks_menu.addAction(self.action_exit)
 
         # 2. File
-        file_menu = menu_bar.addMenu("&File")
+        file_menu = menu_bar.addMenu(self.tr("&File"))
         file_menu.addAction(self.action_stop)
         file_menu.addAction(self.action_delete)
         file_menu.addAction(self.action_download_now)
@@ -608,7 +638,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_open_folder)
 
         # 3. Downloads
-        downloads_menu = menu_bar.addMenu("&Downloads")
+        downloads_menu = menu_bar.addMenu(self.tr("&Downloads"))
         downloads_menu.addAction(self.action_resume)
         downloads_menu.addAction(self.action_stop)
         downloads_menu.addAction(self.action_stop_all)
@@ -620,76 +650,78 @@ class MainWindow(QMainWindow):
         downloads_menu.addAction(self.action_media_downloader)
 
         # 4. View
-        view_menu = menu_bar.addMenu("&View")
+        view_menu = menu_bar.addMenu(self.tr("&View"))
 
-        table_style_menu = view_menu.addMenu("Table style")
+        table_style_menu = view_menu.addMenu(self.tr("Table style"))
         self.table_style_group = QActionGroup(self)
         self.table_style_group.setExclusive(True)
 
-        self.action_table_style_classic = QAction("Classic", self)
+        is_classic = getattr(self, "table_style", "classic") == "classic"
+        self.action_table_style_classic = QAction(self.tr("Classic"), self)
         self.action_table_style_classic.setCheckable(True)
-        self.action_table_style_classic.setChecked(True)
+        self.action_table_style_classic.setChecked(is_classic)
         self.action_table_style_classic.triggered.connect(lambda checked: self.set_table_style("classic") if checked else None)
         self.table_style_group.addAction(self.action_table_style_classic)
         table_style_menu.addAction(self.action_table_style_classic)
 
-        self.action_table_style_modern = QAction("Modern", self)
+        self.action_table_style_modern = QAction(self.tr("Modern"), self)
         self.action_table_style_modern.setCheckable(True)
+        self.action_table_style_modern.setChecked(not is_classic)
         self.action_table_style_modern.triggered.connect(lambda checked: self.set_table_style("modern") if checked else None)
         self.table_style_group.addAction(self.action_table_style_modern)
         table_style_menu.addAction(self.action_table_style_modern)
 
         view_menu.addSeparator()
 
-        sort_menu = view_menu.addMenu("Sort by")
+        sort_menu = view_menu.addMenu(self.tr("Sort by"))
         sort_fields = [
             ("File Name", 0), ("Size", 1), ("Status", 2), ("Time Left", 3), 
             ("Transfer Rate", 4), ("Last Try", 5), ("Date Added", 6)
         ]
         for name, col_idx in sort_fields:
-            action = QAction(name, self)
+            action = QAction(self.tr(name), self)
             action.triggered.connect(lambda checked, c=col_idx: self.download_table.sortItems(c, Qt.SortOrder.AscendingOrder))
             sort_menu.addAction(action)
 
         view_menu.addSeparator()
-        self.action_hide_categories = QAction("&Hide categories", self)
+        self.action_hide_categories = QAction(self.tr("&Hide categories"), self)
         self.action_hide_categories.setCheckable(True)
-        self.action_hide_categories.setChecked(False)
+        self.action_hide_categories.setChecked(getattr(self, "_categories_hidden", False))
         self.action_hide_categories.setEnabled(True)
         self.action_hide_categories.triggered.connect(self.toggle_hide_categories)
         view_menu.addAction(self.action_hide_categories)
 
-        self.action_toolbar_toggle = QAction("&Toolbar", self)
+        self.action_toolbar_toggle = QAction(self.tr("&Toolbar"), self)
         self.action_toolbar_toggle.setCheckable(True)
         self.action_toolbar_toggle.setChecked(True)
         self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
         view_menu.addAction(self.action_toolbar_toggle)
 
-        self.action_status_bar_toggle = QAction("&Status Bar", self)
+        self.action_status_bar_toggle = QAction(self.tr("&Status Bar"), self)
         self.action_status_bar_toggle.setCheckable(True)
         self.action_status_bar_toggle.setChecked(True)
         self.action_status_bar_toggle.triggered.connect(self.toggle_status_bar)
         view_menu.addAction(self.action_status_bar_toggle)
 
-        self.action_data_usage_toggle = QAction("&Data usage summary", self)
+        self.action_data_usage_toggle = QAction(self.tr("&Data usage summary"), self)
         self.action_data_usage_toggle.setCheckable(True)
         self.action_data_usage_toggle.setChecked(True)
         self.action_data_usage_toggle.triggered.connect(self.toggle_data_usage)
         view_menu.addAction(self.action_data_usage_toggle)
 
         # 5. Help
-        help_menu = menu_bar.addMenu("&Help")
-        self.action_homepage = QAction("BDM &Homepage", self)
+        help_menu = menu_bar.addMenu(self.tr("&Help"))
+        self.action_homepage = QAction(self.tr("BDM &Homepage"), self)
         self.action_homepage.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager")))
         help_menu.addAction(self.action_homepage)
 
-        self.action_bug_report = QAction("&File bug report", self)
+        self.action_bug_report = QAction(self.tr("&File bug report"), self)
         self.action_bug_report.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/issues")))
         help_menu.addAction(self.action_bug_report)
 
         help_menu.addSeparator()
 
-        about_action = QAction("&About Bengal DM", self)
+        about_action = QAction(self.tr("&About Bengal DM"), self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
@@ -853,12 +885,13 @@ class MainWindow(QMainWindow):
             return header_item
 
         # 1. Categories Section Header
-        self.header_categories = make_section_header("Categories", "Download categories")
+        self.header_categories = make_section_header(self.tr("Categories"), self.tr("Download categories"))
 
-        self.all_downloads_header = QTreeWidgetItem(self.category_tree, ["All Downloads"])
+        self.all_downloads_header = QTreeWidgetItem(self.category_tree, [self.tr("All Downloads")])
         all_downloads = self.all_downloads_header
         all_downloads.setIcon(0, get_themed_icon("all_downloads"))
-        all_downloads.setToolTip(0, "Show all downloads regardless of category or status")
+        all_downloads.setData(0, Qt.ItemDataRole.UserRole + 1, "All Downloads")
+        all_downloads.setToolTip(0, self.tr("Show all downloads regardless of category or status"))
         all_downloads.setExpanded(True)
 
 
@@ -870,29 +903,33 @@ class MainWindow(QMainWindow):
             "Video": get_themed_icon("video")
         }
         for cat_name, cat_icon in cat_icons.items():
-            child = QTreeWidgetItem(all_downloads, [cat_name])
+            child = QTreeWidgetItem(all_downloads, [self.tr(cat_name)])
             child.setIcon(0, cat_icon)
-            child.setToolTip(0, f"Filter downloads in {cat_name} category")
+            child.setData(0, Qt.ItemDataRole.UserRole + 1, cat_name)
+            child.setToolTip(0, self.tr(f"Filter downloads in {cat_name} category"))
 
         # 2. Status Section Header
-        self.header_status = make_section_header("Status", "Filter by download status")
+        self.header_status = make_section_header(self.tr("Status"), self.tr("Filter by download status"))
 
-        self.item_unfinished = QTreeWidgetItem(self.category_tree, ["Incomplete"])
+        self.item_unfinished = QTreeWidgetItem(self.category_tree, [self.tr("Incomplete")])
         item_unfinished = self.item_unfinished
         item_unfinished.setIcon(0, get_themed_icon("unfinished"))
-        item_unfinished.setToolTip(0, "Show active, paused, or pending downloads")
+        item_unfinished.setData(0, Qt.ItemDataRole.UserRole + 1, "Incomplete")
+        item_unfinished.setToolTip(0, self.tr("Show active, paused, or pending downloads"))
 
-        self.item_finished = QTreeWidgetItem(self.category_tree, ["Finished"])
+        self.item_finished = QTreeWidgetItem(self.category_tree, [self.tr("Finished")])
         item_finished = self.item_finished
         item_finished.setIcon(0, get_themed_icon("finished"))
-        item_finished.setToolTip(0, "Show completed downloads")
+        item_finished.setData(0, Qt.ItemDataRole.UserRole + 1, "Finished")
+        item_finished.setToolTip(0, self.tr("Show completed downloads"))
 
         # 3. Schedule Section Header
-        self.header_schedule = make_section_header("Schedule", "Download scheduler and queues")
+        self.header_schedule = make_section_header(self.tr("Schedule"), self.tr("Download scheduler and queues"))
 
-        self.queues_header = QTreeWidgetItem(self.category_tree, ["Queues"])
+        self.queues_header = QTreeWidgetItem(self.category_tree, [self.tr("Queues")])
         self.queues_header.setIcon(0, get_themed_icon("scheduler"))
-        self.queues_header.setToolTip(0, "Download queues and scheduler")
+        self.queues_header.setData(0, Qt.ItemDataRole.UserRole + 1, "Queues")
+        self.queues_header.setToolTip(0, self.tr("Download queues and scheduler"))
         self.queues_header.setExpanded(True)
 
         from ui.dialogs.scheduler import DEFAULT_QUEUES, _make_default_queue
@@ -973,12 +1010,12 @@ class MainWindow(QMainWindow):
             ("Last Try", "Timestamp of the last download attempt"),
             ("Date Added", "Timestamp when the download was added")
         ]
-        self.download_table.setHorizontalHeaderLabels([h[0] for h in header_labels_info])
+        self.download_table.setHorizontalHeaderLabels([self.tr(h[0]) for h in header_labels_info])
         header = self.download_table.horizontalHeader()
         for idx, (_, tooltip) in enumerate(header_labels_info):
             item = self.download_table.horizontalHeaderItem(idx)
             if item:
-                item.setToolTip(tooltip)
+                item.setToolTip(self.tr(tooltip))
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         header.setHighlightSections(False)
         
@@ -1497,7 +1534,7 @@ class MainWindow(QMainWindow):
         if item.data(0, Qt.ItemDataRole.UserRole) == "header":
             return
 
-        category = item.text(0)
+        category = item.data(0, Qt.ItemDataRole.UserRole + 1) or item.text(0)
         ext_map = CATEGORY_EXTENSIONS
 
         # Queues header — double-click toggles collapse (handled in _sidebar_item_double_clicked)
@@ -2461,6 +2498,61 @@ class MainWindow(QMainWindow):
             self.refresh_theme_ui()
         finally:
             self._is_applying_theme = False
+
+    def retranslate_ui(self):
+        """Dynamically refresh all UI labels, menus, actions, table headers, and sidebar when language changes."""
+        from core.services.theme_service import init_app_font
+        from core.services.language_service import get_current_language_code
+        new_font = init_app_font(get_current_language_code())
+        self.setFont(new_font)
+        if hasattr(self, "download_table") and self.download_table:
+            self.download_table.setFont(new_font)
+        if hasattr(self, "category_tree") and self.category_tree:
+            self.category_tree.setFont(new_font)
+        if hasattr(self, "menuBar") and self.menuBar():
+            self.menuBar().setFont(new_font)
+
+        self.setup_actions()
+        self.setup_menu_bar()
+        self.setup_toolbar()
+
+        # Retranslate table headers
+        header_labels_info = [
+            ("File Name", "Name of the downloaded file"),
+            ("Size", "Total file size"),
+            ("Status", "Current download status and percentage"),
+            ("Time Left", "Estimated time remaining until completion"),
+            ("Transfer Rate", "Current download transfer speed"),
+            ("Last Try", "Timestamp of the last download attempt"),
+            ("Date Added", "Timestamp when the download was added")
+        ]
+        if hasattr(self, "download_table") and self.download_table:
+            self.download_table.setHorizontalHeaderLabels([self.tr(h[0]) for h in header_labels_info])
+            for idx, (_, tooltip) in enumerate(header_labels_info):
+                item = self.download_table.horizontalHeaderItem(idx)
+                if item:
+                    item.setToolTip(self.tr(tooltip))
+
+        # Retranslate sidebar items
+        if hasattr(self, "header_categories") and self.header_categories:
+            self.header_categories.setText(0, self.tr("Categories"))
+        if hasattr(self, "all_downloads_header") and self.all_downloads_header:
+            self.all_downloads_header.setText(0, self.tr("All Downloads"))
+            for i in range(self.all_downloads_header.childCount()):
+                ch = self.all_downloads_header.child(i)
+                orig_cat = ch.data(0, Qt.ItemDataRole.UserRole + 1)
+                if orig_cat:
+                    ch.setText(0, self.tr(orig_cat))
+        if hasattr(self, "header_status") and self.header_status:
+            self.header_status.setText(0, self.tr("Status"))
+        if hasattr(self, "item_unfinished") and self.item_unfinished:
+            self.item_unfinished.setText(0, self.tr("Incomplete"))
+        if hasattr(self, "item_finished") and self.item_finished:
+            self.item_finished.setText(0, self.tr("Finished"))
+        if hasattr(self, "header_schedule") and self.header_schedule:
+            self.header_schedule.setText(0, self.tr("Schedule"))
+        if hasattr(self, "queues_header") and self.queues_header:
+            self.queues_header.setText(0, self.tr("Queues"))
 
     def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
         if getattr(self, "_is_applying_theme", False):

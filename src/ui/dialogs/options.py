@@ -1368,6 +1368,8 @@ class OptionsDialog(QDialog):
 
             if lang_changed:
                 apply_language(QApplication.instance(), new_lang_code)
+                if hasattr(self.main_win, "retranslate_ui"):
+                    self.main_win.retranslate_ui()
 
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
