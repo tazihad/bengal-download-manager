@@ -515,3 +515,54 @@ def test_options_appearance_comboboxes_scrollable(qapp):
         assert view.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
 
     dlg.reject()
+
+
+def test_stellar_theme_accent_and_icons(qapp):
+    """Verify Stellar Dark and Light themes, Stellar Blue accent, and Stellar icon theme."""
+    from core.services.theme_service import (
+        apply_app_theme, is_dark_theme, get_themed_icon,
+        normalize_theme_name, normalize_accent_name, normalize_icon_theme_name
+    )
+    from PyQt6.QtGui import QPalette
+
+    # Verify options in dialog
+    dlg = OptionsDialog()
+    assert dlg.combo_theme.findText("Stellar Dark") != -1
+    assert dlg.combo_theme.findText("Stellar Light") != -1
+    assert dlg.combo_accent.findText("Stellar Blue") != -1
+    assert dlg.combo_icon_theme.findText("Stellar") != -1
+    dlg.reject()
+
+    # Normalization
+    assert normalize_theme_name("Stellar Dark") == "Stellar Dark"
+    assert normalize_theme_name("stellardark") == "Stellar Dark"
+    assert normalize_theme_name("Stellar Light") == "Stellar Light"
+    assert normalize_theme_name("stellarlight") == "Stellar Light"
+    assert normalize_accent_name("stellar") == "Stellar Blue"
+    assert normalize_accent_name("Stellar Blue") == "Stellar Blue"
+    assert normalize_icon_theme_name("Stellar") == "Stellar"
+    assert normalize_icon_theme_name("stellar icons") == "Stellar"
+
+    # Stellar Dark
+    apply_app_theme("Stellar Dark", accent_name="Stellar Blue", icon_theme_name="Stellar")
+    assert is_dark_theme() is True
+    pal_dark = qapp.palette()
+    assert pal_dark.color(QPalette.ColorRole.Window).name().lower() == "#1c1c1c"
+    assert pal_dark.color(QPalette.ColorRole.Highlight).name().lower() == "#4488dd"
+
+    # Icons
+    for name in ["add_url", "resume", "stop", "stop_all", "delete", "clear_completed", "options", "scheduler", "grabber", "all_downloads", "compressed", "documents", "music", "programs", "video"]:
+        ic = get_themed_icon(name)
+        assert not ic.isNull(), f"Icon {name} is null!"
+        pm = ic.pixmap(24, 24)
+        assert not pm.isNull(), f"Pixmap for {name} is null!"
+
+    # Stellar Light
+    apply_app_theme("Stellar Light", accent_name="Stellar Blue", icon_theme_name="Stellar")
+    assert is_dark_theme() is False
+    pal_light = qapp.palette()
+    assert pal_light.color(QPalette.ColorRole.Window).name().lower() == "#f0f0f0"
+
+    # Revert to default
+    apply_app_theme("BDM Dark (Default)", accent_name="BDM (Default)", icon_theme_name="BDM Auto (Default)")
+

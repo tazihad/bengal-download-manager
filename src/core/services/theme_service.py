@@ -294,7 +294,8 @@ ACCENT_COLORS = {
     "Amethyst Violet": "#9b59b6",
     "Obsidian Purple": "#dab9ff",
     "Material Cobalt": "#a8c7fa",
-    "Material Violet": "#d0bcff"
+    "Material Violet": "#d0bcff",
+    "Stellar Blue": "#4488dd"
 }
 
 
@@ -389,6 +390,10 @@ def normalize_theme_name(name, default="BDM Dark (Default)"):
         return "BDM Light"
     if s_lower in ("twilight", "twilight dark"):
         return "Twilight"
+    if s_lower in ("stellar dark", "stellardark"):
+        return "Stellar Dark"
+    if s_lower in ("stellar light", "stellarlight"):
+        return "Stellar Light"
     return s
 
 
@@ -403,6 +408,8 @@ def normalize_accent_name(name, default="BDM (Default)"):
         return "System"
     if s_lower in ("twilight", "twilight violet"):
         return "Twilight"
+    if s_lower in ("stellar", "stellar blue", "stellarblue"):
+        return "Stellar Blue"
     return s
 
 
@@ -419,6 +426,8 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "Modern Color"
     elif s_lower in ("yaru", "ubuntu yaru"):
         return "Yaru"
+    elif s_lower in ("stellar", "stellar icons", "stellaricons"):
+        return "Stellar"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -443,9 +452,9 @@ def is_dark_theme(app=None) -> bool:
     """Returns True if the current active theme is dark, False if light."""
     global CURRENT_THEME
     t_lower = str(CURRENT_THEME).strip().lower() if 'CURRENT_THEME' in globals() and CURRENT_THEME else ""
-    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark"):
+    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark", "stellar dark", "stellardark"):
         return True
-    if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white"):
+    if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white", "stellar light", "stellarlight"):
         return False
     if app is None:
         app = QApplication.instance()
@@ -623,6 +632,14 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         app.setPalette(_build_palette("#eff0f1", "#232629", "#fcfcfc", "#eef0f2", "#eef0f2", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
+    elif theme_lower in ("stellar dark", "stellardark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#1c1c1c", "#e0e0e0", "#1e1e1e", "#252525", "#222222", "#66a3f0", "#4488dd", "#ffffff", accent=accent_name))
+    elif theme_lower in ("stellar light", "stellarlight"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#f0f0f0", "#1a1a1a", "#ffffff", "#f7f7f7", "#e8e8e8", "#4488dd", "#4488dd", "#ffffff", accent=accent_name))
     elif theme_lower in ("bdm light", "bdmlight", "light"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
@@ -682,7 +699,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru", "stellar", "stellar icons", "stellaricons"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -896,6 +913,10 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
         from ui.icons import get_yaru_icon
         return get_yaru_icon(name)
 
+    if icon_theme_lower in ("stellar", "stellar icons", "stellaricons"):
+        from ui.icons import get_stellar_icon
+        return get_stellar_icon(name)
+
     if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
         for alias in aliases:
@@ -1076,8 +1097,8 @@ def get_monochrome_app_icon(color=None, size=24) -> QIcon:
     return ic
 
 
-def _resolve_tray_asset(filename: str) -> str:
-    """Finds tray icon asset path across snap, Flatpak, AppImage, and local environments."""
+def resolve_asset(filename: str) -> str:
+    """Finds asset path across snap, Flatpak, AppImage, and local environments."""
     _meipass   = getattr(sys, "_MEIPASS", None)
     _snap      = os.environ.get("SNAP")
     _snap_root = os.environ.get("SNAP_APP_ROOT") or (os.path.join(_snap, "share", "bengal-download-manager") if _snap else None)
@@ -1115,6 +1136,9 @@ def _resolve_tray_asset(filename: str) -> str:
         if c and os.path.isabs(c) and os.path.exists(c):
             return c
     return ""
+
+
+_resolve_tray_asset = resolve_asset
 
 
 def get_themed_tray_icon(tray_option=None) -> QIcon:

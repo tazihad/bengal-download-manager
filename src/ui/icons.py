@@ -1218,3 +1218,64 @@ def get_yaru_icon(name: str, size: int = 24) -> QIcon:
     return icon
 
 
+def get_stellar_icon(name: str, size: int = 24) -> QIcon:
+    """
+    Renders a modern, styled SVG icon from the Stellar icon set for Bengal Download Manager.
+    Includes high-DPI crisp antialiasing and automatic faded disabled states.
+    """
+    import os
+    from core.services.theme_service import resolve_asset
+    path = resolve_asset(f"icons/stellar/{name}.svg")
+    if not path or not os.path.exists(path):
+        aliases = {
+            "stop": "pause",
+            "clear_completed": "delete_done",
+            "options": "tools",
+            "site_grabber": "grabber",
+            "music": "note",
+            "add": "add_url",
+            "delete": "wastebasket",
+            "trash": "wastebasket",
+            "clear": "delete_done",
+            "settings": "tools",
+            "configure": "tools",
+            "all": "all_downloads",
+            "media_downloader": "video",
+        }
+        alt = aliases.get(name)
+        if alt:
+            path = resolve_asset(f"icons/stellar/{alt}.svg")
+
+    if path and os.path.exists(path):
+        from PyQt6.QtSvg import QSvgRenderer
+        renderer = QSvgRenderer(path)
+        if renderer.isValid():
+            pixmap = QPixmap(size * 2, size * 2)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+
+            disabled_pixmap = QPixmap(pixmap.size())
+            disabled_pixmap.fill(Qt.GlobalColor.transparent)
+            p = QPainter(disabled_pixmap)
+            p.setOpacity(0.35)
+            p.drawPixmap(0, 0, pixmap)
+            p.end()
+
+            icon = QIcon()
+            icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.Off)
+            icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.On)
+            icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.Off)
+            icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.On)
+            icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.Off)
+            icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.On)
+            icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+            icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
+            return icon
+        return QIcon(path)
+
+    return get_monochrome_icon(name, size=size)
+
+
+
