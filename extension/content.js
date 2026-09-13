@@ -57,16 +57,20 @@
 
     const candidates = [];
     if (window.location && window.location.hostname) {
+      const rawHost = window.location.hostname.toLowerCase();
       candidates.push({
-        host: window.location.hostname.toLowerCase(),
+        host: rawHost.replace(/^www\./, ''),
+        rawHost: rawHost,
         url: (window.location.href || '').toLowerCase()
       });
     }
     if (document.referrer && typeof document.referrer === 'string' && document.referrer.startsWith('http')) {
       try {
         const refUrl = new URL(document.referrer);
+        const rawRefHost = refUrl.hostname.toLowerCase();
         candidates.push({
-          host: refUrl.hostname.toLowerCase(),
+          host: rawRefHost.replace(/^www\./, ''),
+          rawHost: rawRefHost,
           url: document.referrer.toLowerCase()
         });
       } catch (e) {}
@@ -84,17 +88,22 @@
       let pPath = slashIdx !== -1 ? p.substring(slashIdx + 1) : '';
       if (pHost.endsWith('/')) pHost = pHost.slice(0, -1);
       if (pHost.includes(':')) pHost = pHost.split(':')[0];
+      const normPHost = pHost.replace(/^www\./, '');
 
-      if (!pHost) continue;
+      if (!normPHost && !pHost) continue;
 
       for (const cand of candidates) {
-        const hostMatches = (cand.host === pHost || cand.host.endsWith('.' + pHost));
+        const hostMatches = (cand.host === normPHost || 
+                             cand.host.endsWith('.' + normPHost) ||
+                             cand.rawHost === pHost ||
+                             cand.rawHost.endsWith('.' + pHost) ||
+                             (normPHost && cand.host.endsWith('.' + normPHost)));
         if (hostMatches) {
           if (pPath) {
             try {
               const parsed = new URL(cand.url);
               const pathPart = parsed.pathname.toLowerCase().replace(/^\//, '');
-              if (pathPart.startsWith(pPath)) return true;
+              if (pathPart.startsWith(pPath.replace(/^\//, ''))) return true;
             } catch (e) {
               if (cand.url.includes('/' + pPath)) return true;
             }
@@ -106,6 +115,23 @@
     }
     return false;
   }
+
+  // Report user clicks and form submits to background so downloads from CDNs or
+  // redirected hosts are accurately mapped to this site and its blacklist status
+  function reportUserInteraction() {
+    try {
+      if (window.location && window.location.href && !window.location.href.startsWith('about:')) {
+        chrome.runtime.sendMessage({
+          action: "user_page_interaction",
+          url: window.location.href,
+          domain: window.location.hostname
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  window.addEventListener('click', reportUserInteraction, true);
+  window.addEventListener('submit', reportUserInteraction, true);
 
   function getPlatformName() {
     const host = window.location.hostname.toLowerCase();

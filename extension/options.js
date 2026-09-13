@@ -53,10 +53,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     }
     if (changes.bdmVersion) {
       const formatted = formatAppVersion(changes.bdmVersion.newValue);
-      const connText = document.getElementById('conn-text');
-      const dot = document.getElementById('dot');
-      if (connText && dot && dot.classList.contains('online') && formatted) {
-        connText.textContent = `Connected (${formatted})`;
+      const connTextIpc = document.getElementById('conn-text-ipc');
+      const dotIpc = document.getElementById('dot-ipc');
+      if (connTextIpc && dotIpc && dotIpc.classList.contains('online') && formatted) {
+        connTextIpc.textContent = `IPC: Connected (${formatted})`;
       }
       const aboutAppVer = document.getElementById('about-app-version');
       if (aboutAppVer && formatted) {
@@ -78,44 +78,69 @@ function showToast(message, type = 'success') {
 }
 
 // --- BENGAL DM & ARIA2 CONNECTION TEST ---
-async function testConnection(port, token) {
-  const connText = document.getElementById('conn-text');
-  const dot = document.getElementById('dot');
+async function testConnection(port, token, ipcPort) {
+  const connTextRpc = document.getElementById('conn-text-rpc');
+  const dotRpc = document.getElementById('dot-rpc');
+  const connTextIpc = document.getElementById('conn-text-ipc');
+  const dotIpc = document.getElementById('dot-ipc');
   const refreshBtn = document.getElementById('refresh-btn');
   const aboutAppVer = document.getElementById('about-app-version');
 
-  if (!connText || !dot || !refreshBtn) return;
+  if (!refreshBtn) return;
 
-  connText.textContent = "Connecting...";
-  dot.className = "dot";
+  const effectiveIpcPort = ipcPort || parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
+
+  if (connTextRpc) connTextRpc.textContent = "RPC: Checking...";
+  if (dotRpc) dotRpc.className = "dot";
+  if (connTextIpc) connTextIpc.textContent = "IPC: Checking...";
+  if (dotIpc) dotIpc.className = "dot";
   refreshBtn.classList.add('spinning');
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    // 1. Query Bengal DM app backend to verify app is running and retrieve BDM version
-    let bdmData = null;
+    // 1. Query Bengal DM app backend on configured IPC port
+    let bdmOnline = false;
+    let bdmVersion = "";
     try {
-      const bdmResp = await fetch("http://127.0.0.1:56900/", {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal
-      });
-      if (bdmResp.ok) {
-        bdmData = await bdmResp.json();
-      }
-    } catch {
+      let bdmResp = null;
       try {
-        const bdmResp = await fetch("http://localhost:56900/", {
+        bdmResp = await fetch(`http://127.0.0.1:${effectiveIpcPort}/`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal
         });
-        if (bdmResp.ok) {
-          bdmData = await bdmResp.json();
-        }
-      } catch {}
+      } catch {
+        bdmResp = await fetch(`http://localhost:${effectiveIpcPort}/`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
+        });
+      }
+      if (bdmResp && bdmResp.ok) {
+        const bdmData = await bdmResp.json();
+        bdmOnline = true;
+        bdmVersion = bdmData.version || "";
+      }
+    } catch {}
+
+    if (bdmOnline) {
+      if (dotIpc) dotIpc.className = "dot online";
+      const formattedVer = formatAppVersion(bdmVersion);
+      if (connTextIpc) connTextIpc.textContent = formattedVer ? `IPC: Connected (${formattedVer})` : "IPC: Connected";
+      if (bdmVersion) {
+        chrome.storage.local.set({ bdmVersion });
+      }
+      if (aboutAppVer) {
+        aboutAppVer.textContent = formattedVer || "Connected (Active)";
+      }
+    } else {
+      if (dotIpc) dotIpc.className = "dot offline";
+      if (connTextIpc) connTextIpc.textContent = "IPC: Disconnected";
+      if (aboutAppVer) {
+        aboutAppVer.textContent = "Disconnected (App Not Running)";
+      }
     }
 
     // 2. Query Aria2 RPC
@@ -123,7 +148,7 @@ async function testConnection(port, token) {
     const params = token ? [`token:${token}`] : [];
     const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion", params: params };
 
-    let ariaResponse;
+    let ariaResponse = null;
     try {
       ariaResponse = await fetch(url, {
         method: 'POST',
@@ -132,47 +157,55 @@ async function testConnection(port, token) {
         signal: controller.signal
       });
     } catch {
-      ariaResponse = await fetch(`http://localhost:${port}/jsonrpc`, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
+      try {
+        ariaResponse = await fetch(`http://localhost:${port}/jsonrpc`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+      } catch {}
     }
 
     clearTimeout(timeoutId);
 
-    const ariaData = await ariaResponse.json();
-
-    if (ariaData && ariaData.result && ariaData.result.version) {
-      dot.className = "dot online";
-
-      let versionStr = (bdmData && bdmData.version) ? bdmData.version : "";
-      if (versionStr) {
-        chrome.storage.local.set({ bdmVersion: versionStr });
-      } else {
-        const cached = await new Promise(r => chrome.storage.local.get({ bdmVersion: "" }, r));
-        versionStr = cached.bdmVersion || "";
+    let ariaOnline = false;
+    if (ariaResponse && ariaResponse.ok) {
+      try {
+        const ariaData = await ariaResponse.json();
+        if (ariaData && ariaData.result && ariaData.result.version) {
+          ariaOnline = true;
+          if (dotRpc) dotRpc.className = "dot online";
+          if (connTextRpc) connTextRpc.textContent = `RPC: Connected (v${ariaData.result.version})`;
+        } else if (ariaData && ariaData.error) {
+          if (dotRpc) dotRpc.className = "dot offline";
+          if (connTextRpc) connTextRpc.textContent = "RPC: Auth Error";
+        } else {
+          if (dotRpc) dotRpc.className = "dot offline";
+          if (connTextRpc) connTextRpc.textContent = "RPC: Invalid Response";
+        }
+      } catch {
+        if (dotRpc) dotRpc.className = "dot offline";
+        if (connTextRpc) connTextRpc.textContent = "RPC: Error";
       }
-
-      const formattedVersion = formatAppVersion(versionStr);
-      connText.textContent = formattedVersion ? `Connected (${formattedVersion})` : "Connected";
-      if (aboutAppVer) {
-        aboutAppVer.textContent = formattedVersion || "Connected (Active)";
-      }
-      chrome.runtime.sendMessage({ action: "update_connection_status", online: true }).catch(() => {});
-    } else if (ariaData && ariaData.error) {
-      dot.className = "dot offline";
-      connText.textContent = "Auth Error";
-      if (aboutAppVer) aboutAppVer.textContent = "Authentication Error (Invalid Token)";
-      chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
     } else {
-      throw new Error("Invalid response");
+      if (dotRpc) dotRpc.className = "dot offline";
+      if (connTextRpc) connTextRpc.textContent = "RPC: Disconnected";
     }
+
+    // Notify background script of connection status
+    chrome.runtime.sendMessage({
+      action: "update_connection_status",
+      online: ariaOnline || bdmOnline,
+      ariaOnline,
+      bdmOnline
+    }).catch(() => {});
+
   } catch (error) {
-    dot.className = "dot offline";
-    connText.textContent = error.name === 'AbortError' ? "Timeout" : "Disconnected";
-    if (aboutAppVer) aboutAppVer.textContent = "Disconnected (App Not Running)";
+    if (dotRpc) dotRpc.className = "dot offline";
+    if (connTextRpc) connTextRpc.textContent = "RPC: Disconnected";
+    if (dotIpc) dotIpc.className = "dot offline";
+    if (connTextIpc) connTextIpc.textContent = "IPC: Disconnected";
     chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
   } finally {
     refreshBtn.classList.remove('spinning');
@@ -345,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Load from storage
   const defaults = {
     port: 56800,
+    ipcPort: 56900,
     token: "",
     theme: "system",
     bdmVersion: "",
@@ -363,6 +397,10 @@ document.addEventListener('DOMContentLoaded', () => {
       port = 56800;
       chrome.storage.local.set({ port: 56800 });
     }
+
+    const ipcPort = parseInt(items.ipcPort, 10) || 56900;
+    const ipcPortInput = document.getElementById('ipc-port');
+    if (ipcPortInput) ipcPortInput.value = ipcPort;
 
     document.getElementById('port').value = port;
     document.getElementById('token').value = items.token || '';
@@ -400,18 +438,20 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTagList('blacklist-url-tags', 'blacklistUrls');
     renderTagList('blacklist-ext-tags', 'blacklistExts');
 
-    testConnection(port, items.token || '');
+    testConnection(port, items.token || '', ipcPort);
   });
 
   // 6. Button Listeners
   document.getElementById('refresh-btn').addEventListener('click', () => {
     const port = parseInt(document.getElementById('port').value, 10) || 56800;
+    const ipcPort = parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
     const token = document.getElementById('token').value.trim();
-    testConnection(port, token);
+    testConnection(port, token, ipcPort);
   });
 
   document.getElementById('save').addEventListener('click', () => {
     const port = parseInt(document.getElementById('port').value, 10) || 56800;
+    const ipcPort = parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
     const token = document.getElementById('token').value.trim();
     const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
     const theme = selectedRadio ? selectedRadio.value : 'system';
@@ -422,6 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = {
       host: "localhost",
       port,
+      ipcPort,
       token,
       theme,
       enableInterception,
@@ -436,41 +477,43 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.local.set(payload, () => {
       applyTheme(theme);
       showToast('Settings saved successfully ✓', 'success');
-      testConnection(port, token);
+      testConnection(port, token, ipcPort);
     });
   });
 
   document.getElementById('sync').addEventListener('click', async () => {
-    showToast('Syncing configuration...', 'success');
+    showToast('Syncing Aria2 RPC settings...', 'success');
+
+    const enteredIpcPort = parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
+    let response = null;
+    const portsToTry = [enteredIpcPort];
+    if (enteredIpcPort !== 56900) portsToTry.push(56900);
+
+    for (const testPort of portsToTry) {
+      try {
+        response = await fetch(`http://127.0.0.1:${testPort}/`, { method: 'GET' });
+        if (response && response.ok) break;
+      } catch {
+        try {
+          response = await fetch(`http://localhost:${testPort}/`, { method: 'GET' });
+          if (response && response.ok) break;
+        } catch {}
+      }
+    }
 
     try {
-      const response = await fetch("http://127.0.0.1:56900/", { method: 'GET' });
-      if (!response.ok) throw new Error("App not responding");
+      if (!response || !response.ok) throw new Error("Bengal DM IPC not responding");
 
       const data = await response.json();
+
       if (data.aria2) {
         const { port, token } = data.aria2;
         document.getElementById('port').value = port;
         document.getElementById('token').value = token || '';
 
-        const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
-        const theme = selectedRadio ? selectedRadio.value : 'system';
-        const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
-        const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
-        const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
-
         const savePayload = {
-          host: "localhost",
           port,
-          token: token || '',
-          theme,
-          enableInterception,
-          enableMediaSniffing,
-          videoPanelPosition,
-          whitelistUrls: filterLists.whitelistUrls,
-          whitelistExts: filterLists.whitelistExts,
-          blacklistUrls: filterLists.blacklistUrls,
-          blacklistExts: filterLists.blacklistExts
+          token: token || ''
         };
 
         if (data.version) {
@@ -480,9 +523,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         chrome.storage.local.set(savePayload, () => {
-          showToast('Synced & Saved ✓', 'success');
-          testConnection(port, token || '');
+          showToast('Aria2 RPC Synced & Saved ✓', 'success');
+          testConnection(port, token || '', enteredIpcPort);
         });
+      } else {
+        showToast('No Aria2 configuration received', 'error');
       }
     } catch (err) {
       showToast('Sync Failed (Is Bengal DM running?)', 'error');
@@ -493,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const defaults = {
       host: "localhost",
       port: 56800,
+      ipcPort: 56900,
       token: "",
       theme: "system",
       enableInterception: true,
@@ -506,6 +552,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     chrome.storage.local.set(defaults, () => {
       document.getElementById('port').value = defaults.port;
+      const ipcInput = document.getElementById('ipc-port');
+      if (ipcInput) ipcInput.value = defaults.ipcPort;
       document.getElementById('token').value = defaults.token;
       if (interceptionCheckbox) interceptionCheckbox.checked = true;
       if (mediaSniffingCheckbox) mediaSniffingCheckbox.checked = true;
@@ -522,8 +570,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderTagList('blacklist-url-tags', 'blacklistUrls');
       renderTagList('blacklist-ext-tags', 'blacklistExts');
 
-      showToast('Reset to Defaults ✓', 'success');
-      testConnection(defaults.port, defaults.token);
+      testConnection(defaults.port, defaults.token, defaults.ipcPort);
+      showToast('Defaults restored ✓', 'success');
     });
   });
 });

@@ -36,6 +36,67 @@ let cachedFilterRules = {
 
 // --- APP CONNECTION & TOOLBAR ICON BADGE STATE ---
 let cachedAppOnline = false;
+let cachedIpcPort = 56900;
+
+// --- TAB CONTEXT & USER INTERACTION TRACKING ---
+function isInternalBrowserUrl(u) {
+  if (!u || typeof u !== 'string') return true;
+  const s = u.toLowerCase().trim();
+  return !s.startsWith('http://') && !s.startsWith('https://') && !s.startsWith('ftp://');
+}
+
+function normalizeHost(host) {
+  if (!host || typeof host !== 'string') return "";
+  let clean = host.toLowerCase().trim();
+  clean = clean.replace(/^https?:\/\//, '');
+  if (clean.startsWith('*.')) clean = clean.substring(2);
+  else if (clean.startsWith('*')) clean = clean.substring(1);
+  if (clean.startsWith('www.')) clean = clean.substring(4);
+  if (clean.includes(':')) clean = clean.split(':')[0];
+  if (clean.includes('/')) clean = clean.split('/')[0];
+  return clean;
+}
+
+const tabContextMap = new Map(); // tabId -> { url, domain, openerTabId, timestamp }
+let lastActiveTabContext = { tabId: null, url: "", domain: "", timestamp: 0 };
+let lastUserInteraction = { tabId: null, url: "", domain: "", timestamp: 0 };
+
+function trackTab(tabId, url, openerTabId, isActive) {
+  if (!tabId || !url || isInternalBrowserUrl(url)) return;
+  const domain = normalizeHost(url);
+  const info = { url, domain, openerTabId: openerTabId || null, timestamp: Date.now() };
+  tabContextMap.set(tabId, info);
+  if (isActive) {
+    lastActiveTabContext = { tabId, url, domain, timestamp: Date.now() };
+  }
+}
+
+// Initial populate of all open tabs
+if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+  chrome.tabs.query({}, (tabs) => {
+    for (const t of (tabs || [])) {
+      if (t && t.id && t.url) {
+        trackTab(t.id, t.url, t.openerTabId, !!t.active);
+      }
+    }
+  });
+}
+
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get(['ipcPort'], (res) => {
+    if (res && res.ipcPort) {
+      cachedIpcPort = parseInt(res.ipcPort, 10) || 56900;
+    }
+  });
+
+  if (chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.ipcPort) {
+        cachedIpcPort = parseInt(changes.ipcPort.newValue, 10) || 56900;
+      }
+    });
+  }
+}
 
 function getActionAPI() {
   if (typeof chrome !== 'undefined') {
@@ -138,7 +199,7 @@ async function getFilterRules() {
 }
 
 function parseDomainAndPath(rawInput) {
-  if (!rawInput || typeof rawInput !== 'string') return { hostname: "", pathname: "", raw: "" };
+  if (!rawInput || typeof rawInput !== 'string') return { hostname: "", normHost: "", pathname: "", raw: "" };
   let str = rawInput.trim().toLowerCase();
   // Strip wildcard prefix if present e.g. *.example.com -> example.com
   let hasWildcard = false;
@@ -161,58 +222,84 @@ function parseDomainAndPath(rawInput) {
     let hostname = parsed.hostname.toLowerCase();
     let pathname = parsed.pathname || "";
     if (pathname === '/') pathname = "";
-    return { hostname, pathname, hasWildcard, raw: str };
+    if (pathname.endsWith('/*')) pathname = pathname.slice(0, -2);
+    else if (pathname.endsWith('*')) pathname = pathname.slice(0, -1);
+    const normHost = normalizeHost(hostname);
+    return { hostname, normHost, pathname, hasWildcard, raw: str };
   } catch (e) {
-    return { hostname: str.replace(/\/.*$/, ''), pathname: "", hasWildcard, raw: str };
+    const rawHost = str.replace(/\/.*$/, '');
+    return { hostname: rawHost, normHost: normalizeHost(rawHost), pathname: "", hasWildcard, raw: str };
   }
 }
 
-function matchesUrlOrDomain(targetUrl, urlPatterns, referrerUrl) {
+function matchesUrlOrDomain(targetUrl, urlPatterns, ...additionalCandidates) {
   if (!Array.isArray(urlPatterns) || urlPatterns.length === 0) return false;
   
   const targets = [];
-  if (targetUrl) targets.push(targetUrl);
-  if (referrerUrl && typeof referrerUrl === 'string' && referrerUrl.startsWith('http')) {
-    targets.push(referrerUrl);
+  function addCandidate(c) {
+    if (!c) return;
+    if (Array.isArray(c)) {
+      for (const item of c) addCandidate(item);
+      return;
+    }
+    if (typeof c === 'string') {
+      const trimmed = c.trim();
+      if (trimmed && !isInternalBrowserUrl(trimmed) && !targets.includes(trimmed)) {
+        targets.push(trimmed);
+      }
+    }
   }
+
+  addCandidate(targetUrl);
+  for (const cand of additionalCandidates) {
+    addCandidate(cand);
+  }
+
   if (targets.length === 0) return false;
 
   for (const pattern of urlPatterns) {
     if (!pattern || typeof pattern !== 'string') continue;
     const pInfo = parseDomainAndPath(pattern);
-    if (!pInfo.hostname && !pInfo.raw) continue;
+    if (!pInfo.hostname && !pInfo.normHost && !pInfo.raw) continue;
 
     for (const testUrl of targets) {
       const urlLower = testUrl.toLowerCase();
       const tInfo = parseDomainAndPath(urlLower);
 
-      // Direct substring match if pattern specifies specific path or query
-      if (pInfo.pathname && urlLower.includes(pInfo.raw)) {
+      // 1. Direct path/keyword match if pattern specifies specific path or query
+      if (pInfo.pathname && (urlLower.includes(pInfo.raw) || (tInfo.pathname && tInfo.pathname.startsWith(pInfo.pathname)))) {
+        if (pInfo.normHost && tInfo.normHost) {
+          if (tInfo.normHost === pInfo.normHost || tInfo.normHost.endsWith('.' + pInfo.normHost)) {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      }
+
+      // 2. Normalized Hostname comparison (handles www., subdomains, exact match)
+      if (pInfo.normHost && tInfo.normHost) {
+        const hostMatches = (tInfo.normHost === pInfo.normHost || 
+                             tInfo.normHost.endsWith('.' + pInfo.normHost) ||
+                             (tInfo.hostname && tInfo.hostname === pInfo.hostname) ||
+                             (tInfo.hostname && tInfo.hostname.endsWith('.' + pInfo.hostname)));
+
+        if (hostMatches) {
+          if (pInfo.pathname) {
+            const cleanTPath = tInfo.pathname.replace(/^\//, '');
+            const cleanPPath = pInfo.pathname.replace(/^\//, '');
+            if (cleanTPath.startsWith(cleanPPath)) return true;
+          } else {
+            return true;
+          }
+        }
+      }
+
+      // 3. Fallback substring search for raw pattern if user typed specific domain keyword
+      if (pInfo.normHost && urlLower.includes(pInfo.normHost)) {
         return true;
       }
-
-      // Hostname comparison
-      if (pInfo.hostname && tInfo.hostname) {
-        if (tInfo.hostname === pInfo.hostname) {
-          // If pattern also has pathname requirement
-          if (pInfo.pathname) {
-            if (tInfo.pathname.startsWith(pInfo.pathname)) return true;
-          } else {
-            return true;
-          }
-        }
-        // Subdomain matching (e.g. sub.mirror.xeonbd.com matches mirror.xeonbd.com or xeonbd.com)
-        if (tInfo.hostname.endsWith('.' + pInfo.hostname)) {
-          if (pInfo.pathname) {
-            if (tInfo.pathname.startsWith(pInfo.pathname)) return true;
-          } else {
-            return true;
-          }
-        }
-      }
-
-      // Fallback substring search for raw pattern if user typed partial keyword
-      if (pInfo.raw && urlLower.includes(pInfo.raw)) {
+      if (pInfo.raw && pInfo.raw.length > 3 && urlLower.includes(pInfo.raw)) {
         return true;
       }
     }
@@ -260,7 +347,7 @@ function isStreamingMedia(url, filename) {
   return false;
 }
 
-function shouldInterceptDownloadSync(url, filename, referrer) {
+function shouldInterceptDownloadSync(url, filename, referrer, extraContext = {}) {
   if (!url || isIgnoredServiceUrl(url) || isStreamingMedia(url, filename)) return false;
 
   // If Bengal DM app is disconnected, do NOT intercept — let browser handle download seamlessly
@@ -275,8 +362,35 @@ function shouldInterceptDownloadSync(url, filename, referrer) {
 
   const ext = getFileExtension(filename || url);
 
-  // 1. Blacklist check - if matched on URL, domain, referrer, or extension: do NOT intercept (leave to browser)
-  if (matchesUrlOrDomain(url, rules.blacklistUrls, referrer) || matchesExtension(ext || filename, rules.blacklistExts)) {
+  // Collect all context URLs associated with this download
+  const candidates = [];
+  if (referrer) candidates.push(referrer);
+  if (extraContext.finalUrl) candidates.push(extraContext.finalUrl);
+  if (extraContext.tabUrl) candidates.push(extraContext.tabUrl);
+
+  if (extraContext.tabId && tabContextMap.has(extraContext.tabId)) {
+    const tabInfo = tabContextMap.get(extraContext.tabId);
+    if (tabInfo && tabInfo.url) {
+      candidates.push(tabInfo.url);
+      if (tabInfo.openerTabId && tabContextMap.has(tabInfo.openerTabId)) {
+        const openerInfo = tabContextMap.get(tabInfo.openerTabId);
+        if (openerInfo && openerInfo.url) candidates.push(openerInfo.url);
+      }
+    }
+  }
+
+  // Check last active tab if valid
+  if (lastActiveTabContext.url && !isInternalBrowserUrl(lastActiveTabContext.url)) {
+    candidates.push(lastActiveTabContext.url);
+  }
+
+  // Check recent user click/form interaction within last 25 seconds
+  if (lastUserInteraction.url && (Date.now() - lastUserInteraction.timestamp < 25000)) {
+    candidates.push(lastUserInteraction.url);
+  }
+
+  // 1. Blacklist check - if matched on URL, domain, referrer, active tab, user interaction, or extension: do NOT intercept (leave to browser)
+  if (matchesUrlOrDomain(url, rules.blacklistUrls, candidates) || matchesExtension(ext || filename, rules.blacklistExts)) {
     return false;
   }
 
@@ -291,15 +405,15 @@ function shouldInterceptDownloadSync(url, filename, referrer) {
   }
 
   // 4. Whitelisted URL/domain - intercept downloadable files on this domain
-  if (matchesUrlOrDomain(url, rules.whitelistUrls, referrer)) {
+  if (matchesUrlOrDomain(url, rules.whitelistUrls, candidates)) {
     return true;
   }
 
   return true;
 }
 
-async function shouldInterceptDownload(url, filename, referrer) {
-  return shouldInterceptDownloadSync(url, filename, referrer);
+async function shouldInterceptDownload(url, filename, referrer, extraContext = {}) {
+  return shouldInterceptDownloadSync(url, filename, referrer, extraContext);
 }
 
 // --- ENHANCED COOKIE EXTRACTION (cliget method with Firefox storeId & dFPI support) ---
@@ -477,10 +591,11 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
 async function isBengalDMOnline() {
   let online = false;
   let config = null;
+  const ipcPort = cachedIpcPort || 56900;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
-    const response = await fetch("http://127.0.0.1:56900/", {
+    const response = await fetch(`http://127.0.0.1:${ipcPort}/`, {
       method: 'GET',
       signal: controller.signal
     });
@@ -493,7 +608,7 @@ async function isBengalDMOnline() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const response = await fetch("http://localhost:56900/", {
+      const response = await fetch(`http://localhost:${ipcPort}/`, {
         method: 'GET',
         signal: controller.signal
       });
@@ -508,6 +623,9 @@ async function isBengalDMOnline() {
   }
 
   if (config) {
+    if (config.ipc_port) {
+      cachedIpcPort = parseInt(config.ipc_port, 10) || ipcPort;
+    }
     updateDynamicMediaConfig(config);
   }
 
@@ -518,10 +636,11 @@ async function isBengalDMOnline() {
 // --- SEND DOWNLOAD TO BENGAL DM ---
 async function sendToBengalDM(downloadData) {
   const { url, userAgent, cookies, filename, referrer } = downloadData;
+  const ipcPort = cachedIpcPort || 56900;
 
   const isOnline = await isBengalDMOnline();
   if (!isOnline) {
-    console.warn("Bengal DM application is not running on port 56900.");
+    console.warn(`Bengal DM application is not running on port ${ipcPort}.`);
     return false;
   }
 
@@ -539,7 +658,7 @@ async function sendToBengalDM(downloadData) {
   };
 
   try {
-    const response = await fetch("http://127.0.0.1:56900/", {
+    const response = await fetch(`http://127.0.0.1:${ipcPort}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -549,7 +668,7 @@ async function sendToBengalDM(downloadData) {
     return response.ok;
   } catch (err) {
     try {
-      const response = await fetch("http://localhost:56900/", {
+      const response = await fetch(`http://localhost:${ipcPort}/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -558,7 +677,7 @@ async function sendToBengalDM(downloadData) {
       });
       return response.ok;
     } catch (e) {
-      console.error("Failed to send download to Bengal DM:", e);
+      console.error(`Failed to send download to Bengal DM on port ${ipcPort}:`, e);
       return false;
     }
   }
@@ -657,6 +776,9 @@ function recordSniffedMedia(tabId, url, contentType, title, sizeBytes = 0) {
 if (chrome.tabs && chrome.tabs.onRemoved) {
   chrome.tabs.onRemoved.addListener((tabId) => {
     tabMediaStreams.delete(tabId);
+    setTimeout(() => {
+      tabContextMap.delete(tabId);
+    }, 15000);
   });
 }
 
@@ -972,12 +1094,16 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
   }
 }
 
-// 4. Tab title updates: notify Bengal DM /tab-update for SPA navigation (e.g. YouTube video change)
+// 4. Tab title updates & synchronous context tracking
 if (chrome.tabs && chrome.tabs.onUpdated) {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (tab && tab.url) {
+      trackTab(tabId, tab.url, tab.openerTabId, !!tab.active);
+    }
     if (changeInfo.title && tab && tab.url && cachedAppOnline) {
       try {
-        fetch("http://127.0.0.1:56900/tab-update", {
+        const port = cachedIpcPort || 56900;
+        fetch(`http://127.0.0.1:${port}/tab-update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tabId: String(tabId), tabUrl: tab.url, tabTitle: changeInfo.title })
@@ -987,9 +1113,14 @@ if (chrome.tabs && chrome.tabs.onUpdated) {
   });
 }
 
-// 5. Close media popup dropdown when switching tabs or window focus
+// 5. Active tab context updates & close media popup dropdown when switching tabs
 if (chrome.tabs && chrome.tabs.onActivated) {
   chrome.tabs.onActivated.addListener((activeInfo) => {
+    chrome.tabs.get(activeInfo.tabId, (tab) => {
+      if (!chrome.runtime.lastError && tab && tab.url) {
+        trackTab(tab.id, tab.url, tab.openerTabId, true);
+      }
+    });
     chrome.tabs.query({}, (tabs) => {
       for (const t of (tabs || [])) {
         if (t.id && t.id !== activeInfo.tabId) {
@@ -997,6 +1128,14 @@ if (chrome.tabs && chrome.tabs.onActivated) {
         }
       }
     });
+  });
+}
+
+if (chrome.tabs && chrome.tabs.onCreated) {
+  chrome.tabs.onCreated.addListener((tab) => {
+    if (tab && tab.id && (tab.url || tab.pendingUrl)) {
+      trackTab(tab.id, tab.url || tab.pendingUrl, tab.openerTabId, false);
+    }
   });
 }
 
@@ -1076,7 +1215,11 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
         }
 
         // Synchronous blacklist & interception check
-        const shouldIntercept = shouldInterceptDownloadSync(details.url, filenameFromHeader, referrer);
+        const extraContext = {
+          tabId: details.tabId !== -1 ? details.tabId : null,
+          tabUrl: (details.tabId !== -1 && tabContextMap.has(details.tabId)) ? tabContextMap.get(details.tabId).url : ""
+        };
+        const shouldIntercept = shouldInterceptDownloadSync(details.url, filenameFromHeader, referrer, extraContext);
         if (!shouldIntercept || !cachedAppOnline) {
           return; // Bypassed to native browser! NEVER cancel or redirect!
         }
@@ -1180,8 +1323,11 @@ if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
       return;
     }
 
-    const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
-    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
+    const referrer = downloadItem.referrer || "";
+    const extraContext = {
+      finalUrl: downloadItem.finalUrl || ""
+    };
+    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer, extraContext);
     if (!shouldIntercept || !cachedAppOnline) {
       if (suggest) try { suggest(); } catch {}
       return; // Leave download to native browser!
@@ -1201,9 +1347,12 @@ if (chrome.downloads && chrome.downloads.onCreated) {
   chrome.downloads.onCreated.addListener((downloadItem) => {
     if (!downloadItem || !downloadItem.url || isIgnoredServiceUrl(downloadItem.url) || isStreamingMedia(downloadItem.url, downloadItem.filename)) return;
 
-    const referrer = downloadItem.referrer || downloadItem.finalUrl || "";
+    const referrer = downloadItem.referrer || "";
+    const extraContext = {
+      finalUrl: downloadItem.finalUrl || ""
+    };
     // Check Whitelist & Blacklist rules
-    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer);
+    const shouldIntercept = shouldInterceptDownloadSync(downloadItem.url, downloadItem.filename, referrer, extraContext);
     if (!shouldIntercept || !cachedAppOnline) {
       return; // Leave download to native browser!
     }
@@ -1410,6 +1559,24 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 // --- MESSAGE HANDLER ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "user_page_interaction") {
+    const tabId = sender && sender.tab ? sender.tab.id : null;
+    const url = request.url || (sender && sender.tab ? sender.tab.url : "");
+    if (url && !isInternalBrowserUrl(url)) {
+      lastUserInteraction = {
+        tabId: tabId,
+        url: url,
+        domain: normalizeHost(url),
+        timestamp: Date.now()
+      };
+      if (tabId) {
+        trackTab(tabId, url, sender && sender.tab ? sender.tab.openerTabId : null, true);
+      }
+    }
+    sendResponse({ received: true });
+    return true;
+  }
+
   if (request.action === "send_to_bengal") {
     (async () => {
       const tabUrl = (sender && sender.tab) ? sender.tab.url : null;
@@ -1418,7 +1585,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const bList = rules.blacklistUrls || [];
 
       if (rules.enableInterception === false ||
-          matchesUrlOrDomain(request.url, bList, refUrl) ||
+          matchesUrlOrDomain(request.url, bList, refUrl, tabUrl) ||
           (tabUrl && matchesUrlOrDomain(tabUrl, bList)) ||
           (refUrl && matchesUrlOrDomain(refUrl, bList))) {
         sendResponse({ success: false, bypassed: true });

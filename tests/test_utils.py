@@ -574,6 +574,56 @@ def test_portal_open_directory_and_single_invocation(monkeypatch, tmp_path):
     assert any("OpenDirectory" in " ".join(cmd) for cmd in portal_cmds)
 
 
+def test_extension_config_ipc_port(monkeypatch, tmp_path):
+    from core.utils import load_extension_config, save_extension_config
+    from core.services.ipc_service import get_ipc_port, DM_CONNECTOR_PORT
 
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
 
+    # Default should be 56900
+    cfg = load_extension_config()
+    assert cfg.get("ipc_port") == 56900
+    assert get_ipc_port() == 56900
+    assert DM_CONNECTOR_PORT == 56900
+
+    # Custom port
+    save_extension_config({"ipc_port": 56950})
+    cfg2 = load_extension_config()
+    assert cfg2.get("ipc_port") == 56950
+    assert get_ipc_port() == 56950
+
+    # Range clamping
+    save_extension_config({"ipc_port": 99999})
+    cfg_clamped = load_extension_config()
+    assert cfg_clamped.get("ipc_port") == 65535
+
+    save_extension_config({"ipc_port": 80})
+    cfg_clamped_low = load_extension_config()
+    assert cfg_clamped_low.get("ipc_port") == 1024
+
+def test_tcp_listener_graceful_stop_and_reuse():
+    from core.services.ipc_service import TcpListenerThread, SignalEmitter
+    import socket
+
+    emitter = SignalEmitter()
+    test_port = 56988
+
+    # Start listener on test_port
+    listener1 = TcpListenerThread(port=test_port, emitter=emitter)
+    listener1.start()
+    time.sleep(0.1)
+    assert listener1.isRunning()
+
+    # Gracefully stop listener1
+    listener1.stop(timeout_ms=1000)
+    assert not listener1.isRunning()
+
+    # Immediately start a second listener on the exact same port to verify SO_REUSEADDR and clean release
+    listener2 = TcpListenerThread(port=test_port, emitter=emitter)
+    listener2.start()
+    time.sleep(0.1)
+    assert listener2.isRunning()
+
+    listener2.stop(timeout_ms=1000)
+    assert not listener2.isRunning()
 

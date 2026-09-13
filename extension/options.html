@@ -45,9 +45,15 @@
       </nav>
 
       <div class="sidebar-status">
-        <div class="status-indicator">
-          <div id="dot" class="dot"></div>
-          <span id="conn-text">Checking...</span>
+        <div class="status-indicators-group">
+          <div class="status-indicator">
+            <div id="dot-rpc" class="dot"></div>
+            <span id="conn-text-rpc">RPC: Checking...</span>
+          </div>
+          <div class="status-indicator">
+            <div id="dot-ipc" class="dot"></div>
+            <span id="conn-text-ipc">IPC: Checking...</span>
+          </div>
         </div>
         <button id="refresh-btn" class="icon-btn" title="Refresh Connection Status">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -78,7 +84,7 @@
           <div class="form-group">
             <label for="port">RPC Port</label>
             <input type="number" id="port" class="form-input" value="56800" min="1024" max="65535">
-            <span class="field-hint">Default Bengal DM Port is 56800.</span>
+            <span class="field-hint">Default Bengal DM Aria2 Port is 56800.</span>
           </div>
 
           <div class="form-group">
@@ -89,6 +95,20 @@
 
           <div class="card-actions">
             <button id="sync" class="btn btn-secondary">Sync from Bengal DM</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Bengal DM IPC Port</div>
+          <p class="card-desc">Local port connecting this extension to Bengal DM. Must match port in Bengal DM options.</p>
+
+          <div class="form-group">
+            <label for="ipc-port">IPC Port</label>
+            <input type="number" id="ipc-port" class="form-input" value="56900" min="1024" max="65535">
+            <span class="field-hint">Default is 56900. Change here if you modified the IPC Port in Bengal DM.</span>
+          </div>
+
+          <div class="card-actions">
             <button id="reset" class="btn btn-subtle">Reset Defaults</button>
           </div>
         </div>

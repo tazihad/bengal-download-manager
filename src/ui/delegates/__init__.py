@@ -1,4 +1,4 @@
 """UI Item Delegates for Bengal Download Manager."""
-from ui.delegates.table_delegate import ModernTableDelegate
+from ui.delegates.table_delegate import ModernTableDelegate, NoFocusTableDelegate
 
-__all__ = ["ModernTableDelegate"]
+__all__ = ["ModernTableDelegate", "NoFocusTableDelegate"]

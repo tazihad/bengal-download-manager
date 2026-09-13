@@ -88,6 +88,15 @@ def init_db(db_path: Optional[str] = None) -> None:
                     );
                 """)
 
+                # Daily Data Usage Table (Keeps current month only)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS daily_data_usage (
+                        date TEXT PRIMARY KEY,
+                        bytes_downloaded INTEGER NOT NULL DEFAULT 0,
+                        files_count INTEGER NOT NULL DEFAULT 0
+                    );
+                """)
+
                 # Indexes
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_downloads_status_queue ON downloads (status, queue_name);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_downloads_position ON downloads (position ASC);")
@@ -395,3 +404,151 @@ def search_downloads(query: str, db_path: Optional[str] = None) -> List[Dict[str
             return downloads
         finally:
             conn.close()
+
+
+def cleanup_old_data_usage(current_month: Optional[str] = None, db_path: Optional[str] = None) -> None:
+    """Removes daily data usage records from prior months, preserving only the current month."""
+    if not current_month:
+        from datetime import datetime
+        current_month = datetime.now().strftime("%Y-%m")
+    with _DB_LOCK:
+        init_db(db_path)
+        conn = get_db_connection(db_path)
+        try:
+            with conn:
+                conn.execute(
+                    "DELETE FROM daily_data_usage WHERE substr(date, 1, 7) != ?;",
+                    (current_month,)
+                )
+        finally:
+            conn.close()
+
+
+def record_daily_usage(date_str: str, bytes_count: int, files_count: int = 0, db_path: Optional[str] = None) -> None:
+    """Records or updates daily data usage for a specific date (YYYY-MM-DD), ensuring usage never decreases."""
+    if not date_str or bytes_count < 0:
+        return
+    with _DB_LOCK:
+        init_db(db_path)
+        cleanup_old_data_usage(db_path=db_path)
+        conn = get_db_connection(db_path)
+        try:
+            with conn:
+                conn.execute("""
+                    INSERT INTO daily_data_usage (date, bytes_downloaded, files_count)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(date) DO UPDATE SET
+                        bytes_downloaded = MAX(bytes_downloaded, excluded.bytes_downloaded),
+                        files_count = MAX(files_count, excluded.files_count);
+                """, (date_str, int(bytes_count), int(files_count)))
+        finally:
+            conn.close()
+
+
+def add_daily_usage(date_str: str, bytes_count: int, files_count: int = 1, db_path: Optional[str] = None) -> None:
+    """Atomically increments daily data usage for date_str when a download completes."""
+    if not date_str or bytes_count <= 0:
+        return
+    with _DB_LOCK:
+        init_db(db_path)
+        cleanup_old_data_usage(db_path=db_path)
+        conn = get_db_connection(db_path)
+        try:
+            with conn:
+                conn.execute("""
+                    INSERT INTO daily_data_usage (date, bytes_downloaded, files_count)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(date) DO UPDATE SET
+                        bytes_downloaded = bytes_downloaded + excluded.bytes_downloaded,
+                        files_count = files_count + excluded.files_count;
+                """, (date_str, int(bytes_count), int(files_count)))
+        finally:
+            conn.close()
+
+
+def get_month_daily_usage(month_str: Optional[str] = None, db_path: Optional[str] = None) -> Dict[str, Dict[str, int]]:
+    """
+    Returns a mapping of YYYY-MM-DD -> {'bytes': int, 'files': int} for the specified month
+    (defaults to current month). Automatically cleans up older months.
+    Reconciles with completed downloads recorded in the downloads table.
+    """
+    from datetime import datetime
+    if not month_str:
+        month_str = datetime.now().strftime("%Y-%m")
+
+    with _DB_LOCK:
+        init_db(db_path)
+        cleanup_old_data_usage(current_month=month_str, db_path=db_path)
+        conn = get_db_connection(db_path)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT date, bytes_downloaded, files_count FROM daily_data_usage WHERE substr(date, 1, 7) = ? ORDER BY date ASC;",
+                (month_str,)
+            )
+            rows = cur.fetchall()
+            result: Dict[str, Dict[str, int]] = {}
+            for r in rows:
+                result[r["date"]] = {
+                    "bytes": int(r["bytes_downloaded"] or 0),
+                    "files": int(r["files_count"] or 0)
+                }
+
+            # Accurately aggregate all completed downloads from downloads table for this month
+            cur.execute("""
+                SELECT size, last_try, date_added
+                FROM downloads
+                WHERE status IN ('Complete', 'Finished')
+            """)
+            dl_rows = cur.fetchall()
+            from core.services.theme_service import parse_size_to_bytes
+            dl_by_date: Dict[str, Dict[str, int]] = {}
+            for dl in dl_rows:
+                ts_str = dl["last_try"] or dl["date_added"]
+                if not ts_str:
+                    continue
+                try:
+                    ts = float(ts_str)
+                    dt = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+                    if dt.startswith(month_str):
+                        b = int(parse_size_to_bytes(dl["size"] or "0"))
+                        if dt not in dl_by_date:
+                            dl_by_date[dt] = {"bytes": 0, "files": 0}
+                        dl_by_date[dt]["bytes"] += b
+                        dl_by_date[dt]["files"] += 1
+                except Exception:
+                    pass
+
+            # Merge any completed downloads from downloads table using MAX so cleared items are preserved
+            for dt, stats in dl_by_date.items():
+                if dt not in result:
+                    result[dt] = stats
+                    try:
+                        cur.execute("""
+                            INSERT INTO daily_data_usage (date, bytes_downloaded, files_count)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(date) DO UPDATE SET
+                                bytes_downloaded = MAX(bytes_downloaded, excluded.bytes_downloaded),
+                                files_count = MAX(files_count, excluded.files_count);
+                        """, (dt, stats["bytes"], stats["files"]))
+                    except Exception:
+                        pass
+                else:
+                    if stats["bytes"] > result[dt]["bytes"] or stats["files"] > result[dt]["files"]:
+                        result[dt]["bytes"] = max(result[dt]["bytes"], stats["bytes"])
+                        result[dt]["files"] = max(result[dt]["files"], stats["files"])
+                        try:
+                            cur.execute("""
+                                UPDATE daily_data_usage
+                                SET bytes_downloaded = ?, files_count = ?
+                                WHERE date = ?;
+                            """, (result[dt]["bytes"], result[dt]["files"], dt))
+                        except Exception:
+                            pass
+
+            conn.commit()
+            return result
+        finally:
+            conn.close()
+
+

@@ -912,6 +912,28 @@ class OptionsDialog(QDialog):
         
         layout.addWidget(grp_aria)
 
+        # Extension IPC Settings
+        grp_ipc = QGroupBox("Extension IPC Settings")
+        ipc_layout = QGridLayout(grp_ipc)
+        ipc_layout.setContentsMargins(10, 15, 10, 15)
+        ipc_layout.setSpacing(12)
+
+        ipc_layout.addWidget(QLabel("IPC Port:"), 0, 0)
+        self.spin_ipc_port = QSpinBox()
+        self.spin_ipc_port.setRange(1024, 65535)
+        self.spin_ipc_port.setValue(self.extension_data.get("ipc_port", 56900))
+        self.spin_ipc_port.setToolTip(
+            "Local IPC port for browser extension downloads. Change if 56900 is in use."
+        )
+        ipc_layout.addWidget(self.spin_ipc_port, 0, 1)
+
+        ipc_hint = QLabel("Local port used by browser extension to send downloads. Change if 56900 is in use.")
+        ipc_hint.setWordWrap(True)
+        ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
+        ipc_layout.addWidget(ipc_hint, 1, 0, 1, 2)
+
+        layout.addWidget(grp_ipc)
+
         # Get Browser Extension Section
         grp_get_ext = QGroupBox("Get Browser Extension")
         get_ext_layout = QHBoxLayout(grp_get_ext)
@@ -1180,12 +1202,19 @@ class OptionsDialog(QDialog):
         elif hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
             token = self.extension_data.get("token", "")
 
+        ipc_port = 56900
+        if hasattr(self, "spin_ipc_port"):
+            ipc_port = self.spin_ipc_port.value()
+        elif hasattr(self, "extension_data") and isinstance(self.extension_data, dict):
+            ipc_port = self.extension_data.get("ipc_port", 56900)
+
         self.extension_data = {
             "protocol": proto, 
             "host": "localhost",
             "port": port,
             "token": token,
-            "max_connections": max_c
+            "max_connections": max_c,
+            "ipc_port": ipc_port
         }
         save_extension_config(self.extension_data)
 

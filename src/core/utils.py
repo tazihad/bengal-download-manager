@@ -536,7 +536,8 @@ def load_extension_config():
         "host": "localhost",
         "port": 56800,
         "token": "",
-        "max_connections": 8
+        "max_connections": 8,
+        "ipc_port": 56900
     }
     if os.path.exists(path):
         try:
@@ -550,6 +551,11 @@ def load_extension_config():
                         merged["max_connections"] = max(1, min(32, conn))
                     except (ValueError, TypeError):
                         merged["max_connections"] = 8
+                    try:
+                        ipc_p = int(merged.get("ipc_port", 56900))
+                        merged["ipc_port"] = max(1024, min(65535, ipc_p))
+                    except (ValueError, TypeError):
+                        merged["ipc_port"] = 56900
                     return merged
         except: pass
     return default
