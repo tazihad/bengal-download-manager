@@ -273,6 +273,11 @@ class OptionsDialog(QDialog):
         lbl_theme.setToolTip("Select application visual theme")
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
+        self.combo_theme.setMaxVisibleItems(10)
+        self.combo_theme.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_theme = self.combo_theme.view()
+        if view_theme:
+            view_theme.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         theme_options = [
             "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
             "Breeze Dark", "Breeze Light", "Catppuccin",
@@ -288,6 +293,11 @@ class OptionsDialog(QDialog):
         lbl_accent.setToolTip("Select accent/highlight color")
         self.combo_accent = QComboBox()
         self.combo_accent.setToolTip("Select accent/highlight color")
+        self.combo_accent.setMaxVisibleItems(10)
+        self.combo_accent.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_accent = self.combo_accent.view()
+        if view_accent:
+            view_accent.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         accent_options = [
             "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
@@ -300,6 +310,11 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
+        self.combo_icon_theme.setMaxVisibleItems(10)
+        self.combo_icon_theme.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_icons = self.combo_icon_theme.view()
+        if view_icons:
+            view_icons.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Yaru"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
@@ -307,6 +322,11 @@ class OptionsDialog(QDialog):
         lbl_tray_icon.setToolTip("Select system tray icon style")
         self.combo_tray_icon = QComboBox()
         self.combo_tray_icon.setToolTip("Select system tray icon style")
+        self.combo_tray_icon.setMaxVisibleItems(10)
+        self.combo_tray_icon.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_tray = self.combo_tray_icon.view()
+        if view_tray:
+            view_tray.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         tray_icon_options = [
             "App Icon (Default)", "Automatic", "Monochrome Dark", "Monochrome Light"
         ]

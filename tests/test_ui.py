@@ -500,6 +500,18 @@ def test_view_sort_by_checkmarks_and_status_bar_child_items(qapp):
     win.close()
 
 
+def test_options_appearance_comboboxes_scrollable(qapp):
+    """Verify that theme, accent, and icon dropdowns have maxVisibleItems constrained and scrollbar enabled."""
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "combo_theme")
+    assert hasattr(dlg, "combo_accent")
+    assert hasattr(dlg, "combo_icon_theme")
 
+    for combo in (dlg.combo_theme, dlg.combo_accent, dlg.combo_icon_theme, dlg.combo_tray_icon):
+        assert combo.maxVisibleItems() == 10
+        assert "combobox-popup: 0" in combo.styleSheet()
+        view = combo.view()
+        assert view is not None
+        assert view.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
 
-
+    dlg.reject()
