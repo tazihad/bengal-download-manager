@@ -338,11 +338,6 @@ class DataUsageDialog(QDialog):
         self.lbl_month_total.setToolTip("Total data downloaded in current month")
         _apply_tabular_font(self.lbl_month_total, point_size=20, bold=True)
         stat_row.addWidget(self.lbl_month_total)
-
-        lbl_sub = QLabel("downloaded this month")
-        lbl_sub.setToolTip("Total data downloaded in current month")
-        lbl_sub.setStyleSheet("font-size: 12px; color: palette(placeholder-text);")
-        stat_row.addWidget(lbl_sub)
         stat_row.addStretch()
 
         self.lbl_today_badge = QLabel("Today: 0 B")

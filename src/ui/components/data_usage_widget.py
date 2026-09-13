@@ -147,11 +147,6 @@ class DataUsageWidget(QFrame):
         self.lbl_downloaded_val.setToolTip("Data completed today (click to view graph)")
         _apply_tabular_font(self.lbl_downloaded_val, point_size=15, bold=True)
         stat_row.addWidget(self.lbl_downloaded_val)
-
-        self.lbl_downloaded_desc = QLabel("downloaded today")
-        self.lbl_downloaded_desc.setProperty("class", "secondaryLabel")
-        self.lbl_downloaded_desc.setToolTip("Data completed today (click to view graph)")
-        stat_row.addWidget(self.lbl_downloaded_desc)
         stat_row.addStretch()
 
         card_layout.addLayout(stat_row)
@@ -344,7 +339,6 @@ class DataUsageWidget(QFrame):
 
         self.lbl_downloaded_val.setText(format_bytes(today_completed_bytes))
         self.lbl_downloaded_val.setToolTip(downloaded_tip)
-        self.lbl_downloaded_desc.setToolTip(downloaded_tip)
         self.lbl_header.setToolTip(downloaded_tip)
         self.today_card.setToolTip(downloaded_tip)
 
