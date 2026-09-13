@@ -158,6 +158,7 @@ def main():
     saved_accent = "BDM (Default)"
     saved_icon_theme = "BDM Auto (Default)"
     saved_tray_icon = "App Icon (Default)"
+    saved_language = "system"
     try:
         if os.path.exists(cfg_path):
             with open(cfg_path, "r") as f:
@@ -166,10 +167,13 @@ def main():
                 saved_accent = normalize_accent_name(s_data.get("accent"))
                 saved_icon_theme = normalize_icon_theme_name(s_data.get("icon_theme"))
                 saved_tray_icon = normalize_tray_icon_name(s_data.get("tray_icon"))
+                saved_language = s_data.get("language", "system")
     except Exception:
         pass
 
     apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app)
+    from core.services.language_service import apply_language
+    apply_language(app, saved_language)
     app.setFont(init_app_font())
     
     # Initialize and set global application icon

@@ -44,6 +44,17 @@ from core.services.theme_service import (
     parse_time_to_sec,
 )
 
+from core.services.language_service import (
+    SUPPORTED_LANGUAGES,
+    get_available_languages,
+    get_language_code,
+    get_language_display,
+    normalize_language_code,
+    get_current_language_code,
+    get_current_language_display,
+    apply_language,
+)
+
 __all__ = [
     "DM_CONNECTOR_PORT",
     "SignalEmitter",
@@ -79,4 +90,12 @@ __all__ = [
     "normalize_tray_icon_name",
     "parse_size_to_bytes",
     "parse_time_to_sec",
+    "SUPPORTED_LANGUAGES",
+    "get_available_languages",
+    "get_language_code",
+    "get_language_display",
+    "normalize_language_code",
+    "get_current_language_code",
+    "get_current_language_display",
+    "apply_language",
 ]

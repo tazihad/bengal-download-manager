@@ -2424,6 +2424,7 @@ class MainWindow(QMainWindow):
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
+                "language": getattr(self, "settings", {}).get("language", "system"),
                 "table_style": getattr(self, "table_style", "classic"),
                 "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
                 "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
@@ -2684,7 +2685,8 @@ class MainWindow(QMainWindow):
             "theme": "BDM Dark (Default)",
             "accent": "BDM (Default)",
             "icon_theme": "BDM Auto (Default)",
-            "tray_icon": "App Icon (Default)"
+            "tray_icon": "App Icon (Default)",
+            "language": "system"
         }
         config_dir = get_config_dir()
         path = os.path.join(config_dir, "settings.json")
@@ -2713,10 +2715,12 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+        from core.services.language_service import normalize_language_code
         settings["theme"] = normalize_theme_name(settings.get("theme"))
         settings["accent"] = normalize_accent_name(settings.get("accent"))
         settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
         settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
+        settings["language"] = normalize_language_code(settings.get("language", "system"))
         settings["table_style"] = settings.get("table_style", "classic")
         self.system_notifications = settings.get("system_notifications", False)
         settings["system_notifications"] = self.system_notifications

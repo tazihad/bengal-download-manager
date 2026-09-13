@@ -373,13 +373,12 @@ class OptionsDialog(QDialog):
 
         layout.addWidget(grp_theme)
 
-        # 2. UI Settings (Right after Theme)
+        # 2. UI Settings (Scale & Language)
         grp_ui = QGroupBox("UI Settings")
-        vbox_ui = QVBoxLayout()
-        vbox_ui.setContentsMargins(10, 8, 10, 8)
-        vbox_ui.setSpacing(8)
+        grid_ui = QGridLayout()
+        grid_ui.setContentsMargins(10, 8, 10, 8)
+        grid_ui.setSpacing(10)
 
-        row_scale = QHBoxLayout()
         lbl_scale = QLabel("Scale:")
         lbl_scale.setToolTip("Set user interface scale factor")
         self.combo_scale = QComboBox()
@@ -405,12 +404,35 @@ class OptionsDialog(QDialog):
             if def_idx != -1:
                 self.combo_scale.setCurrentIndex(def_idx)
 
-        row_scale.addWidget(lbl_scale)
-        row_scale.addWidget(self.combo_scale)
-        row_scale.addStretch()
-        vbox_ui.addLayout(row_scale)
+        lbl_language = QLabel("Language:")
+        lbl_language.setToolTip("Select user interface language")
+        self.combo_language = QComboBox()
+        self.combo_language.setToolTip("Select interface language (Restart recommended to apply changes to all windows)")
 
-        grp_ui.setLayout(vbox_ui)
+        from core.services.language_service import (
+            get_available_languages, get_language_display
+        )
+        self.combo_language.addItems(get_available_languages())
+
+        current_language = "system"
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            current_language = self.main_win.settings.get("language", "system")
+
+        current_lang_display = get_language_display(current_language)
+        idx_lang = self.combo_language.findText(current_lang_display)
+        if idx_lang != -1:
+            self.combo_language.setCurrentIndex(idx_lang)
+        else:
+            self.combo_language.setCurrentIndex(0)
+
+        self.initial_language = self.combo_language.currentText()
+
+        grid_ui.addWidget(lbl_scale, 0, 0)
+        grid_ui.addWidget(self.combo_scale, 0, 1)
+        grid_ui.addWidget(lbl_language, 0, 2)
+        grid_ui.addWidget(self.combo_language, 0, 3)
+
+        grp_ui.setLayout(grid_ui)
         layout.addWidget(grp_ui)
         layout.addStretch()
 
@@ -1290,14 +1312,22 @@ class OptionsDialog(QDialog):
 
         save_category_config(self.config_data)
         
+        from core.services.language_service import (
+            get_language_code, apply_language
+        )
+
         new_scale = self.combo_scale.currentText()
         new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
         new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
-        scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
+        new_lang_display = self.combo_language.currentText() if hasattr(self, 'combo_language') else "System Default"
+        new_lang_code = get_language_code(new_lang_display)
 
-        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, system_notifications, and dialog visibility to parent (MainWindow)
+        scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
+        lang_changed = hasattr(self, 'initial_language') and (self.initial_language != new_lang_display)
+
+        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, language, system_notifications, and dialog visibility to parent (MainWindow)
         if self.main_win:
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
@@ -1321,12 +1351,16 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["accent"] = new_accent
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
+                self.main_win.settings["language"] = new_lang_code
                 self.main_win.settings["system_notifications"] = is_notif
                 self.main_win.settings["silent_download"] = silent_dl
                 self.main_win.settings["show_start_dialog"] = show_start
                 self.main_win.settings["show_progress_dialog"] = show_prog
                 self.main_win.settings["show_complete_dialog"] = show_comp
                 self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+
+            if lang_changed:
+                apply_language(QApplication.instance(), new_lang_code)
 
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
@@ -1340,14 +1374,25 @@ class OptionsDialog(QDialog):
         self.save_proxy_data()
         self.save_extension_data()
 
+        restart_items = []
         if scale_changed:
+            restart_items.append("UI Scale")
+        if lang_changed:
+            restart_items.append("Language")
+
+        if restart_items:
+            items_str = " and ".join(restart_items)
             QMessageBox.information(
                 self,
                 "Restart Required",
-                "UI Scale setting has been changed. Please restart Bengal Download Manager to apply the changes."
+                f"{items_str} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect."
             )
 
         self.accept()
+
+    def get_language(self) -> str:
+        from core.services.language_service import get_language_code
+        return get_language_code(self.combo_language.currentText()) if hasattr(self, 'combo_language') else "system"
 
     def get_theme(self):
         return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
