@@ -1063,6 +1063,14 @@ class MainWindow(QMainWindow):
             QStatusBar::item {
                 border: none;
             }
+            QStatusBar QToolTip, QToolTip {
+                background-color: palette(alternate-base);
+                color: palette(window-text);
+                border: 1px solid palette(mid);
+                padding: 4px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+            }
         """)
 
         tnum_font = QFont(self.font())
@@ -1081,16 +1089,7 @@ class MainWindow(QMainWindow):
             sep.setStyleSheet("color: palette(mid); padding: 0px 2px;")
             return sep
 
-        # 2. Download Speed Status (Permanent widget on right)
-        self.status_speed_label = QLabel("Speed: 0 B/s", self)
-        self.status_speed_label.setFont(tnum_font)
-        self.status_speed_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
-        self.status_speed_label.setToolTip("Total Download Speed: 0 B/s")
-        status_bar.addPermanentWidget(self.status_speed_label)
-
-        status_bar.addPermanentWidget(create_sep())
-
-        # 3. Aria2 Status (Permanent widget on right)
+        # 2. Aria2 Status (Permanent widget on right)
         self.status_aria2_label = QLabel("● Aria2: Ready", self)
         self.status_aria2_label.setFont(tnum_font)
         self.status_aria2_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
@@ -1151,17 +1150,7 @@ class MainWindow(QMainWindow):
         total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
         active_count = len(self.active_downloads) or len(self.active_speeds)
 
-        # 1. Update Status Bar Label
-        if hasattr(self, "status_speed_label") and self.status_speed_label:
-            if total_speed <= 0:
-                self.status_speed_label.setText("Speed: 0 B/s")
-                self.status_speed_label.setToolTip("Total Download Speed: 0 B/s (0 active downloads)")
-            else:
-                speed_str = f"Speed: {format_bytes(total_speed)}/s"
-                self.status_speed_label.setText(speed_str)
-                self.status_speed_label.setToolTip(f"Total Download Speed: {format_bytes(total_speed)}/s ({active_count} active downloads)")
-
-        # 2. Update Tray Icon ToolTip
+        # Update Tray Icon ToolTip
         if hasattr(self, "tray_icon") and self.tray_icon:
             try:
                 if total_speed > 0:

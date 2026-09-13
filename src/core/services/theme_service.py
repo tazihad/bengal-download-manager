@@ -499,18 +499,31 @@ def init_app_font(lang_code: Optional[str] = None) -> QFont:
 
     font_size = 9
     if lang_code == "bn" or (lang_code == "system" and "bn" in QLocale.system().name().lower()):
-        # Prioritize Bengali fonts installed on system
+        # Cross-platform Bengali system fonts (Linux, Windows, macOS)
         candidates = [
+            # Linux system fonts
             "Hind Siliguri", "Kalpurush", "Noto Sans Bengali", "Nikosh",
             "SolaimanLipi", "Mitra", "Mukti", "Akaash", "Bangla",
+            # Windows native fonts
+            "Nirmala UI", "Vrinda",
+            # macOS native fonts
+            "Bangla Sangam MN", "Kohinoor Bangla",
+            # General UI fallbacks
             "Inter", "Segoe UI", "Noto Sans", "Ubuntu", "DejaVu Sans"
         ]
         font_size = 10  # Bengali text is much more legible at 10pt
     elif lang_code in ("ar", "fa", "ur"):
-        candidates = ["Noto Sans Arabic", "Segoe UI", "Tahoma", "Inter", "Ubuntu"]
+        candidates = [
+            "Noto Sans Arabic", "Segoe UI", "Tahoma", "Geeza Pro",
+            "Inter", "Ubuntu", "DejaVu Sans"
+        ]
         font_size = 10
     elif lang_code in ("zh_cn", "zh_tw", "ja", "ko"):
-        candidates = ["Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "Noto Sans CJK KR", "Microsoft YaHei", "Meiryo", "Malgun Gothic", "Inter"]
+        candidates = [
+            "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "Noto Sans CJK KR",
+            "Microsoft YaHei", "PingFang SC", "Meiryo", "Malgun Gothic",
+            "Inter", "Segoe UI", "Noto Sans"
+        ]
     else:
         candidates = ["Inter", "Segoe UI", "Noto Sans", "Ubuntu", "Cantarell", "Liberation Sans", "DejaVu Sans"]
 
@@ -781,6 +794,13 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QSplitter::handle:horizontal {
                 background-color: palette(window);
+            }
+            QToolTip {
+                background-color: palette(alternate-base);
+                color: palette(window-text);
+                border: 1px solid palette(mid);
+                padding: 4px 6px;
+                border-radius: 4px;
             }
         """)
 
