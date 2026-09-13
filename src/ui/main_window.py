@@ -706,18 +706,6 @@ class MainWindow(QMainWindow):
             self.sort_actions[0].setChecked(True)
 
         view_menu.addSeparator()
-        self.action_hide_categories = QAction(self.tr("&Hide categories"), self)
-        self.action_hide_categories.setCheckable(True)
-        self.action_hide_categories.setChecked(getattr(self, "_categories_hidden", False))
-        self.action_hide_categories.setEnabled(True)
-        self.action_hide_categories.triggered.connect(self.toggle_hide_categories)
-        view_menu.addAction(self.action_hide_categories)
-
-        self.action_toolbar_toggle = QAction(self.tr("&Toolbar"), self)
-        self.action_toolbar_toggle.setCheckable(True)
-        self.action_toolbar_toggle.setChecked(True)
-        self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
-        view_menu.addAction(self.action_toolbar_toggle)
 
         # Status Bar Submenu with child items (Memory, Aria2 Status, IPC Status, Speed, Public IP)
         self.status_bar_menu = view_menu.addMenu(self.tr("&Status Bar"))
@@ -765,6 +753,19 @@ class MainWindow(QMainWindow):
         self.action_sb_public_ip.setChecked(prev_ip)
         self.action_sb_public_ip.triggered.connect(self._on_status_bar_child_toggled)
         self.status_bar_menu.addAction(self.action_sb_public_ip)
+
+        self.action_hide_categories = QAction(self.tr("&Hide categories"), self)
+        self.action_hide_categories.setCheckable(True)
+        self.action_hide_categories.setChecked(getattr(self, "_categories_hidden", False))
+        self.action_hide_categories.setEnabled(True)
+        self.action_hide_categories.triggered.connect(self.toggle_hide_categories)
+        view_menu.addAction(self.action_hide_categories)
+
+        self.action_toolbar_toggle = QAction(self.tr("&Toolbar"), self)
+        self.action_toolbar_toggle.setCheckable(True)
+        self.action_toolbar_toggle.setChecked(True)
+        self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
+        view_menu.addAction(self.action_toolbar_toggle)
 
         self.action_data_usage_toggle = QAction(self.tr("&Data usage summary"), self)
         self.action_data_usage_toggle.setCheckable(True)
