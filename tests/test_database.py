@@ -220,3 +220,43 @@ def test_thread_concurrency(tmp_path):
         t.join()
 
     assert not errors
+
+
+def test_daily_data_usage_crud_and_cleanup(tmp_path):
+    """Verify daily data usage record, idempotency, month cleanup, and reconciliation."""
+    from core.database import (
+        record_daily_usage,
+        get_month_daily_usage,
+        cleanup_old_data_usage,
+    )
+    db_file = str(tmp_path / "test_usage.db")
+    init_db(db_file)
+
+    # 1. Record today's usage (snapshot)
+    record_daily_usage("2026-09-13", 1048576, 2, db_path=db_file)
+    # Calling again should update / remain idempotent, not compound
+    record_daily_usage("2026-09-13", 1048576, 2, db_path=db_file)
+
+    usage = get_month_daily_usage("2026-09", db_path=db_file)
+    assert "2026-09-13" in usage
+    assert usage["2026-09-13"]["bytes"] == 1048576
+    assert usage["2026-09-13"]["files"] == 2
+
+    # 2. Add an entry from previous month directly
+    conn = get_db_connection(db_file)
+    with conn:
+        conn.execute("INSERT INTO daily_data_usage (date, bytes_downloaded, files_count) VALUES ('2026-08-30', 5242880, 5);")
+    conn.close()
+
+    # Clean up old data usage for current month
+    cleanup_old_data_usage(current_month="2026-09", db_path=db_file)
+    conn = get_db_connection(db_file)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT date FROM daily_data_usage;")
+        dates = [r[0] for r in cur.fetchall()]
+        assert "2026-09-13" in dates
+        assert "2026-08-30" not in dates
+    finally:
+        conn.close()
+

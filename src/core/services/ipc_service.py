@@ -24,6 +24,15 @@ logger = logging.getLogger("bengal.ipc")
 DM_CONNECTOR_PORT = 56900
 
 
+def get_ipc_port() -> int:
+    """Retrieve configured IPC port for extension communication, fallback to default."""
+    ext_data = load_extension_config()
+    try:
+        return int(ext_data.get("ipc_port", DM_CONNECTOR_PORT))
+    except (ValueError, TypeError):
+        return DM_CONNECTOR_PORT
+
+
 class SignalEmitter(QObject):
     """Utility to emit signals safely to the GUI thread."""
     new_download_signal = pyqtSignal(str)
@@ -55,9 +64,11 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             app_version = "0.1"
 
+        server_port = self.server.server_address[1] if (hasattr(self, 'server') and hasattr(self.server, 'server_address')) else ext_data.get("ipc_port", DM_CONNECTOR_PORT)
         config_json = json.dumps({
             "status": "Bengal DM is running",
             "version": app_version,
+            "ipc_port": server_port,
             "aria2": {
                 "port": ext_data.get("port", 56800),
                 "token": ext_data.get("token", "")
@@ -142,6 +153,10 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             logger.debug("[IPC HTTP] %s - %s", self.client_address[0], format % args)
 
 
+class ReusableHTTPServer(HTTPServer):
+    allow_reuse_address = True
+
+
 class TcpListenerThread(QThread):
     """Background TCP HTTP server listening for browser extension downloads."""
 
@@ -155,27 +170,53 @@ class TcpListenerThread(QThread):
         try:
             if is_debug_mode():
                 logger.debug("[IPC] Starting extension TCP listener thread on 127.0.0.1:%s", self.port)
-            self.server = HTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
+            self.server = ReusableHTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
             # Attach emitter to server so handler can access it
             self.server.emitter = self.emitter 
             if is_debug_mode():
                 logger.debug("[IPC] Extension TCP listener bound and active on port %s", self.port)
             self.server.serve_forever()
+        except OSError as e:
+            if getattr(e, 'errno', None) == 98 or 'Address already in use' in str(e):
+                logger.error(
+                    "[IPC] Failed to run TCP listener on port %s: [Errno 98] Address already in use. "
+                    "Another instance or service is occupying this port. "
+                    "You can change the IPC Port in Tools -> Options -> Extension tab.",
+                    self.port
+                )
+            else:
+                logger.error("[IPC] Failed to run TCP listener on port %s: %s", self.port, e)
         except Exception as e:
             logger.error("[IPC] Failed to run TCP listener on port %s: %s", self.port, e)
 
-    def stop(self):
-        if self.server:
+    def stop(self, timeout_ms=2000):
+        srv = self.server
+        self.server = None
+        if srv:
             if is_debug_mode():
                 logger.debug("[IPC] Stopping extension TCP listener on port %s", self.port)
-            # shutdown() must be called from another thread
-            def cleanup():
+            def _cleanup():
                 try:
-                    self.server.shutdown()
-                    self.server.server_close()
+                    srv.shutdown()
                 except Exception:
                     pass
-            threading.Thread(target=cleanup, daemon=True).start()
+                try:
+                    srv.server_close()
+                except Exception:
+                    pass
+                try:
+                    if hasattr(srv, "socket") and srv.socket:
+                        srv.socket.close()
+                except Exception:
+                    pass
+            t = threading.Thread(target=_cleanup, daemon=True)
+            t.start()
+            t.join(timeout=(timeout_ms / 1000.0 if timeout_ms else 2.0))
+        try:
+            self.quit()
+            self.wait(timeout_ms or 2000)
+        except Exception:
+            pass
 
 
 # Alias for compatibility

@@ -29,6 +29,16 @@ def _get_category_for_filename(filename: str) -> str:
     return "General"
 
 
+class NoFocusTableDelegate(QStyledItemDelegate):
+    """
+    Delegate that strips State_HasFocus so Qt/KDE Breeze does not render
+    an unwanted accent focus rectangle or cell outline on selected items.
+    """
+    def initStyleOption(self, option: QStyleOptionViewItem, index):
+        super().initStyleOption(option, index)
+        option.state &= ~QStyle.StateFlag.State_HasFocus
+
+
 class ModernTableDelegate(QStyledItemDelegate):
     """Custom item delegate rendering the Modern card/two-line table view."""
 

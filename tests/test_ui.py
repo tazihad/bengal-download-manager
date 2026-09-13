@@ -229,3 +229,174 @@ def test_options_dialog_max_connections_persistence(qapp, monkeypatch, tmp_path)
     dlg2 = OptionsDialog()
     assert dlg2.spin_max_conn.value() == 16
     dlg2.reject()
+
+
+def test_options_dialog_ipc_port_persistence(qapp, monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    save_extension_config({"protocol": "ws", "port": 56800, "token": "", "max_connections": 8, "ipc_port": 56900})
+
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "spin_ipc_port")
+    assert dlg.spin_ipc_port.minimum() == 1024
+    assert dlg.spin_ipc_port.maximum() == 65535
+    assert dlg.spin_ipc_port.value() == 56900
+    assert "56900" in dlg.spin_ipc_port.toolTip()
+    assert "IPC" in dlg.spin_ipc_port.toolTip()
+
+    # Change to 56905 and save
+    dlg.spin_ipc_port.setValue(56905)
+    dlg.save_and_accept()
+
+    loaded = load_extension_config()
+    assert loaded["ipc_port"] == 56905
+
+    # Reopen dialog and verify 56905 is displayed
+    dlg2 = OptionsDialog()
+    assert dlg2.spin_ipc_port.value() == 56905
+    dlg2.reject()
+
+
+def test_main_window_data_usage_widget(qapp):
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    assert hasattr(win, "left_panel_container")
+    assert hasattr(win, "data_usage_widget")
+    assert win.data_usage_widget is not None
+
+    # Verify initial stats
+    widget = win.data_usage_widget
+    assert hasattr(widget, "lbl_downloaded_val")
+    assert hasattr(widget, "lbl_files_val")
+    assert hasattr(widget, "lbl_active_val")
+    assert hasattr(widget, "lbl_speed_val")
+    assert hasattr(widget, "storage_progress")
+
+    # Refresh stats
+    widget.refresh_stats(win)
+    assert int(widget.lbl_files_val.text()) >= 0
+    assert int(widget.lbl_files_val.text()) <= win.download_table.rowCount()
+    assert widget.lbl_active_val.text() == "0"
+    assert widget.storage_progress.minimum() == 0
+    assert widget.storage_progress.maximum() == 100
+
+    # Test toggling data usage summary via View menu action
+    assert hasattr(win, "action_data_usage_toggle")
+    assert win.action_data_usage_toggle.isChecked()
+    win.toggle_data_usage(False, save=False)
+    assert win.data_usage_widget.isHidden()
+    assert not win.action_data_usage_toggle.isChecked()
+    win.toggle_data_usage(True, save=False)
+    assert not win.data_usage_widget.isHidden()
+    assert win.action_data_usage_toggle.isChecked()
+
+    # Test DataUsageDialog instantiation
+    from ui.dialogs import DataUsageDialog
+    dlg = DataUsageDialog(parent=win)
+    assert dlg is not None
+    dlg.close()
+
+    # Test hiding left panel
+    win.toggle_hide_categories(True, save=False)
+    assert win.left_panel_container.isHidden()
+    win.toggle_hide_categories(False, save=False)
+    assert not win.left_panel_container.isHidden()
+
+    win.close()
+
+
+def test_clear_completed_preserves_data_usage(qapp):
+    """Verify that clicking Clear Completed retains today's data in the widget and graph dialog."""
+    import time
+    from datetime import datetime
+    from PyQt6.QtWidgets import QTableWidgetItem
+    from core.database import get_month_daily_usage
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    today_ts = str(time.time())
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    win.download_table.setRowCount(1)
+    item_0 = QTableWidgetItem("test_download.iso")
+    item_0.setData(Qt.ItemDataRole.UserRole, "http://example.com/test_download.iso")
+    item_0.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/test_download.iso")
+    item_0.setData(Qt.ItemDataRole.UserRole + 2, today_ts)
+    item_0.setData(Qt.ItemDataRole.UserRole + 3, today_ts)
+    item_0.setData(Qt.ItemDataRole.UserRole + 11, "Complete")
+    win.download_table.setItem(0, 0, item_0)
+
+    item_1 = QTableWidgetItem("10.00 MB")
+    win.download_table.setItem(0, 1, item_1)
+
+    item_2 = QTableWidgetItem("Complete")
+    item_2.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
+    win.download_table.setItem(0, 2, item_2)
+
+    # Refresh stats before clear
+    win.data_usage_widget.refresh_stats(win)
+    val_before = win.data_usage_widget.lbl_downloaded_val.text()
+    files_before = win.data_usage_widget.lbl_files_val.text()
+    assert int(files_before) >= 1
+
+    # Clear completed downloads
+    win.clear_finished_downloads()
+    assert win.download_table.rowCount() == 0
+
+    # Refresh stats after clear
+    win.data_usage_widget.refresh_stats(win)
+    assert win.data_usage_widget.lbl_downloaded_val.text() == val_before
+    assert win.data_usage_widget.lbl_files_val.text() == files_before
+
+    # Verify dialog graph data also preserves today's usage
+    from ui.dialogs import DataUsageDialog
+    dlg = DataUsageDialog(parent=win)
+    assert dlg.lbl_month_total.text() != "0 B"
+    assert "Today: 0 B" not in dlg.lbl_today_badge.text()
+    dlg.close()
+
+    win.close()
+
+
+def test_deleted_table_item_does_not_crash_handlers(qapp):
+    """Verify that late signals and helper methods never crash with RuntimeError when an item is deleted."""
+    from PyQt6.QtWidgets import QTableWidgetItem
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    win.download_table.setRowCount(1)
+    item_0 = QTableWidgetItem("file_to_delete.bin")
+    item_0.setData(Qt.ItemDataRole.UserRole, "http://example.com/file_to_delete.bin")
+    win.download_table.setItem(0, 0, item_0)
+    item_1 = QTableWidgetItem("10 MB")
+    win.download_table.setItem(0, 1, item_1)
+    item_2 = QTableWidgetItem("Downloading")
+    win.download_table.setItem(0, 2, item_2)
+
+    assert win._is_item_valid(item_0) is True
+    key = win._get_item_key(item_0)
+    assert key is not None
+
+    # Delete the row, which frees the underlying C++ QTableWidgetItem
+    win.download_table.removeRow(0)
+
+    # Now item_0 wrapper points to a deleted C++ object
+    assert win._is_item_valid(item_0) is False
+    assert win._get_item_key(item_0) is None
+
+    # Simulate late worker signals arriving after deletion
+    mock_data = ("file_to_delete.bin", "10 MB", "Downloading", "00:01", "1 MB/s", 5000000, 10000000, 1000000, 1)
+    win.update_download_row(item_0, mock_data)
+    win.download_finished(item_0, "Complete")
+    win.download_finished(item_0, "Cancelled")
+    win._apply_download_row_data(item_0, mock_data)
+    win._on_media_download_finished(key, item_0, "/tmp/file_to_delete.bin")
+
+    win.close()
+
+
+
+

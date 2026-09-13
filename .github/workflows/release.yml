@@ -2,17 +2,8 @@ name: Release
 
 on:
   push:
-    branches:
-      - 'main'
-      - 'dev'
     tags:
       - 'v*'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'assets/**'
-      - 'LICENSE'
-      - '.gitignore'
   workflow_dispatch:
     inputs:
       tag_name:

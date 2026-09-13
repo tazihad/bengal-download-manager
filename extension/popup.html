@@ -26,36 +26,36 @@
       </div>
     </div>
 
-    <!-- Quick Capture Controls (FDM Style) -->
+    <!-- Quick Capture Controls -->
     <div class="controls-card">
       <!-- Master Global Toggle -->
-      <label class="toggle-row" id="global-toggle-row">
+      <div class="toggle-row" id="global-toggle-row">
         <div class="toggle-info">
-          <span class="toggle-title">Capture downloads from all sites</span>
-          <span class="toggle-subtitle" id="global-subtitle">Capture downloads browser-wide</span>
+          <span class="toggle-title">Capture downloads</span>
+          <span class="toggle-subtitle" id="global-subtitle">Active browser-wide</span>
         </div>
-        <div class="switch">
+        <label class="switch" for="toggle-global-interception">
           <input type="checkbox" id="toggle-global-interception" checked>
           <span class="slider"></span>
-        </div>
-      </label>
+        </label>
+      </div>
 
       <div class="divider"></div>
 
       <!-- Current Website Toggle -->
-      <label class="toggle-row" id="site-toggle-row">
+      <div class="toggle-row" id="site-toggle-row">
         <div class="toggle-info">
-          <span class="toggle-title">Don't catch downloads from this site</span>
+          <span class="toggle-title">Capture on this site</span>
           <div class="toggle-subtitle" id="site-subtitle">
             <span class="site-domain" id="site-domain">Checking website...</span>
             <span class="site-desc" id="site-desc"></span>
           </div>
         </div>
-        <div class="switch">
-          <input type="checkbox" id="toggle-site-interception">
+        <label class="switch" for="toggle-site-interception">
+          <input type="checkbox" id="toggle-site-interception" checked>
           <span class="slider"></span>
-        </div>
-      </label>
+        </label>
+      </div>
     </div>
   </div>
 

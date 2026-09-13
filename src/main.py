@@ -11,6 +11,8 @@ import os
 import json
 import threading
 import traceback
+import signal
+import atexit
 from typing import Optional
 
 # Setup import search paths
@@ -204,6 +206,52 @@ def main():
         single_instance_server.messageReceived.connect(handle_single_instance_msg)
         single_instance_server.start()
         window.single_instance_server = single_instance_server
+
+    # --- GRACEFUL EXIT & SHUTDOWN HANDLING ---
+    def perform_cleanup():
+        """Ensure all background threads, servers, and aria2 daemon are cleanly terminated."""
+        try:
+            if hasattr(window, "listener_thread") and window.listener_thread:
+                window.listener_thread.stop(timeout_ms=1500)
+                window.listener_thread = None
+        except Exception:
+            pass
+
+        try:
+            if hasattr(window, "single_instance_server") and window.single_instance_server:
+                window.single_instance_server.stop()
+                window.single_instance_server = None
+        except Exception:
+            pass
+
+        try:
+            if hasattr(window, "stop_aria2_daemon"):
+                window.stop_aria2_daemon()
+        except Exception:
+            pass
+
+    app.aboutToQuit.connect(perform_cleanup)
+    atexit.register(perform_cleanup)
+
+    # Allow clean Ctrl+C / SIGTERM termination within Qt's event loop
+    def sig_handler(signum, frame):
+        logger.info("Signal %s received. Shutting down gracefully...", signum)
+        if hasattr(window, "quit_app"):
+            window.quit_app()
+        else:
+            perform_cleanup()
+            app.quit()
+
+    try:
+        signal.signal(signal.SIGINT, sig_handler)
+        signal.signal(signal.SIGTERM, sig_handler)
+    except Exception:
+        pass
+
+    # Heartbeat timer to periodically yield control to Python interpreter for signal handling
+    heartbeat_timer = QTimer()
+    heartbeat_timer.timeout.connect(lambda: None)
+    heartbeat_timer.start(500)
 
     if "--minimized" in sys.argv:
         window.start_minimized = True
