@@ -262,7 +262,7 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
 
     # If pure English, no extra translation catalog needed
     if lang_code == "en":
-        logger.info("[i18n] Language 'en' (locale: en_US) applied.")
+        logger.debug("[i18n] Language 'en' (locale: en_US) applied.")
         return True
 
     success = False
@@ -333,7 +333,7 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
 
     success = base_loaded or app_loaded or lang_code == "system"
     font_family = app.font().family() if isinstance(app, QApplication) else "N/A"
-    logger.info(
+    logger.debug(
         "[i18n] Language '%s' (locale: %s) applied. Font: %s, Base: %s, App: %s (%d translations)",
         lang_code, target_locale, font_family, base_loaded, app_loaded, trans_count
     )
