@@ -393,8 +393,23 @@ class GrabberDialog(QDialog):
             self.txt_url.setFocus()
             return
 
-        if not (url.startswith("http://") or url.startswith("https://")):
-            url = "https://" + url
+        import re
+        import ipaddress
+        # Extract URL if pasted with leading or trailing words (e.g. "h5ai http://...")
+        m = re.search(r"https?://\S+", url)
+        if m:
+            url = m.group(0)
+            self.txt_url.setText(url)
+        elif not (url.startswith("http://") or url.startswith("https://")):
+            host_candidate = url.split("/")[0].split(":")[0]
+            try:
+                ipaddress.ip_address(host_candidate)
+                url = "http://" + url
+            except ValueError:
+                if host_candidate.lower() in ("localhost", "127.0.0.1"):
+                    url = "http://" + url
+                else:
+                    url = "https://" + url
             self.txt_url.setText(url)
 
         # Clear previous exploration results
@@ -416,6 +431,8 @@ class GrabberDialog(QDialog):
             "start_url": url,
             "explore_depth": self.spin_depth.value(),
             "stay_same_domain": self.chk_same_domain.isChecked(),
+            "dont_explore_parent_dirs": True,
+            "allow_private_hosts": True,
             "hide_duplicates": self.chk_hide_dupes.isChecked(),
             "file_include_patterns": patterns,
             "save_path": self.txt_save_path.text().strip(),

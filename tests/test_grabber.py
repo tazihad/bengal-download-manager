@@ -8,12 +8,27 @@ from PyQt6.QtWidgets import QApplication
 
 from core.grabber.crawler import (
     is_private_or_loopback_host,
+    is_cloud_metadata_host,
     wildcard_to_regex,
     LinkExtractor,
     GrabberCrawler
 )
 from ui.dialogs.grabber import GrabberDialog, GRABBER_PRESETS
 from main import MainWindow
+
+
+def test_is_cloud_metadata_host():
+    """Verify cloud instance metadata addresses are properly flagged."""
+    assert is_cloud_metadata_host("169.254.169.254") is True
+    assert is_cloud_metadata_host("169.254.169.254:80") is True
+    assert is_cloud_metadata_host("metadata.google.internal") is True
+    assert is_cloud_metadata_host("instance-data") is True
+
+    # Local LAN / BDIX IPs should NOT be flagged as cloud metadata
+    assert is_cloud_metadata_host("172.16.50.12") is False
+    assert is_cloud_metadata_host("192.168.1.1") is False
+    assert is_cloud_metadata_host("10.0.0.1") is False
+    assert is_cloud_metadata_host("example.com") is False
 
 
 def test_is_private_or_loopback_host():

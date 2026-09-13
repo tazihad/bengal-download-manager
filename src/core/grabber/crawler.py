@@ -29,6 +29,24 @@ HTML_EXTENSIONS = {
 }
 
 
+def is_cloud_metadata_host(host: str) -> bool:
+    """
+    Checks if host is an AWS, GCP, Azure, or OpenStack cloud instance metadata address.
+    These are link-local metadata endpoints that must never be targeted by crawlers.
+    """
+    if not host:
+        return False
+    host_clean = host.strip().lower().split(":")[0]
+    if host_clean in ("169.254.169.254", "instance-data", "metadata.google.internal"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host_clean)
+        return str(ip) == "169.254.169.254" or ip.is_link_local
+    except ValueError:
+        pass
+    return False
+
+
 def is_private_or_loopback_host(host: str) -> bool:
     """
     SSRF gate (CWE-918): Checks if host is loopback, link-local, RFC-1918,
@@ -37,7 +55,7 @@ def is_private_or_loopback_host(host: str) -> bool:
     if not host:
         return True
 
-    host_clean = host.strip().lower()
+    host_clean = host.strip().lower().split(":")[0]
     if host_clean in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
         return True
 
@@ -109,20 +127,22 @@ class LinkExtractor(HTMLParser):
         tag_lower = tag.lower()
 
         candidates = []
-        if tag_lower in ("a", "link", "area"):
+        if tag_lower in ("a", "area"):
             if "href" in attr_dict:
                 candidates.append(attr_dict["href"])
-        if tag_lower in ("img", "script", "video", "audio", "source", "iframe", "embed"):
+        elif tag_lower in ("video", "audio", "source", "iframe", "embed"):
             if "src" in attr_dict:
                 candidates.append(attr_dict["src"])
-            if "data-src" in attr_dict:
-                candidates.append(attr_dict["data-src"])
-            if "data-original" in attr_dict:
-                candidates.append(attr_dict["data-original"])
+        elif tag_lower == "img":
+            src = attr_dict.get("src", "") or attr_dict.get("data-src", "") or attr_dict.get("data-original", "")
+            if src and "/_h5ai/" not in src:
+                candidates.append(src)
 
         for raw in candidates:
             raw_clean = raw.strip()
             if not raw_clean or raw_clean.startswith(("javascript:", "mailto:", "tel:", "#")):
+                continue
+            if "/_h5ai/" in raw_clean:
                 continue
             try:
                 resolved = urllib.parse.urljoin(self.base_url, raw_clean)
@@ -158,12 +178,23 @@ class GrabberCrawler(QThread):
     def is_safe_host(self, host: str) -> bool:
         if not host:
             return False
-        h = host.lower()
+        h = host.lower().split(":")[0]
         if h in self._resolved_host_cache:
             return self._resolved_host_cache[h]
-        unsafe = is_private_or_loopback_host(h)
-        self._resolved_host_cache[h] = not unsafe
-        return not unsafe
+
+        # Cloud metadata service (169.254.169.254) is always blocked
+        if is_cloud_metadata_host(h):
+            self._resolved_host_cache[h] = False
+            return False
+
+        # Private/LAN/BDIX/loopback hosts are allowed by default for desktop downloading
+        allow_private = self.config.get("allow_private_hosts", True)
+        if not allow_private and is_private_or_loopback_host(h):
+            self._resolved_host_cache[h] = False
+            return False
+
+        self._resolved_host_cache[h] = True
+        return True
 
     def run(self):
         start_url_raw = self.config.get("start_url", "").strip()
@@ -171,22 +202,36 @@ class GrabberCrawler(QThread):
             self.crawl_failed.emit("Please enter a valid start URL.")
             return
 
-        if not (start_url_raw.startswith("http://") or start_url_raw.startswith("https://")):
-            start_url_raw = "https://" + start_url_raw
+        # Extract URL if pasted with leading/trailing text (e.g. "h5ai http://...")
+        m = re.search(r"https?://\S+", start_url_raw)
+        if m:
+            start_url_raw = m.group(0)
+        elif not (start_url_raw.startswith("http://") or start_url_raw.startswith("https://")):
+            # Check if host is an IP address or localhost; default to http://
+            host_part = start_url_raw.split("/")[0].split(":")[0]
+            try:
+                ipaddress.ip_address(host_part)
+                start_url_raw = "http://" + start_url_raw
+            except ValueError:
+                if host_part.lower() in ("localhost", "127.0.0.1"):
+                    start_url_raw = "http://" + start_url_raw
+                else:
+                    start_url_raw = "https://" + start_url_raw
 
         parsed_start = urllib.parse.urlparse(start_url_raw)
         if not parsed_start.netloc:
             self.crawl_failed.emit("Invalid start URL provided.")
             return
 
-        root_domain = parsed_start.netloc.lower()
+        root_domain = parsed_start.netloc.lower().split(":")[0]
         if not self.is_safe_host(root_domain):
-            self.crawl_failed.emit("Start URL resolves to a private, loopback, or local address.")
+            self.crawl_failed.emit("Start URL is not accessible or points to a blocked cloud metadata address.")
             return
 
         max_depth = int(self.config.get("explore_depth", 1))
         stay_domain = bool(self.config.get("stay_same_domain", True))
         stay_path = bool(self.config.get("stay_same_path", False))
+        dont_explore_parent_dirs = bool(self.config.get("dont_explore_parent_dirs", True))
         hide_duplicates = bool(self.config.get("hide_duplicates", True))
         include_masks = self.config.get("file_include_patterns", ["*.*"])
         exclude_masks = self.config.get("file_exclude_patterns", [])
@@ -241,16 +286,21 @@ class GrabberCrawler(QThread):
                     if parsed_link.scheme not in ("http", "https"):
                         continue
 
-                    link_host = parsed_link.netloc.lower()
+                    link_host = parsed_link.netloc.lower().split(":")[0]
 
                     # Domain check
                     if stay_domain:
                         if link_host != root_domain and not link_host.endswith("." + root_domain):
                             continue
 
+                    # Parent directory check: don't wander into parent directories
+                    if dont_explore_parent_dirs and parsed_link.path and not parsed_link.path.startswith(start_path_prefix):
+                        continue
+
                     # Path check
                     if stay_path and parsed_link.path and not parsed_link.path.startswith(start_path_prefix):
                         continue
+
 
                     # SSRF Check
                     if not self.is_safe_host(link_host):
