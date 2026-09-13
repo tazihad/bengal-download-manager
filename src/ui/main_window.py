@@ -52,9 +52,9 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMessageBox, QMenu,
     QFileIconProvider, QInputDialog, QDialog, QWidget,
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox, QLineEdit,
-    QSystemTrayIcon, QRubberBand
+    QSystemTrayIcon, QRubberBand, QToolTip
 )
-from PyQt6.QtGui import QAction, QActionGroup, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent
+from PyQt6.QtGui import QAction, QActionGroup, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent, QCursor
 from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
@@ -445,6 +445,15 @@ class MainWindow(QMainWindow):
                     pass
             self.active_fetchers.clear()
 
+        # Stop active IP worker thread
+        if hasattr(self, "_ip_worker") and self._ip_worker:
+            try:
+                self._ip_worker.quit()
+                self._ip_worker.wait(500)
+            except Exception:
+                pass
+            self._ip_worker = None
+
         # 5. Close all active dialog windows
         if hasattr(self, "active_file_info_dialogs"):
             for dlg in list(self.active_file_info_dialogs.values()):
@@ -674,14 +683,27 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
 
         sort_menu = view_menu.addMenu(self.tr("Sort by"))
+        self.sort_action_group = QActionGroup(self)
+        self.sort_action_group.setExclusive(True)
+        self.sort_actions = {}
         sort_fields = [
             ("File Name", 0), ("Size", 1), ("Status", 2), ("Time Left", 3), 
             ("Transfer Rate", 4), ("Last Try", 5), ("Date Added", 6)
         ]
         for name, col_idx in sort_fields:
             action = QAction(self.tr(name), self)
-            action.triggered.connect(lambda checked, c=col_idx: self.download_table.sortItems(c, Qt.SortOrder.AscendingOrder))
+            action.setCheckable(True)
+            self.sort_action_group.addAction(action)
+            action.triggered.connect(lambda checked, c=col_idx: self._on_sort_action_triggered(c))
             sort_menu.addAction(action)
+            self.sort_actions[col_idx] = action
+
+        # Initialize checked state based on current table sort or default to column 0
+        curr_sort_col = self.download_table.horizontalHeader().sortIndicatorSection() if hasattr(self, "download_table") else 0
+        if curr_sort_col in self.sort_actions:
+            self.sort_actions[curr_sort_col].setChecked(True)
+        elif 0 in self.sort_actions:
+            self.sort_actions[0].setChecked(True)
 
         view_menu.addSeparator()
         self.action_hide_categories = QAction(self.tr("&Hide categories"), self)
@@ -697,11 +719,52 @@ class MainWindow(QMainWindow):
         self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
         view_menu.addAction(self.action_toolbar_toggle)
 
-        self.action_status_bar_toggle = QAction(self.tr("&Status Bar"), self)
+        # Status Bar Submenu with child items (Memory, Aria2 Status, IPC Status, Speed, Public IP)
+        self.status_bar_menu = view_menu.addMenu(self.tr("&Status Bar"))
+
+        prev_sb_show = getattr(self, "action_status_bar_toggle", None).isChecked() if hasattr(self, "action_status_bar_toggle") else True
+        self.action_status_bar_toggle = QAction(self.tr("&Show Status Bar"), self)
         self.action_status_bar_toggle.setCheckable(True)
-        self.action_status_bar_toggle.setChecked(True)
+        self.action_status_bar_toggle.setChecked(prev_sb_show)
         self.action_status_bar_toggle.triggered.connect(self.toggle_status_bar)
-        view_menu.addAction(self.action_status_bar_toggle)
+        self.status_bar_menu.addAction(self.action_status_bar_toggle)
+
+        self.status_bar_menu.addSeparator()
+
+        prev_mem = getattr(self, "action_sb_memory", None).isChecked() if hasattr(self, "action_sb_memory") else True
+        self.action_sb_memory = QAction(self.tr("&Memory"), self)
+        self.action_sb_memory.setCheckable(True)
+        self.action_sb_memory.setChecked(prev_mem)
+        self.action_sb_memory.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_memory)
+
+        prev_aria2 = getattr(self, "action_sb_aria2", None).isChecked() if hasattr(self, "action_sb_aria2") else True
+        self.action_sb_aria2 = QAction(self.tr("&Aria2 Status"), self)
+        self.action_sb_aria2.setCheckable(True)
+        self.action_sb_aria2.setChecked(prev_aria2)
+        self.action_sb_aria2.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_aria2)
+
+        prev_ipc = getattr(self, "action_sb_ipc", None).isChecked() if hasattr(self, "action_sb_ipc") else True
+        self.action_sb_ipc = QAction(self.tr("&IPC Status"), self)
+        self.action_sb_ipc.setCheckable(True)
+        self.action_sb_ipc.setChecked(prev_ipc)
+        self.action_sb_ipc.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_ipc)
+
+        prev_speed = getattr(self, "action_sb_speed", None).isChecked() if hasattr(self, "action_sb_speed") else False
+        self.action_sb_speed = QAction(self.tr("&Speed"), self)
+        self.action_sb_speed.setCheckable(True)
+        self.action_sb_speed.setChecked(prev_speed)
+        self.action_sb_speed.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_speed)
+
+        prev_ip = getattr(self, "action_sb_public_ip", None).isChecked() if hasattr(self, "action_sb_public_ip") else False
+        self.action_sb_public_ip = QAction(self.tr("&Public IP"), self)
+        self.action_sb_public_ip.setCheckable(True)
+        self.action_sb_public_ip.setChecked(prev_ip)
+        self.action_sb_public_ip.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_public_ip)
 
         self.action_data_usage_toggle = QAction(self.tr("&Data usage summary"), self)
         self.action_data_usage_toggle.setCheckable(True)
@@ -1024,6 +1087,7 @@ class MainWindow(QMainWindow):
         header.setSectionsClickable(True)
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         header.customContextMenuRequested.connect(self.show_header_context_menu)
+        header.sortIndicatorChanged.connect(self._on_table_sort_indicator_changed)
 
         # Change resize mode to Interactive for all columns
         for i in range(self.download_table.columnCount()):
@@ -1083,29 +1147,113 @@ class MainWindow(QMainWindow):
         self.status_items_label.setStyleSheet("color: palette(window-text); padding: 0px 4px;")
         status_bar.addWidget(self.status_items_label, 1)
 
-        # Helper to create separator
+        # Permanent widgets (Right): Speed, Aria2 Status, IPC Status, Public IP, Memory
         def create_sep():
             sep = QLabel("│", self)
             sep.setStyleSheet("color: palette(mid); padding: 0px 2px;")
             return sep
 
-        # 2. Aria2 Status (Permanent widget on right)
+        # 1. Speed Status
+        self.sep_speed = create_sep()
+        self.status_speed_label = QLabel("Speed: 0 B/s", self)
+        self.status_speed_label.setFont(tnum_font)
+        self.status_speed_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_speed_label.setToolTip("Total Transfer Rate")
+        status_bar.addPermanentWidget(self.sep_speed)
+        status_bar.addPermanentWidget(self.status_speed_label)
+
+        # 2. Aria2 Status
+        self.sep_aria2 = create_sep()
         self.status_aria2_label = QLabel("● Aria2: Ready", self)
         self.status_aria2_label.setFont(tnum_font)
         self.status_aria2_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
         self.status_aria2_label.setToolTip("Aria2 RPC Status")
+        status_bar.addPermanentWidget(self.sep_aria2)
         status_bar.addPermanentWidget(self.status_aria2_label)
 
-        status_bar.addPermanentWidget(create_sep())
+        # 3. IPC Status
+        self.sep_ipc = create_sep()
+        self.status_ipc_label = QLabel("● IPC: Ready", self)
+        self.status_ipc_label.setFont(tnum_font)
+        self.status_ipc_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_ipc_label.setToolTip("Browser Extension IPC Status")
+        status_bar.addPermanentWidget(self.sep_ipc)
+        status_bar.addPermanentWidget(self.status_ipc_label)
 
-        # 4. Memory Status (Permanent widget on right)
+        # 4. Public IP Status
+        self.sep_public_ip = create_sep()
+        self.status_public_ip_label = QLabel("IP: Detecting...", self)
+        self.status_public_ip_label.setFont(tnum_font)
+        self.status_public_ip_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_public_ip_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.status_public_ip_label.setToolTip("Public IP Address (Click to copy)")
+        self.status_public_ip_label.mousePressEvent = self._on_public_ip_clicked
+        status_bar.addPermanentWidget(self.sep_public_ip)
+        status_bar.addPermanentWidget(self.status_public_ip_label)
+
+        # 5. Memory Status
+        self.sep_memory = create_sep()
         self.status_memory_label = QLabel("Memory: 0 B", self)
         self.status_memory_label.setFont(tnum_font)
         self.status_memory_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
         self.status_memory_label.setToolTip("Application Memory Usage (Resident Set Size)")
+        status_bar.addPermanentWidget(self.sep_memory)
         status_bar.addPermanentWidget(self.status_memory_label)
 
+        # Enable right-click context menu on status bar
+        status_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        status_bar.customContextMenuRequested.connect(self._show_status_bar_context_menu)
+
+        self._update_status_bar_visibility()
         self.update_status_bar()
+
+    def _update_status_bar_visibility(self):
+        """Shows or hides status bar widgets and separators according to user preferences."""
+        items = [
+            (getattr(self, "status_speed_label", None), getattr(self, "sep_speed", None), self.action_sb_speed.isChecked() if hasattr(self, "action_sb_speed") else False),
+            (getattr(self, "status_aria2_label", None), getattr(self, "sep_aria2", None), self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else True),
+            (getattr(self, "status_ipc_label", None), getattr(self, "sep_ipc", None), self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else True),
+            (getattr(self, "status_public_ip_label", None), getattr(self, "sep_public_ip", None), self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False),
+            (getattr(self, "status_memory_label", None), getattr(self, "sep_memory", None), self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True),
+        ]
+
+        first_visible = True
+        for lbl, sep, is_visible in items:
+            if lbl:
+                lbl.setVisible(is_visible)
+            if sep:
+                if is_visible:
+                    sep.setVisible(not first_visible)
+                    first_visible = False
+                else:
+                    sep.setVisible(False)
+
+    def _on_status_bar_child_toggled(self):
+        self._update_status_bar_visibility()
+        if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
+            self.fetch_public_ip_async()
+        if hasattr(self, "save_settings"):
+            self.save_settings()
+
+    def _show_status_bar_context_menu(self, pos):
+        if hasattr(self, "status_bar_menu") and self.status_bar_menu:
+            self.status_bar_menu.exec(self.statusBar().mapToGlobal(pos))
+
+    def _on_sort_action_triggered(self, col_idx: int):
+        header = self.download_table.horizontalHeader()
+        curr_col = header.sortIndicatorSection()
+        curr_order = header.sortIndicatorOrder()
+        if curr_col == col_idx:
+            new_order = Qt.SortOrder.DescendingOrder if curr_order == Qt.SortOrder.AscendingOrder else Qt.SortOrder.AscendingOrder
+        else:
+            new_order = Qt.SortOrder.AscendingOrder
+        self.download_table.sortItems(col_idx, new_order)
+        if hasattr(self, "sort_actions") and col_idx in self.sort_actions:
+            self.sort_actions[col_idx].setChecked(True)
+
+    def _on_table_sort_indicator_changed(self, logical_index: int, order: Qt.SortOrder):
+        if hasattr(self, "sort_actions") and logical_index in self.sort_actions:
+            self.sort_actions[logical_index].setChecked(True)
 
     def update_status_bar_items(self):
         if not hasattr(self, "status_items_label") or not hasattr(self, "download_table"):
@@ -1150,6 +1298,14 @@ class MainWindow(QMainWindow):
         total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
         active_count = len(self.active_downloads) or len(self.active_speeds)
 
+        # Update status bar speed label
+        if hasattr(self, "status_speed_label") and self.status_speed_label:
+            speed_str = f"Speed: {format_bytes(total_speed)}/s" if total_speed > 0 else "Speed: 0 B/s"
+            if self.status_speed_label.text() != speed_str:
+                self.status_speed_label.setText(speed_str)
+                plural = "downloads" if active_count != 1 else "download"
+                self.status_speed_label.setToolTip(f"Total Transfer Rate: {speed_str} ({active_count} active {plural})")
+
         # Immediately update Data Usage Widget speed and active count in sync with download status
         if hasattr(self, "data_usage_widget") and self.data_usage_widget and hasattr(self.data_usage_widget, "update_live_speed"):
             self.data_usage_widget.update_live_speed(total_speed, active_count)
@@ -1184,7 +1340,6 @@ class MainWindow(QMainWindow):
             is_running = True
             pid = getattr(self.aria2_process, "pid", None)
         else:
-            # If process object is not running or not tracked, check if an Aria2 RPC daemon is active on port
             try:
                 import socket
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -1204,6 +1359,79 @@ class MainWindow(QMainWindow):
             self.status_aria2_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")
             self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Stopped (Port {port})")
 
+    def update_status_bar_ipc(self):
+        if not hasattr(self, "status_ipc_label"):
+            return
+        is_running = False
+        try:
+            from core.services.ipc_service import get_ipc_port
+            port = get_ipc_port()
+        except Exception:
+            port = 56900
+
+        if hasattr(self, "listener_thread") and self.listener_thread and self.listener_thread.isRunning():
+            is_running = True
+        else:
+            try:
+                import socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.15)
+                    if s.connect_ex(("127.0.0.1", port)) == 0:
+                        is_running = True
+            except Exception:
+                pass
+
+        if is_running:
+            self.status_ipc_label.setText("● IPC: Active")
+            self.status_ipc_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 6px;")
+            self.status_ipc_label.setToolTip(f"Browser Extension IPC Listener: Active (Port {port})")
+        else:
+            self.status_ipc_label.setText("● IPC: Stopped")
+            self.status_ipc_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")
+            self.status_ipc_label.setToolTip(f"Browser Extension IPC Listener: Stopped (Port {port})")
+
+    def fetch_public_ip_async(self, force: bool = False):
+        if not hasattr(self, "status_public_ip_label"):
+            return
+        if hasattr(self, "action_sb_public_ip") and not self.action_sb_public_ip.isChecked():
+            return
+
+        now = time.time()
+        cached_ip = getattr(self, "_cached_public_ip", None)
+        last_fetch = getattr(self, "_last_ip_fetch_time", 0)
+        if not force and cached_ip and (now - last_fetch < 600):
+            self.status_public_ip_label.setText(f"IP: {cached_ip}")
+            self.status_public_ip_label.setToolTip(f"Public IP Address: {cached_ip} (Click to copy)")
+            return
+
+        if getattr(self, "_ip_worker", None) and self._ip_worker.isRunning():
+            return
+
+        from core.services.ip_service import PublicIpWorker
+        self._ip_worker = PublicIpWorker(self)
+        self._ip_worker.ip_fetched.connect(self._on_public_ip_fetched)
+        self._ip_worker.start()
+
+    def _on_public_ip_fetched(self, ip: str):
+        if not hasattr(self, "status_public_ip_label"):
+            return
+        if ip:
+            self._cached_public_ip = ip
+            self._last_ip_fetch_time = time.time()
+            self.status_public_ip_label.setText(f"IP: {ip}")
+            self.status_public_ip_label.setToolTip(f"Public IP Address: {ip} (Click to copy)")
+        else:
+            self.status_public_ip_label.setText("IP: Unavailable")
+            self.status_public_ip_label.setToolTip("Public IP: Unable to detect (offline or blocked)")
+
+    def _on_public_ip_clicked(self, event):
+        ip = getattr(self, "_cached_public_ip", None)
+        if ip:
+            cb = QApplication.clipboard()
+            if cb:
+                cb.setText(ip)
+            QToolTip.showText(QCursor.pos(), self.tr("Public IP copied to clipboard!"), self.status_public_ip_label, QRect(), 2000)
+
     def update_status_bar_memory(self):
         if not hasattr(self, "status_memory_label"):
             return
@@ -1214,7 +1442,10 @@ class MainWindow(QMainWindow):
     def update_periodic_status(self):
         self.update_status_bar_memory()
         self.update_status_bar_aria2()
+        self.update_status_bar_ipc()
         self.update_status_bar_speed()
+        if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
+            self.fetch_public_ip_async()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
 
@@ -1222,7 +1453,10 @@ class MainWindow(QMainWindow):
         self.update_status_bar_items()
         self.update_status_bar_speed()
         self.update_status_bar_aria2()
+        self.update_status_bar_ipc()
         self.update_status_bar_memory()
+        if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
+            self.fetch_public_ip_async()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
 
@@ -2468,7 +2702,14 @@ class MainWindow(QMainWindow):
                 "show_start_dialog": getattr(self, "settings", {}).get("show_start_dialog", True),
                 "show_progress_dialog": getattr(self, "settings", {}).get("show_progress_dialog", True),
                 "show_complete_dialog": getattr(self, "settings", {}).get("show_complete_dialog", True),
-                "show_queue_complete_dialog": getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
+                "show_queue_complete_dialog": getattr(self, "settings", {}).get("show_queue_complete_dialog", False),
+                "status_bar_items": {
+                    "memory": self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True,
+                    "aria2": self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else True,
+                    "ipc": self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else True,
+                    "speed": self.action_sb_speed.isChecked() if hasattr(self, "action_sb_speed") else False,
+                    "public_ip": self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False,
+                }
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
@@ -2831,6 +3072,21 @@ class MainWindow(QMainWindow):
 
         show_status_bar = settings.get("show_status_bar", True)
         self.toggle_status_bar(show_status_bar, save=False)
+
+        sb_items = settings.get("status_bar_items", {})
+        if hasattr(self, "action_sb_memory") and "memory" in sb_items:
+            self.action_sb_memory.setChecked(sb_items["memory"])
+        if hasattr(self, "action_sb_aria2") and "aria2" in sb_items:
+            self.action_sb_aria2.setChecked(sb_items["aria2"])
+        if hasattr(self, "action_sb_ipc") and "ipc" in sb_items:
+            self.action_sb_ipc.setChecked(sb_items["ipc"])
+        if hasattr(self, "action_sb_speed") and "speed" in sb_items:
+            self.action_sb_speed.setChecked(sb_items["speed"])
+        if hasattr(self, "action_sb_public_ip") and "public_ip" in sb_items:
+            self.action_sb_public_ip.setChecked(sb_items["public_ip"])
+            if sb_items["public_ip"]:
+                self.fetch_public_ip_async()
+        self._update_status_bar_visibility()
 
         show_toolbar = settings.get("show_toolbar", True)
         self._on_toolbar_toggled(show_toolbar, save=False)

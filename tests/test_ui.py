@@ -412,5 +412,94 @@ def test_deleted_table_item_does_not_crash_handlers(qapp):
     win.close()
 
 
+def test_view_sort_by_checkmarks_and_status_bar_child_items(qapp):
+    """Test visible checkmarks in 'Sort by' and child items in 'Status Bar' submenu."""
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # 1. Test Sort by Menu Checkmarks
+    assert hasattr(win, "sort_action_group")
+    assert win.sort_action_group.isExclusive() is True
+    assert hasattr(win, "sort_actions")
+    assert len(win.sort_actions) == 7
+
+    # Initial checkmark should be on a valid column
+    checked_action = win.sort_action_group.checkedAction()
+    assert checked_action is not None
+    assert checked_action.isCheckable() is True
+    assert checked_action.isChecked() is True
+
+    # Switching sort via menu action triggers table sort and updates checkmark
+    size_action = win.sort_actions[1]
+    assert size_action.text() in ("Size", win.tr("Size"))
+    size_action.trigger()
+    assert win.sort_actions[1].isChecked() is True
+    assert win.download_table.horizontalHeader().sortIndicatorSection() == 1
+
+    # Sorting via table header click updates the menu checkmark
+    win.download_table.horizontalHeader().sortIndicatorChanged.emit(4, Qt.SortOrder.AscendingOrder)
+    assert win.sort_actions[4].isChecked() is True
+    assert win.sort_actions[1].isChecked() is False
+
+    # 2. Test Status Bar Submenu and Child Items
+    assert hasattr(win, "status_bar_menu")
+    assert hasattr(win, "action_status_bar_toggle")
+    assert hasattr(win, "action_sb_memory")
+    assert hasattr(win, "action_sb_aria2")
+    assert hasattr(win, "action_sb_ipc")
+    assert hasattr(win, "action_sb_speed")
+    assert hasattr(win, "action_sb_public_ip")
+
+    # Verify all child actions are checkable
+    for act in [win.action_sb_memory, win.action_sb_aria2, win.action_sb_ipc, win.action_sb_speed, win.action_sb_public_ip]:
+        assert act.isCheckable() is True
+
+    # Test toggling Memory
+    assert win.status_memory_label.isHidden() is False
+    win.action_sb_memory.setChecked(False)
+    win._on_status_bar_child_toggled()
+    assert win.status_memory_label.isHidden() is True
+    win.action_sb_memory.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_memory_label.isHidden() is False
+
+    # Test toggling Speed
+    win.action_sb_speed.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_speed_label.isHidden() is False
+    win.active_speeds["test_job"] = 1024 * 1024
+    win.update_status_bar_speed()
+    assert "Speed:" in win.status_speed_label.text()
+    win.action_sb_speed.setChecked(False)
+    win._on_status_bar_child_toggled()
+    assert win.status_speed_label.isHidden() is True
+
+    # Test toggling IPC Status
+    win.action_sb_ipc.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_ipc_label.isHidden() is False
+    win.update_status_bar_ipc()
+    assert "IPC:" in win.status_ipc_label.text()
+
+    # Test Public IP
+    win.action_sb_public_ip.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_public_ip_label.isHidden() is False
+    win._on_public_ip_fetched("203.0.113.195")
+    assert "203.0.113.195" in win.status_public_ip_label.text()
+
+    # Test settings persistence
+    win.save_settings()
+    saved_settings = win.load_settings()
+    assert "status_bar_items" in saved_settings
+    assert saved_settings["status_bar_items"]["memory"] is True
+    assert saved_settings["status_bar_items"]["speed"] is False
+    assert saved_settings["status_bar_items"]["public_ip"] is True
+
+    win.is_quitting = True
+    win.close()
+
+
+
 
 
