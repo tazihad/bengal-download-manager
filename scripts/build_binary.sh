@@ -60,12 +60,14 @@ echo " Building Standalone Binary: Bengal Download Manager"
 echo " Version: $VERSION | Arch: $ARCH | Mode: $MODE"
 echo "========================================================"
 
+PYINSTALLER_WORKPATH=".pyinstaller-build"
+
 if [ "$DO_CLEAN" -eq 1 ]; then
     echo "Cleaning previous build and dist directories..."
-    rm -rf build dist
+    rm -rf "$PYINSTALLER_WORKPATH" dist
 fi
 
-mkdir -p dist build
+mkdir -p dist "$PYINSTALLER_WORKPATH"
 
 PYTHONPATH=src $PYINSTALLER_BIN \
     --name "bengal-download-manager" \
@@ -75,7 +77,7 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --collect-all ui \
     --add-data "assets:assets" \
     --distpath "dist" \
-    --workpath "build" \
+    --workpath "$PYINSTALLER_WORKPATH" \
     --noconfirm \
     "${EXTRA_ARGS[@]}" \
     src/main.py
