@@ -20,7 +20,7 @@ from PyQt6.QtGui import QFont, QIcon, QDesktopServices, QCursor, QColor
 
 from core.grabber.crawler import GrabberCrawler
 from core.utils import format_bytes, get_user_downloads_dir
-from core.services.theme_service import get_file_icon, get_category_for_filename
+from core.services.theme_service import get_file_icon, get_category_for_filename, get_themed_icon
 
 
 GRABBER_PRESETS = {
@@ -340,6 +340,21 @@ class GrabberDialog(QDialog):
         bottom_row.addWidget(self.lbl_status, 1)
         bottom_row.addWidget(self.lbl_summary)
 
+        # Queue Selection Dropdown
+        self.lbl_queue = QLabel(self.tr("Queue:"))
+        self.lbl_queue.setStyleSheet("color: palette(window-text); font-weight: bold; padding-left: 4px;")
+        self.combo_queue = QComboBox()
+        self.combo_queue.setToolTip(self.tr("Select queue to add and start downloads with"))
+        self.combo_queue.setMinimumWidth(170)
+        self.combo_queue.setFixedHeight(30)
+        self.combo_queue.setMaxVisibleItems(10)
+        if self.combo_queue.view():
+            self.combo_queue.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._populate_queues()
+
+        bottom_row.addWidget(self.lbl_queue)
+        bottom_row.addWidget(self.combo_queue)
+
         self.btn_download = QPushButton(self.tr("Download Selected"))
         self.btn_download.setEnabled(False)
         self.btn_download.setStyleSheet("""
@@ -624,6 +639,47 @@ class GrabberDialog(QDialog):
         elif action == act_deselect_all:
             self._set_all_checked(False)
 
+    def _populate_queues(self):
+        """Populates the queue combobox with available queues."""
+        self.combo_queue.clear()
+        queue_names = []
+        if self.main_window and hasattr(self.main_window, "_queues_data") and self.main_window._queues_data:
+            for q in self.main_window._queues_data:
+                name = q.get("name") if isinstance(q, dict) else str(q)
+                if name and name not in queue_names:
+                    queue_names.append(name)
+        elif self.main_window and hasattr(self.main_window, "_sidebar_queue_names") and self.main_window._sidebar_queue_names:
+            queue_names = list(self.main_window._sidebar_queue_names)
+        else:
+            try:
+                from core.database import get_all_queues
+                from ui.dialogs.scheduler import DEFAULT_QUEUES
+                db_q = get_all_queues()
+                queues = db_q if db_q else DEFAULT_QUEUES
+                for q in queues:
+                    name = q.get("name") if isinstance(q, dict) else str(q)
+                    if name and name not in queue_names:
+                        queue_names.append(name)
+            except Exception:
+                pass
+
+        if not queue_names:
+            queue_names = ["Main download queue", "Synchronization queue"]
+        if "Main download queue" not in queue_names:
+            queue_names.insert(0, "Main download queue")
+
+        for name in queue_names:
+            self.combo_queue.addItem(get_themed_icon("scheduler"), name)
+
+        # Pre-select the queue currently active/selected in sidebar if applicable
+        if self.main_window and hasattr(self.main_window, "category_tree") and self.main_window.category_tree:
+            curr_item = self.main_window.category_tree.currentItem()
+            if curr_item and curr_item.data(0, Qt.ItemDataRole.UserRole) == "queue":
+                selected_queue_name = curr_item.text(0)
+                idx = self.combo_queue.findText(selected_queue_name)
+                if idx >= 0:
+                    self.combo_queue.setCurrentIndex(idx)
+
     def download_selected(self):
         """Dispatches all checked files to Bengal Download Manager's download queue."""
         selected_items = []
@@ -638,6 +694,7 @@ class GrabberDialog(QDialog):
             return
 
         save_dir = self.txt_save_path.text().strip() or get_user_downloads_dir()
+        selected_queue = self.combo_queue.currentText().strip() or "Main download queue"
         added_count = 0
 
         if self.main_window and hasattr(self.main_window, "start_download"):
@@ -649,7 +706,8 @@ class GrabberDialog(QDialog):
                         custom_save_dir=save_dir,
                         start_paused=False,
                         show_dialog=False,
-                        referer=item.get("source_page")
+                        referer=item.get("source_page"),
+                        queue_name=selected_queue
                     )
                     added_count += 1
                 except Exception:

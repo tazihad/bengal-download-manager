@@ -1514,6 +1514,7 @@
   "Select user interface language": "ইউজার ইন্টারফেসের ভাষা নির্বাচন করুন",
   "Restart Bengal Download Manager for all changes to take full effect.": "সকল পরিবর্তন কার্যকর করতে বেঙ্গল ডাউনলোড ম্যানেজার পুনরায় চালু করুন।",
   "&Hide categories": "বিভাগ লুকান (&H)",
+  "&Hide left panel": "বাম প্যানেল লুকান (&H)",
   "&Toolbar": "টুলবার (&T)",
   "&Status Bar": "স্ট্যাটাস বার (&S)",
   "&Data usage summary": "ডেটা ব্যবহারের সারসংক্ষেপ (&D)",

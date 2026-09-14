@@ -70,7 +70,7 @@ The main window provides the primary command center for monitoring, initiating, 
   - **Transfer Rate**: Sorts rows by current download speed.
   - **Last Try**: Sorts rows by timestamp of the most recent connection attempt.
   - **Date Added**: Sorts rows chronologically by the timestamp when the task was created.
-- **Hide categories** *(checkable)*: Toggles the visibility of the left-hand Category/Queue sidebar to maximize horizontal table space.
+- **Hide left panel** *(checkable)*: Toggles the visibility of the left-hand Category/Queue sidebar to maximize horizontal table space.
 - **Toolbar** *(checkable)*: Toggles the top action toolbar visible or hidden.
 - **Status Bar** *(checkable)*: Toggles the bottom status bar visible or hidden.
 
@@ -429,7 +429,7 @@ Displays connection badges for the 5 media tools:
 Opened via **Toolbar → Scheduler** or sidebar context menu.
 
 ### Left Panel: Queue Navigation
-- **Queues List**: Lists all defined queues (**Main download queue**, **Synchronization queue**, plus custom queues).
+- **Queues List**: Lists all defined queues (**Main download queue**, **Synchronization queue**, plus custom queues). Right-clicking a custom queue provides the **Rename** option (disabled for default built-in queues).
 - **New queue button**: Creates a new custom queue.
 - **Delete button**: Deletes the selected custom queue (disabled for default queues).
 

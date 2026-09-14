@@ -1,5 +1,5 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -8,6 +8,37 @@ cd "$ROOT_DIR"
 
 APP_ID="io.github.tazihad.bengal-download-manager"
 BUILD_DIR="flatpak_app_dir"
+
+DO_RUN=0
+DO_BUNDLE=1
+EXTRA_APP_ARGS=()
+
+for arg in "$@"; do
+    case "$arg" in
+        --run)
+            DO_RUN=1
+            ;;
+        --no-bundle)
+            DO_BUNDLE=0
+            ;;
+        --bundle)
+            DO_BUNDLE=1
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [app_arguments...]"
+            echo ""
+            echo "Options:"
+            echo "  --run        Launch the built application after assembly"
+            echo "  --no-bundle  Skip creating the .flatpak single-file bundle"
+            echo "  --bundle     Create .flatpak single-file bundle in dist/ (default)"
+            echo "  --help, -h   Show this help message"
+            exit 0
+            ;;
+        *)
+            EXTRA_APP_ARGS+=("$arg")
+            ;;
+    esac
+done
 
 ARCH=$(uname -m)
 if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
@@ -18,19 +49,28 @@ else
     ARCH_NAME="x86_64"
 fi
 
-VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
-
-echo "=== 1. Building PyInstaller Standalone Application ==="
-rm -rf build dist
+PY_BIN="python3"
 PYINSTALLER_BIN="pyinstaller"
 if command -v uv >/dev/null 2>&1; then
+    PY_BIN="uv run python"
     PYINSTALLER_BIN="uv run pyinstaller"
 elif [ -f ".venv/bin/pyinstaller" ]; then
+    PY_BIN=".venv/bin/python"
     PYINSTALLER_BIN=".venv/bin/pyinstaller"
 elif [ -f "venv/bin/pyinstaller" ]; then
+    PY_BIN="venv/bin/python"
     PYINSTALLER_BIN="venv/bin/pyinstaller"
 fi
 
+VERSION=$($PY_BIN -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || cat VERSION 2>/dev/null || echo "0.1.20")
+VERSION="${VERSION#v}"
+
+echo "========================================================"
+echo " Building Bengal Download Manager Flatpak (v$VERSION - $ARCH_NAME)"
+echo "========================================================"
+
+echo "=== 1. Building PyInstaller Standalone Application ==="
+rm -rf build dist
 PYTHONPATH=src $PYINSTALLER_BIN \
     --name "bengal-download-manager" \
     --onedir \
@@ -77,7 +117,7 @@ cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainf
 
 # Dynamically inject the exact version into AppStream metainfo XML
 TODAY=$(date +'%Y-%m-%d')
-python3 -c '
+$PY_BIN -c '
 import sys, re
 ver = sys.argv[1]
 today = sys.argv[2]
@@ -92,14 +132,16 @@ with open(path, "w") as f:
 
 cp "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
 
-# Compose AppStream catalog metadata
-appstreamcli compose \
-  --origin="$APP_ID" \
-  --prefix=/ \
-  --result-root="$BUILD_DIR/files" \
-  --data-dir="$BUILD_DIR/files/share/app-info/xmls" \
-  --icons-dir="$BUILD_DIR/files/share/app-info/icons/flatpak" \
-  "$BUILD_DIR/files" 2>/dev/null || true
+# Compose AppStream catalog metadata if appstreamcli is present
+if command -v appstreamcli >/dev/null 2>&1; then
+    appstreamcli compose \
+      --origin="$APP_ID" \
+      --prefix=/ \
+      --result-root="$BUILD_DIR/files" \
+      --data-dir="$BUILD_DIR/files/share/app-info/xmls" \
+      --icons-dir="$BUILD_DIR/files/share/app-info/icons/flatpak" \
+      "$BUILD_DIR/files" 2>/dev/null || true
+fi
 
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]
@@ -128,11 +170,22 @@ org.freedesktop.StatusNotifierItem.*=own
 QT_QPA_PLATFORMTHEME=xdgdesktopportal
 EOF
 
-echo "=== 3. Exporting Flatpak Repository & Bundle ==="
-mkdir -p dist
-flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
-flatpak build-export --update-appstream repo "$BUILD_DIR"
-flatpak build-update-repo --generate-static-deltas repo
-flatpak build-bundle repo "dist/bengal-download-manager.flatpak" "$APP_ID"
-cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
-echo "✓ Bundle created: dist/bengal-download-manager.flatpak"
+if [ "$DO_BUNDLE" -eq 1 ]; then
+    if command -v flatpak >/dev/null 2>&1; then
+        echo "=== 3. Exporting Flatpak Repository & Bundle ==="
+        mkdir -p dist
+        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
+        flatpak build-export --update-appstream repo "$BUILD_DIR"
+        flatpak build-update-repo --generate-static-deltas repo
+        flatpak build-bundle repo "dist/bengal-download-manager.flatpak" "$APP_ID"
+        cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
+        echo "✓ Bundle created: dist/bengal-download-manager.flatpak"
+    else
+        echo "WARNING: 'flatpak' binary not installed. Flatpak app directory prepared in '$BUILD_DIR', but bundle export skipped."
+    fi
+fi
+
+if [ "$DO_RUN" -eq 1 ]; then
+    echo "=== 4. Launching Application from Flatpak App Structure ==="
+    "$BUILD_DIR/files/bin/bengal-download-manager" "${EXTRA_APP_ARGS[@]}"
+fi

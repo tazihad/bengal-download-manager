@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QTabWidget, QTableWidget,
     QTableWidgetItem, QHeaderView, QAbstractItemView, QMenu,
     QSplitter, QComboBox, QLineEdit, QFileDialog, QTimeEdit,
-    QDateEdit, QSizePolicy
+    QDateEdit, QSizePolicy, QInputDialog, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTime, QDate
 from PyQt6.QtGui import QFont, QAction
@@ -101,6 +101,26 @@ class SchedulerDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
 
         self.setStyleSheet("""
+            QPushButton {
+                min-height: 24px;
+                padding: 4px 14px;
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                background-color: palette(button);
+                color: palette(button-text);
+            }
+            QPushButton:hover {
+                background-color: palette(light);
+                border-color: palette(highlight);
+            }
+            QPushButton:pressed {
+                background-color: palette(midlight);
+            }
+            QPushButton:disabled {
+                color: #888888;
+                background-color: palette(disabled, base);
+                border-color: palette(disabled, mid);
+            }
             QCheckBox:disabled,
             QRadioButton:disabled,
             QLabel:disabled {
@@ -160,6 +180,8 @@ class SchedulerDialog(QDialog):
         for q in self.queues:
             q["daily_days"] = list(q["daily_days"])
         self._selected_index = -1
+        self._is_dirty = False
+        self._loading_ui = False
 
         self._build_ui()
         self._populate_queue_list()
@@ -181,7 +203,8 @@ class SchedulerDialog(QDialog):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
 
-        lbl = QLabel("Queues")
+        lbl = QLabel(self.tr("Queues"))
+        lbl.setFixedHeight(24)
         fnt = lbl.font()
         fnt.setBold(True)
         lbl.setFont(fnt)
@@ -193,17 +216,6 @@ class SchedulerDialog(QDialog):
         self.queue_list.currentRowChanged.connect(self._on_queue_selected)
         left_layout.addWidget(self.queue_list, 1)
 
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(4)
-        self.btn_new_queue = QPushButton("New queue")
-        self.btn_new_queue.clicked.connect(self._add_new_queue)
-        btn_row.addWidget(self.btn_new_queue)
-        self.btn_delete_queue = QPushButton("Delete")
-        self.btn_delete_queue.clicked.connect(self._delete_selected_queue)
-        self.btn_delete_queue.setEnabled(False)
-        btn_row.addWidget(self.btn_delete_queue)
-        left_layout.addLayout(btn_row)
-
         splitter.addWidget(left_widget)
 
         # ---- Right panel ----
@@ -213,6 +225,7 @@ class SchedulerDialog(QDialog):
         right_layout.setSpacing(4)
 
         self.queue_title_label = QLabel("")
+        self.queue_title_label.setFixedHeight(24)
         title_font = self.queue_title_label.font()
         title_font.setBold(True)
         title_font.setPointSize(title_font.pointSize() + 1)
@@ -238,23 +251,92 @@ class SchedulerDialog(QDialog):
         splitter.setStretchFactor(1, 3)
         splitter.setSizes([200, 550])
 
-        # ---- Bottom buttons ----
-        bottom = QHBoxLayout()
+        # ---- Bottom button box ----
+        bottom_box = QWidget()
+        bottom_box.setFixedHeight(42)
+        bottom = QHBoxLayout(bottom_box)
+        bottom.setContentsMargins(0, 4, 0, 4)
         bottom.setSpacing(6)
-        self.btn_start = QPushButton("Start now")
+
+        # Left panel buttons (aligned under Queues list)
+        self.btn_new_queue = QPushButton(self.tr("New queue"))
+        self.btn_new_queue.setFixedHeight(30)
+        self.btn_new_queue.setMinimumWidth(85)
+        self.btn_new_queue.clicked.connect(self._add_new_queue)
+        bottom.addWidget(self.btn_new_queue)
+
+        self.btn_delete_queue = QPushButton(self.tr("Delete"))
+        self.btn_delete_queue.setFixedHeight(30)
+        self.btn_delete_queue.setMinimumWidth(80)
+        self.btn_delete_queue.clicked.connect(self._delete_selected_queue)
+        self.btn_delete_queue.setEnabled(False)
+        bottom.addWidget(self.btn_delete_queue)
+
+        bottom.addSpacing(16)
+
+        # Queue control buttons
+        self.btn_start = QPushButton(self.tr("Start now"))
+        self.btn_start.setFixedHeight(30)
+        self.btn_start.setMinimumWidth(85)
         self.btn_start.clicked.connect(self._on_start_now)
         bottom.addWidget(self.btn_start)
-        self.btn_stop = QPushButton("Stop")
+
+        self.btn_stop = QPushButton(self.tr("Stop"))
+        self.btn_stop.setFixedHeight(30)
+        self.btn_stop.setMinimumWidth(80)
         self.btn_stop.clicked.connect(self._on_stop)
         bottom.addWidget(self.btn_stop)
-        bottom.addStretch()
-        self.btn_apply = QPushButton("Apply")
+
+        bottom.addStretch(1)
+
+        # Dialog control buttons
+        self.btn_apply = QPushButton(self.tr("Apply"))
+        self.btn_apply.setFixedHeight(30)
+        self.btn_apply.setMinimumWidth(80)
+        self.btn_apply.setEnabled(False)
         self.btn_apply.clicked.connect(self._apply_changes)
         bottom.addWidget(self.btn_apply)
-        self.btn_close = QPushButton("Close")
+
+        self.btn_close = QPushButton(self.tr("Close"))
+        self.btn_close.setFixedHeight(30)
+        self.btn_close.setMinimumWidth(80)
         self.btn_close.clicked.connect(self.close)
         bottom.addWidget(self.btn_close)
-        root.addLayout(bottom)
+
+        root.addWidget(bottom_box)
+        self._connect_change_signals()
+
+    def _mark_dirty(self, *_):
+        if not getattr(self, "_loading_ui", False):
+            self._is_dirty = True
+            if hasattr(self, "btn_apply"):
+                self.btn_apply.setEnabled(True)
+
+    def _connect_change_signals(self):
+        self.radio_onetime.toggled.connect(self._mark_dirty)
+        self.radio_sync.toggled.connect(self._mark_dirty)
+
+        self.chk_startup.toggled.connect(self._mark_dirty)
+        self.chk_start_at.toggled.connect(self._mark_dirty)
+        self.time_start_at.timeChanged.connect(self._mark_dirty)
+        self.radio_once.toggled.connect(self._mark_dirty)
+        self.radio_daily.toggled.connect(self._mark_dirty)
+        self.date_once.dateChanged.connect(self._mark_dirty)
+        for chk in self.day_checks:
+            chk.toggled.connect(self._mark_dirty)
+
+        self.chk_sync_interval.toggled.connect(self._mark_dirty)
+        self.spin_sync_hours.valueChanged.connect(self._mark_dirty)
+        self.spin_sync_mins.valueChanged.connect(self._mark_dirty)
+        for chk in self.sync_day_checks:
+            chk.toggled.connect(self._mark_dirty)
+
+        self.chk_stop_at.toggled.connect(self._mark_dirty)
+        self.time_stop_at.timeChanged.connect(self._mark_dirty)
+        self.chk_retries.toggled.connect(self._mark_dirty)
+        self.spin_retries.valueChanged.connect(self._mark_dirty)
+
+        self.spin_concurrent.valueChanged.connect(self._mark_dirty)
 
     def _build_schedule_tab(self):
         layout = QVBoxLayout(self.schedule_tab)
@@ -488,73 +570,80 @@ class SchedulerDialog(QDialog):
         if index < 0 or index >= len(self.queues):
             return
 
-        q = self.queues[index]
-        self.queue_title_label.setText(q["name"])
+        self._loading_ui = True
+        try:
+            q = self.queues[index]
+            self.queue_title_label.setText(q["name"])
 
-        # --- Mode radio locking ---
-        # Main download queue: only onetime; Synchronization queue: only sync
-        is_main = q.get("name") == "Main download queue"
-        is_sync_q = q.get("name") == "Synchronization queue"
+            # --- Mode radio locking ---
+            # Main download queue: only onetime; Synchronization queue: only sync
+            is_main = q.get("name") == "Main download queue"
+            is_sync_q = q.get("name") == "Synchronization queue"
 
-        if q["mode"] == "sync":
-            self.radio_sync.setChecked(True)
-        else:
-            self.radio_onetime.setChecked(True)
+            if q["mode"] == "sync":
+                self.radio_sync.setChecked(True)
+            else:
+                self.radio_onetime.setChecked(True)
 
-        # Lock mode radios for the two built-in queues
-        self.radio_onetime.setEnabled(not is_sync_q)
-        self.radio_sync.setEnabled(not is_main)
+            # Lock mode radios for the two built-in queues
+            self.radio_onetime.setEnabled(not is_sync_q)
+            self.radio_sync.setEnabled(not is_main)
 
-        self.chk_startup.setChecked(q.get("start_on_startup", False))
+            self.chk_startup.setChecked(q.get("start_on_startup", False))
 
-        # Start at
-        self.chk_start_at.setChecked(q.get("start_at_enabled", False))
-        t_parts = q.get("start_at_time", "23:00:00").split(":")
-        self.time_start_at.setTime(QTime(int(t_parts[0]), int(t_parts[1]), int(t_parts[2]) if len(t_parts) > 2 else 0))
+            # Start at
+            self.chk_start_at.setChecked(q.get("start_at_enabled", False))
+            t_parts = q.get("start_at_time", "23:00:00").split(":")
+            self.time_start_at.setTime(QTime(int(t_parts[0]), int(t_parts[1]), int(t_parts[2]) if len(t_parts) > 2 else 0))
 
-        # Schedule type
-        if q.get("schedule_type") == "once":
-            self.radio_once.setChecked(True)
-        else:
-            self.radio_daily.setChecked(True)
+            # Schedule type
+            if q.get("schedule_type") == "once":
+                self.radio_once.setChecked(True)
+            else:
+                self.radio_daily.setChecked(True)
 
-        if q.get("once_date"):
-            self.date_once.setDate(QDate.fromString(q["once_date"], "yyyy-MM-dd"))
-        else:
-            self.date_once.setDate(QDate.currentDate())
+            if q.get("once_date"):
+                self.date_once.setDate(QDate.fromString(q["once_date"], "yyyy-MM-dd"))
+            else:
+                self.date_once.setDate(QDate.currentDate())
 
-        days = q.get("daily_days", [True] * 7)
-        for i, chk in enumerate(self.day_checks):
-            chk.setChecked(days[i] if i < len(days) else True)
-        for i, chk in enumerate(self.sync_day_checks):
-            chk.setChecked(days[i] if i < len(days) else True)
+            days = q.get("daily_days", [True] * 7)
+            for i, chk in enumerate(self.day_checks):
+                chk.setChecked(days[i] if i < len(days) else True)
+            for i, chk in enumerate(self.sync_day_checks):
+                chk.setChecked(days[i] if i < len(days) else True)
 
-        # Sync interval
-        self.chk_sync_interval.setChecked(q.get("sync_interval_enabled", False))
-        self.spin_sync_hours.setValue(q.get("sync_hours", 2))
-        self.spin_sync_mins.setValue(q.get("sync_minutes", 0))
+            # Sync interval
+            self.chk_sync_interval.setChecked(q.get("sync_interval_enabled", False))
+            self.spin_sync_hours.setValue(q.get("sync_hours", 2))
+            self.spin_sync_mins.setValue(q.get("sync_minutes", 0))
 
-        # Stop at
-        self.chk_stop_at.setChecked(q.get("stop_at_enabled", False))
-        st_parts = q.get("stop_at_time", "07:30:00").split(":")
-        self.time_stop_at.setTime(QTime(int(st_parts[0]), int(st_parts[1]), int(st_parts[2]) if len(st_parts) > 2 else 0))
+            # Stop at
+            self.chk_stop_at.setChecked(q.get("stop_at_enabled", False))
+            st_parts = q.get("stop_at_time", "07:30:00").split(":")
+            self.time_stop_at.setTime(QTime(int(st_parts[0]), int(st_parts[1]), int(st_parts[2]) if len(st_parts) > 2 else 0))
 
-        # Retries
-        self.chk_retries.setChecked(q.get("retries_enabled", False))
-        self.spin_retries.setValue(q.get("retries_count", 10))
+            # Retries
+            self.chk_retries.setChecked(q.get("retries_enabled", False))
+            self.spin_retries.setValue(q.get("retries_count", 10))
 
-        # Concurrent downloads spinbox
-        self.spin_concurrent.setValue(q.get("max_concurrent", 4))
+            # Concurrent downloads spinbox
+            self.spin_concurrent.setValue(q.get("max_concurrent", 4))
 
-        # Refresh all dependent-field enabled states
-        self._on_start_at_toggled(self.chk_start_at.isChecked())
-        self._on_mode_changed(self.mode_group.checkedId(), True)
+            # Refresh all dependent-field enabled states
+            self._on_start_at_toggled(self.chk_start_at.isChecked())
+            self._on_mode_changed(self.mode_group.checkedId(), True)
 
-        # Files table — populate if on that tab
-        if self.tabs.currentIndex() == 1:
-            self._refresh_files_table(index)
+            # Files table — populate if on that tab
+            if self.tabs.currentIndex() == 1:
+                self._refresh_files_table(index)
 
-        self._update_action_buttons()
+            self._update_action_buttons()
+        finally:
+            self._loading_ui = False
+
+        if hasattr(self, "btn_apply"):
+            self.btn_apply.setEnabled(getattr(self, "_is_dirty", False))
 
     def _save_ui_to_queue(self, index):
         """Saves current right panel state back into the queue dict at index."""
@@ -590,8 +679,18 @@ class SchedulerDialog(QDialog):
         q["max_concurrent"] = self.spin_concurrent.value()
 
     def _refresh_files_table(self, queue_index=None):
-        """Populates the Files in the queue table from the main window's download table."""
+        """Populates the Files in the queue table from the main window's download table for the selected queue."""
         self.files_table.setRowCount(0)
+
+        if queue_index is None:
+            queue_index = self._selected_index
+
+        if queue_index < 0 or queue_index >= len(self.queues):
+            return
+
+        target_queue_name = self.queues[queue_index].get("name", "")
+        if not target_queue_name:
+            return
 
         mw = self._main_window
         if mw is None:
@@ -603,12 +702,19 @@ class SchedulerDialog(QDialog):
 
         for r in range(dt.rowCount()):
             name_item = dt.item(r, 0)
+            if not name_item:
+                continue
+
+            row_queue = name_item.data(Qt.ItemDataRole.UserRole + 8)
+            if not row_queue:
+                row_queue = "Main download queue"
+
+            if row_queue != target_queue_name:
+                continue
+
             size_item = dt.item(r, 1)
             status_item = dt.item(r, 2)
             time_item = dt.item(r, 3)
-
-            if not name_item:
-                continue
 
             row = self.files_table.rowCount()
             self.files_table.insertRow(row)
@@ -697,6 +803,7 @@ class SchedulerDialog(QDialog):
         item = QListWidgetItem(name)
         self.queue_list.addItem(item)
         self.queue_list.setCurrentRow(len(self.queues) - 1)
+        self._mark_dirty()
 
     def _delete_selected_queue(self):
         row = self.queue_list.currentRow()
@@ -710,21 +817,48 @@ class SchedulerDialog(QDialog):
         self.queue_list.takeItem(row)
         if self.queues:
             self.queue_list.setCurrentRow(min(row, len(self.queues) - 1))
+        self._mark_dirty()
 
     def _apply_changes(self):
-        if self._selected_index >= 0:
+        if self._selected_index >= 0 and self._selected_index < len(self.queues):
             self._save_ui_to_queue(self._selected_index)
-            # Propagate max_concurrent back to main window if possible
+            # Propagate settings back to main window if available
             mw = self._main_window
             if mw is not None:
                 q = self.queues[self._selected_index]
                 if q.get("name") == "Main download queue":
                     mw.MAX_CONCURRENT_DOWNLOADS = q.get("max_concurrent", 4)
+                if hasattr(mw, "_queues_data"):
+                    mw._queues_data = [dict(qi) for qi in self.queues]
+                    for qi in mw._queues_data:
+                        qi["daily_days"] = list(qi.get("daily_days", []))
+                if hasattr(mw, "_sync_sidebar_queues"):
+                    if getattr(mw, "_scheduler_dlg", None) is None:
+                        mw._scheduler_dlg = self
+                    mw._sync_sidebar_queues()
+                try:
+                    from core.database import save_all_queues
+                    save_data = [dict(qi) for qi in self.queues]
+                    for qi in save_data:
+                        qi["daily_days"] = list(qi.get("daily_days", []))
+                    save_all_queues(save_data)
+                except Exception:
+                    pass
+
             # Update the list item name if changed
             q = self.queues[self._selected_index]
             item = self.queue_list.item(self._selected_index)
             if item:
                 item.setText(q["name"])
+
+        self._is_dirty = False
+        if hasattr(self, "btn_apply"):
+            self.btn_apply.setEnabled(False)
+
+    def closeEvent(self, event):
+        if getattr(self, "_is_dirty", False):
+            self._apply_changes()
+        super().closeEvent(event)
 
     def _on_start_now(self):
         """Start the selected queue's downloads immediately."""
@@ -760,48 +894,85 @@ class SchedulerDialog(QDialog):
             return
 
         row = self.queue_list.row(item)
-        q = self.queues[row] if row < len(self.queues) else None
-        if not q:
+        if row < 0 or row >= len(self.queues):
             return
 
-        mw = getattr(self, "_main_window", None)
+        q = self.queues[row]
         q_name = q.get("name", "")
-        queue_is_running = mw._is_queue_active(q_name) if mw and hasattr(mw, "_is_queue_active") else False
+        is_default = q.get("default", False) or q_name in ("Main download queue", "Synchronization queue")
 
         menu = QMenu(self)
-
-        act_start = menu.addAction("Start now")
-        act_start.setEnabled(not queue_is_running)
-        act_start.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self._on_start_now()))
-
-        act_stop = menu.addAction("Stop")
-        act_stop.setEnabled(queue_is_running)
-        act_stop.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self._on_stop()))
-
-        menu.addSeparator()
-
-        act_edit = menu.addAction("Edit queue")
-        act_edit.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self.tabs.setCurrentIndex(1)))
-
-        act_schedule = menu.addAction("Schedule")
-        act_schedule.triggered.connect(lambda: (self.queue_list.setCurrentRow(row), self.tabs.setCurrentIndex(0)))
-
-        menu.addSeparator()
-
-        act_delete = menu.addAction("Delete")
-        _is_default = q.get("default", False)
-        try:
-            from main import make_faded_icon, get_themed_icon as _gti
-            act_delete.setIcon(make_faded_icon(_gti("delete")) if _is_default else _gti("delete"))
-        except Exception:
-            pass
-        act_delete.setEnabled(not _is_default)
-        act_delete.triggered.connect(lambda: self._delete_queue_at(row))
-
-        act_new = menu.addAction("Create new queue")
-        act_new.triggered.connect(self._add_new_queue)
+        act_rename = menu.addAction(self.tr("Rename"))
+        act_rename.setEnabled(not is_default)
+        act_rename.triggered.connect(lambda: self._rename_queue_at(row))
 
         menu.exec(self.queue_list.viewport().mapToGlobal(pos))
+
+    def _rename_queue_at(self, row):
+        if row < 0 or row >= len(self.queues):
+            return
+        q = self.queues[row]
+        old_name = q.get("name", "")
+        if q.get("default", False) or old_name in ("Main download queue", "Synchronization queue"):
+            return
+
+        new_name, ok = QInputDialog.getText(
+            self,
+            self.tr("Rename Queue"),
+            self.tr("Enter new queue name:"),
+            QLineEdit.EchoMode.Normal,
+            old_name,
+        )
+        if not ok:
+            return
+        new_name = new_name.strip()
+        if not new_name or new_name == old_name:
+            return
+
+        existing_names = {other_q.get("name", "").lower() for i, other_q in enumerate(self.queues) if i != row}
+        if new_name.lower() in existing_names:
+            QMessageBox.warning(
+                self,
+                self.tr("Duplicate Name"),
+                self.tr("A queue with the name '%s' already exists.") % new_name,
+            )
+            return
+
+        q["name"] = new_name
+        item = self.queue_list.item(row)
+        if item:
+            item.setText(new_name)
+        if self._selected_index == row:
+            self.queue_title_label.setText(new_name)
+
+        mw = getattr(self, "_main_window", None)
+        if mw:
+            dt = getattr(mw, "download_table", None)
+            if dt:
+                for r in range(dt.rowCount()):
+                    ti = dt.item(r, 0)
+                    if ti and ti.data(Qt.ItemDataRole.UserRole + 8) == old_name:
+                        ti.setData(Qt.ItemDataRole.UserRole + 8, new_name)
+            if hasattr(mw, "_queues_data"):
+                mw._queues_data = [dict(queue_item) for queue_item in self.queues]
+            if hasattr(mw, "_sync_sidebar_queues"):
+                if getattr(mw, "_scheduler_dlg", None) is None:
+                    mw._scheduler_dlg = self
+                mw._sync_sidebar_queues()
+            if hasattr(mw, "save_data"):
+                try:
+                    mw.save_data()
+                except Exception:
+                    pass
+
+        try:
+            from core.database import save_all_queues
+            save_data = [dict(queue_item) for queue_item in self.queues]
+            for queue_item in save_data:
+                queue_item["daily_days"] = list(queue_item.get("daily_days", []))
+            save_all_queues(save_data)
+        except Exception:
+            pass
 
     def _delete_queue_at(self, row):
         if row < 0 or row >= len(self.queues):

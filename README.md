@@ -154,7 +154,7 @@ The resulting binary will be generated at:
 Build and test the Flatpak package locally using the Flatpak manifest:
 
 ```bash
-bash scripts/build_and_run_flatpak.sh
+bash scripts/build_flatpak.sh
 ```
 
 ### 4. Browser Extension Packaging

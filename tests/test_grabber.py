@@ -183,5 +183,30 @@ def test_grabber_dialog_ui(qapp):
     assert dlg.discovered_items[0]["checked"] is True
     assert dlg.btn_download.isEnabled() is True
 
+    # Test Queue dropdown at bottom
+    assert hasattr(dlg, "combo_queue")
+    assert dlg.combo_queue.count() > 0
+    assert "Main download queue" in [dlg.combo_queue.itemText(i) for i in range(dlg.combo_queue.count())]
+
+    # Test downloading selected dispatches with selected queue
+    dispatched = []
+    def mock_start_dl(**kwargs):
+        dispatched.append(kwargs)
+
+    win.start_download = mock_start_dl
+    # Set a custom queue in combo
+    dlg.combo_queue.addItem("Custom Grabber Queue")
+    dlg.combo_queue.setCurrentText("Custom Grabber Queue")
+
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch_box = pytest.MonkeyPatch()
+    monkeypatch_box.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+    dlg.download_selected()
+    monkeypatch_box.undo()
+
+    assert len(dispatched) == 1
+    assert dispatched[0]["queue_name"] == "Custom Grabber Queue"
+    assert dispatched[0]["url"] == "https://example.com/files/manual.pdf"
+
     dlg.close()
     win.close()
