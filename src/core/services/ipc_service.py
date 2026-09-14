@@ -36,6 +36,7 @@ def get_ipc_port() -> int:
 class SignalEmitter(QObject):
     """Utility to emit signals safely to the GUI thread."""
     new_download_signal = pyqtSignal(str)
+    batch_download_signal = pyqtSignal(list)
 
 
 # Alias for compatibility
@@ -46,12 +47,11 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
     """Handles HTTP API requests from browser extension (GET config, POST new download)."""
 
     def do_OPTIONS(self):
-        if is_debug_mode():
-            logger.debug("[IPC] CORS preflight OPTIONS request from %s for %s", self.client_address[0], self.path)
+        # Handle CORS preflight from extensions or web integrations
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization')
         self.end_headers()
 
     def do_GET(self):
@@ -84,11 +84,32 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ""
         
-        # Guard: Only explicit user download submissions on root '/' or '/download' should trigger downloads
         clean_path = self.path.split("?")[0].rstrip("/")
         if is_debug_mode():
             logger.debug("[IPC] POST request from %s on %s (bytes=%d)", self.client_address[0], self.path, content_length)
 
+        payload = {}
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            pass
+
+        # Check for batch download submissions
+        if clean_path in ("/batch", "/import-links") or (isinstance(payload, dict) and (payload.get("links") or payload.get("urls"))):
+            raw_links = payload.get("links") or payload.get("urls") if isinstance(payload, dict) else None
+            if isinstance(raw_links, list) and raw_links:
+                if is_debug_mode():
+                    logger.debug("[IPC] Received batch of %d links", len(raw_links))
+                if hasattr(self.server.emitter, "batch_download_signal"):
+                    self.server.emitter.batch_download_signal.emit(raw_links)
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"status": "batch_received"}')
+                return
+
+        # Guard: Only explicit user download submissions on root '/' or '/download' should trigger downloads
         if clean_path not in ("", "/download"):
             # Background sniffing or status notification (e.g. /media, /tab-update)
             # Acknowledge with 200 OK without emitting new_download_signal
@@ -111,8 +132,7 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         size_bytes = 0
         size_str = ""
         
-        try:
-            payload = json.loads(body)
+        if isinstance(payload, dict) and payload:
             url = payload.get("url", "")
             user_agent = payload.get("userAgent", "")
             cookies = payload.get("cookies", "")
@@ -125,7 +145,7 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             if is_debug_mode():
                 logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s",
                              url, title, quality, is_media, size_str or size_bytes)
-        except json.JSONDecodeError:
+        else:
             url = body.strip()
             if is_debug_mode():
                 logger.debug("[IPC] Received raw string URL from extension: %s", url)

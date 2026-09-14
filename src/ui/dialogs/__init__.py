@@ -13,4 +13,6 @@ from .scheduler import SchedulerDialog
 from .duplicate import DuplicateDownloadDialog
 from .data_usage import DataUsageDialog
 from .grabber import GrabberDialog
+from .batch_pattern import BatchPatternDialog
+from .batch_download import BatchDownloadDialog, BatchItemEditDialog
 

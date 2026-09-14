@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
         # Connect the thread's signal to the GUI slot (start_download)
         # Route extension downloads to the pre-fetcher instead of starting immediately
         self.ipc_emitter.new_download_signal.connect(self.process_incoming_url) 
+        self.ipc_emitter.batch_download_signal.connect(lambda links: self.open_batch_download(links, is_import=True))
         ext_cfg = load_extension_config()
         try:
             init_ipc_port = int(ext_cfg.get("ipc_port", DM_CONNECTOR_PORT))
@@ -544,6 +545,15 @@ class MainWindow(QMainWindow):
             self.action_paste_url.setToolTip(self.tr("Paste URL address from clipboard (Ctrl+V)"))
             self.action_paste_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=True))
 
+            self.action_batch_download = QAction(get_themed_icon("add_url"), self.tr("Add Batch Download..."), self)
+            self.action_batch_download.setShortcut(QKeySequence("Ctrl+Shift+N"))
+            self.action_batch_download.setToolTip(self.tr("Add batch download from address pattern with wildcards (Ctrl+Shift+N)"))
+            self.action_batch_download.triggered.connect(lambda: self.open_batch_pattern())
+
+            self.action_import_links = QAction(get_themed_icon("add_url"), self.tr("Import Links / Batch from Clipboard..."), self)
+            self.action_import_links.setToolTip(self.tr("Import multiple download links from clipboard or text"))
+            self.action_import_links.triggered.connect(self.open_batch_clipboard)
+
             self.action_exit = QAction(get_themed_icon("exit"), self.tr("Exit"), self)
             self.action_exit.setToolTip(self.tr("Exit Bengal Download Manager"))
             self.action_exit.triggered.connect(self.quit_app)
@@ -605,6 +615,10 @@ class MainWindow(QMainWindow):
             self.action_add_url.setToolTip(self.tr("Add a new download URL address (Ctrl+N)"))
             self.action_paste_url.setText(self.tr("Paste URL"))
             self.action_paste_url.setToolTip(self.tr("Paste URL address from clipboard (Ctrl+V)"))
+            self.action_batch_download.setText(self.tr("Add Batch Download..."))
+            self.action_batch_download.setToolTip(self.tr("Add batch download from address pattern with wildcards (Ctrl+Shift+N)"))
+            self.action_import_links.setText(self.tr("Import Links / Batch from Clipboard..."))
+            self.action_import_links.setToolTip(self.tr("Import multiple download links from clipboard or text"))
             self.action_exit.setText(self.tr("Exit"))
             self.action_exit.setToolTip(self.tr("Exit Bengal Download Manager"))
             self.action_stop.setText(self.tr("Stop/Pause"))
@@ -640,6 +654,7 @@ class MainWindow(QMainWindow):
         tasks_menu = menu_bar.addMenu(self.tr("&Tasks"))
         tasks_menu.addAction(self.action_add_url)
         tasks_menu.addAction(self.action_paste_url)
+        tasks_menu.addAction(self.action_batch_download)
         tasks_menu.addAction(self.action_grabber)
         tasks_menu.addSeparator()
         tasks_menu.addAction(self.action_exit)
@@ -658,6 +673,9 @@ class MainWindow(QMainWindow):
         downloads_menu.addAction(self.action_resume)
         downloads_menu.addAction(self.action_stop)
         downloads_menu.addAction(self.action_stop_all)
+        downloads_menu.addSeparator()
+        downloads_menu.addAction(self.action_batch_download)
+        downloads_menu.addAction(self.action_import_links)
         downloads_menu.addSeparator()
         downloads_menu.addAction(self.action_delete)
         downloads_menu.addAction(self.action_clear)
@@ -1042,6 +1060,8 @@ class MainWindow(QMainWindow):
         self.download_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.download_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.download_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.download_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.download_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         # Install event filter to clear selection on empty area click
         self.empty_area_filter = EmptyAreaClickFilter(self.download_table, self)
@@ -1309,19 +1329,15 @@ class MainWindow(QMainWindow):
             self.active_downloads = {}
 
         total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
-        row_active = sum(1 for r in range(self.download_table.rowCount()) if self._is_row_active(r)) if hasattr(self, "download_table") else 0
-        if row_active > 0:
-            active_count = row_active
-        else:
-            active_workers = 0
-            for k, entry in getattr(self, "active_downloads", {}).items():
-                if entry is True:
+        active_workers = 0
+        for k, entry in getattr(self, "active_downloads", {}).items():
+            if entry is True:
+                active_workers += 1
+            else:
+                worker = getattr(entry, 'worker', entry)
+                if worker is not None and not getattr(worker, 'is_paused', False) and not getattr(worker, 'is_pause_requested', False):
                     active_workers += 1
-                else:
-                    worker = getattr(entry, 'worker', entry)
-                    if worker is not None and not getattr(worker, 'is_paused', False) and not getattr(worker, 'is_pause_requested', False):
-                        active_workers += 1
-            active_count = active_workers or len(self.active_speeds)
+        active_count = active_workers or len(self.active_speeds)
 
         # Update status bar speed label
         if hasattr(self, "status_speed_label") and self.status_speed_label:
@@ -1710,6 +1726,11 @@ class MainWindow(QMainWindow):
         """Notifies QML bridge and scheduler dialog of download list/progress changes."""
         if not self.isVisible():
             return
+        now = time.monotonic()
+        if hasattr(self, "_last_view_notify_time") and (now - self._last_view_notify_time < 0.3):
+            return
+        self._last_view_notify_time = now
+
         if MemoryGuard.is_widget_alive(getattr(self, '_scheduler_dlg', None)):
             if hasattr(self._scheduler_dlg, 'tabs') and self._scheduler_dlg.tabs.currentIndex() == 1:
                 self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
@@ -2321,6 +2342,14 @@ class MainWindow(QMainWindow):
         if item_to_select is not None:
             self.category_tree.setCurrentItem(item_to_select)
             self.filter_downloads(item_to_select, 0)
+
+    def schedule_save_data(self, delay_ms: int = 400):
+        """Debounces calls to save_data to avoid redundant disk and DB writes during rapid download events."""
+        if not hasattr(self, "_debounced_save_timer"):
+            self._debounced_save_timer = QTimer(self)
+            self._debounced_save_timer.setSingleShot(True)
+            self._debounced_save_timer.timeout.connect(self.save_data)
+        self._debounced_save_timer.start(delay_ms)
 
     def save_data(self):
         try:
@@ -3695,12 +3724,165 @@ class MainWindow(QMainWindow):
             self._handle_add_url_accepted(self._add_url_dialog)
 
     def _handle_add_url_accepted(self, dialog):
+        if getattr(dialog, "is_batch_mode", False):
+            url = dialog.get_url()
+            self.open_batch_pattern(initial_url=url)
+            return
+        if getattr(dialog, "is_batch_list_mode", False):
+            urls = getattr(dialog, "batch_urls", [])
+            if urls:
+                self.open_batch_download(urls, is_import=True)
+                return
         url = dialog.get_url()
         if url:
             if getattr(dialog, "is_media_mode", False):
                 self.open_media_downloader(url=url, auto_analyze=True)
             else:
                 self.process_incoming_url(url)
+
+    def open_batch_pattern(self, initial_url: str = None):
+        """Opens the Batch Pattern Dialog to generate wildcard URLs."""
+        from ui.dialogs import BatchPatternDialog
+        dlg = BatchPatternDialog(self, initial_url=initial_url or "")
+        if dlg.exec():
+            urls = dlg.get_generated_urls()
+            if urls:
+                self.open_batch_download(urls, is_import=False)
+
+    def open_batch_clipboard(self):
+        """Extracts URLs from system clipboard and opens Batch Download Review."""
+        text = QApplication.clipboard().text().strip()
+        lines = [line.strip() for line in text.split("\n") if line.strip().startswith(("http://", "https://", "ftp://", "magnet:"))]
+        if lines:
+            self.open_batch_download(lines, is_import=True)
+        else:
+            self.open_batch_pattern()
+
+    def open_batch_download(self, urls_or_items, is_import: bool = False):
+        """Opens the Batch Download Review dialog with the provided items."""
+        if not urls_or_items:
+            return
+        from ui.dialogs import BatchDownloadDialog
+        dlg = BatchDownloadDialog(urls_or_items, parent=self, main_window=self, is_import=is_import)
+        dlg.exec()
+
+    def add_batch_downloads(self, batch_files: list, queue_name: str = None, start_immediate: bool = True):
+        """
+        Adds multiple downloads from a batch in a single optimized pass, avoiding
+        table redraw churn, redundant disk serialization, and thread starvation.
+        """
+        if not batch_files:
+            return
+
+        target_queue = queue_name or "Main download queue"
+        queue_max = self._get_queue_max_concurrent(target_queue)
+        active_in_queue = self._get_active_count_for_queue(target_queue)
+        available_slots = max(0, queue_max - active_in_queue) if start_immediate else 0
+
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        self.download_table.setSortingEnabled(False)
+        self.download_table.setUpdatesEnabled(False)
+        self.download_table.blockSignals(True)
+
+        config = load_category_config()
+        categories = config.get("categories", {})
+        current_ts = str(time.time())
+
+        items_to_start = []
+        added_count = 0
+
+        try:
+            for f in batch_files:
+                url = f.get("url")
+                if not url:
+                    continue
+
+                filename_guess = f.get("filename") or resolve_filename(url, {})
+                custom_save_dir = f.get("save_dir")
+                start_paused = f.get("start_paused", not start_immediate)
+                referer = f.get("referer") or url
+                user_agent = f.get("user_agent")
+                cookies = f.get("cookies")
+
+                # Determine category and save directory
+                ext = os.path.splitext(filename_guess)[1].replace(".", "").lower()
+                final_category = "General"
+                for cat_name, cat_data in categories.items():
+                    if ext in cat_data.get("extensions", "").split():
+                        final_category = cat_name
+                        break
+                save_dir = custom_save_dir if custom_save_dir else (categories.get(final_category, {}).get("path") or get_user_downloads_dir())
+                target_path = os.path.join(save_dir, filename_guess)
+
+                row = 0
+                self.download_table.insertRow(row)
+
+                item_name = QTableWidgetItem(filename_guess)
+                item_name.setToolTip(filename_guess)
+                item_name.setData(Qt.ItemDataRole.UserRole, url)
+                item_name.setIcon(get_file_icon(filename_guess))
+
+                item_name.setData(Qt.ItemDataRole.UserRole + 1, target_path)
+                item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)  # Last Try
+                item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)  # Date Added
+                item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent)
+                item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)
+                item_name.setData(Qt.ItemDataRole.UserRole + 8, target_queue)
+                item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Active queue execution
+                item_name.setData(Qt.ItemDataRole.UserRole + 15, referer)
+                item_name.setData(Qt.ItemDataRole.UserRole + 18, True)  # Batch item flag
+
+                self.download_table.setItem(row, 0, item_name)
+                self._set_sortable_item(row, 1, "?", parse_size_to_bytes)
+
+                can_start = start_immediate and not start_paused and (len(items_to_start) < available_slots)
+                if can_start:
+                    self._set_status_text(row, "Pending...")
+                    self._set_sortable_item(row, 3, "...", parse_time_to_sec)
+                    self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
+                    self._set_row_bold(row, True)
+                    items_to_start.append((url, item_name, filename_guess, save_dir, referer, user_agent, cookies))
+                elif start_immediate and not start_paused:
+                    self._set_status_text(row, "Queued")
+                    self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                    self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                    self._set_row_bold(row, False)
+                else:
+                    self._set_status_text(row, "Paused")
+                    self._set_sortable_item(row, 3, "", parse_time_to_sec)
+                    self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+                    self._set_row_bold(row, False)
+
+                self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
+                self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
+                added_count += 1
+        finally:
+            self.download_table.blockSignals(False)
+            self.download_table.setUpdatesEnabled(True)
+            if sorting_was_enabled:
+                self.download_table.setSortingEnabled(True)
+            self.download_table.viewport().update()
+
+        # Start workers only up to queue concurrency limit
+        for url, item_ref, fn, sdir, ref, ua, ck in items_to_start:
+            try:
+                self._start_download_worker(
+                    url, item_ref, resume_filename=fn, custom_save_dir=sdir,
+                    show_dialog=False, user_agent=ua, cookies=ck, referrer=ref
+                )
+            except Exception:
+                pass
+
+        self.save_data()
+        self.update_ui_states()
+        self.update_status_bar_items()
+        self.update_status_bar_speed()
+
+        QMessageBox.information(
+            self,
+            self.tr("Batch Added"),
+            self.tr(f"Successfully added {added_count} download{'s' if added_count != 1 else ''} to '{target_queue}'.")
+        )
 
     def process_incoming_url(self, data, allow_duplicate=False):
         """Fetches file info and shows the popup without stealing focus for main window"""
@@ -4513,16 +4695,18 @@ class MainWindow(QMainWindow):
             worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
             worker.finished_signal.connect(lambda _, path, ref=item_ref, k=key: self._on_media_download_finished(k, ref, path))
 
-            progress_dialog = DownloadProgressDialog(worker, None)
-            progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
-            self.active_downloads[key] = progress_dialog
-            progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
-            progress_dialog.finished.connect(self._try_start_queued)
-
             if should_show_progress:
+                progress_dialog = DownloadProgressDialog(worker, None)
+                progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                self.active_downloads[key] = progress_dialog
+                progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                progress_dialog.finished.connect(self._try_start_queued)
                 progress_dialog.show()
             else:
-                progress_dialog.hide()
+                self.active_downloads[key] = worker
+                worker.finished_signal.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                worker.finished_signal.connect(self._try_start_queued)
+                worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
 
             self._set_status_text(row, "Downloading...")
             self._set_row_bold(row, True)
@@ -4616,21 +4800,25 @@ class MainWindow(QMainWindow):
         worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
         worker.finished_signal.connect(lambda _, status, ref=item_ref: self.download_finished(ref, status))
 
-        # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
-        progress_dialog = DownloadProgressDialog(worker, None)
-        if should_show_progress:
-            progress_dialog.show()
-        else:
-            progress_dialog.hide()
-
-        # Connect to the dialog's finished signal to update the main UI/toolbar
-        progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
-
-        # Use persistent item key to manage active dialogs
         key = self._get_item_key(item_ref)
-        self.active_downloads[key] = progress_dialog
-        progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
-        progress_dialog.finished.connect(self._try_start_queued)
+        if should_show_progress:
+            # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
+            progress_dialog = DownloadProgressDialog(worker, None)
+            progress_dialog.show()
+            progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+            self.active_downloads[key] = progress_dialog
+            progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+            progress_dialog.finished.connect(self._try_start_queued)
+        else:
+            self.active_downloads[key] = worker
+            worker.finished_signal.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+            worker.finished_signal.connect(self._try_start_queued)
+            worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
+            if hasattr(worker, 'isRunning'):
+                if not worker.isRunning():
+                    worker.start()
+            elif hasattr(worker, 'start'):
+                worker.start()
 
         # Trigger UI Update for Stop Buttons
         self.update_ui_states()
@@ -4957,9 +5145,10 @@ class MainWindow(QMainWindow):
                     raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
                     if raw_speed is not None:
                         self.active_speeds[key] = float(raw_speed)
-                    elif rate_val:
-                        self.active_speeds[key] = parse_size_to_bytes(str(rate_val).replace("/s", "").strip())
-            self.update_status_bar_speed()
+            now_mono = time.monotonic()
+            if not hasattr(self, "_last_speed_update_time") or (now_mono - self._last_speed_update_time >= 0.25):
+                self._last_speed_update_time = now_mono
+                self.update_status_bar_speed()
             
             # Col 5: Last Try
             formatted_last_try = format_timestamp_relative(new_timestamp, max_relative_seconds=300)
@@ -5302,16 +5491,11 @@ class MainWindow(QMainWindow):
                 self.update_status_bar_speed()
                 return
 
-            sorting_was_enabled = self.download_table.isSortingEnabled()
-            if sorting_was_enabled:
-                self.download_table.setSortingEnabled(False)
             self.download_table.blockSignals(True)
             try:
                 self._apply_download_row_data(item_ref, data)
             finally:
                 self.download_table.blockSignals(False)
-                if sorting_was_enabled:
-                    self.download_table.setSortingEnabled(True)
                 self._notify_views_changed()
         except (RuntimeError, Exception):
             return
@@ -5421,13 +5605,16 @@ class MainWindow(QMainWindow):
                     dlg.is_completed = True
                 if hasattr(dlg, 'close'):
                     dlg.close()
-                MemoryGuard.safe_delete_later(dlg)
+                if isinstance(dlg, QWidget):
+                    MemoryGuard.safe_delete_later(dlg)
             if hasattr(self, "active_speeds"):
                 self.active_speeds.pop(key, None)
 
             if display_status == "Complete":
-                # Dispatch XDG system notification if enabled
-                if getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)):
+                is_batch_item = bool(item_ref.data(Qt.ItemDataRole.UserRole + 18)) if item_ref else False
+                is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
+                # Dispatch XDG system notification if enabled (suppressed for batch/queue runs)
+                if not is_batch_item and not is_queue_run and (getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False))):
                     try:
                         from core.notifications import send_system_notification
                         filename = item_ref.text() if item_ref else "File"
@@ -5514,8 +5701,7 @@ class MainWindow(QMainWindow):
             self.update_status_bar_speed()
             self.update_status_bar_items()
             self.update_ui_states()
-            self.save_data()
-            MemoryGuard.clean_and_trim()
+            self.schedule_save_data()
             # Explicit repaint
             self.download_table.viewport().update()
         except (RuntimeError, Exception):

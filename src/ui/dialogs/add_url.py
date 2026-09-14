@@ -102,6 +102,9 @@ class AddUrlDialog(QDialog):
         layout.addLayout(input_layout)
         
         self.is_media_mode = False
+        self.is_batch_mode = False
+        self.is_batch_list_mode = False
+        self.batch_urls = []
 
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(0, 6, 0, 0)
@@ -120,8 +123,23 @@ class AddUrlDialog(QDialog):
         self.btn_send_media.clicked.connect(self._on_send_media_clicked)
         self.btn_send_media.hide()
 
+        self.lbl_batch_status = QLabel("Batch pattern detected (go to Batch Downloader)")
+        self.lbl_batch_status.setStyleSheet("color: #3498db; font-weight: bold; font-size: 11px;")
+        self.lbl_batch_status.hide()
+
+        self.btn_send_batch = QPushButton("Batch Download")
+        self.btn_send_batch.setFixedHeight(30)
+        self.btn_send_batch.setToolTip("Open in Batch Downloader to configure wildcard range")
+        self.btn_send_batch.setIcon(get_add_url_button_icon("add_url", size=16))
+        self._batch_filter = AddUrlButtonPressFilter("add_url", size=16, parent=self)
+        self.btn_send_batch.installEventFilter(self._batch_filter)
+        self.btn_send_batch.clicked.connect(self._on_send_batch_clicked)
+        self.btn_send_batch.hide()
+
         btn_layout.addWidget(self.btn_send_media)
         btn_layout.addWidget(self.lbl_media_status)
+        btn_layout.addWidget(self.btn_send_batch)
+        btn_layout.addWidget(self.lbl_batch_status)
         btn_layout.addStretch()
         
         self.btn_download = QPushButton("OK")
@@ -157,15 +175,46 @@ class AddUrlDialog(QDialog):
     def _check_url_type(self):
         from core.utils import is_media_downloader_url
         url = self.get_url()
-        if is_media_downloader_url(url):
+        lines = [line.strip() for line in url.split("\n") if line.strip().startswith(("http://", "https://", "ftp://", "magnet:"))]
+        
+        if len(lines) > 1:
+            self.batch_urls = lines
+            self.lbl_batch_status.setText(f"{len(lines)} URLs detected (open in Batch Review)")
+            self.lbl_batch_status.show()
+            self.btn_send_batch.setText("Review Batch")
+            self.btn_send_batch.show()
+            self.lbl_media_status.hide()
+            self.btn_send_media.hide()
+        elif "*" in url and url.startswith(("http://", "https://", "ftp://")):
+            self.lbl_batch_status.setText("Wildcard pattern detected (open in Batch Downloader)")
+            self.lbl_batch_status.show()
+            self.btn_send_batch.setText("Batch Download")
+            self.btn_send_batch.show()
+            self.lbl_media_status.hide()
+            self.btn_send_media.hide()
+        elif is_media_downloader_url(url):
+            self.lbl_batch_status.hide()
+            self.btn_send_batch.hide()
             self.lbl_media_status.show()
             self.btn_send_media.show()
         else:
+            self.lbl_batch_status.hide()
+            self.btn_send_batch.hide()
             self.lbl_media_status.hide()
             self.btn_send_media.hide()
 
     def _on_send_media_clicked(self):
         self.is_media_mode = True
+        self.accept()
+
+    def _on_send_batch_clicked(self):
+        url = self.get_url()
+        lines = [line.strip() for line in url.split("\n") if line.strip().startswith(("http://", "https://", "ftp://", "magnet:"))]
+        if len(lines) > 1:
+            self.is_batch_list_mode = True
+            self.batch_urls = lines
+        else:
+            self.is_batch_mode = True
         self.accept()
 
     def paste_url(self):
