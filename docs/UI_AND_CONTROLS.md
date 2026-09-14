@@ -300,44 +300,7 @@ Appears when a download reaches 100% completion (unless disabled or running in s
 
 Configures global application behavior through a structured, two-row tab bar.
 
-### Row 1: Advanced Engine & Integration Tabs
-
-#### `Proxy / Socks` Tab
-- **No proxy / Get from system** *(radio)*: Uses direct connection or host environment proxy settings.
-- **Manual proxy configuration** *(radio)*: Enables custom proxy routing.
-- **Type**: Choose **HTTP** or **HTTPS** protocol.
-- **Proxy host**: IP address or hostname of the proxy server.
-- **Port**: Proxy port number (1-65535).
-- **Authentication required checkbox**: Toggles username and password credential fields.
-- **Username & Password**: Authentication credentials for the proxy server.
-
-#### `Extensions` Tab
-- **Aria2 RPC Settings**:
-  - **Protocol**: Select `http`, `https`, `websocket` (`ws`), or secure websocket (`wss`).
-  - **Port spinbox**: Local daemon port (default: `56800`).
-  - **Secret Token**: Optional secret token for Aria2 RPC authentication.
-  - **Show Token checkbox**: Toggles password masking on the token field.
-- **Get Browser Extension Buttons**:
-  - **GitHub button**: Opens GitHub releases to download offline `.xpi` or `.zip` extensions.
-  - **Firefox Store button**: Opens Mozilla Add-ons Store page for one-click installation.
-  - **Chrome button**: Links to Chrome Web Store package.
-
-#### `Media` Tab
-- **Browser Integration & Auto-Start**:
-  - **Auto-start media downloads when sent from browser checkbox**: Automatically initiates stream extraction and download without extra prompts.
-  - **Preselected Quality Target dropdown**: Default resolution preset (`Best Quality`, `4K`, `2K`, `1080p`, `720p`, `480p`, `360p`, `Audio Only`).
-- **Authentication & Cookie Vault Defaults**:
-  - **Cookie Strategy dropdown**: Choose **Netscape File (cookies.txt)**, **Browser Auto-Extraction**, or **None**.
-  - **Browser dropdown**: Select browser profile to extract session cookies from (**Chrome**, **Firefox**, **Brave**, **Edge**, **Chromium**, **Vivaldi**, **Opera**).
-  - **Netscape cookies.txt Path**: File path to exported cookies file with **Browse...** and **Clear** buttons.
-
-#### `Startup` Tab
-- **Launch Bengal DM on system startup checkbox**: Creates an XDG autostart `.desktop` entry to launch BDM upon user login.
-- **Start minimized in system tray on system startup checkbox**: Launches BDM directly into the system tray without showing the main window.
-
----
-
-### Row 2: Core Behavior & Appearance Tabs
+### Row 1: Core Application Settings
 
 #### `General` Tab
 - **Theme and Appearance**:
@@ -345,13 +308,9 @@ Configures global application behavior through a structured, two-row tab bar.
   - **Accent dropdown**: Choose highlight color (**System**, **BDM Default**, **Amethyst Violet**, **Breeze Blue**, **Crimson Red**, **Dracula Purple**, **Emerald Green**, **Material Cobalt**, **Nord Frost**, **Ubuntu Orange**, etc.).
   - **Icons dropdown**: Select icon pack (**BDM Auto**, **BDM Dark**, **BDM Light**, **Adwaita**, **Breeze**, **Breeze Dark**, **Modern Color**, **Yaru**).
   - **Tray Icon dropdown**: Select tray icon variant (**App Icon**, **Automatic**, **Monochrome Dark**, **Monochrome Light**).
-
-#### `Save To` Tab
-- **Category dropdown**: Select category to edit rules for.
-- **Automatically put in above category file types**: Space-separated list of extensions assigned to this category (e.g. `zip rar 7z tar gz`).
-- **Default download directory**: Path where files in this category are saved, with **Browse** button.
-- **Change folder for selected category on last selected checkbox**: Automatically updates the default folder to match the directory chosen in the last save prompt.
-- **Temporary / Cache directory**: Path where partial chunks and video stream segments are cached before final assembly, with **Browse** button.
+- **UI Settings**:
+  - **Scale dropdown**: Interface scaling override (**Auto**, **100%**, **125%**, **150%**, **175%**, **200%**).
+  - **Language dropdown**: Interface translation selector.
 
 #### `Downloads` Tab
 - **Download Dialogs**:
@@ -365,6 +324,56 @@ Configures global application behavior through a structured, two-row tab bar.
 - **Engine and Connection Settings**:
   - **Active Engine status label**: Shows current RPC connection status and binary path.
   - **Max Split Connections (threads) spinbox**: Default number of parallel connections per download (1 to 32).
+
+#### `Save To` Tab
+- **Category dropdown**: Select category to edit rules for.
+- **Automatically put in above category file types**: Space-separated list of extensions assigned to this category (e.g. `zip rar 7z tar gz`).
+- **Default download directory**: Path where files in this category are saved, with **Browse** button.
+- **Change folder for selected category on last selected checkbox**: Automatically updates the default folder to match the directory chosen in the last save prompt.
+- **Temporary / Cache directory**: Path where partial chunks and video stream segments are cached before final assembly, with **Browse** button.
+
+#### `Startup` Tab
+- **Launch Bengal DM on system startup checkbox**: Creates an XDG autostart `.desktop` entry to launch BDM upon user login.
+- **Start minimized in system tray on system startup checkbox**: Launches BDM directly into the system tray without showing the main window.
+
+---
+
+### Row 2: Integrations, Engines & Connectivity
+
+#### `Extensions` Tab
+- **Browser Integration Overview**: Explains browser extension functionality including one-click interception, media stream sniffing, and context menus.
+- **Get Browser Extension Buttons**:
+  - **GitHub Releases button**: Opens GitHub releases to download offline `.xpi` or `.zip` extensions.
+  - **Firefox Store button**: Opens Mozilla Add-ons Store page for one-click installation.
+  - **Chrome button**: Links to Chrome Web Store package.
+- **Note**: Points to the `Aria2 / RPC` tab for configuring Aria2 RPC credentials and local IPC port.
+
+#### `Media` Tab
+- **Browser Integration & Auto-Start**:
+  - **Auto-start media downloads when sent from browser checkbox**: Automatically initiates stream extraction and download without extra prompts.
+  - **Preselected Quality Target dropdown**: Default resolution preset (`Best Quality`, `4K`, `2K`, `1080p`, `720p`, `480p`, `360p`, `Audio Only`).
+- **Authentication & Cookie Vault Defaults**:
+  - **Cookie Strategy dropdown**: Choose **Netscape File (cookies.txt)**, **Browser Auto-Extraction**, or **None**.
+  - **Browser dropdown**: Select browser profile to extract session cookies from (**Chrome**, **Firefox**, **Brave**, **Edge**, **Chromium**, **Vivaldi**, **Opera**).
+  - **Netscape cookies.txt Path**: File path to exported cookies file with **Browse...** and **Clear** buttons.
+
+#### `Aria2 / RPC` Tab
+- **Aria2 RPC Daemon Settings**:
+  - **Protocol dropdown**: Select communication protocol (`http`, `https`, `websocket` / `ws`, or secure websocket / `wss`).
+  - **Port spinbox**: Local daemon port (1-65535, default: `56800`).
+  - **Secret Token**: Optional authentication token for Aria2 RPC daemon requests.
+  - **Show Token checkbox**: Toggles password masking on the secret token field.
+- **Extension IPC Settings**:
+  - **IPC Port spinbox**: Local TCP listener port (1024-65535, default: `56900`) used by browser extensions to transmit captured downloads.
+
+#### `Proxy / Socks` Tab
+- **No proxy / Get from system** *(radio)*: Uses direct connection or host environment proxy settings.
+- **Manual proxy configuration** *(radio)*: Enables custom proxy routing.
+- **Type**: Choose **HTTP** or **HTTPS** protocol.
+- **Proxy host**: IP address or hostname of the proxy server.
+- **Port**: Proxy port number (1-65535).
+- **Authentication required checkbox**: Toggles username and password credential fields.
+- **Username & Password**: Authentication credentials for the proxy server.
 
 #### Bottom Action Buttons
 - **OK button**: Saves all configuration changes to disk, reapplies themes/palettes, restarts engines if necessary, and closes the dialog.
