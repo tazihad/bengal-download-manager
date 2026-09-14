@@ -17,7 +17,7 @@ from typing import Optional, Tuple, List
 
 from PyQt6.QtWidgets import QApplication, QStyle, QFileIconProvider
 from PyQt6.QtGui import QColor, QPalette, QIcon, QFont, QPixmap, QImage, QPainter
-from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase
+from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale
 
 from core.utils import get_data_dir
 
@@ -294,7 +294,8 @@ ACCENT_COLORS = {
     "Amethyst Violet": "#9b59b6",
     "Obsidian Purple": "#dab9ff",
     "Material Cobalt": "#a8c7fa",
-    "Material Violet": "#d0bcff"
+    "Material Violet": "#d0bcff",
+    "Stellar Blue": "#4488dd"
 }
 
 
@@ -389,6 +390,10 @@ def normalize_theme_name(name, default="BDM Dark (Default)"):
         return "BDM Light"
     if s_lower in ("twilight", "twilight dark"):
         return "Twilight"
+    if s_lower in ("stellar dark", "stellardark"):
+        return "Stellar Dark"
+    if s_lower in ("stellar light", "stellarlight"):
+        return "Stellar Light"
     return s
 
 
@@ -403,6 +408,8 @@ def normalize_accent_name(name, default="BDM (Default)"):
         return "System"
     if s_lower in ("twilight", "twilight violet"):
         return "Twilight"
+    if s_lower in ("stellar", "stellar blue", "stellarblue"):
+        return "Stellar Blue"
     return s
 
 
@@ -419,6 +426,8 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "Modern Color"
     elif s_lower in ("yaru", "ubuntu yaru"):
         return "Yaru"
+    elif s_lower in ("stellar", "stellar icons", "stellaricons"):
+        return "Stellar"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -443,9 +452,9 @@ def is_dark_theme(app=None) -> bool:
     """Returns True if the current active theme is dark, False if light."""
     global CURRENT_THEME
     t_lower = str(CURRENT_THEME).strip().lower() if 'CURRENT_THEME' in globals() and CURRENT_THEME else ""
-    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark"):
+    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark", "stellar dark", "stellardark"):
         return True
-    if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white"):
+    if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white", "stellar light", "stellarlight"):
         return False
     if app is None:
         app = QApplication.instance()
@@ -473,14 +482,21 @@ def is_monochrome_icon_theme(icon_theme_name=None) -> bool:
     )
 
 
-def init_app_font() -> QFont:
+def init_app_font(lang_code: Optional[str] = None) -> QFont:
     """
     Initializes the primary application font.
+    Adapts font family and sizing based on active UI language (e.g. Bengali fonts for 'bn').
     Loads the bundled modern Inter font family from assets/fonts if available,
     with robust fallback to system UI fonts.
     Enforces OpenType tabular figures (tnum) for smooth numeric alignment across the entire UI.
     """
     from PyQt6.QtGui import QFontDatabase
+    from core.services.language_service import get_current_language_code
+
+    if lang_code is None:
+        lang_code = get_current_language_code()
+    lang_code = (lang_code or "system").lower()
+
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     fonts_dir = os.path.join(base_dir, "assets", "fonts")
     if os.path.isdir(fonts_dir):
@@ -489,14 +505,45 @@ def init_app_font() -> QFont:
                 QFontDatabase.addApplicationFont(os.path.join(fonts_dir, font_file))
 
     available = set(QFontDatabase.families())
-    candidates = ["Inter", "Segoe UI", "Noto Sans", "Ubuntu", "Cantarell", "Liberation Sans", "DejaVu Sans"]
+
+    font_size = 9
+    if lang_code == "bn" or (lang_code == "system" and "bn" in QLocale.system().name().lower()):
+        # Cross-platform Bengali system fonts (Linux, Windows, macOS)
+        candidates = [
+            # Linux system fonts
+            "Hind Siliguri", "Kalpurush", "Noto Sans Bengali", "Nikosh",
+            "SolaimanLipi", "Mitra", "Mukti", "Akaash", "Bangla",
+            # Windows native fonts
+            "Nirmala UI", "Vrinda",
+            # macOS native fonts
+            "Bangla Sangam MN", "Kohinoor Bangla",
+            # General UI fallbacks
+            "Inter", "Segoe UI", "Noto Sans", "Ubuntu", "DejaVu Sans"
+        ]
+        font_size = 10  # Bengali text is much more legible at 10pt
+    elif lang_code in ("ar", "fa", "ur"):
+        candidates = [
+            "Noto Sans Arabic", "Segoe UI", "Tahoma", "Geeza Pro",
+            "Inter", "Ubuntu", "DejaVu Sans"
+        ]
+        font_size = 10
+    elif lang_code in ("zh_cn", "zh_tw", "ja", "ko"):
+        candidates = [
+            "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "Noto Sans CJK KR",
+            "Microsoft YaHei", "PingFang SC", "Meiryo", "Malgun Gothic",
+            "Inter", "Segoe UI", "Noto Sans"
+        ]
+    else:
+        candidates = ["Inter", "Segoe UI", "Noto Sans", "Ubuntu", "Cantarell", "Liberation Sans", "DejaVu Sans"]
+
     chosen_family = "Inter"
     for candidate in candidates:
         if candidate in available:
             chosen_family = candidate
             break
 
-    app_font = QFont(chosen_family, 9)
+    app_font = QFont(chosen_family, font_size)
+    app_font.setFamilies(candidates)
     app_font.setFeature(QFont.Tag.fromString('tnum'), 1)
     app_font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
     return app_font
@@ -585,6 +632,14 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         app.setPalette(_build_palette("#eff0f1", "#232629", "#fcfcfc", "#eef0f2", "#eef0f2", "#2980b9", "#3daee9", "#ffffff", accent=accent_name))
+    elif theme_lower in ("stellar dark", "stellardark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#1c1c1c", "#e0e0e0", "#1e1e1e", "#252525", "#222222", "#66a3f0", "#4488dd", "#ffffff", accent=accent_name))
+    elif theme_lower in ("stellar light", "stellarlight"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        app.setPalette(_build_palette("#f0f0f0", "#1a1a1a", "#ffffff", "#f7f7f7", "#e8e8e8", "#4488dd", "#4488dd", "#ffffff", accent=accent_name))
     elif theme_lower in ("bdm light", "bdmlight", "light"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
@@ -644,7 +699,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru", "stellar", "stellar icons", "stellaricons"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -659,8 +714,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         ensure_adaptive_icon_theme(app)
 
-    if not app.styleSheet():
-        app.setStyleSheet("""
+    app.setStyleSheet("""
             QMenuBar {
                 background-color: palette(window);
                 color: palette(window-text);
@@ -681,7 +735,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             QMenu {
                 background-color: palette(window);
                 color: palette(window-text);
-                border: 1px solid palette(mid);
+                border: 1px solid palette(highlight);
                 padding: 4px;
             }
             QMenu::item {
@@ -757,6 +811,13 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             QSplitter::handle:horizontal {
                 background-color: palette(window);
             }
+            QToolTip {
+                background-color: palette(alternate-base);
+                color: palette(window-text);
+                border: 1px solid palette(mid);
+                padding: 4px 6px;
+                border-radius: 4px;
+            }
         """)
 
     for w in app.allWidgets():
@@ -829,7 +890,8 @@ FREEDESKTOP_MAP = {
     "finished": ["emblem-default", "dialog-ok", "check"],
     "exit": ["application-exit", "system-log-out", "exit"],
     "show_hide": ["window-new", "view-restore", "go-home"],
-    "scheduler": ["chronometer", "appointment-soon", "alarm-clock"]
+    "scheduler": ["chronometer", "appointment-soon", "alarm-clock"],
+    "grabber": ["applications-internet", "web-browser", "download"]
 }
 
 
@@ -849,6 +911,10 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
     if icon_theme_lower in ("yaru", "ubuntu yaru"):
         from ui.icons import get_yaru_icon
         return get_yaru_icon(name)
+
+    if icon_theme_lower in ("stellar", "stellar icons", "stellaricons"):
+        from ui.icons import get_stellar_icon
+        return get_stellar_icon(name)
 
     if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
@@ -1030,8 +1096,8 @@ def get_monochrome_app_icon(color=None, size=24) -> QIcon:
     return ic
 
 
-def _resolve_tray_asset(filename: str) -> str:
-    """Finds tray icon asset path across snap, Flatpak, AppImage, and local environments."""
+def resolve_asset(filename: str) -> str:
+    """Finds asset path across snap, Flatpak, AppImage, and local environments."""
     _meipass   = getattr(sys, "_MEIPASS", None)
     _snap      = os.environ.get("SNAP")
     _snap_root = os.environ.get("SNAP_APP_ROOT") or (os.path.join(_snap, "share", "bengal-download-manager") if _snap else None)
@@ -1069,6 +1135,9 @@ def _resolve_tray_asset(filename: str) -> str:
         if c and os.path.isabs(c) and os.path.exists(c):
             return c
     return ""
+
+
+_resolve_tray_asset = resolve_asset
 
 
 def get_themed_tray_icon(tray_option=None) -> QIcon:

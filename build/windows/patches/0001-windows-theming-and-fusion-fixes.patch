@@ -1,0 +1,176 @@
+diff --git a/src/core/services/theme_service.py b/src/core/services/theme_service.py
+index 0446134..b433b5a 100644
+--- a/src/core/services/theme_service.py
++++ b/src/core/services/theme_service.py
+@@ -95,6 +95,17 @@ def _parse_color_value_string(s: str) -> Optional[Tuple[int, int, int]]:
+ def get_windows_accent_color() -> Optional[QColor]:
+     if platform.system() != "Windows":
+         return None
++    try:
++        import winreg  # type: ignore
++        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\DWM") as key:
++            val, _ = winreg.QueryValueEx(key, "AccentColor")
++            r = val & 0xFF
++            g = (val >> 8) & 0xFF
++            b = (val >> 16) & 0xFF
++            return QColor(r, g, b)
++    except Exception:
++        pass
++
+     try:
+         dwm = ctypes.WinDLL("dwmapi")
+         color = wintypes.DWORD()
+@@ -114,6 +125,53 @@ def get_windows_accent_color() -> Optional[QColor]:
+     return None
+ 
+ 
++_DWM_APPLIED_HWNDS = {}
++
++
++def apply_windows_dark_title_bar(window_or_widget, is_dark: bool) -> bool:
++    """Applies DWM Immersive Dark Mode to Win32 window title bar (attributes 20 & 19)."""
++    if platform.system() != "Windows" or not window_or_widget:
++        return False
++    try:
++        wid = None
++        if hasattr(window_or_widget, "winId"):
++            wid = window_or_widget.winId()
++        elif hasattr(window_or_widget, "windowHandle") and window_or_widget.windowHandle():
++            wid = window_or_widget.windowHandle().winId()
++        elif hasattr(window_or_widget, "handle") and hasattr(window_or_widget.handle(), "winId"):
++            wid = window_or_widget.handle().winId()
++        if not wid:
++            return False
++        hwnd = int(wid)
++        target_val = bool(is_dark)
++        if hwnd in _DWM_APPLIED_HWNDS and _DWM_APPLIED_HWNDS[hwnd] == target_val:
++            return True
++        dwm = ctypes.WinDLL("dwmapi")
++        val = wintypes.BOOL(1 if target_val else 0)
++        hr = dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), wintypes.DWORD(20), ctypes.byref(val), ctypes.sizeof(val))
++        if hr != 0:
++            dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), wintypes.DWORD(19), ctypes.byref(val), ctypes.sizeof(val))
++        _DWM_APPLIED_HWNDS[hwnd] = target_val
++        return True
++    except Exception:
++        return False
++
++
++def is_windows_dark_mode() -> bool:
++    """Queries Windows Registry to determine if Windows 10/11 app mode is Dark."""
++    if platform.system() != "Windows":
++        return False
++    try:
++        import winreg  # type: ignore
++        key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
++        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
++            val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
++            return val == 0
++    except Exception:
++        return False
++
++
++
+ GNOME_ACCENT_MAP = {
+     "blue": "#3584e4",
+     "teal": "#2190a4",
+@@ -665,7 +723,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
+             sh.setColorScheme(Qt.ColorScheme.Unknown)
+         
+         is_sys_dark = False
+-        if hasattr(sh, "colorScheme"):
++        if platform.system() == "Windows":
++            is_sys_dark = is_windows_dark_mode()
++        elif hasattr(sh, "colorScheme"):
+             cs = sh.colorScheme()
+             if cs == Qt.ColorScheme.Dark:
+                 is_sys_dark = True
+@@ -726,7 +786,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
+             }
+             QMenuBar::item:selected, QMenuBar::item:hover {
+                 background-color: palette(highlight);
+-                color: #000000;
++                color: palette(highlighted-text);
+             }
+             QMenuBar::item:disabled {
+                 color: #888888;
+@@ -746,7 +806,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
+             }
+             QMenu::item:selected, QMenu::item:hover {
+                 background-color: palette(highlight);
+-                color: #000000;
++                color: palette(highlighted-text);
+             }
+             QMenu::item:disabled {
+                 color: #888888;
+@@ -785,7 +845,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
+             }
+             QToolBar QToolButton:pressed {
+                 background-color: palette(highlight);
+-                color: #000000;
++                color: palette(highlighted-text);
+             }
+             QToolBar QToolButton:disabled {
+                 opacity: 0.30;
+@@ -793,19 +853,19 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
+                 border: 1px solid transparent;
+             }
+             QTableWidget {
+-                selection-color: #000000;
++                selection-color: palette(highlighted-text);
+                 selection-background-color: palette(highlight);
+             }
+             QTableWidget::item:selected, QTableWidget::item:selected:active, QTableWidget::item:selected:!active {
+-                color: #000000;
++                color: palette(highlighted-text);
+                 background-color: palette(highlight);
+             }
+             QTreeWidget {
+-                selection-color: #000000;
++                selection-color: palette(highlighted-text);
+                 selection-background-color: palette(highlight);
+             }
+             QTreeWidget::item:selected, QTreeWidget::item:selected:active, QTreeWidget::item:selected:!active {
+-                color: #000000;
++                color: palette(highlighted-text);
+                 background-color: palette(highlight);
+             }
+             QSplitter::handle:horizontal {
+@@ -839,6 +899,13 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
+         except Exception:
+             pass
+ 
++    if platform.system() == "Windows":
++        is_dark = is_dark_theme(app)
++        for top in app.topLevelWidgets():
++            apply_windows_dark_title_bar(top, is_dark)
++        for win in app.topLevelWindows():
++            apply_windows_dark_title_bar(win, is_dark)
++
+ 
+ def ensure_adaptive_icon_theme(app=None):
+     search_paths = QIcon.themeSearchPaths()
+diff --git a/src/main.py b/src/main.py
+index 0fd1a20..ddcf073 100644
+--- a/src/main.py
++++ b/src/main.py
+@@ -148,6 +148,19 @@ def main():
+     app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
+     app.setQuitOnLastWindowClosed(False)
+ 
++    if sys.platform == "win32" or platform.system() == "Windows":
++        app.setStyle("Fusion")
++        from core.services.theme_service import apply_windows_dark_title_bar, is_dark_theme
++
++        def on_focus_win_changed(win):
++            if win:
++                apply_windows_dark_title_bar(win, is_dark_theme(app))
++
++        try:
++            app.focusWindowChanged.connect(on_focus_win_changed)
++        except Exception:
++            pass
++
+     # --- SINGLE INSTANCE ENFORCEMENT ---
+     if "--no-single-instance" not in sys.argv:
+         if check_single_instance():

@@ -299,9 +299,21 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(cx - r * 0.55, cy + r + s * 0.02), QPointF(cx - r * 0.80, cy + r + s * 0.10))
         painter.drawLine(QPointF(cx + r * 0.55, cy + r + s * 0.02), QPointF(cx + r * 0.80, cy + r + s * 0.10))
 
+    elif name in ("grabber", "site_grabber"):
+        # Globe with crawl / download arrow
+        cx, cy, r = s * 0.42, s * 0.46, s * 0.30
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        painter.drawEllipse(QRectF(cx - r * 0.48, cy - r, r * 0.96, r * 2))
+        painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+        arr_x, arr_y = s * 0.76, s * 0.68
+        painter.drawLine(QPointF(arr_x, arr_y - s * 0.22), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x - s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x + s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+
     else:
         # Generic stroke circle dot fallback
         painter.drawEllipse(QRectF(s * 0.25, s * 0.25, s * 0.50, s * 0.50))
+
 
 
 def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor = None, size: int = 24, disabled_color: QColor = None, glow: bool = False, glow_color: QColor = None, active_color: QColor = None) -> QIcon:
@@ -763,6 +775,28 @@ def draw_colorful_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(cx, cy), QPointF(cx - r * 0.40, cy - r * 0.50))
         painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - r * 0.65))
 
+    elif name in ("grabber", "site_grabber"):
+        # Vibrant Cyan/Blue Web Globe with download arrow
+        grad = QLinearGradient(0, 0, s, s)
+        grad.setColorAt(0.0, QColor("#06b6d4"))
+        grad.setColorAt(1.0, QColor("#0284c7"))
+        painter.setBrush(grad)
+        painter.setPen(Qt.PenStyle.NoPen)
+        cx, cy, r = s * 0.42, s * 0.46, s * 0.30
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(QRectF(cx - r * 0.48, cy - r, r * 0.96, r * 2))
+        painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+
+        # Down arrow badge
+        arr_x, arr_y = s * 0.76, s * 0.68
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(arr_x, arr_y - s * 0.20), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x - s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+        painter.drawLine(QPointF(arr_x + s * 0.10, arr_y + s * 0.00), QPointF(arr_x, arr_y + s * 0.10))
+
     elif name in ("exit", "quit"):
         # Vibrant Ruby Red Power Button
         grad = QLinearGradient(0, 0, s, s)
@@ -1092,6 +1126,20 @@ def draw_yaru_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(cx, cy), QPointF(cx - r * 0.40, cy - r * 0.50))
         painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - r * 0.65))
 
+    elif name in ("grabber", "site_grabber"):
+        _draw_squircle("#0073e6")
+        cx, cy, r = s * 0.44, s * 0.46, s * 0.25
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.05, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
+        painter.drawEllipse(QRectF(cx - r * 0.45, cy - r, r * 0.90, r * 2))
+        painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+
+        arr_x, arr_y = s * 0.72, s * 0.68
+        painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(arr_x, arr_y - s * 0.18), QPointF(arr_x, arr_y + s * 0.08))
+        painter.drawLine(QPointF(arr_x - s * 0.09, arr_y - s * 0.01), QPointF(arr_x, arr_y + s * 0.08))
+        painter.drawLine(QPointF(arr_x + s * 0.09, arr_y - s * 0.01), QPointF(arr_x, arr_y + s * 0.08))
+
     elif name in ("exit", "quit"):
         _draw_squircle("#c7162b")
         painter.setPen(QPen(QColor("#ffffff"), s * 0.07, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
@@ -1168,5 +1216,66 @@ def get_yaru_icon(name: str, size: int = 24) -> QIcon:
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
     icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
     return icon
+
+
+def get_stellar_icon(name: str, size: int = 24) -> QIcon:
+    """
+    Renders a modern, styled SVG icon from the Stellar icon set for Bengal Download Manager.
+    Includes high-DPI crisp antialiasing and automatic faded disabled states.
+    """
+    import os
+    from core.services.theme_service import resolve_asset
+    path = resolve_asset(f"icons/stellar/{name}.svg")
+    if not path or not os.path.exists(path):
+        aliases = {
+            "stop": "pause",
+            "clear_completed": "delete_done",
+            "options": "tools",
+            "site_grabber": "grabber",
+            "music": "note",
+            "add": "add_url",
+            "delete": "wastebasket",
+            "trash": "wastebasket",
+            "clear": "delete_done",
+            "settings": "tools",
+            "configure": "tools",
+            "all": "all_downloads",
+            "media_downloader": "video",
+        }
+        alt = aliases.get(name)
+        if alt:
+            path = resolve_asset(f"icons/stellar/{alt}.svg")
+
+    if path and os.path.exists(path):
+        from PyQt6.QtSvg import QSvgRenderer
+        renderer = QSvgRenderer(path)
+        if renderer.isValid():
+            pixmap = QPixmap(size * 2, size * 2)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            renderer.render(painter)
+            painter.end()
+
+            disabled_pixmap = QPixmap(pixmap.size())
+            disabled_pixmap.fill(Qt.GlobalColor.transparent)
+            p = QPainter(disabled_pixmap)
+            p.setOpacity(0.35)
+            p.drawPixmap(0, 0, pixmap)
+            p.end()
+
+            icon = QIcon()
+            icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.Off)
+            icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.On)
+            icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.Off)
+            icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.On)
+            icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.Off)
+            icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.On)
+            icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+            icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
+            return icon
+        return QIcon(path)
+
+    return get_monochrome_icon(name, size=size)
+
 
 

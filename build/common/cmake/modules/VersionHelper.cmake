@@ -1,0 +1,11 @@
+# Shared CMake Version Extraction Helper
+function(extract_bdm_version VERSION_FILE OUT_VERSION)
+    if(EXISTS "${VERSION_FILE}")
+        file(READ "${VERSION_FILE}" RAW_VER)
+        string(STRIP "${RAW_VER}" CLEAN_VER)
+        string(REGEX REPLACE "^v" "" CLEAN_VER "${CLEAN_VER}")
+        set(${OUT_VERSION} "${CLEAN_VER}" PARENT_SCOPE)
+    else()
+        set(${OUT_VERSION} "0.2.46" PARENT_SCOPE)
+    endif()
+endfunction()

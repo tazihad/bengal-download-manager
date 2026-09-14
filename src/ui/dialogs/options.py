@@ -194,40 +194,44 @@ class OptionsDialog(QDialog):
         self.tabs = TwoRowTabWidget()
         layout.addWidget(self.tabs)
         
-        # Row 1 (Top)
-        self.proxy_tab = QWidget()
-        self.setup_proxy_tab()
-        self.tabs.addTab(self.proxy_tab, "Proxy / Socks", row=1)
+        # Row 1 (Top: Core Settings)
+        self.general_tab = QWidget()
+        self.setup_general_tab()
+        self.tabs.addTab(self.general_tab, "General", row=1)
 
-        self.extension_tab = QWidget()
-        self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "Extensions", row=1)
+        self.downloads_tab = QWidget()
+        self.setup_downloads_tab()
+        self.tabs.addTab(self.downloads_tab, "Downloads", row=1)
 
-        self.media_tab = QWidget()
-        self.setup_media_tab()
-        self.tabs.addTab(self.media_tab, "Media", row=1)
+        self.saveto_tab = QWidget()
+        self.setup_saveto_tab()
+        self.tabs.addTab(self.saveto_tab, "Save To", row=1)
 
         self.startup_tab = QWidget()
         self.setup_startup_tab()
         self.tabs.addTab(self.startup_tab, "Startup", row=1)
 
-        # Row 2 (Bottom)
-        self.general_tab = QWidget()
-        self.setup_general_tab()
-        self.tabs.addTab(self.general_tab, "General", row=2)
+        # Row 2 (Bottom: Integrations & Network)
+        self.extension_tab = QWidget()
+        self.setup_extension_tab()
+        self.tabs.addTab(self.extension_tab, "Extensions", row=2)
 
-        self.saveto_tab = QWidget()
-        self.setup_saveto_tab()
-        self.tabs.addTab(self.saveto_tab, "Save To", row=2)
+        self.media_tab = QWidget()
+        self.setup_media_tab()
+        self.tabs.addTab(self.media_tab, "Media", row=2)
 
-        self.downloads_tab = QWidget()
-        self.setup_downloads_tab()
-        self.tabs.addTab(self.downloads_tab, "Downloads", row=2)
+        self.aria2_tab = QWidget()
+        self.setup_aria2_tab()
+        self.tabs.addTab(self.aria2_tab, "Aria2 / RPC", row=2)
 
-        # Default to General tab in Row 2
+        self.proxy_tab = QWidget()
+        self.setup_proxy_tab()
+        self.tabs.addTab(self.proxy_tab, "Proxy / Socks", row=2)
+
+        # Default to General tab in Row 1
         self.tabs.setCurrentWidget(self.general_tab)
 
-        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if "Downloads" in self.tabs.tabText(idx) else None)
+        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if any(k in self.tabs.tabText(idx) for k in ("Downloads", "Aria2", "RPC")) else None)
         if hasattr(self, 'spin_aria_port'):
             self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
         if hasattr(self, 'txt_aria_token'):
@@ -273,6 +277,11 @@ class OptionsDialog(QDialog):
         lbl_theme.setToolTip("Select application visual theme")
         self.combo_theme = QComboBox()
         self.combo_theme.setToolTip("Select application visual theme")
+        self.combo_theme.setMaxVisibleItems(10)
+        self.combo_theme.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_theme = self.combo_theme.view()
+        if view_theme:
+            view_theme.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         theme_options = [
             "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
             "Breeze Dark", "Breeze Light", "Catppuccin",
@@ -280,6 +289,7 @@ class OptionsDialog(QDialog):
             "Kirigami Light", "Material You Dark", "Material You Light",
             "Nord", "Obsidian Flow", "One Dark", 
             "Solarized Dark", "Solarized Light", 
+            "Stellar Dark", "Stellar Light",
             "Twilight", "Ubuntu Dark", "Ubuntu Light"
         ]
         self.combo_theme.addItems(theme_options)
@@ -288,11 +298,16 @@ class OptionsDialog(QDialog):
         lbl_accent.setToolTip("Select accent/highlight color")
         self.combo_accent = QComboBox()
         self.combo_accent.setToolTip("Select accent/highlight color")
+        self.combo_accent.setMaxVisibleItems(10)
+        self.combo_accent.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_accent = self.combo_accent.view()
+        if view_accent:
+            view_accent.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         accent_options = [
             "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
-            "Obsidian Purple", "Twilight", "Ubuntu Orange", "Windows Blue"
+            "Obsidian Purple", "Stellar Blue", "Twilight", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
@@ -300,13 +315,23 @@ class OptionsDialog(QDialog):
         lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
         self.combo_icon_theme = QComboBox()
         self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
-        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Yaru"]
+        self.combo_icon_theme.setMaxVisibleItems(10)
+        self.combo_icon_theme.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_icons = self.combo_icon_theme.view()
+        if view_icons:
+            view_icons.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Stellar", "Yaru"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
         lbl_tray_icon.setToolTip("Select system tray icon style")
         self.combo_tray_icon = QComboBox()
         self.combo_tray_icon.setToolTip("Select system tray icon style")
+        self.combo_tray_icon.setMaxVisibleItems(10)
+        self.combo_tray_icon.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_tray = self.combo_tray_icon.view()
+        if view_tray:
+            view_tray.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         tray_icon_options = [
             "App Icon (Default)", "Automatic", "Monochrome Dark", "Monochrome Light"
         ]
@@ -373,17 +398,18 @@ class OptionsDialog(QDialog):
 
         layout.addWidget(grp_theme)
 
-        # 2. UI Settings (Right after Theme)
+        # 2. UI Settings (Scale & Language)
         grp_ui = QGroupBox("UI Settings")
-        vbox_ui = QVBoxLayout()
-        vbox_ui.setContentsMargins(10, 8, 10, 8)
-        vbox_ui.setSpacing(8)
+        grid_ui = QGridLayout()
+        grid_ui.setContentsMargins(10, 8, 10, 8)
+        grid_ui.setSpacing(10)
 
-        row_scale = QHBoxLayout()
         lbl_scale = QLabel("Scale:")
         lbl_scale.setToolTip("Set user interface scale factor")
         self.combo_scale = QComboBox()
         self.combo_scale.setToolTip("Set user interface scale factor")
+        self.combo_scale.setMaxVisibleItems(10)
+        self.combo_scale.setStyleSheet("QComboBox { combobox-popup: 0; }")
         scale_options = [
             "50%", "75%", "90%", "100%", "110%", "115%", "125%", 
             "135%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"
@@ -405,12 +431,40 @@ class OptionsDialog(QDialog):
             if def_idx != -1:
                 self.combo_scale.setCurrentIndex(def_idx)
 
-        row_scale.addWidget(lbl_scale)
-        row_scale.addWidget(self.combo_scale)
-        row_scale.addStretch()
-        vbox_ui.addLayout(row_scale)
+        lbl_language = QLabel("Language:")
+        lbl_language.setToolTip("Select user interface language")
+        self.combo_language = QComboBox()
+        self.combo_language.setToolTip("Select interface language (Restart recommended to apply changes to all windows)")
+        self.combo_language.setMaxVisibleItems(10)
+        self.combo_language.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_lang = self.combo_language.view()
+        if view_lang:
+            view_lang.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        grp_ui.setLayout(vbox_ui)
+        from core.services.language_service import (
+            get_available_languages, get_language_display
+        )
+        self.combo_language.addItems(get_available_languages())
+
+        current_language = "system"
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            current_language = self.main_win.settings.get("language", "system")
+
+        current_lang_display = get_language_display(current_language)
+        idx_lang = self.combo_language.findText(current_lang_display)
+        if idx_lang != -1:
+            self.combo_language.setCurrentIndex(idx_lang)
+        else:
+            self.combo_language.setCurrentIndex(0)
+
+        self.initial_language = self.combo_language.currentText()
+
+        grid_ui.addWidget(lbl_scale, 0, 0)
+        grid_ui.addWidget(self.combo_scale, 0, 1)
+        grid_ui.addWidget(lbl_language, 0, 2)
+        grid_ui.addWidget(self.combo_language, 0, 3)
+
+        grp_ui.setLayout(grid_ui)
         layout.addWidget(grp_ui)
         layout.addStretch()
 
@@ -847,7 +901,7 @@ class OptionsDialog(QDialog):
     def setup_extension_tab(self):
         layout = QVBoxLayout(self.extension_tab)
         layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(20)
+        layout.setSpacing(15)
         
         # Header with App Icon
         header_layout = QHBoxLayout()
@@ -858,68 +912,157 @@ class OptionsDialog(QDialog):
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
-        
-        grp_aria = QGroupBox("Aria2 RPC Settings")
+        # Overview & Features Box
+        grp_info = QGroupBox("Browser Integration Overview")
+        info_layout = QVBoxLayout(grp_info)
+        info_layout.setContentsMargins(12, 14, 12, 14)
+        info_layout.setSpacing(8)
+
+        info_text = QLabel(
+            "The Bengal DM browser extension captures downloads directly from your browser "
+            "and sends them to Bengal Download Manager for high-speed multi-threaded acceleration."
+        )
+        info_text.setWordWrap(True)
+        info_layout.addWidget(info_text)
+
+        features_label = QLabel(
+            "• One-click automatic download interception\n"
+            "• Media sniffer for online audio and video streams\n"
+            "• Right-click context menu to download links or selection\n"
+            "• Configurable file type filtering and bypass lists"
+        )
+        features_label.setStyleSheet("color: gray; font-size: 12px; line-height: 1.4;")
+        info_layout.addWidget(features_label)
+        layout.addWidget(grp_info)
+
+        # Get Browser Extension Section
+        grp_get_ext = QGroupBox("Get Browser Extension")
+        get_ext_layout = QVBoxLayout(grp_get_ext)
+        get_ext_layout.setContentsMargins(12, 14, 12, 14)
+        get_ext_layout.setSpacing(10)
+
+        ext_desc = QLabel("Install the extension directly in your preferred browser:")
+        get_ext_layout.addWidget(ext_desc)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(10)
+
+        from ui.icons import get_monochrome_icon
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+
+        self.btn_ext_github = QPushButton(" GitHub Releases")
+        self.btn_ext_github.setFixedHeight(32)
+        self.btn_ext_github.setIcon(get_monochrome_icon("github", size=18))
+        self.btn_ext_github.setToolTip("Open GitHub Releases page to download extension package (.xpi / .zip)")
+        self.btn_ext_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
+
+        self.btn_ext_firefox = QPushButton(" Firefox Store")
+        self.btn_ext_firefox.setFixedHeight(32)
+        self.btn_ext_firefox.setIcon(get_monochrome_icon("firefox", size=18))
+        self.btn_ext_firefox.setToolTip("Open Mozilla Firefox Add-ons Store page")
+        self.btn_ext_firefox.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
+
+        self.btn_ext_chrome = QPushButton(" Chrome (Coming Soon)")
+        self.btn_ext_chrome.setFixedHeight(32)
+        self.btn_ext_chrome.setIcon(get_monochrome_icon("chrome", size=18))
+        self.btn_ext_chrome.setEnabled(False)
+        self.btn_ext_chrome.setToolTip("Chrome Web Store integration is coming soon")
+
+        buttons_layout.addWidget(self.btn_ext_github)
+        buttons_layout.addWidget(self.btn_ext_firefox)
+        buttons_layout.addWidget(self.btn_ext_chrome)
+        get_ext_layout.addLayout(buttons_layout)
+
+        layout.addWidget(grp_get_ext)
+
+        # Note pointing to Aria2 / RPC tab
+        note_label = QLabel("<i>Note: To configure Aria2 RPC authentication token or local IPC port, open the <b>Aria2 / RPC</b> tab.</i>")
+        note_label.setWordWrap(True)
+        note_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(note_label)
+
+        layout.addStretch()
+
+    def setup_aria2_tab(self):
+        layout = QVBoxLayout(self.aria2_tab)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+
+        # Header with App Icon
+        header_layout = QHBoxLayout()
+        header_icon = QLabel()
+        header_icon.setPixmap(self.windowIcon().pixmap(24, 24))
+        header_layout.addWidget(header_icon)
+        header_title = QLabel("<b>Aria2 RPC & IPC Connection Settings</b>")
+        header_layout.addWidget(header_title)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+
+        # Aria2 RPC Settings Group
+        grp_aria = QGroupBox("Aria2 RPC Daemon Settings")
         aria_layout = QGridLayout(grp_aria)
-        aria_layout.setContentsMargins(10, 15, 10, 15)
+        aria_layout.setContentsMargins(12, 16, 12, 16)
         aria_layout.setSpacing(12)
-        
+
         # Protocol
         aria_layout.addWidget(QLabel("Protocol:"), 0, 0)
         self.combo_aria_proto = QComboBox()
+        self.combo_aria_proto.setFixedHeight(28)
         self.combo_aria_proto.setToolTip("Communication protocol for connecting to Aria2 RPC daemon")
-        # Add items with user data to map display text to protocol code
         self.combo_aria_proto.addItem("http", "http")
         self.combo_aria_proto.addItem("https", "https")
         self.combo_aria_proto.addItem("websocket", "ws")
         self.combo_aria_proto.addItem("websocket (security)", "wss")
-        
-        current_proto = self.extension_data.get("protocol", "ws") # Default to ws
+
+        current_proto = self.extension_data.get("protocol", "ws")
         index = self.combo_aria_proto.findData(current_proto)
         if index >= 0:
             self.combo_aria_proto.setCurrentIndex(index)
         else:
-             idx_text = self.combo_aria_proto.findText(current_proto)
-             if idx_text >= 0:
-                 self.combo_aria_proto.setCurrentIndex(idx_text)
-             else:
-                 self.combo_aria_proto.setCurrentIndex(2)
-
+            idx_text = self.combo_aria_proto.findText(current_proto)
+            if idx_text >= 0:
+                self.combo_aria_proto.setCurrentIndex(idx_text)
+            else:
+                self.combo_aria_proto.setCurrentIndex(2)
         aria_layout.addWidget(self.combo_aria_proto, 0, 1)
-        
+
         # Port
         aria_layout.addWidget(QLabel("Port:"), 1, 0)
         self.spin_aria_port = QSpinBox()
+        self.spin_aria_port.setFixedHeight(28)
         self.spin_aria_port.setRange(1, 65535)
         self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
         self.spin_aria_port.setToolTip("Port number for Aria2 RPC daemon (default 56800)")
         aria_layout.addWidget(self.spin_aria_port, 1, 1)
-        
+
         # Token
         aria_layout.addWidget(QLabel("Secret Token:"), 2, 0)
         self.txt_aria_token = QLineEdit()
+        self.txt_aria_token.setFixedHeight(28)
         self.txt_aria_token.setPlaceholderText("Optional secret token")
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
         self.txt_aria_token.setToolTip("Secret authentication token for Aria2 RPC requests")
         aria_layout.addWidget(self.txt_aria_token, 2, 1)
-        
+
         # Show Token Checkbox
         self.chk_show_token = QCheckBox("Show Token")
         self.chk_show_token.setToolTip("Toggle secret token text visibility")
         self.chk_show_token.toggled.connect(self.on_toggle_show_token)
         aria_layout.addWidget(self.chk_show_token, 3, 1)
-        
+
         layout.addWidget(grp_aria)
 
-        # Extension IPC Settings
+        # Extension IPC Settings Group
         grp_ipc = QGroupBox("Extension IPC Settings")
         ipc_layout = QGridLayout(grp_ipc)
-        ipc_layout.setContentsMargins(10, 15, 10, 15)
+        ipc_layout.setContentsMargins(12, 16, 12, 16)
         ipc_layout.setSpacing(12)
 
         ipc_layout.addWidget(QLabel("IPC Port:"), 0, 0)
         self.spin_ipc_port = QSpinBox()
+        self.spin_ipc_port.setFixedHeight(28)
         self.spin_ipc_port.setRange(1024, 65535)
         self.spin_ipc_port.setValue(self.extension_data.get("ipc_port", 56900))
         self.spin_ipc_port.setToolTip(
@@ -927,43 +1070,12 @@ class OptionsDialog(QDialog):
         )
         ipc_layout.addWidget(self.spin_ipc_port, 0, 1)
 
-        ipc_hint = QLabel("Local port used by browser extension to send downloads. Change if 56900 is in use.")
+        ipc_hint = QLabel("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.")
         ipc_hint.setWordWrap(True)
         ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
         ipc_layout.addWidget(ipc_hint, 1, 0, 1, 2)
 
         layout.addWidget(grp_ipc)
-
-        # Get Browser Extension Section
-        grp_get_ext = QGroupBox("Get Browser Extension")
-        get_ext_layout = QHBoxLayout(grp_get_ext)
-        get_ext_layout.setContentsMargins(10, 15, 10, 15)
-        get_ext_layout.setSpacing(10)
-
-        from ui.icons import get_monochrome_icon
-        from PyQt6.QtCore import QUrl
-        from PyQt6.QtGui import QDesktopServices
-
-        self.btn_ext_github = QPushButton(" GitHub")
-        self.btn_ext_github.setIcon(get_monochrome_icon("github", size=18))
-        self.btn_ext_github.setToolTip("Open GitHub Releases page to download extension package")
-        self.btn_ext_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
-
-        self.btn_ext_firefox = QPushButton(" Firefox Store")
-        self.btn_ext_firefox.setIcon(get_monochrome_icon("firefox", size=18))
-        self.btn_ext_firefox.setToolTip("Open Mozilla Firefox Add-ons Store page")
-        self.btn_ext_firefox.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
-
-        self.btn_ext_chrome = QPushButton(" Chrome (Coming Soon)")
-        self.btn_ext_chrome.setIcon(get_monochrome_icon("chrome", size=18))
-        self.btn_ext_chrome.setEnabled(False)
-        self.btn_ext_chrome.setToolTip("Chrome Web Store integration is coming soon")
-
-        get_ext_layout.addWidget(self.btn_ext_github)
-        get_ext_layout.addWidget(self.btn_ext_firefox)
-        get_ext_layout.addWidget(self.btn_ext_chrome)
-        
-        layout.addWidget(grp_get_ext)
         layout.addStretch()
 
     def setup_media_tab(self):
@@ -1290,14 +1402,22 @@ class OptionsDialog(QDialog):
 
         save_category_config(self.config_data)
         
+        from core.services.language_service import (
+            get_language_code, apply_language
+        )
+
         new_scale = self.combo_scale.currentText()
         new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
         new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
-        scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
+        new_lang_display = self.combo_language.currentText() if hasattr(self, 'combo_language') else "System Default"
+        new_lang_code = get_language_code(new_lang_display)
 
-        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, system_notifications, and dialog visibility to parent (MainWindow)
+        scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
+        lang_changed = hasattr(self, 'initial_language') and (self.initial_language != new_lang_display)
+
+        # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, language, system_notifications, and dialog visibility to parent (MainWindow)
         if self.main_win:
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
@@ -1321,12 +1441,18 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["accent"] = new_accent
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
+                self.main_win.settings["language"] = new_lang_code
                 self.main_win.settings["system_notifications"] = is_notif
                 self.main_win.settings["silent_download"] = silent_dl
                 self.main_win.settings["show_start_dialog"] = show_start
                 self.main_win.settings["show_progress_dialog"] = show_prog
                 self.main_win.settings["show_complete_dialog"] = show_comp
                 self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+
+            if lang_changed:
+                apply_language(QApplication.instance(), new_lang_code)
+                if hasattr(self.main_win, "retranslate_ui"):
+                    self.main_win.retranslate_ui()
 
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
@@ -1340,14 +1466,25 @@ class OptionsDialog(QDialog):
         self.save_proxy_data()
         self.save_extension_data()
 
+        restart_items = []
         if scale_changed:
+            restart_items.append("UI Scale")
+        if lang_changed:
+            restart_items.append("Language")
+
+        if restart_items:
+            items_str = " and ".join(restart_items)
             QMessageBox.information(
                 self,
                 "Restart Required",
-                "UI Scale setting has been changed. Please restart Bengal Download Manager to apply the changes."
+                f"{items_str} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect."
             )
 
         self.accept()
+
+    def get_language(self) -> str:
+        from core.services.language_service import get_language_code
+        return get_language_code(self.combo_language.currentText()) if hasattr(self, 'combo_language') else "system"
 
     def get_theme(self):
         return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"

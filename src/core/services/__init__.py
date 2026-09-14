@@ -42,6 +42,18 @@ from core.services.theme_service import (
     normalize_tray_icon_name,
     parse_size_to_bytes,
     parse_time_to_sec,
+    resolve_asset,
+)
+
+from core.services.language_service import (
+    SUPPORTED_LANGUAGES,
+    get_available_languages,
+    get_language_code,
+    get_language_display,
+    normalize_language_code,
+    get_current_language_code,
+    get_current_language_display,
+    apply_language,
 )
 
 __all__ = [
@@ -79,4 +91,13 @@ __all__ = [
     "normalize_tray_icon_name",
     "parse_size_to_bytes",
     "parse_time_to_sec",
+    "resolve_asset",
+    "SUPPORTED_LANGUAGES",
+    "get_available_languages",
+    "get_language_code",
+    "get_language_display",
+    "normalize_language_code",
+    "get_current_language_code",
+    "get_current_language_display",
+    "apply_language",
 ]

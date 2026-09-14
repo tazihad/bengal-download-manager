@@ -5,7 +5,7 @@ Core UI and Integration Tests for Bengal Download Manager MainWindow and Dialogs
 import time
 import pytest
 from PyQt6.QtCore import Qt, QCoreApplication
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QTableWidgetItem
 from main import MainWindow, SingleInstanceServer, check_single_instance
 from ui.dialogs import OptionsDialog
 from core.utils import save_extension_config, load_extension_config
@@ -281,15 +281,30 @@ def test_main_window_data_usage_widget(qapp):
     assert widget.storage_progress.minimum() == 0
     assert widget.storage_progress.maximum() == 100
 
+    # Test real-time live speed synchronization with download status updates
+    assert widget.lbl_speed_val.text() == "0 B/s"
+    win.active_speeds["test_dl"] = 3.5 * 1024 * 1024
+    win.active_downloads["test_dl"] = True
+    win.update_status_bar_speed()
+    assert "3.50 MB/s" in widget.lbl_speed_val.text() or "3.5 MB/s" in widget.lbl_speed_val.text()
+    assert widget.lbl_active_val.text() == "1"
+
+    win.active_speeds.pop("test_dl")
+    win.active_downloads.pop("test_dl")
+    win.update_status_bar_speed()
+    assert widget.lbl_speed_val.text() == "0 B/s"
+    assert widget.lbl_active_val.text() == "0"
+
     # Test toggling data usage summary via View menu action
     assert hasattr(win, "action_data_usage_toggle")
+    assert not win.action_data_usage_toggle.isChecked()
+    assert win.data_usage_widget.isHidden()
+    win.toggle_data_usage(True, save=False)
+    assert not win.data_usage_widget.isHidden()
     assert win.action_data_usage_toggle.isChecked()
     win.toggle_data_usage(False, save=False)
     assert win.data_usage_widget.isHidden()
     assert not win.action_data_usage_toggle.isChecked()
-    win.toggle_data_usage(True, save=False)
-    assert not win.data_usage_widget.isHidden()
-    assert win.action_data_usage_toggle.isChecked()
 
     # Test DataUsageDialog instantiation
     from ui.dialogs import DataUsageDialog
@@ -395,6 +410,344 @@ def test_deleted_table_item_does_not_crash_handlers(qapp):
     win._apply_download_row_data(item_0, mock_data)
     win._on_media_download_finished(key, item_0, "/tmp/file_to_delete.bin")
 
+    win.close()
+
+
+def test_view_sort_by_checkmarks_and_status_bar_child_items(qapp):
+    """Test visible checkmarks in 'Sort by' and child items in 'Status Bar' submenu."""
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    # 1. Test Sort by Menu Checkmarks
+    assert hasattr(win, "sort_action_group")
+    assert win.sort_action_group.isExclusive() is True
+    assert hasattr(win, "sort_actions")
+    assert len(win.sort_actions) == 7
+
+    # Initial checkmark should be on a valid column
+    checked_action = win.sort_action_group.checkedAction()
+    assert checked_action is not None
+    assert checked_action.isCheckable() is True
+    assert checked_action.isChecked() is True
+
+    # Switching sort via menu action triggers table sort and updates checkmark
+    size_action = win.sort_actions[1]
+    assert size_action.text() in ("Size", win.tr("Size"))
+    size_action.trigger()
+    assert win.sort_actions[1].isChecked() is True
+    assert win.download_table.horizontalHeader().sortIndicatorSection() == 1
+
+    # Sorting via table header click updates the menu checkmark
+    win.download_table.horizontalHeader().sortIndicatorChanged.emit(4, Qt.SortOrder.AscendingOrder)
+    assert win.sort_actions[4].isChecked() is True
+    assert win.sort_actions[1].isChecked() is False
+
+    # 2. Test Status Bar Submenu and Child Items
+    assert hasattr(win, "status_bar_menu")
+    assert hasattr(win, "action_status_bar_toggle")
+    assert hasattr(win, "action_sb_memory")
+    assert hasattr(win, "action_sb_aria2")
+    assert hasattr(win, "action_sb_ipc")
+    assert hasattr(win, "action_sb_speed")
+    assert hasattr(win, "action_sb_public_ip")
+
+    # Verify Hide left panel action
+    assert hasattr(win, "action_hide_categories")
+    assert "Hide left panel" in win.action_hide_categories.text()
+
+    # Verify all child actions are checkable
+    for act in [win.action_sb_memory, win.action_sb_aria2, win.action_sb_ipc, win.action_sb_speed, win.action_sb_public_ip]:
+        assert act.isCheckable() is True
+
+    # Verify initial defaults on clean config: only Memory is checked, rest are unchecked
+    assert win.action_sb_memory.isChecked() is True
+    assert win.action_sb_aria2.isChecked() is False
+    assert win.action_sb_ipc.isChecked() is False
+    assert win.action_sb_speed.isChecked() is False
+    assert win.action_sb_public_ip.isChecked() is False
+
+    # Verify initial widget visibility: only Memory is visible
+    assert win.status_memory_label.isHidden() is False
+    assert win.status_aria2_label.isHidden() is True
+    assert win.status_ipc_label.isHidden() is True
+    assert win.status_speed_label.isHidden() is True
+    assert win.status_public_ip_label.isHidden() is True
+
+    # Test toggling Memory
+    win.action_sb_memory.setChecked(False)
+    win._on_status_bar_child_toggled()
+    assert win.status_memory_label.isHidden() is True
+    win.action_sb_memory.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_memory_label.isHidden() is False
+
+    # Test toggling Speed
+    win.action_sb_speed.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_speed_label.isHidden() is False
+    win.active_speeds["test_job"] = 1024 * 1024
+    win.update_status_bar_speed()
+    assert "Speed:" in win.status_speed_label.text()
+    win.action_sb_speed.setChecked(False)
+    win._on_status_bar_child_toggled()
+    assert win.status_speed_label.isHidden() is True
+
+    # Test toggling IPC Status
+    win.action_sb_ipc.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_ipc_label.isHidden() is False
+    win.update_status_bar_ipc()
+    assert "IPC:" in win.status_ipc_label.text()
+
+    # Test Public IP
+    win.action_sb_public_ip.setChecked(True)
+    win._on_status_bar_child_toggled()
+    assert win.status_public_ip_label.isHidden() is False
+    win._on_public_ip_fetched("203.0.113.195")
+    assert "203.0.113.195" in win.status_public_ip_label.text()
+
+    # Test settings persistence
+    win.save_settings()
+    saved_settings = win.load_settings()
+    assert "status_bar_items" in saved_settings
+    assert saved_settings["status_bar_items"]["memory"] is True
+    assert saved_settings["status_bar_items"]["aria2"] is False
+    assert saved_settings["status_bar_items"]["ipc"] is True
+    assert saved_settings["status_bar_items"]["speed"] is False
+    assert saved_settings["status_bar_items"]["public_ip"] is True
+
+    win.is_quitting = True
+    win.close()
+
+
+def test_options_appearance_comboboxes_scrollable(qapp):
+    """Verify that theme, accent, and icon dropdowns have maxVisibleItems constrained and scrollbar enabled."""
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "combo_theme")
+    assert hasattr(dlg, "combo_accent")
+    assert hasattr(dlg, "combo_icon_theme")
+
+    for combo in (dlg.combo_theme, dlg.combo_accent, dlg.combo_icon_theme, dlg.combo_tray_icon):
+        assert combo.maxVisibleItems() == 10
+        assert "combobox-popup: 0" in combo.styleSheet()
+        view = combo.view()
+        assert view is not None
+        assert view.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAsNeeded
+
+    dlg.reject()
+
+
+def test_stellar_theme_accent_and_icons(qapp):
+    """Verify Stellar Dark and Light themes, Stellar Blue accent, and Stellar icon theme."""
+    from core.services.theme_service import (
+        apply_app_theme, is_dark_theme, get_themed_icon,
+        normalize_theme_name, normalize_accent_name, normalize_icon_theme_name
+    )
+    from PyQt6.QtGui import QPalette
+
+    # Verify options in dialog
+    dlg = OptionsDialog()
+    assert dlg.combo_theme.findText("Stellar Dark") != -1
+    assert dlg.combo_theme.findText("Stellar Light") != -1
+    assert dlg.combo_accent.findText("Stellar Blue") != -1
+    assert dlg.combo_icon_theme.findText("Stellar") != -1
+    dlg.reject()
+
+    # Normalization
+    assert normalize_theme_name("Stellar Dark") == "Stellar Dark"
+    assert normalize_theme_name("stellardark") == "Stellar Dark"
+    assert normalize_theme_name("Stellar Light") == "Stellar Light"
+    assert normalize_theme_name("stellarlight") == "Stellar Light"
+    assert normalize_accent_name("stellar") == "Stellar Blue"
+    assert normalize_accent_name("Stellar Blue") == "Stellar Blue"
+    assert normalize_icon_theme_name("Stellar") == "Stellar"
+    assert normalize_icon_theme_name("stellar icons") == "Stellar"
+
+    # Stellar Dark
+    apply_app_theme("Stellar Dark", accent_name="Stellar Blue", icon_theme_name="Stellar")
+    assert is_dark_theme() is True
+    pal_dark = qapp.palette()
+    assert pal_dark.color(QPalette.ColorRole.Window).name().lower() == "#1c1c1c"
+    assert pal_dark.color(QPalette.ColorRole.Highlight).name().lower() == "#4488dd"
+
+    # Icons
+    for name in ["add_url", "resume", "stop", "stop_all", "delete", "clear_completed", "options", "scheduler", "grabber", "all_downloads", "compressed", "documents", "music", "programs", "video"]:
+        ic = get_themed_icon(name)
+        assert not ic.isNull(), f"Icon {name} is null!"
+        pm = ic.pixmap(24, 24)
+        assert not pm.isNull(), f"Pixmap for {name} is null!"
+
+    # Stellar Light
+    apply_app_theme("Stellar Light", accent_name="Stellar Blue", icon_theme_name="Stellar")
+    assert is_dark_theme() is False
+    pal_light = qapp.palette()
+    assert pal_light.color(QPalette.ColorRole.Window).name().lower() == "#f0f0f0"
+
+    # Revert to default
+    apply_app_theme("BDM Dark (Default)", accent_name="BDM (Default)", icon_theme_name="BDM Auto (Default)")
+
+
+def test_menu_outer_accent_border_and_clean_menubar(qapp):
+    """Verify that popup menus (QMenu) have a 1px accent border enclosing options, and menubar is clean."""
+    from core.services.theme_service import apply_app_theme
+    from PyQt6.QtWidgets import QMainWindow
+
+    apply_app_theme("BDM Dark (Default)", accent_name="BDM (Default)")
+    app_sheet = qapp.styleSheet()
+
+    # Outer border of QMenu options must be 1px solid palette(highlight)
+    assert "border: 1px solid palette(highlight)" in app_sheet
+    assert "QMenu {" in app_sheet
+
+    # Menubar itself should not have a bottom border
+    assert "border-bottom: 1px solid palette(highlight)" not in app_sheet
+
+    # Menubar should have no overriding border-bottom stylesheet
+    win = QMainWindow()
+    mb = win.menuBar()
+    assert "border-bottom" not in (mb.styleSheet() or "")
+    win.close()
+
+
+def test_clean_config_view_menu_and_status_bar_defaults(qapp, monkeypatch, tmp_path):
+    """Verify that on clean install/config, Data usage summary is unchecked,
+    Hide left panel is renamed, and only Memory in status bar is checked while the rest are unchecked."""
+    monkeypatch.setattr("ui.main_window.get_config_dir", lambda: str(tmp_path))
+    win = MainWindow(start_ipc=False)
+
+    # 1. View -> Data usage summary should be unchecked and widget hidden
+    assert hasattr(win, "action_data_usage_toggle")
+    assert win.action_data_usage_toggle.isChecked() is False
+    assert hasattr(win, "data_usage_widget")
+    assert win.data_usage_widget.isHidden() is True
+
+    # 2. View -> "Hide categories" renamed to "Hide left panel"
+    assert hasattr(win, "action_hide_categories")
+    assert "Hide left panel" in win.action_hide_categories.text()
+    assert win.action_hide_categories.isChecked() is False
+
+    # 3. Status bar items: only Memory should be checked, rest unchecked
+    assert win.action_sb_memory.isChecked() is True
+    assert win.action_sb_aria2.isChecked() is False
+    assert win.action_sb_ipc.isChecked() is False
+    assert win.action_sb_speed.isChecked() is False
+    assert win.action_sb_public_ip.isChecked() is False
+
+    # 4. Status bar permanent widgets visibility: only Memory visible
+    assert win.status_memory_label.isHidden() is False
+    assert win.status_aria2_label.isHidden() is True
+    assert win.status_ipc_label.isHidden() is True
+    assert win.status_speed_label.isHidden() is True
+    assert win.status_public_ip_label.isHidden() is True
+
+    win.is_quitting = True
+    win.close()
+
+
+def test_queue_start_now_starts_hidden_and_context_menu_shows_progress(qapp, monkeypatch, tmp_path):
+    """Verify queue Start now starts with show_dialog=False, and context menu allows showing progress window."""
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    captured_args = []
+    def mock_start_queue(qname, max_concurrent=4, show_dialog=True):
+        captured_args.append((qname, max_concurrent, show_dialog))
+
+    monkeypatch.setattr(win, "_start_queue_downloads", mock_start_queue)
+    win._queue_action_start("Main download queue")
+    assert len(captured_args) == 1
+    assert captured_args[0] == ("Main download queue", 4, False)
+
+    # Now test progress dialog hidden & context menu show progress
+    from ui.dialogs import DownloadProgressDialog
+    from core.workers.download import DownloadWorker
+
+    win.download_table.setRowCount(1)
+    item_0 = QTableWidgetItem("queue_file.zip")
+    item_0.setData(Qt.ItemDataRole.UserRole, "http://example.com/queue_file.zip")
+    item_0.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/queue_file.zip")
+    item_0.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+    win.download_table.setItem(0, 0, item_0)
+
+    item_2 = QTableWidgetItem("Downloading...")
+    item_2.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
+    win.download_table.setItem(0, 2, item_2)
+
+    # Create dummy worker and progress dialog (hidden, as started by queue)
+    worker = DownloadWorker("http://example.com/queue_file.zip", 0, str(tmp_path), "queue_file.zip")
+    dlg = DownloadProgressDialog(worker, None)
+    dlg.hide()
+    key = win._get_item_key(item_0)
+    win.active_downloads[key] = dlg
+
+    # Verify dialog starts hidden
+    assert dlg.isHidden() is True
+
+    # Call ctx_show_progress_dialog
+    win.ctx_show_progress_dialog(item_0)
+    assert dlg.isVisible() is True
+
+    dlg.close()
+    win.is_quitting = True
+    win.close()
+
+
+def test_stop_all_downloads_state(qapp, monkeypatch, tmp_path):
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+    win = MainWindow(start_ipc=False)
+    win.hide()
+    win.download_table.setRowCount(0)
+    win.update_ui_states()
+
+    # When no downloads exist, Stop All action must be disabled
+    assert win.action_stop_all.isEnabled() is False
+
+    # Add a queued download
+    win.download_table.setRowCount(1)
+    item_queued = QTableWidgetItem("file_queued.bin")
+    item_queued.setData(Qt.ItemDataRole.UserRole, "http://example.com/file_queued.bin")
+    item_queued.setData(Qt.ItemDataRole.UserRole + 1, str(tmp_path / "file_queued.bin"))
+    win.download_table.setItem(0, 0, item_queued)
+    status_queued = QTableWidgetItem("Queued")
+    status_queued.setData(Qt.ItemDataRole.UserRole + 1, "Queued")
+    win.download_table.setItem(0, 2, status_queued)
+    win.update_ui_states()
+
+    # Stop All must be enabled when a download is queued
+    assert win.action_stop_all.isEnabled() is True
+
+    # Add an active downloading item
+    win.download_table.setRowCount(2)
+    item_active = QTableWidgetItem("file_active.bin")
+    item_active.setData(Qt.ItemDataRole.UserRole, "http://example.com/file_active.bin")
+    item_active.setData(Qt.ItemDataRole.UserRole + 1, str(tmp_path / "file_active.bin"))
+    win.download_table.setItem(1, 0, item_active)
+    status_active = QTableWidgetItem("Downloading...")
+    status_active.setData(Qt.ItemDataRole.UserRole + 1, "Downloading...")
+    win.download_table.setItem(1, 2, status_active)
+
+    from core.workers.download import DownloadWorker
+    worker = DownloadWorker("http://example.com/file_active.bin", 1, str(tmp_path), "file_active.bin")
+    key_active = win._get_item_key(item_active)
+    win.active_downloads[key_active] = worker
+    win.update_ui_states()
+
+    assert win.action_stop_all.isEnabled() is True
+
+    # Call stop_all_downloads
+    win.stop_all_downloads()
+
+    # All items should now be paused
+    assert win.download_table.item(0, 2).text() == "Paused"
+    assert win.download_table.item(0, 2).data(Qt.ItemDataRole.UserRole + 1) == "Paused"
+    assert win.download_table.item(1, 2).text() == "Paused"
+    assert win.download_table.item(1, 2).data(Qt.ItemDataRole.UserRole + 1) == "Paused"
+    assert getattr(worker, "is_paused", False) is True
+
+    # Stop All MUST be disabled after all downloads are stopped
+    assert win.action_stop_all.isEnabled() is False
+
+    win.is_quitting = True
     win.close()
 
 

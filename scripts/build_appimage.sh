@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-set -e
+# Bengal Download Manager - AppImage Build Automation Script
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-VERSION="1.0.0"
 ARCH="$(uname -m)"
 REPO_OWNER="tazihad"
 REPO_NAME="bengal-download-manager"
 
-echo "=== 1. Checking / Building PyInstaller Executable ==="
 PYINSTALLER_BIN="pyinstaller"
 PY_BIN="python3"
 if command -v uv >/dev/null 2>&1; then
@@ -24,6 +23,11 @@ elif [ -f "venv/bin/pyinstaller" ]; then
     PYINSTALLER_BIN="venv/bin/pyinstaller"
     PY_BIN="venv/bin/python"
 fi
+
+VERSION=$($PY_BIN -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || cat VERSION 2>/dev/null || echo "0.1.20")
+VERSION="${VERSION#v}"
+
+echo "=== 1. Checking / Building PyInstaller Executable (v$VERSION - $ARCH) ==="
 
 if [ ! -f "dist/bengal-download-manager" ]; then
     PYTHONPATH=src $PYINSTALLER_BIN --noconfirm bengal-download-manager.spec
@@ -111,7 +115,7 @@ fi
 echo "AppImage created: ${OUTPUT_APPIMAGE}"
 echo "Zsync file created: ${OUTPUT_APPIMAGE}.zsync"
 
-if [ "$1" == "--run" ]; then
+if [ "${1:-}" = "--run" ]; then
     echo "=== 5. Launching AppImage ==="
     "./${OUTPUT_APPIMAGE}" "${@:2}"
 fi

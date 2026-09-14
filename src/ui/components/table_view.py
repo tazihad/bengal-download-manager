@@ -24,13 +24,24 @@ class SortableTableWidgetItem(QTableWidgetItem):
     """Table widget item supporting numeric and raw data sorting."""
     def __lt__(self, other):
         v1 = self.data(Qt.ItemDataRole.UserRole)
-        v2 = other.data(Qt.ItemDataRole.UserRole)
+        v2 = other.data(Qt.ItemDataRole.UserRole) if other else None
         if v1 is not None and v2 is not None:
             try:
                 return float(v1) < float(v2)
             except Exception:
                 pass
-        return self.text() < other.text()
+        t1 = self.text().lower() if self.text() else ""
+        t2 = other.text().lower() if (other and other.text()) else ""
+        if t1 != t2:
+            return t1 < t2
+        c1 = self.data(Qt.ItemDataRole.CheckStateRole)
+        c2 = other.data(Qt.ItemDataRole.CheckStateRole) if other else None
+        if c1 is not None and c2 is not None:
+            try:
+                return int(c1) < int(c2)
+            except Exception:
+                pass
+        return super().__lt__(other)
 
 
 class EmptyAreaClickFilter(QObject):

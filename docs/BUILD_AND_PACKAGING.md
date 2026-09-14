@@ -73,10 +73,10 @@ To run directly:
 
 The Flatpak manifest is maintained in [`flatpak/io.github.tazihad.bengal-download-manager.yml`](file:///mnt/data/dev/bengal-download-manager/flatpak/io.github.tazihad.bengal-download-manager.yml) using the `org.kde.Platform` 6.11 runtime.
 
-### Local Flatpak Build & Run Script
+### Local Flatpak Build Script
 Run the automated packaging helper:
 ```bash
-bash scripts/build_and_run_flatpak.sh
+bash scripts/build_flatpak.sh
 ```
 
 ### Manual Flatpak Build Commands

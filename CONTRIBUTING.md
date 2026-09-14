@@ -82,7 +82,7 @@ If you are modifying packaging or deployment scripts:
   ```
 - **Flatpak Build**:
   ```bash
-  bash scripts/build_and_run_flatpak.sh
+  bash scripts/build_flatpak.sh
   ```
 - **Snap Build**:
   ```bash

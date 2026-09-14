@@ -86,9 +86,9 @@ PYTHONPATH=src uv run pyinstaller \
     --noconfirm src/main.py
 ```
 
-### Build and Run Flatpak Package
+### Build Flatpak Package
 ```bash
-bash scripts/build_and_run_flatpak.sh
+bash scripts/build_flatpak.sh
 ```
 
 ---

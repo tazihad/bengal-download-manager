@@ -33,6 +33,7 @@ class ToolbarHoverFilter(QObject):
             "action_delete": "delete",
             "action_clear": "clear_completed",
             "action_scheduler": "scheduler",
+            "action_grabber": "grabber",
             "action_options": "options",
             "action_media_downloader": "media_downloader",
         }
