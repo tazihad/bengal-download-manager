@@ -606,7 +606,9 @@ def test_tcp_listener_graceful_stop_and_reuse():
     import socket
 
     emitter = SignalEmitter()
-    test_port = 56988
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('127.0.0.1', 0))
+        test_port = s.getsockname()[1]
 
     # Start listener on test_port
     listener1 = TcpListenerThread(port=test_port, emitter=emitter)
