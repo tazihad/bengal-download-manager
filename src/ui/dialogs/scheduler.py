@@ -13,9 +13,11 @@ from PyQt6.QtWidgets import (
     QSplitter, QComboBox, QLineEdit, QFileDialog, QTimeEdit,
     QDateEdit, QSizePolicy, QInputDialog, QMessageBox
 )
-from PyQt6.QtCore import Qt, QTime, QDate
+from PyQt6.QtCore import Qt, QTime, QDate, QSize
 from PyQt6.QtGui import QFont, QAction
 from core.memory_guard import MemoryGuard
+from core.services.theme_service import get_themed_icon
+from ui.components import SidebarItemDelegate
 
 
 # Default queue definitions
@@ -205,15 +207,55 @@ class SchedulerDialog(QDialog):
 
         lbl = QLabel(self.tr("Queues"))
         lbl.setFixedHeight(24)
-        fnt = lbl.font()
-        fnt.setBold(True)
-        lbl.setFont(fnt)
+        lbl.setStyleSheet("font-size: 13px; font-weight: bold; padding-left: 4px;")
         left_layout.addWidget(lbl)
 
         self.queue_list = QListWidget()
+        self.queue_list.setMouseTracking(True)
+        self.queue_list.viewport().setMouseTracking(True)
+        self.queue_list.setItemDelegate(SidebarItemDelegate(self.queue_list))
+        self.queue_list.setIconSize(QSize(18, 18))
         self.queue_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.queue_list.customContextMenuRequested.connect(self._show_queue_context_menu)
         self.queue_list.currentRowChanged.connect(self._on_queue_selected)
+        self.queue_list.setStyleSheet("""
+            QListWidget {
+                show-decoration-selected: 0;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 4px 2px;
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                outline: 0;
+                background-color: palette(base);
+                color: palette(window-text);
+            }
+            QListWidget::item {
+                height: 26px;
+                padding: 2px 8px;
+                margin: 1px 2px;
+                border-radius: 4px;
+                color: palette(window-text);
+            }
+            QListWidget::item:focus {
+                outline: none;
+                border: none;
+            }
+            QListWidget::item:hover {
+                background-color: palette(highlight);
+                color: #111111;
+            }
+            QListWidget::item:selected {
+                background-color: palette(highlight);
+                color: #111111;
+                font-weight: 600;
+            }
+            QListWidget::item:disabled {
+                background: transparent;
+                background-color: transparent;
+                color: palette(placeholder-text);
+            }
+        """)
         left_layout.addWidget(self.queue_list, 1)
 
         splitter.addWidget(left_widget)
@@ -559,7 +601,7 @@ class SchedulerDialog(QDialog):
         self.queue_list.blockSignals(True)
         self.queue_list.clear()
         for q in self.queues:
-            item = QListWidgetItem(q["name"])
+            item = QListWidgetItem(get_themed_icon("scheduler"), q["name"])
             self.queue_list.addItem(item)
         self.queue_list.blockSignals(False)
         if self.queues:
@@ -800,7 +842,7 @@ class SchedulerDialog(QDialog):
 
         new_q = _make_default_queue(name)
         self.queues.append(new_q)
-        item = QListWidgetItem(name)
+        item = QListWidgetItem(get_themed_icon("scheduler"), name)
         self.queue_list.addItem(item)
         self.queue_list.setCurrentRow(len(self.queues) - 1)
         self._mark_dirty()

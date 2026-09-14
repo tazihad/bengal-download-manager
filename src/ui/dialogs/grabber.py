@@ -21,6 +21,8 @@ from PyQt6.QtGui import QFont, QIcon, QDesktopServices, QCursor, QColor
 from core.grabber.crawler import GrabberCrawler
 from core.utils import format_bytes, get_user_downloads_dir
 from core.services.theme_service import get_file_icon, get_category_for_filename, get_themed_icon
+from ui.delegates import CheckableTableItemDelegate
+from ui.components import SortableTableWidgetItem
 
 
 GRABBER_PRESETS = {
@@ -63,6 +65,7 @@ class GrabberDialog(QDialog):
         self.crawler: Optional[GrabberCrawler] = None
         self.discovered_items: List[Dict[str, Any]] = []
         self._url_to_row: Dict[str, int] = {}
+        self._url_to_size_item: Dict[str, QTableWidgetItem] = {}
 
         self.setWindowTitle(self.tr("Site Grabber — Bengal Download Manager"))
         self.resize(980, 620)
@@ -294,8 +297,12 @@ class GrabberDialog(QDialog):
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
         self.table.itemChanged.connect(self._on_table_item_changed)
+        self.table.setSortingEnabled(True)
 
         header = self.table.horizontalHeader()
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
+        header.sortIndicatorChanged.connect(self._on_sort_changed)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -304,6 +311,7 @@ class GrabberDialog(QDialog):
 
         self.table.setColumnWidth(0, 260)
         self.table.setColumnWidth(4, 200)
+        self.table.setItemDelegateForColumn(0, CheckableTableItemDelegate(self.table))
 
         main_layout.addWidget(self.table, 1)
 
@@ -431,6 +439,7 @@ class GrabberDialog(QDialog):
         self.table.setRowCount(0)
         self.discovered_items.clear()
         self._url_to_row.clear()
+        self._url_to_size_item.clear()
 
         # Collect patterns
         preset_name = self.cmb_preset.currentText()
@@ -475,46 +484,70 @@ class GrabberDialog(QDialog):
     def _on_progress_changed(self, text: str):
         self.lbl_status.setText(text)
 
+    def _on_sort_changed(self, col: int, order: Qt.SortOrder):
+        q = self.txt_filter.text()
+        if q:
+            self._apply_table_filter(q)
+
     def _on_file_found(self, item: dict):
         self.discovered_items.append(item)
-        row = self.table.rowCount()
-        self.table.insertRow(row)
 
-        url = item["url"]
-        filename = item["filename"]
-        self._url_to_row[url] = row
+        was_sorting = self.table.isSortingEnabled()
+        self.table.setSortingEnabled(False)
+        try:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
 
-        # Col 0: Filename with checkbox and themed icon
-        item_col0 = QTableWidgetItem(filename)
-        item_col0.setFlags(item_col0.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item_col0.setCheckState(Qt.CheckState.Checked)
-        item_col0.setIcon(get_file_icon(filename))
-        item_col0.setToolTip(filename)
-        self.table.setItem(row, 0, item_col0)
+            url = item["url"]
+            filename = item["filename"]
+            self._url_to_row[url] = row
 
-        # Col 1: Category / Type
-        category = get_category_for_filename(filename)
-        ext = item.get("extension", "").upper()
-        type_str = f"{category} ({ext})" if ext else category
-        item_col1 = QTableWidgetItem(type_str)
-        self.table.setItem(row, 1, item_col1)
+            # Col 0: Filename with checkbox and themed icon
+            item_col0 = SortableTableWidgetItem(filename)
+            item_col0.setFlags(item_col0.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item_col0.setCheckState(Qt.CheckState.Checked)
+            item_col0.setIcon(get_file_icon(filename))
+            item_col0.setToolTip(filename)
+            item_col0.item_data = item
+            self.table.setItem(row, 0, item_col0)
 
-        # Col 2: Size
-        size_str = format_bytes(item["size"]) if item["size"] > 0 else self.tr("Probing...")
-        item_col2 = QTableWidgetItem(size_str)
-        _apply_tabular_font(item_col2, point_size=9)
-        self.table.setItem(row, 2, item_col2)
+            # Col 1: Category / Type
+            category = get_category_for_filename(filename)
+            ext = item.get("extension", "").upper()
+            type_str = f"{category} ({ext})" if ext else category
+            item_col1 = SortableTableWidgetItem(type_str)
+            item_col1.item_data = item
+            self.table.setItem(row, 1, item_col1)
 
-        # Col 3: URL
-        item_col3 = QTableWidgetItem(url)
-        item_col3.setToolTip(url)
-        self.table.setItem(row, 3, item_col3)
+            # Col 2: Size
+            sz = item.get("size", 0)
+            size_str = format_bytes(sz) if sz > 0 else self.tr("Probing...")
+            item_col2 = SortableTableWidgetItem(size_str)
+            item_col2.setData(Qt.ItemDataRole.UserRole, sz if sz > 0 else -1)
+            item_col2.item_data = item
+            _apply_tabular_font(item_col2, point_size=9)
+            self.table.setItem(row, 2, item_col2)
 
-        # Col 4: Source Page
-        source = item.get("source_page", "")
-        item_col4 = QTableWidgetItem(source)
-        item_col4.setToolTip(source)
-        self.table.setItem(row, 4, item_col4)
+            # Col 3: URL
+            item_col3 = SortableTableWidgetItem(url)
+            item_col3.setToolTip(url)
+            item_col3.item_data = item
+            self.table.setItem(row, 3, item_col3)
+
+            # Col 4: Source Page
+            source = item.get("source_page", "")
+            item_col4 = SortableTableWidgetItem(source)
+            item_col4.setToolTip(source)
+            item_col4.item_data = item
+            self.table.setItem(row, 4, item_col4)
+
+            self._url_to_size_item[url] = item_col2
+        finally:
+            self.table.setSortingEnabled(was_sorting)
+
+        q = self.txt_filter.text()
+        if q:
+            self._apply_table_filter(q)
 
         self._update_summary()
 
@@ -524,11 +557,19 @@ class GrabberDialog(QDialog):
                 itm["size"] = size_bytes
                 break
 
-        row = self._url_to_row.get(url)
-        if row is not None and row < self.table.rowCount():
-            item_size = self.table.item(row, 2)
-            if item_size:
-                item_size.setText(format_bytes(size_bytes))
+        item_size = self._url_to_size_item.get(url)
+        if item_size:
+            item_size.setText(format_bytes(size_bytes))
+            item_size.setData(Qt.ItemDataRole.UserRole, size_bytes if size_bytes > 0 else -1)
+            if hasattr(item_size, "item_data") and item_size.item_data:
+                item_size.item_data["size"] = size_bytes
+        else:
+            row = self._url_to_row.get(url)
+            if row is not None and row < self.table.rowCount():
+                item_sz = self.table.item(row, 2)
+                if item_sz:
+                    item_sz.setText(format_bytes(size_bytes))
+                    item_sz.setData(Qt.ItemDataRole.UserRole, size_bytes if size_bytes > 0 else -1)
         self._update_summary()
 
     def _on_crawl_finished(self, results: list):
@@ -555,7 +596,12 @@ class GrabberDialog(QDialog):
             col0 = self.table.item(r, 0)
             if col0 and col0.checkState() == Qt.CheckState.Checked:
                 checked_files += 1
-                if r < len(self.discovered_items):
+                item_dict = getattr(col0, "item_data", None)
+                if item_dict:
+                    sz = item_dict.get("size", 0)
+                    if sz > 0:
+                        total_bytes += sz
+                elif r < len(self.discovered_items):
                     sz = self.discovered_items[r].get("size", 0)
                     if sz > 0:
                         total_bytes += sz
@@ -565,9 +611,13 @@ class GrabberDialog(QDialog):
 
     def _on_table_item_changed(self, item: QTableWidgetItem):
         if item and item.column() == 0:
-            row = item.row()
-            if 0 <= row < len(self.discovered_items):
-                self.discovered_items[row]["checked"] = (item.checkState() == Qt.CheckState.Checked)
+            item_dict = getattr(item, "item_data", None)
+            if item_dict:
+                item_dict["checked"] = (item.checkState() == Qt.CheckState.Checked)
+            else:
+                row = item.row()
+                if 0 <= row < len(self.discovered_items):
+                    self.discovered_items[row]["checked"] = (item.checkState() == Qt.CheckState.Checked)
             self._update_summary()
 
     def _set_all_checked(self, checked: bool):
@@ -578,8 +628,11 @@ class GrabberDialog(QDialog):
                 item = self.table.item(r, 0)
                 if item:
                     item.setCheckState(state)
-                if r < len(self.discovered_items):
-                    self.discovered_items[r]["checked"] = checked
+                    item_dict = getattr(item, "item_data", None)
+                    if item_dict:
+                        item_dict["checked"] = checked
+                    elif r < len(self.discovered_items):
+                        self.discovered_items[r]["checked"] = checked
         self.table.blockSignals(False)
         self._update_summary()
 
@@ -615,12 +668,22 @@ class GrabberDialog(QDialog):
                 it = self.table.item(r, 0)
                 if it:
                     it.setCheckState(Qt.CheckState.Checked)
+                    item_dict = getattr(it, "item_data", None)
+                    if item_dict:
+                        item_dict["checked"] = True
+                    elif r < len(self.discovered_items):
+                        self.discovered_items[r]["checked"] = True
             self._update_summary()
         elif action == act_uncheck:
             for r in selected_rows:
                 it = self.table.item(r, 0)
                 if it:
                     it.setCheckState(Qt.CheckState.Unchecked)
+                    item_dict = getattr(it, "item_data", None)
+                    if item_dict:
+                        item_dict["checked"] = False
+                    elif r < len(self.discovered_items):
+                        self.discovered_items[r]["checked"] = False
             self._update_summary()
         elif action == act_copy:
             for r in selected_rows:
@@ -686,7 +749,10 @@ class GrabberDialog(QDialog):
         for r in range(self.table.rowCount()):
             item0 = self.table.item(r, 0)
             if item0 and item0.checkState() == Qt.CheckState.Checked:
-                if r < len(self.discovered_items):
+                item_dict = getattr(item0, "item_data", None)
+                if item_dict:
+                    selected_items.append(item_dict)
+                elif r < len(self.discovered_items):
                     selected_items.append(self.discovered_items[r])
 
         if not selected_items:

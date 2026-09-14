@@ -24,6 +24,15 @@ from core.database import get_all_queues
 from core.services.theme_service import get_file_icon, get_category_for_filename, get_themed_icon
 from core.utils import format_bytes, get_user_downloads_dir, resolve_filename
 from core.workers.batch_prober import BatchProberManager
+from ui.components import SortableTableWidgetItem
+
+
+class BatchCheckTableWidgetItem(QTableWidgetItem):
+    """Table item for checkbox column supporting sorting by checked state."""
+    def __lt__(self, other):
+        c1 = 1 if self.checkState() == Qt.CheckState.Checked else 0
+        c2 = 1 if (other and other.checkState() == Qt.CheckState.Checked) else 0
+        return c1 < c2
 
 
 def _apply_tabular_font(widget, point_size: int = 9, bold: bool = False):
@@ -52,40 +61,34 @@ class BatchCheckBoxDelegate(QStyledItemDelegate):
             painter.fillRect(option.rect, option.palette.brush(QPalette.ColorRole.AlternateBase))
 
         check_state = index.data(Qt.ItemDataRole.CheckStateRole)
-        size = 16
+        size = 15
         x = option.rect.x() + (option.rect.width() - size) // 2
         y = option.rect.y() + (option.rect.height() - size) // 2
         box_rect = QRect(x, y, size, size)
 
         is_checked = (check_state in (Qt.CheckState.Checked, 2))
+        is_dark = option.palette.color(QPalette.ColorRole.Base).value() < 128
+
+        if is_selected:
+            border_color = QColor("#ffffff") if is_dark else QColor("#000000")
+            bg_color = QColor(20, 22, 24) if is_dark else QColor("#ffffff")
+        else:
+            border_color = QColor("#555555") if is_dark else option.palette.color(QPalette.ColorRole.Mid)
+            bg_color = option.palette.color(QPalette.ColorRole.Base)
+
+        painter.setBrush(QBrush(bg_color))
+        painter.setPen(QPen(border_color, 1.2))
+        painter.drawRoundedRect(box_rect, 3.0, 3.0)
+
         if is_checked:
-            # Modern filled box with crisp white checkmark
-            fill_color = QColor("#2ecc71")
-            border_color = QColor("#27ae60")
-            check_color = QColor("#ffffff")
-
-            painter.setBrush(QBrush(fill_color))
-            painter.setPen(QPen(border_color, 1.2))
-            painter.drawRoundedRect(box_rect, 3.5, 3.5)
-
-            pen = QPen(check_color, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            check_color = QColor("#ffffff") if is_dark else QColor("#111111")
+            pen = QPen(check_color, 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
-            p1 = QPoint(x + 4, y + 8)
-            p2 = QPoint(x + 7, y + 11)
-            p3 = QPoint(x + 12, y + 5)
+            p1 = QPoint(x + int(size * 0.22), y + int(size * 0.52))
+            p2 = QPoint(x + int(size * 0.45), y + int(size * 0.75))
+            p3 = QPoint(x + int(size * 0.80), y + int(size * 0.28))
             painter.drawLine(p1, p2)
             painter.drawLine(p2, p3)
-        else:
-            if is_selected:
-                border_color = QColor("#ffffff")
-                bg_color = QColor(0, 0, 0, 70)
-            else:
-                border_color = option.palette.color(QPalette.ColorRole.Mid)
-                bg_color = option.palette.color(QPalette.ColorRole.Base)
-
-            painter.setBrush(QBrush(bg_color))
-            painter.setPen(QPen(border_color, 1.2))
-            painter.drawRoundedRect(box_rect, 3.5, 3.5)
 
         painter.restore()
 
@@ -271,6 +274,7 @@ class BatchDownloadDialog(QDialog):
         self._items: List[Dict[str, Any]] = []
         self._overrides: Dict[int, Dict[str, Any]] = {}
         self._filtered_indices: List[int] = []
+        self._idx_to_items: Dict[int, Dict[str, QTableWidgetItem]] = {}
 
         # Load category directory mappings
         self._cat_config = load_category_config()
@@ -419,8 +423,11 @@ class BatchDownloadDialog(QDialog):
         t_palette.setBrush(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, t_palette.brush(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight))
         t_palette.setBrush(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, t_palette.brush(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText))
         self.table.setPalette(t_palette)
+        self.table.setSortingEnabled(True)
 
         header = self.table.horizontalHeader()
+        header.setSectionsClickable(True)
+        header.setSortIndicatorShown(True)
         header.setSectionResizeMode(self.COL_CHECK, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(self.COL_CHECK, 36)
         header.setSectionResizeMode(self.COL_NAME, QHeaderView.ResizeMode.Interactive)
@@ -680,68 +687,86 @@ class BatchDownloadDialog(QDialog):
         self._populate_table()
 
     def _populate_table(self):
-        self.table.blockSignals(True)
-        self.table.setRowCount(len(self._filtered_indices))
+        was_sorting = self.table.isSortingEnabled()
+        self.table.setSortingEnabled(False)
+        try:
+            self.table.blockSignals(True)
+            self.table.setRowCount(len(self._filtered_indices))
+            self._idx_to_items.clear()
 
-        checked_count = 0
-        total_count = len(self._filtered_indices)
+            checked_count = 0
+            total_count = len(self._filtered_indices)
 
-        for row, orig_idx in enumerate(self._filtered_indices):
-            item = self._items[orig_idx]
+            for row, orig_idx in enumerate(self._filtered_indices):
+                item = self._items[orig_idx]
 
-            # Checkbox
-            chk_item = QTableWidgetItem()
-            chk_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-            chk_item.setCheckState(Qt.CheckState.Checked if item.get("checked", True) else Qt.CheckState.Unchecked)
-            chk_item.setData(Qt.ItemDataRole.UserRole, orig_idx)
-            self.table.setItem(row, self.COL_CHECK, chk_item)
-            if item.get("checked", True):
-                checked_count += 1
+                # Checkbox
+                chk_item = BatchCheckTableWidgetItem()
+                chk_item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                chk_item.setCheckState(Qt.CheckState.Checked if item.get("checked", True) else Qt.CheckState.Unchecked)
+                chk_item.setData(Qt.ItemDataRole.UserRole, orig_idx)
+                self.table.setItem(row, self.COL_CHECK, chk_item)
+                if item.get("checked", True):
+                    checked_count += 1
 
-            # Filename & Icon
-            fn = item.get("filename", "")
-            name_item = QTableWidgetItem(fn)
-            name_item.setIcon(get_file_icon(fn))
-            name_item.setToolTip(fn)
+                # Filename & Icon
+                fn = item.get("filename", "")
+                name_item = SortableTableWidgetItem(fn)
+                name_item.setIcon(get_file_icon(fn))
+                name_item.setToolTip(fn)
 
-            # Size
-            size_str = item.get("size_str", "") or ("-" if item.get("status") == "Checking..." else "")
-            size_item = QTableWidgetItem(size_str)
-            _apply_tabular_font(size_item, point_size=9)
+                # Size
+                size_str = item.get("size_str", "") or ("-" if item.get("status") == "Checking..." else "")
+                size_item = SortableTableWidgetItem(size_str)
+                sz_bytes = item.get("size_bytes", -1)
+                size_item.setData(Qt.ItemDataRole.UserRole, sz_bytes if sz_bytes is not None else -1)
+                _apply_tabular_font(size_item, point_size=9)
 
-            # Status
-            status_str = item.get("status", "Checking...")
-            status_item = QTableWidgetItem(status_str)
+                # Status
+                status_str = item.get("status", "Checking...")
+                status_item = SortableTableWidgetItem(status_str)
 
-            # URL
-            url_item = QTableWidgetItem(item.get("url", ""))
-            url_item.setToolTip(item.get("url", ""))
+                # URL
+                url_item = SortableTableWidgetItem(item.get("url", ""))
+                url_item.setToolTip(item.get("url", ""))
 
-            # Link Text
-            lt_item = QTableWidgetItem(item.get("link_text", ""))
-            lt_item.setToolTip(item.get("link_text", ""))
+                # Link Text
+                lt_item = SortableTableWidgetItem(item.get("link_text", ""))
+                lt_item.setToolTip(item.get("link_text", ""))
 
-            # Save To
-            save_path = self._effective_save_dir(item)
-            saveto_item = QTableWidgetItem(save_path)
-            saveto_item.setToolTip(save_path)
+                # Save To
+                save_path = self._effective_save_dir(item)
+                saveto_item = SortableTableWidgetItem(save_path)
+                saveto_item.setToolTip(save_path)
 
-            row_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-            name_item.setFlags(row_flags)
-            size_item.setFlags(row_flags)
-            status_item.setFlags(row_flags)
-            url_item.setFlags(row_flags)
-            lt_item.setFlags(row_flags)
-            saveto_item.setFlags(row_flags)
+                row_flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+                name_item.setFlags(row_flags)
+                size_item.setFlags(row_flags)
+                status_item.setFlags(row_flags)
+                url_item.setFlags(row_flags)
+                lt_item.setFlags(row_flags)
+                saveto_item.setFlags(row_flags)
 
-            self.table.setItem(row, self.COL_NAME, name_item)
-            self.table.setItem(row, self.COL_SIZE, size_item)
-            self.table.setItem(row, self.COL_STATUS, status_item)
-            self.table.setItem(row, self.COL_URL, url_item)
-            self.table.setItem(row, self.COL_LINK_TEXT, lt_item)
-            self.table.setItem(row, self.COL_SAVETO, saveto_item)
+                self.table.setItem(row, self.COL_NAME, name_item)
+                self.table.setItem(row, self.COL_SIZE, size_item)
+                self.table.setItem(row, self.COL_STATUS, status_item)
+                self.table.setItem(row, self.COL_URL, url_item)
+                self.table.setItem(row, self.COL_LINK_TEXT, lt_item)
+                self.table.setItem(row, self.COL_SAVETO, saveto_item)
 
-        self.table.blockSignals(False)
+                self._idx_to_items[orig_idx] = {
+                    "name": name_item,
+                    "size": size_item,
+                    "status": status_item,
+                    "url": url_item,
+                    "link_text": lt_item,
+                    "saveto": saveto_item,
+                    "check": chk_item,
+                }
+
+            self.table.blockSignals(False)
+        finally:
+            self.table.setSortingEnabled(was_sorting)
         self._update_summary(checked_count, total_count)
 
     def _on_table_item_changed(self, item: QTableWidgetItem):
@@ -791,26 +816,51 @@ class BatchDownloadDialog(QDialog):
             item["filename"] = resolved_name
 
         # Update matching table row if currently visible
-        if orig_idx in self._filtered_indices:
-            row = self._filtered_indices.index(orig_idx)
+        row_items = self._idx_to_items.get(orig_idx)
+        if row_items:
             self.table.blockSignals(True)
-
-            size_item = self.table.item(row, self.COL_SIZE)
+            size_item = row_items.get("size")
             if size_item:
                 size_item.setText(item["size_str"])
+                size_item.setData(Qt.ItemDataRole.UserRole, item["size_bytes"])
 
-            status_item = self.table.item(row, self.COL_STATUS)
+            status_item = row_items.get("status")
             if status_item:
                 status_item.setText(item["status"])
 
-            name_item = self.table.item(row, self.COL_NAME)
+            name_item = row_items.get("name")
             if name_item:
                 name_item.setText(item["filename"])
                 name_item.setIcon(get_file_icon(item["filename"]))
-
             self.table.blockSignals(False)
+        elif orig_idx in self._filtered_indices:
+            row = self._filtered_indices.index(orig_idx)
+            if row < self.table.rowCount():
+                self.table.blockSignals(True)
+
+                size_item = self.table.item(row, self.COL_SIZE)
+                if size_item:
+                    size_item.setText(item["size_str"])
+                    size_item.setData(Qt.ItemDataRole.UserRole, item["size_bytes"])
+
+                status_item = self.table.item(row, self.COL_STATUS)
+                if status_item:
+                    status_item.setText(item["status"])
+
+                name_item = self.table.item(row, self.COL_NAME)
+                if name_item:
+                    name_item.setText(item["filename"])
+                    name_item.setIcon(get_file_icon(item["filename"]))
+
+                self.table.blockSignals(False)
 
     def _get_row_data(self, row: int) -> Optional[Dict[str, Any]]:
+        if 0 <= row < self.table.rowCount():
+            chk_item = self.table.item(row, self.COL_CHECK)
+            if chk_item:
+                orig_idx = chk_item.data(Qt.ItemDataRole.UserRole)
+                if orig_idx is not None and 0 <= orig_idx < len(self._items):
+                    return self._items[orig_idx]
         if 0 <= row < len(self._filtered_indices):
             orig_idx = self._filtered_indices[row]
             return self._items[orig_idx]
@@ -834,8 +884,12 @@ class BatchDownloadDialog(QDialog):
         dlg = BatchItemEditDialog(item_data, parent=self)
         if dlg.exec():
             updated = dlg.get_data()
-            orig_idx = self._filtered_indices[row]
-            self._items[orig_idx].update(updated)
+            chk_item = self.table.item(row, self.COL_CHECK)
+            orig_idx = chk_item.data(Qt.ItemDataRole.UserRole) if chk_item else None
+            if orig_idx is not None and 0 <= orig_idx < len(self._items):
+                self._items[orig_idx].update(updated)
+            elif 0 <= row < len(self._filtered_indices):
+                self._items[self._filtered_indices[row]].update(updated)
             self._populate_table()
 
     def _on_accept(self):

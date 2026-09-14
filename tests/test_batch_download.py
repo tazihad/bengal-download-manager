@@ -455,3 +455,72 @@ def test_batch_checkbox_delegate_paint_and_interaction(qapp):
     assert toggled_checked != initial_checked
 
     dlg.close()
+
+
+def test_batch_download_dialog_sorting(qapp):
+    """Test column sorting for all columns in BatchDownloadDialog."""
+    urls = [
+        "https://example.com/zebra.mp4",
+        "https://example.com/apple.pdf",
+        "https://example.com/banana.zip",
+    ]
+    dlg = BatchDownloadDialog(urls, auto_probe=False)
+    dlg.hide()
+
+    assert dlg.table.isSortingEnabled() is True
+    assert dlg.table.horizontalHeader().sectionsClickable() is True
+
+    # Simulate probe results for distinct sizes
+    dlg._on_probe_result(0, {"status": "Ready", "size_bytes": 5000000, "size_str": "5.0 MB", "filename": "zebra.mp4"})
+    dlg._on_probe_result(1, {"status": "Ready", "size_bytes": 10000000, "size_str": "10.0 MB", "filename": "apple.pdf"})
+    dlg._on_probe_result(2, {"status": "Ready", "size_bytes": 100000, "size_str": "100.0 KB", "filename": "banana.zip"})
+
+    # 1. Sort by File name (COL_NAME = 1) Ascending
+    dlg.table.sortByColumn(dlg.COL_NAME, Qt.SortOrder.AscendingOrder)
+    assert dlg.table.item(0, dlg.COL_NAME).text() == "apple.pdf"
+    assert dlg.table.item(1, dlg.COL_NAME).text() == "banana.zip"
+    assert dlg.table.item(2, dlg.COL_NAME).text() == "zebra.mp4"
+
+    # Sort Descending
+    dlg.table.sortByColumn(dlg.COL_NAME, Qt.SortOrder.DescendingOrder)
+    assert dlg.table.item(0, dlg.COL_NAME).text() == "zebra.mp4"
+    assert dlg.table.item(1, dlg.COL_NAME).text() == "banana.zip"
+    assert dlg.table.item(2, dlg.COL_NAME).text() == "apple.pdf"
+
+    # 2. Sort by Size (COL_SIZE = 2) Ascending: 100KB, 5MB, 10MB
+    dlg.table.sortByColumn(dlg.COL_SIZE, Qt.SortOrder.AscendingOrder)
+    assert dlg.table.item(0, dlg.COL_NAME).text() == "banana.zip"
+    assert dlg.table.item(1, dlg.COL_NAME).text() == "zebra.mp4"
+    assert dlg.table.item(2, dlg.COL_NAME).text() == "apple.pdf"
+
+    # Sort by Size Descending: 10MB, 5MB, 100KB
+    dlg.table.sortByColumn(dlg.COL_SIZE, Qt.SortOrder.DescendingOrder)
+    assert dlg.table.item(0, dlg.COL_NAME).text() == "apple.pdf"
+    assert dlg.table.item(1, dlg.COL_NAME).text() == "zebra.mp4"
+    assert dlg.table.item(2, dlg.COL_NAME).text() == "banana.zip"
+
+    # 3. Verify _get_row_data returns the correct item on sorted row
+    # In descending size sort, row 0 is apple.pdf
+    item_row0 = dlg._get_row_data(0)
+    assert item_row0["filename"] == "apple.pdf"
+
+    # 4. Sort by Checkbox (COL_CHECK = 0)
+    # Uncheck apple.pdf (row 0)
+    dlg.table.item(0, dlg.COL_CHECK).setCheckState(Qt.CheckState.Unchecked)
+    dlg._on_table_item_changed(dlg.table.item(0, dlg.COL_CHECK))
+
+    # Sort Ascending: Unchecked first, then Checked
+    dlg.table.sortByColumn(dlg.COL_CHECK, Qt.SortOrder.AscendingOrder)
+    assert dlg.table.item(0, dlg.COL_CHECK).checkState() == Qt.CheckState.Unchecked
+    assert dlg.table.item(0, dlg.COL_NAME).text() == "apple.pdf"
+    assert dlg.table.item(1, dlg.COL_CHECK).checkState() == Qt.CheckState.Checked
+    assert dlg.table.item(2, dlg.COL_CHECK).checkState() == Qt.CheckState.Checked
+
+    # Sort Descending: Checked first, then Unchecked
+    dlg.table.sortByColumn(dlg.COL_CHECK, Qt.SortOrder.DescendingOrder)
+    assert dlg.table.item(0, dlg.COL_CHECK).checkState() == Qt.CheckState.Checked
+    assert dlg.table.item(1, dlg.COL_CHECK).checkState() == Qt.CheckState.Checked
+    assert dlg.table.item(2, dlg.COL_CHECK).checkState() == Qt.CheckState.Unchecked
+    assert dlg.table.item(2, dlg.COL_NAME).text() == "apple.pdf"
+
+    dlg.close()

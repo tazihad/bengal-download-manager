@@ -545,13 +545,13 @@ class MainWindow(QMainWindow):
             self.action_paste_url.setToolTip(self.tr("Paste URL address from clipboard (Ctrl+V)"))
             self.action_paste_url.triggered.connect(lambda: self.open_add_url(paste_clipboard=True))
 
-            self.action_batch_download = QAction(get_themed_icon("add_url"), self.tr("Add Batch Download..."), self)
+            self.action_batch_download = QAction(get_themed_icon("add_url"), self.tr("Add Batch Download"), self)
             self.action_batch_download.setShortcut(QKeySequence("Ctrl+Shift+N"))
             self.action_batch_download.setToolTip(self.tr("Add batch download from address pattern with wildcards (Ctrl+Shift+N)"))
             self.action_batch_download.triggered.connect(lambda: self.open_batch_pattern())
 
-            self.action_import_links = QAction(get_themed_icon("add_url"), self.tr("Import Links / Batch from Clipboard..."), self)
-            self.action_import_links.setToolTip(self.tr("Import multiple download links from clipboard or text"))
+            self.action_import_links = QAction(get_themed_icon("add_url"), self.tr("Import Links from Clipboard"), self)
+            self.action_import_links.setToolTip(self.tr("Import multiple download links from clipboard"))
             self.action_import_links.triggered.connect(self.open_batch_clipboard)
 
             self.action_exit = QAction(get_themed_icon("exit"), self.tr("Exit"), self)
@@ -615,10 +615,10 @@ class MainWindow(QMainWindow):
             self.action_add_url.setToolTip(self.tr("Add a new download URL address (Ctrl+N)"))
             self.action_paste_url.setText(self.tr("Paste URL"))
             self.action_paste_url.setToolTip(self.tr("Paste URL address from clipboard (Ctrl+V)"))
-            self.action_batch_download.setText(self.tr("Add Batch Download..."))
+            self.action_batch_download.setText(self.tr("Add Batch Download"))
             self.action_batch_download.setToolTip(self.tr("Add batch download from address pattern with wildcards (Ctrl+Shift+N)"))
-            self.action_import_links.setText(self.tr("Import Links / Batch from Clipboard..."))
-            self.action_import_links.setToolTip(self.tr("Import multiple download links from clipboard or text"))
+            self.action_import_links.setText(self.tr("Import Links from Clipboard"))
+            self.action_import_links.setToolTip(self.tr("Import multiple download links from clipboard"))
             self.action_exit.setText(self.tr("Exit"))
             self.action_exit.setToolTip(self.tr("Exit Bengal Download Manager"))
             self.action_stop.setText(self.tr("Stop/Pause"))
@@ -646,15 +646,26 @@ class MainWindow(QMainWindow):
             self.action_open_folder.setText(self.tr("Open Downloads Folder"))
             self.action_open_folder.setToolTip(self.tr("Open default downloads directory"))
 
+        cb = QApplication.clipboard()
+        if cb and not getattr(self, "_clipboard_listener_connected", False):
+            try:
+                cb.dataChanged.connect(self.update_import_links_action_state)
+                self._clipboard_listener_connected = True
+            except Exception:
+                pass
+        self.update_import_links_action_state()
+
     def setup_menu_bar(self):
         menu_bar = self.menuBar()
         menu_bar.clear()
 
         # 1. Tasks
         tasks_menu = menu_bar.addMenu(self.tr("&Tasks"))
+        tasks_menu.aboutToShow.connect(self.update_import_links_action_state)
         tasks_menu.addAction(self.action_add_url)
         tasks_menu.addAction(self.action_paste_url)
         tasks_menu.addAction(self.action_batch_download)
+        tasks_menu.addAction(self.action_import_links)
         tasks_menu.addAction(self.action_grabber)
         tasks_menu.addSeparator()
         tasks_menu.addAction(self.action_exit)
@@ -673,9 +684,6 @@ class MainWindow(QMainWindow):
         downloads_menu.addAction(self.action_resume)
         downloads_menu.addAction(self.action_stop)
         downloads_menu.addAction(self.action_stop_all)
-        downloads_menu.addSeparator()
-        downloads_menu.addAction(self.action_batch_download)
-        downloads_menu.addAction(self.action_import_links)
         downloads_menu.addSeparator()
         downloads_menu.addAction(self.action_delete)
         downloads_menu.addAction(self.action_clear)
@@ -3749,14 +3757,27 @@ class MainWindow(QMainWindow):
             if urls:
                 self.open_batch_download(urls, is_import=False)
 
+    def update_import_links_action_state(self):
+        """Disables 'Import Links from Clipboard' action when clipboard is empty or has no download links."""
+        if not hasattr(self, "action_import_links"):
+            return
+        try:
+            cb = QApplication.clipboard()
+            text = cb.text().strip() if cb else ""
+            has_links = bool(text and any(
+                line.strip().startswith(("http://", "https://", "ftp://", "magnet:"))
+                for line in text.split("\n")
+            ))
+            self.action_import_links.setEnabled(has_links)
+        except Exception:
+            pass
+
     def open_batch_clipboard(self):
         """Extracts URLs from system clipboard and opens Batch Download Review."""
         text = QApplication.clipboard().text().strip()
         lines = [line.strip() for line in text.split("\n") if line.strip().startswith(("http://", "https://", "ftp://", "magnet:"))]
         if lines:
             self.open_batch_download(lines, is_import=True)
-        else:
-            self.open_batch_pattern()
 
     def open_batch_download(self, urls_or_items, is_import: bool = False):
         """Opens the Batch Download Review dialog with the provided items."""

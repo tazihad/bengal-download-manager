@@ -3,9 +3,9 @@ Modern Table Delegate for Bengal Download Manager.
 Renders two-line file cells (Title + Category), embedded mini progress bars,
 and tabular-aligned figures within the QTableWidget without modifying existing theme.
 """
-from PyQt6.QtWidgets import QStyledItemDelegate, QStyle, QStyleOptionViewItem
-from PyQt6.QtCore import Qt, QRect, QSize
-from PyQt6.QtGui import QPainter, QColor, QFont, QLinearGradient, QBrush, QIcon
+from PyQt6.QtWidgets import QStyledItemDelegate, QStyle, QStyleOptionViewItem, QApplication
+from PyQt6.QtCore import Qt, QRect, QSize, QPoint
+from PyQt6.QtGui import QPainter, QColor, QFont, QLinearGradient, QBrush, QIcon, QPalette, QPen
 
 
 CATEGORY_EXTENSIONS = {
@@ -37,6 +37,48 @@ class NoFocusTableDelegate(QStyledItemDelegate):
     def initStyleOption(self, option: QStyleOptionViewItem, index):
         super().initStyleOption(option, index)
         option.state &= ~QStyle.StateFlag.State_HasFocus
+
+
+class CheckableTableItemDelegate(QStyledItemDelegate):
+    """
+    Delegate for table cells containing checkable items (e.g. column 0 in Site Grabber)
+    ensuring checkboxes remain crisp, visible, and high-contrast when highlighted/selected
+    across all themes, preventing black-on-black invisible checkmarks.
+    """
+    def initStyleOption(self, option: QStyleOptionViewItem, index):
+        super().initStyleOption(option, index)
+        option.state &= ~QStyle.StateFlag.State_HasFocus
+        if option.state & QStyle.StateFlag.State_Selected:
+            option.palette.setColor(
+                QPalette.ColorRole.HighlightedText,
+                option.palette.color(QPalette.ColorRole.Text)
+            )
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        super().paint(painter, opt, index)
+
+        check_state = index.data(Qt.ItemDataRole.CheckStateRole)
+        is_checked = (check_state in (Qt.CheckState.Checked, 2))
+        is_selected = bool(opt.state & QStyle.StateFlag.State_Selected)
+
+        if is_checked and is_selected:
+            style = opt.widget.style() if opt.widget else QApplication.style()
+            cr = style.subElementRect(QStyle.SubElement.SE_ItemViewItemCheckIndicator, opt, opt.widget)
+            if cr.isValid() and not cr.isEmpty():
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                x, y, w, h = cr.x(), cr.y(), cr.width(), cr.height()
+                check_col = QColor("#ffffff") if opt.palette.color(QPalette.ColorRole.Base).value() < 128 else QColor("#111111")
+                pen = QPen(check_col, 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pen)
+                p1 = QPoint(x + int(w * 0.22), y + int(h * 0.52))
+                p2 = QPoint(x + int(w * 0.45), y + int(h * 0.75))
+                p3 = QPoint(x + int(w * 0.80), y + int(h * 0.28))
+                painter.drawLine(p1, p2)
+                painter.drawLine(p2, p3)
+                painter.restore()
 
 
 class ModernTableDelegate(QStyledItemDelegate):

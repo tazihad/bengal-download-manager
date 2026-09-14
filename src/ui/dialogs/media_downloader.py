@@ -24,6 +24,7 @@ import logging
 from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
 from core.memory_guard import MemoryGuard
 from core.utils import is_debug_mode
+from ui.delegates import CheckableTableItemDelegate
 
 logger = logging.getLogger("bengal.dialog.media_downloader")
 
@@ -871,6 +872,7 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_playlist.setItemDelegateForColumn(0, CheckableTableItemDelegate(self.tbl_playlist))
 
         font_pl_tbl = self.tbl_playlist.font()
         font_pl_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)

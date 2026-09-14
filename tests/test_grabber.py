@@ -210,3 +210,107 @@ def test_grabber_dialog_ui(qapp):
 
     dlg.close()
     win.close()
+
+
+def test_grabber_table_sorting(qapp):
+    """Verify Site Grabber table supports sorting by all columns."""
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    dlg = GrabberDialog(parent=win)
+    dlg.hide()
+
+    # Verify table has sorting enabled and clickable header
+    assert dlg.table.isSortingEnabled() is True
+    assert dlg.table.horizontalHeader().sectionsClickable() is True
+
+    item1 = {
+        "url": "https://site.com/zebra.mp4",
+        "filename": "zebra.mp4",
+        "size": 5000000,
+        "extension": "mp4",
+        "source_page": "https://site.com/page_c",
+        "checked": True,
+    }
+    item2 = {
+        "url": "https://site.com/apple.pdf",
+        "filename": "apple.pdf",
+        "size": 10000000,
+        "extension": "pdf",
+        "source_page": "https://site.com/page_a",
+        "checked": True,
+    }
+    item3 = {
+        "url": "https://site.com/banana.zip",
+        "filename": "banana.zip",
+        "size": 100000,
+        "extension": "zip",
+        "source_page": "https://site.com/page_b",
+        "checked": True,
+    }
+
+    dlg._on_file_found(item1)
+    dlg._on_file_found(item2)
+    dlg._on_file_found(item3)
+
+    assert dlg.table.rowCount() == 3
+
+    # 1. Sort by File Name (Column 0) Ascending
+    dlg.table.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+    assert dlg.table.item(0, 0).text() == "apple.pdf"
+    assert dlg.table.item(1, 0).text() == "banana.zip"
+    assert dlg.table.item(2, 0).text() == "zebra.mp4"
+
+    # Sort by File Name Descending
+    dlg.table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
+    assert dlg.table.item(0, 0).text() == "zebra.mp4"
+    assert dlg.table.item(1, 0).text() == "banana.zip"
+    assert dlg.table.item(2, 0).text() == "apple.pdf"
+
+    # 2. Sort by Size (Column 2) Ascending (numeric sort: 100KB, 5MB, 10MB)
+    dlg.table.sortByColumn(2, Qt.SortOrder.AscendingOrder)
+    assert dlg.table.item(0, 0).text() == "banana.zip"
+    assert dlg.table.item(1, 0).text() == "zebra.mp4"
+    assert dlg.table.item(2, 0).text() == "apple.pdf"
+
+    # Sort by Size Descending (10MB, 5MB, 100KB)
+    dlg.table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+    assert dlg.table.item(0, 0).text() == "apple.pdf"
+    assert dlg.table.item(1, 0).text() == "zebra.mp4"
+    assert dlg.table.item(2, 0).text() == "banana.zip"
+
+    # 3. Sort by Source Page (Column 4) Ascending
+    dlg.table.sortByColumn(4, Qt.SortOrder.AscendingOrder)
+    assert dlg.table.item(0, 4).text() == "https://site.com/page_a"
+    assert dlg.table.item(1, 4).text() == "https://site.com/page_b"
+    assert dlg.table.item(2, 4).text() == "https://site.com/page_c"
+
+    # 4. Update metadata on sorted table and check sort update
+    dlg._on_metadata_updated("https://site.com/banana.zip", 20000000)
+    dlg.table.sortByColumn(2, Qt.SortOrder.AscendingOrder)
+    # New size order: zebra (5MB), apple (10MB), banana (20MB)
+    assert dlg.table.item(0, 0).text() == "zebra.mp4"
+    assert dlg.table.item(1, 0).text() == "apple.pdf"
+    assert dlg.table.item(2, 0).text() == "banana.zip"
+
+    # 5. Check/uncheck and download on sorted table
+    # Uncheck row 0 (zebra.mp4)
+    dlg.table.item(0, 0).setCheckState(Qt.CheckState.Unchecked)
+
+    dispatched = []
+    win.start_download = lambda **kwargs: dispatched.append(kwargs)
+
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch_box = pytest.MonkeyPatch()
+    monkeypatch_box.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+    dlg.download_selected()
+    monkeypatch_box.undo()
+
+    assert len(dispatched) == 2
+    dispatched_filenames = [d["custom_filename"] for d in dispatched]
+    assert "apple.pdf" in dispatched_filenames
+    assert "banana.zip" in dispatched_filenames
+    assert "zebra.mp4" not in dispatched_filenames
+
+    dlg.close()
+    win.close()
