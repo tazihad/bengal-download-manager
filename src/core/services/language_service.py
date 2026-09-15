@@ -294,8 +294,6 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
     prefixes = [
         f"bengal_{target_locale}",
         f"bengal_{target_locale.split('_')[0]}",
-        f"stellar_{target_locale}",
-        f"stellar_{target_locale.split('_')[0]}",
     ]
 
     for s_dir in search_dirs:

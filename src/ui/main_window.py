@@ -331,7 +331,15 @@ class MainWindow(QMainWindow):
         try:
             self.stop_aria2_daemon()
 
-            aria2_bin = ensure_aria2() or "aria2c"
+            aria2_bin = ensure_aria2()
+            if not aria2_bin:
+                if platform.system() == "Windows":
+                    aria2_bin = shutil.which("aria2c.exe") or shutil.which("aria2c")
+                else:
+                    aria2_bin = shutil.which("aria2c") or "aria2c"
+            if not aria2_bin:
+                logger.warning("[Aria2Daemon] aria2c binary not available; skipping daemon start.")
+                return
             ext_data = load_extension_config()
             port = ext_data.get("port", 56800)
             token = ext_data.get("token", "")
@@ -357,12 +365,16 @@ class MainWindow(QMainWindow):
             if debug_active:
                 logger.debug("[Aria2Daemon] Launching daemon on port %s: %s", port, " ".join(cmd))
 
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE if debug_active else subprocess.DEVNULL,
-                env=get_clean_env()
-            )
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE if debug_active else subprocess.DEVNULL,
+                    env=get_clean_env()
+                )
+            except OSError as e:
+                logger.error("[Aria2Daemon] Failed to start aria2 daemon: %s", e)
+                return
 
             if debug_active and proc:
                 logger.debug("[Aria2Daemon] Process spawned with PID %s", proc.pid)

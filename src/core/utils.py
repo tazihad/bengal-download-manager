@@ -706,7 +706,38 @@ def find_aria2():
     Prioritizes bundled embedded binaries, Flatpak sandbox paths, and local assets before falling back to system PATH.
     """
     arch = get_system_arch()
-    
+
+    if platform.system() == "Windows":
+        if getattr(sys, "frozen", False):
+            win_meipass = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+            for cand in [
+                os.path.join(win_meipass, "aria2c.exe"),
+                os.path.join(win_meipass, "bin", "aria2c.exe"),
+                os.path.join(win_meipass, "assets", "bin", "aria2c.exe"),
+            ]:
+                if os.path.isfile(cand):
+                    return cand
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        for cand in [
+            os.path.join(repo_root, "build", "windows", "bin", "aria2c.exe"),
+            os.path.join(repo_root, "windows", "bin", "aria2c.exe"),
+            os.path.join(repo_root, "bin", "aria2c.exe"),
+            os.path.join(repo_root, "assets", "bin", "windows", "aria2c.exe"),
+            os.path.join(repo_root, "assets", "bin", "aria2c.exe"),
+        ]:
+            if os.path.isfile(cand):
+                return cand
+
+        local_win_aria2 = os.path.join(get_data_dir(), "bin", "aria2c.exe")
+        if os.path.isfile(local_win_aria2):
+            return local_win_aria2
+
+        win_sys = shutil.which("aria2c.exe") or shutil.which("aria2c")
+        if win_sys and win_sys.lower().endswith(".exe"):
+            return win_sys
+        return None
+
     # 1. PyInstaller bundled location (sys._MEIPASS)
     meipass = getattr(sys, '_MEIPASS', None)
     if meipass:
@@ -787,7 +818,13 @@ def ensure_aria2():
     
     try:
         arch = get_system_arch()
-        if arch == "x86_64":
+        if platform.system() == "Windows":
+            if arch in ("x86_64", "amd64"):
+                url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip"
+            else:
+                url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-32bit-build1.zip"
+            local_aria2 = os.path.join(bin_dir, "aria2c.exe")
+        elif arch == "x86_64":
             url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-x86_64-linux-musl_static.zip"
         elif arch == "aarch64":
             url = "https://github.com/abcfy2/aria2-static-build/releases/download/1.37.0/aria2-aarch64-linux-musl_static.zip"
@@ -809,20 +846,21 @@ def ensure_aria2():
         import zipfile
         with zipfile.ZipFile(temp_file, "r") as z:
             for name in z.namelist():
-                if name.endswith("aria2c"):
+                match_name = "aria2c.exe" if platform.system() == "Windows" else "aria2c"
+                if name.lower().endswith(match_name):
                     data = z.read(name)
                     with open(local_aria2, "wb") as out:
                         out.write(data)
                     break
         os.remove(temp_file)
-        os.chmod(local_aria2, 0o755)
-        
-        local_bin = os.path.expanduser("~/.local/bin")
-        os.makedirs(local_bin, exist_ok=True)
-        symlink_path = os.path.join(local_bin, "aria2c")
-        if not os.path.exists(symlink_path):
-            try: os.symlink(local_aria2, symlink_path)
-            except: pass
+        if platform.system() != "Windows":
+            os.chmod(local_aria2, 0o755)
+            local_bin = os.path.expanduser("~/.local/bin")
+            os.makedirs(local_bin, exist_ok=True)
+            symlink_path = os.path.join(local_bin, "aria2c")
+            if not os.path.exists(symlink_path):
+                try: os.symlink(local_aria2, symlink_path)
+                except: pass
         if debug_active:
             eng_logger.debug("[Aria2Setup] Successfully installed aria2c at %s", local_aria2)
         return local_aria2
