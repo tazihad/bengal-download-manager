@@ -10,7 +10,7 @@ import sys
 
 block_cipher = None
 
-CONFIG_DIR = os.path.abspath(os.path.dirname(__file__))
+CONFIG_DIR = os.path.abspath(SPECPATH)
 WINDOWS_DIR = os.path.abspath(os.path.join(CONFIG_DIR, ".."))
 BUILD_DIR = os.path.abspath(os.path.join(WINDOWS_DIR, ".."))
 PROJECT_ROOT = os.path.abspath(os.path.join(BUILD_DIR, ".."))
@@ -19,7 +19,9 @@ src_path = os.path.join(PROJECT_ROOT, "src")
 fixes_path = os.path.join(WINDOWS_DIR, "fixes")
 assets_path = os.path.join(PROJECT_ROOT, "assets")
 version_file = os.path.join(PROJECT_ROOT, "VERSION")
-icon_file = os.path.join(CONFIG_DIR, "assets", "app_icon.ico")
+icon_file = os.path.join(assets_path, "app_icon.ico")
+if not os.path.exists(icon_file):
+    icon_file = os.path.join(CONFIG_DIR, "assets", "app_icon.ico")
 entrypoint_file = os.path.join(fixes_path, "entrypoint_windows.py")
 
 datas = [

@@ -2,7 +2,7 @@
 Windows native theming integration package for Bengal Download Manager.
 """
 
-from windows.theme_fix.windows_theme_fix import (
+from .windows_theme_fix import (
     apply_windows_theme_patches,
     apply_windows_dark_title_bar,
     apply_dark_title_bar_to_all_windows,

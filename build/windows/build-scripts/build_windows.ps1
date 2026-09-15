@@ -1,5 +1,4 @@
 # Bengal Download Manager — Windows Release & Build Script
-# Inspired by Stellar Download Manager's release.ps1
 # Usage: .\build\windows\build-scripts\build_windows.ps1 [-Version "0.2.46"] [-SkipBuild] [-SkipInstaller] [-SkipArchive] [-SkipBinaries]
 
 param(

@@ -1,5 +1,5 @@
 ; Bengal Download Manager — Inno Setup 6 Installer Script
-; Modeled after Stellar Download Manager packaging/windows/installer.iss
+; Packaging installer script for Bengal Download Manager on Windows
 ; Build with: iscc /DAppVersion="x.y.z" build/windows/config/installer.iss
 
 #define AppName      "Bengal Download Manager"

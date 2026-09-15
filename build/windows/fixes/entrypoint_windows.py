@@ -1,6 +1,6 @@
 """
 Windows Entry Point for Bengal Download Manager.
-Bootstraps Windows native DWM dark title bars, Fusion style, and registry theming
+Bootstraps Windows native DWM dark title bars, dynamic Fusion/native theming, and registry integration
 before executing the core application, requiring zero changes to main application sources.
 """
 
@@ -8,6 +8,13 @@ from __future__ import annotations
 
 import os
 import sys
+
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("io.github.tazihad.bengal-download-manager")
+    except Exception:
+        pass
 
 # Current file is in build/windows/fixes/entrypoint_windows.py
 FIXES_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,15 +32,17 @@ if WINDOWS_DIR not in sys.path:
     sys.path.insert(2, WINDOWS_DIR)
 
 from PyQt6.QtWidgets import QApplication
-from theme_fix.windows_theme_fix import apply_windows_theme_patches, enforce_windows_style
+from theme_fix.windows_theme_fix import apply_windows_theme_patches
 
-# Hook QApplication initialization so that Fusion style and theme patches are active immediately
+# Pre-patch theme_service and utils before main imports them
+apply_windows_theme_patches()
+
+# Hook QApplication initialization so that style and DWM hooks are active immediately
 _orig_qapp_init = QApplication.__init__
 
 
 def _patched_qapp_init(self, *args, **kwargs):
     _orig_qapp_init(self, *args, **kwargs)
-    enforce_windows_style(self)
     apply_windows_theme_patches(self)
 
 
