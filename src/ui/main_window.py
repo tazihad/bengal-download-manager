@@ -5728,14 +5728,18 @@ class MainWindow(QMainWindow):
         except (RuntimeError, Exception):
             return
     
-    def open_options(self):
+    def open_options(self, target_tab=None):
         from ui.dialogs import OptionsDialog
+        if isinstance(target_tab, bool):
+            target_tab = None
         if MemoryGuard.is_widget_alive(getattr(self, "_options_dlg", None)):
+            if target_tab is not None and hasattr(self._options_dlg, "select_tab"):
+                self._options_dlg.select_tab(target_tab)
             self._options_dlg.raise_()
             self._options_dlg.activateWindow()
             return
         # Top-level window (parent=None) sharing app WM_CLASS so it appears as a separate icon in taskbar panel
-        self._options_dlg = OptionsDialog(main_window=self)
+        self._options_dlg = OptionsDialog(main_window=self, initial_tab=target_tab)
         self._options_dlg.accepted.connect(self._handle_options_accepted)
         self._options_dlg.finished.connect(lambda *_: setattr(self, "_options_dlg", None))
         self._options_dlg.show()

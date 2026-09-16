@@ -248,3 +248,57 @@ def test_facebook_media_popup_filename(qapp):
 
     mw.close()
 
+
+def test_three_dots_options_hub(qapp):
+    """Verify ThreeDotsButton and MediaDownloaderOptionsHub initialization and behavior."""
+    dlg = MediaDownloaderDialog()
+    assert hasattr(dlg, "btn_three_dots")
+    assert dlg.btn_three_dots.text() == "⋮"
+    assert hasattr(dlg, "options_hub")
+    assert len(dlg.options_hub.engine_rows) == 5
+
+    # Toggle options hub
+    dlg._toggle_options_hub()
+    assert dlg.options_hub.isVisible() is True
+
+    # Test engine status update through the hub
+    dlg.options_hub.update_engine("yt-dlp", "yt-dlp (v2026.08.19)", "green")
+    yt_row = dlg.options_hub.engine_rows["yt-dlp"]
+    assert yt_row.lbl_version.text() == "v2026.08.19"
+    assert dlg.btn_three_dots._status in ("green", "yellow", "gray")
+
+    dlg._toggle_options_hub()
+    assert dlg.options_hub.isVisible() is False
+    dlg.close()
+
+
+def test_three_dots_opens_media_tab(qapp):
+    """Verify that clicking Media Options in the 3-dot options hub opens the Media tab in OptionsDialog."""
+    from unittest.mock import MagicMock
+    from ui.dialogs.options import OptionsDialog
+
+    # Test OptionsDialog select_tab and initial_tab
+    options_dlg = OptionsDialog(initial_tab="media")
+    assert options_dlg.tabs.currentWidget() == options_dlg.media_tab
+    assert "Media" in options_dlg.tabs.tabText(options_dlg.tabs.currentIndex())
+    assert "Save To" not in options_dlg.tabs.tabText(options_dlg.tabs.currentIndex())
+    options_dlg.reject()
+
+    # Test that options hub delegates to main_win.open_options("media")
+    mock_main_win = MagicMock()
+    dlg = MediaDownloaderDialog(main_window=mock_main_win)
+    dlg.options_hub._open_options_dialog()
+    mock_main_win.open_options.assert_called_once_with("media")
+    dlg.close()
+
+
+def test_engine_update_check_skips_identical_version():
+    """Verify that DependencyManagerWorker._is_update_available returns False when versions match."""
+    from core.media_downloader import DependencyManagerWorker
+    worker = DependencyManagerWorker(force_download=True)
+    with patch("core.media_downloader.get_tool_version", return_value="v2026.08.19"):
+        needs_update, ver = worker._is_update_available("AtomicParsley")
+        assert needs_update is False
+        assert ver == "v2026.08.19"
+
+
