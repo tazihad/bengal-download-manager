@@ -10,6 +10,7 @@ import sys
 import json
 import logging
 import threading
+import time
 import getpass
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -200,7 +201,54 @@ class TcpListenerThread(QThread):
         try:
             if is_debug_mode():
                 logger.debug("[IPC] Starting extension TCP listener thread on 127.0.0.1:%s", self.port)
-            self.server = ReusableHTTPServer(('127.0.0.1', self.port), IPCRequestHandler)
+
+            # Auto-reclaim port if held by an orphaned instance or prior crash
+            try:
+                from core.services.port_service import reclaim_port
+                reclaim_port(self.port, "ipc", ["python", "python3", "bengal", "bengal-download-manager"])
+            except Exception as pe:
+                if is_debug_mode():
+                    logger.debug("[IPC] Pre-bind port reclamation check: %s", pe)
+
+            # Try binding to configured port from options first; if occupied by an external
+            # socket (e.g. browser TCP self-connect), gracefully activate safe fallback port.
+            ports_to_try = [self.port]
+            for fallback in (26900, 26901, 26902):
+                if fallback not in ports_to_try:
+                    ports_to_try.append(fallback)
+
+            server = None
+            bound_port = self.port
+            for candidate_port in ports_to_try:
+                try:
+                    reclaim_port(candidate_port, "ipc", ["python", "python3", "bengal", "bengal-download-manager"], timeout_sec=0.2)
+                except Exception:
+                    pass
+
+                for attempt in range(3):
+                    try:
+                        server = ReusableHTTPServer(('127.0.0.1', candidate_port), IPCRequestHandler)
+                        bound_port = candidate_port
+                        break
+                    except OSError as oe:
+                        if attempt < 2 and (getattr(oe, 'errno', None) == 98 or 'Address already in use' in str(oe)):
+                            time.sleep(0.15)
+                            continue
+                        break
+                if server is not None:
+                    break
+
+            if server is None:
+                raise OSError(98, f"Address already in use on ports {ports_to_try}")
+
+            if bound_port != self.port:
+                logger.warning(
+                    "[IPC] Configured port %s is occupied by an external process/connection. "
+                    "Activated safe fallback listener on port %s.",
+                    self.port, bound_port
+                )
+            self.port = bound_port
+            self.server = server
             # Attach emitter to server so handler can access it
             self.server.emitter = self.emitter 
             if is_debug_mode():

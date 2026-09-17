@@ -337,6 +337,13 @@ class MainWindow(QMainWindow):
             token = ext_data.get("token", "")
             max_conn = str(ext_data.get("max_connections", 8))
 
+            # Auto-reclaim port if held by an orphaned instance or prior crash
+            try:
+                from core.services.port_service import reclaim_port
+                reclaim_port(port, "aria2", ["aria2c", "aria2"], rpc_token=token)
+            except Exception as pe:
+                if is_debug_mode():
+                    logger.debug("[Aria2Daemon] Pre-launch port reclamation check: %s", pe)
 
             # Note: --no-proxy is not needed for the server side of RPC
             cmd = [
@@ -375,6 +382,12 @@ class MainWindow(QMainWindow):
                     except Exception:
                         pass
                 threading.Thread(target=_stream_aria2_stderr, args=(proc,), daemon=True).start()
+
+            # Brief check to ensure daemon did not immediately fail to bind
+            time.sleep(0.05)
+            if proc and proc.poll() is not None:
+                logger.error("[Aria2Daemon] aria2 daemon exited immediately with code %s", proc.returncode)
+                return None
 
             return proc
         except Exception as e:
@@ -1414,21 +1427,11 @@ class MainWindow(QMainWindow):
         is_running = False
         try:
             from core.services.ipc_service import get_ipc_port
-            port = get_ipc_port()
+            port = getattr(self.listener_thread, "port", None) or get_ipc_port()
         except Exception:
             port = 56900
 
-        if hasattr(self, "listener_thread") and self.listener_thread and self.listener_thread.isRunning():
-            is_running = True
-        else:
-            try:
-                import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.15)
-                    if s.connect_ex(("127.0.0.1", port)) == 0:
-                        is_running = True
-            except Exception:
-                pass
+        is_running = bool(hasattr(self, "listener_thread") and self.listener_thread and self.listener_thread.isRunning())
 
         if is_running:
             self.status_ipc_label.setText("● IPC: Active")
@@ -1489,6 +1492,23 @@ class MainWindow(QMainWindow):
         self.status_memory_label.setToolTip(f"Application Memory Usage (RSS): {format_bytes(mem_bytes)}")
 
     def update_periodic_status(self):
+        # Background watchdog & sleep/resume detection
+        now_wall = time.time()
+        last_wall = getattr(self, "_last_watchdog_wall_time", None)
+        self._last_watchdog_wall_time = now_wall
+
+        system_resumed = False
+        if last_wall is not None and (now_wall - last_wall > 6.0):
+            system_resumed = True
+            logger.info("[Watchdog] System resume from sleep/suspend detected (gap: %.1fs). Verifying services...", now_wall - last_wall)
+
+        watchdog_ticks = getattr(self, "_watchdog_ticks", 0) + 1
+        self._watchdog_ticks = watchdog_ticks
+
+        # Check and recover services on sleep resume or every 5 seconds
+        if system_resumed or (watchdog_ticks % 5 == 0):
+            self._check_and_recover_services(force_restart=system_resumed)
+
         self.update_status_bar_memory()
         self.update_status_bar_aria2()
         self.update_status_bar_ipc()
@@ -1497,6 +1517,38 @@ class MainWindow(QMainWindow):
             self.fetch_public_ip_async()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
+
+    def _check_and_recover_services(self, force_restart: bool = False):
+        """Monitors background service health (Aria2 daemon and Extension IPC listener).
+        Automatically reclaims ports and restores inactive services without manual intervention."""
+        if getattr(self, "is_quitting", False) or getattr(self, "_is_closing", False):
+            return
+
+        from core.services.ipc_service import get_ipc_port
+        ext_data = load_extension_config()
+        aria2_port = ext_data.get("port", 56800)
+        ipc_port = get_ipc_port()
+
+        # 1. Aria2 daemon health check
+        aria2_dead = (
+            not hasattr(self, "aria2_process")
+            or self.aria2_process is None
+            or self.aria2_process.poll() is not None
+        )
+        if aria2_dead:
+            logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", aria2_port)
+            self.aria2_process = self.start_aria2_daemon()
+
+        # 2. Extension IPC listener health check
+        if getattr(self, "start_ipc", True):
+            ipc_dead = (
+                not hasattr(self, "listener_thread")
+                or self.listener_thread is None
+                or not self.listener_thread.isRunning()
+            )
+            if ipc_dead:
+                logger.info("[Watchdog] Extension IPC listener is inactive (port %d). Auto-restarting...", ipc_port)
+                self.restart_ipc_listener(port=ipc_port)
 
     def update_status_bar(self):
         self.update_status_bar_items()
