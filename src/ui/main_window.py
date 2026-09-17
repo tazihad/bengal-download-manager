@@ -3910,16 +3910,51 @@ class MainWindow(QMainWindow):
         if is_debug_mode():
             logger.debug("[MainWindow] process_incoming_url invoked with data: %s", data[:300])
 
-        parts = data.split("|", 8)
-        url = parts[0]
-        user_agent = parts[1] if len(parts) > 1 else ""
-        cookies = parts[2] if len(parts) > 2 else ""
-        referrer = parts[3] if len(parts) > 3 else ""
-        is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
-        selected_quality = parts[5] if len(parts) > 5 else ""
-        custom_title = parts[6] if len(parts) > 6 else ""
-        size_bytes = int(parts[7].strip()) if len(parts) > 7 and parts[7].strip().isdigit() else 0
-        size_str = parts[8] if len(parts) > 8 else ""
+        url = ""
+        user_agent = ""
+        cookies = ""
+        referrer = ""
+        is_media_flag = False
+        selected_quality = ""
+        custom_title = ""
+        size_bytes = 0
+        size_str = ""
+
+        is_json = False
+        if isinstance(data, str) and data.strip().startswith("{"):
+            try:
+                import json
+                j = json.loads(data)
+                url = j.get("url", "")
+                user_agent = j.get("userAgent") or j.get("user_agent", "")
+                cookies = j.get("cookies", "")
+                referrer = j.get("referrer", "")
+                is_media_flag = bool(j.get("isMedia") or j.get("is_media", False))
+                selected_quality = j.get("quality", "")
+                custom_title = j.get("title", "")
+                size_bytes = int(j.get("sizeBytes") or j.get("size_bytes", 0) or 0)
+                size_str = j.get("sizeStr") or j.get("size_str", "")
+                is_json = True
+            except Exception:
+                is_json = False
+
+        if not is_json:
+            parts = str(data).split("|")
+            url = parts[0]
+            user_agent = parts[1] if len(parts) > 1 else ""
+            cookies = parts[2] if len(parts) > 2 else ""
+            referrer = parts[3] if len(parts) > 3 else ""
+            is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
+            selected_quality = parts[5] if len(parts) > 5 else ""
+            if len(parts) >= 9:
+                if parts[-2].strip().isdigit() or parts[-1].strip().startswith("~") or any(u in parts[-1] for u in ("B", "KB", "MB", "GB")):
+                    size_str = parts[-1]
+                    size_bytes = int(parts[-2].strip()) if parts[-2].strip().isdigit() else 0
+                    custom_title = "|".join(parts[6:-2])
+                else:
+                    custom_title = "|".join(parts[6:])
+            elif len(parts) > 6:
+                custom_title = "|".join(parts[6:])
 
         if not url:
             if is_debug_mode():
@@ -4137,15 +4172,16 @@ class MainWindow(QMainWindow):
                 if is_special_case:
                     full_title = title
                 else:
-                    has_id_in_title = bool(video_id and video_id in title)
+                    clean_title = title.rstrip("-_| ").strip() or title
+                    has_id_in_title = bool(video_id and video_id in clean_title)
                     if has_id_in_title:
-                        full_title = f"{title} [{height}p]" if (height and not is_audio) else title
+                        full_title = f"{clean_title} [{height}p]" if (height and not is_audio) else clean_title
                     elif video_id:
-                        full_title = f"{title} [{video_id}]" if is_audio else (f"{title} [{video_id}] [{height}p]" if height else f"{title} [{video_id}]")
+                        full_title = f"{clean_title} [{video_id}]" if is_audio else (f"{clean_title} [{video_id}] [{height}p]" if height else f"{clean_title} [{video_id}]")
                     elif height and not is_audio:
-                        full_title = f"{title} [{height}p]"
+                        full_title = f"{clean_title} [{height}p]"
                     else:
-                        full_title = title
+                        full_title = clean_title
                 filename = sanitize_media_filename(full_title, ext=ext)
 
                 self.start_media_download(

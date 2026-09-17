@@ -151,8 +151,18 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 logger.debug("[IPC] Received raw string URL from extension: %s", url)
             
         if url and url.startswith("http"):
-            media_flag = "1" if is_media else "0"
-            raw_msg = f"{url}|{user_agent}|{cookies}|{referrer}|{media_flag}|{quality}|{title}|{size_bytes}|{size_str}"
+            payload_data = {
+                "url": url,
+                "userAgent": user_agent,
+                "cookies": cookies,
+                "referrer": referrer,
+                "isMedia": is_media,
+                "quality": quality,
+                "title": title,
+                "sizeBytes": size_bytes,
+                "sizeStr": size_str,
+            }
+            raw_msg = json.dumps(payload_data)
             if is_debug_mode():
                 logger.debug("[IPC] Emitting new_download_signal: %s", raw_msg[:300])
             # self.server.emitter is passed when initializing the server

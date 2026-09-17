@@ -199,6 +199,7 @@ def test_youtube_media_popup_filename_numeric_video_id(qapp):
         assert filename_1 != "31.mkv"
         assert "31wLxwewzlM" in filename_1
         assert "Laila Full Video" in filename_1
+        assert "John Abraham" in filename_1
         assert "1080p" in filename_1
 
         mock_start.reset_mock()
@@ -221,6 +222,60 @@ def test_youtube_media_popup_filename_numeric_video_id(qapp):
         assert "27C4pfRsf9g" in filename_2
         assert "Test Video Title" in filename_2
         assert "720p" in filename_2
+
+    mw.close()
+
+
+def test_youtube_download_name_with_pipes_from_extension(qapp):
+    """Verify that YouTube video titles containing pipes '|' are not truncated and adhere to YouTube standard."""
+    import json
+    mw = MainWindow(start_ipc=False)
+    with patch.object(mw, "start_media_download") as mock_start:
+        # 1. Pipe-separated IPC format
+        ipc_pipe = (
+            "https://www.youtube.com/watch?v=60ItHLz5WEA|"
+            "Mozilla/5.0|"
+            "|"
+            "https://www.youtube.com/|"
+            "1|"
+            "1080p|"
+            "Alan Walker - Faded | Official Music Video | 4K Ultra HD|"
+            "104857600|"
+            "~100 MB"
+        )
+        mw.process_incoming_url(ipc_pipe)
+        assert mock_start.called
+        kwargs_pipe = mock_start.call_args.kwargs
+        fn_pipe = kwargs_pipe.get("filename")
+        assert "60ItHLz5WEA" in fn_pipe
+        assert "Alan Walker - Faded" in fn_pipe
+        assert "Official Music Video" in fn_pipe
+        assert "4K Ultra HD" in fn_pipe
+        assert "1080p" in fn_pipe
+
+        # 2. JSON IPC format
+        mock_start.reset_mock()
+        ipc_json = json.dumps({
+            "url": "https://www.youtube.com/watch?v=60ItHLz5WEA",
+            "userAgent": "Mozilla/5.0",
+            "cookies": "",
+            "referrer": "https://www.youtube.com/",
+            "isMedia": True,
+            "quality": "1080p",
+            "title": "Alan Walker - Faded | Official Music Video | 4K Ultra HD",
+            "sizeBytes": 104857600,
+            "sizeStr": "~100 MB"
+        })
+        mw.process_incoming_url(ipc_json)
+        assert mock_start.called
+        kwargs_json = mock_start.call_args.kwargs
+        fn_json = kwargs_json.get("filename")
+        assert "60ItHLz5WEA" in fn_json
+        assert "Alan Walker - Faded" in fn_json
+        assert "Official Music Video" in fn_json
+        assert "4K Ultra HD" in fn_json
+        assert "1080p" in fn_json
+        assert fn_json == fn_pipe
 
     mw.close()
 

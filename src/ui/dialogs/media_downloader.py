@@ -1964,7 +1964,7 @@ class MediaDownloaderDialog(QDialog):
                         v_id = m_x_id.group(1) if m_x_id else (self._current_video_data.get("id") or "")
                 filename = sanitize_media_filename(f"{u}-{v_id}" if (u and v_id) else (v_id or title), ext=ext)
             elif (is_youtube or is_popular_platform) and video_id:
-                clean_title = title.strip()
+                clean_title = title.rstrip("-_| ").strip() or title
                 if is_audio_only:
                     full_title = f"{clean_title} [{video_id}]"
                 else:
@@ -2183,10 +2183,7 @@ class MediaDownloaderDialog(QDialog):
                     pass
                 self._dep_worker.requestInterruption()
                 self._dep_worker.quit()
-                self._dep_worker.wait(2000)
-                if self._dep_worker.isRunning():
-                    self._dep_worker.terminate()
-                    self._dep_worker.wait(2000)
+                self._dep_worker.wait(1000)
             except Exception:
                 pass
         for attr in ("_thumb_worker", "_pl_thumb_worker"):
