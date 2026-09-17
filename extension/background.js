@@ -627,6 +627,12 @@ async function isBengalDMOnline() {
       cachedIpcPort = parseInt(config.ipc_port, 10) || cachedIpcPort;
     }
     updateDynamicMediaConfig(config);
+    chrome.storage.local.set({
+      ipcPort: cachedIpcPort,
+      activeIpcPort: cachedIpcPort,
+      isIpcFallback: Boolean(config.is_fallback),
+      configuredIpcPort: config.configured_ipc_port || 56900
+    });
   }
 
   await updateAppConnectionBadge(online);

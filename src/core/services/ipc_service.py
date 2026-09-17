@@ -65,11 +65,16 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             app_version = "0.1"
 
-        server_port = self.server.server_address[1] if (hasattr(self, 'server') and hasattr(self.server, 'server_address')) else ext_data.get("ipc_port", DM_CONNECTOR_PORT)
+        configured_ipc_port = ext_data.get("ipc_port", DM_CONNECTOR_PORT)
+        server_port = self.server.server_address[1] if (hasattr(self, 'server') and hasattr(self.server, 'server_address')) else configured_ipc_port
+        is_fallback = bool(server_port != configured_ipc_port)
+
         config_json = json.dumps({
             "status": "Bengal DM is running",
             "version": app_version,
             "ipc_port": server_port,
+            "configured_ipc_port": configured_ipc_port,
+            "is_fallback": is_fallback,
             "aria2": {
                 "port": ext_data.get("port", 56800),
                 "token": ext_data.get("token", "")

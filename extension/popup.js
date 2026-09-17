@@ -282,32 +282,32 @@ chrome.storage.local.get({
 
   const statusText = document.getElementById('status-text');
   const dot = document.getElementById('dot');
-  const ipcPort = parseInt(items.ipcPort, 10) || 56900;
+  const primaryIpcPort = items.activeIpcPort || parseInt(items.ipcPort, 10) || 56900;
+  const ipcPortsToTry = [primaryIpcPort];
+  for (const fp of [26900, 26901, 26902]) {
+    if (!ipcPortsToTry.includes(fp)) ipcPortsToTry.push(fp);
+  }
+  if (!ipcPortsToTry.includes(56900)) ipcPortsToTry.push(56900);
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
 
-    // 1. Ping the Python app on configured IPC port
+    // 1. Ping the Python app on configured or fallback IPC ports
     let bdmData = null;
-    try {
-      const response = await fetch(`http://127.0.0.1:${ipcPort}/`, {
-        method: 'GET',
-        signal: controller.signal
-      });
-      if (response.ok) {
-        bdmData = await response.json();
-      }
-    } catch {
+    for (const tryPort of ipcPortsToTry) {
       try {
-        const response = await fetch(`http://localhost:${ipcPort}/`, {
+        const response = await fetch(`http://127.0.0.1:${tryPort}/`, {
           method: 'GET',
           signal: controller.signal
         });
         if (response.ok) {
           bdmData = await response.json();
+          break;
         }
-      } catch {}
+      } catch {
+        // Continue to next port
+      }
     }
 
     clearTimeout(timeoutId);
@@ -320,12 +320,17 @@ chrome.storage.local.get({
         let ver = bdmData.version || items.bdmVersion;
         const storageUpdates = {};
         if (bdmData.version) storageUpdates.bdmVersion = bdmData.version;
-        if (bdmData.ipc_port && bdmData.ipc_port !== ipcPort) storageUpdates.ipcPort = bdmData.ipc_port;
+        if (bdmData.ipc_port) {
+          storageUpdates.ipcPort = bdmData.ipc_port;
+          storageUpdates.activeIpcPort = bdmData.ipc_port;
+          storageUpdates.isIpcFallback = Boolean(bdmData.is_fallback);
+        }
         if (Object.keys(storageUpdates).length > 0) {
           chrome.storage.local.set(storageUpdates);
         }
         const formatted = formatAppVersion(ver);
-        statusText.textContent = formatted ? `Bengal DM Running (${formatted})` : "Bengal DM Running";
+        const fallbackNotice = bdmData.is_fallback ? ` [Port ${bdmData.ipc_port}]` : "";
+        statusText.textContent = formatted ? `Bengal DM Running (${formatted})${fallbackNotice}` : `Bengal DM Running${fallbackNotice}`;
         chrome.runtime.sendMessage({ action: "update_connection_status", online: true }).catch(() => {});
       } else {
         dot.className = "dot offline";

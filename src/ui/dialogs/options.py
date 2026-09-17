@@ -1082,15 +1082,28 @@ class OptionsDialog(QDialog):
         self.spin_ipc_port = QSpinBox()
         self.spin_ipc_port.setFixedHeight(28)
         self.spin_ipc_port.setRange(1024, 65535)
-        self.spin_ipc_port.setValue(self.extension_data.get("ipc_port", 56900))
+        configured_port = self.extension_data.get("ipc_port", 56900)
+        self.spin_ipc_port.setValue(configured_port)
         self.spin_ipc_port.setToolTip(
             "Local IPC port for browser extension downloads. Change if 56900 is in use."
         )
         ipc_layout.addWidget(self.spin_ipc_port, 0, 1)
 
-        ipc_hint = QLabel("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.")
+        parent_mw = self.parent()
+        active_ipc_port = None
+        if parent_mw and hasattr(parent_mw, "listener_thread") and parent_mw.listener_thread:
+            active_ipc_port = getattr(parent_mw.listener_thread, "port", None)
+
+        if active_ipc_port and active_ipc_port != configured_port:
+            ipc_hint = QLabel(
+                f"Configured port: {configured_port}. Active fallback listener: Port {active_ipc_port} "
+                "(primary port is occupied by another process/socket)."
+            )
+            ipc_hint.setStyleSheet("color: #e67e22; font-size: 11px; font-weight: 500;")
+        else:
+            ipc_hint = QLabel("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.")
+            ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
         ipc_hint.setWordWrap(True)
-        ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
         ipc_layout.addWidget(ipc_hint, 1, 0, 1, 2)
 
         layout.addWidget(grp_ipc)
