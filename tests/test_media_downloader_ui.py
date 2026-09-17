@@ -329,13 +329,37 @@ def test_three_dots_options_hub(qapp):
     assert dlg.options_hub.isVisible() is True
 
     # Test engine status update through the hub
-    dlg.options_hub.update_engine("yt-dlp", "yt-dlp (v2026.08.19)", "green")
-    yt_row = dlg.options_hub.engine_rows["yt-dlp"]
-    assert yt_row.lbl_version.text() == "v2026.08.19"
-    assert dlg.btn_three_dots._status in ("green", "yellow", "gray")
+    # When all 5 engines are operational (green), three dots status must be None (no notification dot)
+    for tool in ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]:
+        dlg.options_hub.update_engine(tool, f"{tool} (v1.0)", "green")
+    assert dlg.btn_three_dots._status is None
+
+    # When an update is available or updating, status is yellow
+    dlg.options_hub.update_engine("yt-dlp", "yt-dlp (Update Available: v2026.09.01)", "yellow")
+    assert dlg.btn_three_dots._status == "yellow"
+
+    # When an engine is missing/failed, status is orange
+    dlg.options_hub.update_engine("yt-dlp", "yt-dlp (v1.0)", "green")
+    dlg.options_hub.update_engine("deno", "deno (Not Installed)", "gray")
+    assert dlg.btn_three_dots._status == "orange"
 
     dlg._toggle_options_hub()
     assert dlg.options_hub.isVisible() is False
+    dlg.close()
+
+
+def test_media_downloader_engine_role_descriptions_visible(qapp):
+    """Verify that all 5 pipeline engine role descriptions use readable palette(placeholder-text) and set tooltips."""
+    from ui.dialogs.media_downloader import DEPENDENCY_TOOLS
+    dlg = MediaDownloaderDialog()
+    for tool_name, row in dlg.options_hub.engine_rows.items():
+        assert hasattr(row, "lbl_role")
+        sheet = row.lbl_role.styleSheet()
+        # Must use placeholder-text and NOT mid (which is invisible in dark themes)
+        assert "palette(placeholder-text)" in sheet
+        assert "palette(mid)" not in sheet
+        expected_desc = DEPENDENCY_TOOLS[tool_name].get("desc", "")
+        assert row.lbl_role.toolTip() == expected_desc
     dlg.close()
 
 

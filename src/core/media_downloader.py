@@ -127,7 +127,7 @@ def get_tool_version(tool_name: str, local_only: bool = True) -> str:
     try:
         cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
         clean_env = get_clean_env(str(BIN_DIR))
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=3, env=clean_env)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5, env=clean_env)
         out = (res.stdout + res.stderr).strip()
         if not out:
             return "Installed"
@@ -276,6 +276,14 @@ class DependencyManagerWorker(QThread):
             else:
                 ver = get_tool_version(tool, local_only=True) or "Installed"
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
+                # Perform light background update check for version-tagged tools
+                if tool in ("yt-dlp", "deno"):
+                    try:
+                        needs_update, latest_ver = self._is_update_available(tool)
+                        if needs_update and latest_ver and latest_ver.lstrip("v") != ver.lstrip("v"):
+                            self.tool_status_signal.emit(tool, f"{tool} (Update Available: {latest_ver})", "yellow")
+                    except Exception:
+                        pass
 
         self.all_finished_signal.emit()
 
@@ -318,44 +326,47 @@ class DependencyManagerWorker(QThread):
             headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
         )
 
+        loc = ""
         try:
             resp = opener.open(req, timeout=8)
+            loc = resp.headers.get("Location", "")
             resp.close()
         except urllib.error.HTTPError as e:
             loc = e.headers.get("Location", "")
-            if tool_name in ("yt-dlp", "deno"):
-                m = re.search(r"/releases/download/([^/]+)/", loc)
-                if m:
-                    remote_tag = m.group(1).lstrip("v")
-                    local_clean = local_ver.lstrip("v")
-                    if remote_tag == local_clean:
-                        return False, local_ver
-                    return True, f"v{remote_tag}"
-            elif tool_name in ("ffmpeg", "ffprobe"):
-                head_req = urllib.request.Request(
-                    loc,
-                    method="HEAD",
-                    headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
-                )
-                try:
-                    with urllib.request.urlopen(head_req, timeout=8) as head_resp:
-                        remote_etag = head_resp.headers.get("etag", "").strip('"')
-                        v_file = BIN_DIR / ".versions.json"
-                        saved_etag = ""
-                        if v_file.exists():
-                            try:
-                                saved_etag = json.loads(v_file.read_text(encoding="utf-8")).get("ffmpeg_etag", "")
-                            except Exception:
-                                pass
-                        if saved_etag and saved_etag == remote_etag:
-                            return False, local_ver
-                        elif not saved_etag and remote_etag:
-                            self._save_tool_metadata("ffmpeg_etag", remote_etag)
-                            return False, local_ver
-                except Exception:
-                    return False, local_ver
         except Exception:
             return False, local_ver
+
+        if tool_name in ("yt-dlp", "deno"):
+            m = re.search(r"/releases/download/([^/]+)/", loc)
+            if m:
+                remote_tag = m.group(1).lstrip("v")
+                local_clean = local_ver.lstrip("v")
+                if remote_tag == local_clean:
+                    return False, local_ver
+                return True, f"v{remote_tag}"
+        elif tool_name in ("ffmpeg", "ffprobe"):
+            head_req = urllib.request.Request(
+                loc,
+                method="HEAD",
+                headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
+            )
+            try:
+                with urllib.request.urlopen(head_req, timeout=8) as head_resp:
+                    remote_etag = head_resp.headers.get("etag", "").strip('"')
+                    v_file = BIN_DIR / ".versions.json"
+                    saved_etag = ""
+                    if v_file.exists():
+                        try:
+                            saved_etag = json.loads(v_file.read_text(encoding="utf-8")).get("ffmpeg_etag", "")
+                        except Exception:
+                            pass
+                    if saved_etag and saved_etag == remote_etag:
+                        return False, local_ver
+                    elif not saved_etag and remote_etag:
+                        self._save_tool_metadata("ffmpeg_etag", remote_etag)
+                        return False, local_ver
+            except Exception:
+                return False, local_ver
 
         return True, "vLatest"
 

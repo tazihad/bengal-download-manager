@@ -242,7 +242,7 @@ class ThreeDotsButton(QPushButton):
         self.setFixedSize(36, 34)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip("Pipeline Engines & Settings")
-        self._status = "green"  # "green", "yellow", "gray"
+        self._status = None  # None (no dot), "yellow" (update/updating), "orange" (missing/attention)
         self.setStyleSheet("""
             QPushButton {
                 font-size: 16px;
@@ -258,21 +258,30 @@ class ThreeDotsButton(QPushButton):
             }
         """)
 
-    def set_status(self, status: str):
+    def set_status(self, status: str | None):
         if self._status != status:
             self._status = status
+            if status == "yellow":
+                self.setToolTip("Pipeline Engines & Settings (Update Available)")
+            elif status in ("orange", "red", "gray", "missing"):
+                self.setToolTip("Pipeline Engines & Settings (Engines Missing / Attention Needed)")
+            else:
+                self.setToolTip("Pipeline Engines & Settings")
             self.update()
 
     def paintEvent(self, event):
         super().paintEvent(event)
+        # Suppress dot when operational or no status
+        if not self._status or self._status in ("none", "green", "normal"):
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self._status == "yellow":
             dot_color = QColor("#e5a50a")
-        elif self._status == "green":
-            dot_color = QColor("#2ec27e")
+        elif self._status in ("orange", "red", "gray", "missing"):
+            dot_color = QColor("#e67e22")
         else:
-            dot_color = QColor("#888888")
+            dot_color = QColor("#e67e22")
         painter.setBrush(QBrush(dot_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(self.width() - 9, 5, 6, 6)
@@ -334,23 +343,39 @@ class EngineRowWidget(QFrame):
         name_row.addStretch()
         info_vbox.addLayout(name_row)
 
-        lbl_role = QLabel(self.tool_info.get("role", ""))
-        lbl_role.setStyleSheet("color: palette(mid); font-size: 10px;")
-        info_vbox.addWidget(lbl_role)
+        self.lbl_role = QLabel(self.tool_info.get("role", ""))
+        self.lbl_role.setStyleSheet("color: palette(placeholder-text); font-size: 10.5px;")
+        self.lbl_role.setToolTip(self.tool_info.get("desc", "") or self.tool_info.get("role", ""))
+        info_vbox.addWidget(self.lbl_role)
         top_row.addLayout(info_vbox, stretch=1)
 
-        # Version Pill Badge
-        self.lbl_version = QLabel("Checking...")
+        # Version Pill Badge (initialized synchronously from local cache)
+        self.lbl_version = QLabel("Installed")
         font_ver = QFont()
         font_ver.setPointSize(9)
         self.lbl_version.setFont(font_ver)
-        self.lbl_version.setStyleSheet("""
-            background-color: palette(base);
-            border: 1px solid palette(mid);
-            border-radius: 4px;
-            padding: 2px 6px;
-            color: palette(text);
-        """)
+        from core.media_downloader import get_local_tool_path
+        if get_local_tool_path(self.tool_name):
+            self.lbl_dot.setStyleSheet("color: #2ec27e; font-size: 8px;")
+            self.lbl_version.setText("Installed")
+            self.lbl_version.setStyleSheet("""
+                background-color: palette(base);
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                padding: 2px 6px;
+                color: #2ec27e;
+                font-weight: bold;
+            """)
+        else:
+            self.lbl_dot.setStyleSheet("color: #e67e22; font-size: 8px;")
+            self.lbl_version.setText("Not Installed")
+            self.lbl_version.setStyleSheet("""
+                background-color: palette(base);
+                border: 1px solid #e67e22;
+                border-radius: 4px;
+                padding: 2px 6px;
+                color: #e67e22;
+            """)
         top_row.addWidget(self.lbl_version)
 
         # Refresh / Update Button
@@ -397,35 +422,44 @@ class EngineRowWidget(QFrame):
 
         if status_color == "yellow":
             self.lbl_dot.setStyleSheet("color: #e5a50a; font-size: 8px;")
-            self.lbl_version.setText("Updating...")
-            self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e5a50a; border-radius: 4px; padding: 2px 6px; color: #e5a50a; font-weight: bold;")
-            self.btn_refresh.setEnabled(False)
-            self.progress_bar.setVisible(True)
-            self.lbl_progress_meta.setVisible(True)
-            self.lbl_progress_meta.setText(ver_text)
-            if "MB" in ver_text:
-                m = re.search(r"([\d.]+)\s*MB\s*/\s*([\d.]+)\s*MB", ver_text)
-                if m:
-                    dl = float(m.group(1))
-                    tot = float(m.group(2))
-                    pct = int((dl / tot) * 100) if tot > 0 else 0
-                    self.progress_bar.setRange(0, 100)
-                    self.progress_bar.setValue(pct)
+            if "Update Available" in ver_text or "Update Available" in display_text:
+                self.lbl_version.setText("Update Available")
+                self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e5a50a; border-radius: 4px; padding: 2px 6px; color: #e5a50a; font-weight: bold;")
+                self.lbl_version.setToolTip(ver_text)
+                self.btn_refresh.setEnabled(True)
+                self.progress_bar.setVisible(False)
+                self.lbl_progress_meta.setVisible(False)
+            else:
+                self.lbl_version.setText("Updating...")
+                self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e5a50a; border-radius: 4px; padding: 2px 6px; color: #e5a50a; font-weight: bold;")
+                self.btn_refresh.setEnabled(False)
+                self.progress_bar.setVisible(True)
+                self.lbl_progress_meta.setVisible(True)
+                self.lbl_progress_meta.setText(ver_text)
+                if "MB" in ver_text:
+                    m = re.search(r"([\d.]+)\s*MB\s*/\s*([\d.]+)\s*MB", ver_text)
+                    if m:
+                        dl = float(m.group(1))
+                        tot = float(m.group(2))
+                        pct = int((dl / tot) * 100) if tot > 0 else 0
+                        self.progress_bar.setRange(0, 100)
+                        self.progress_bar.setValue(pct)
+                    else:
+                        self.progress_bar.setRange(0, 0)
                 else:
                     self.progress_bar.setRange(0, 0)
-            else:
-                self.progress_bar.setRange(0, 0)
         elif status_color == "green":
             self.lbl_dot.setStyleSheet("color: #2ec27e; font-size: 8px;")
             self.lbl_version.setText(ver_text)
             self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid palette(mid); border-radius: 4px; padding: 2px 6px; color: #2ec27e; font-weight: bold;")
+            self.lbl_version.setToolTip("")
             self.btn_refresh.setEnabled(True)
             self.progress_bar.setVisible(False)
             self.lbl_progress_meta.setVisible(False)
         else:
-            self.lbl_dot.setStyleSheet("color: #888888; font-size: 8px;")
-            self.lbl_version.setText("Not Installed")
-            self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid palette(mid); border-radius: 4px; padding: 2px 6px; color: #888888;")
+            self.lbl_dot.setStyleSheet("color: #e67e22; font-size: 8px;")
+            self.lbl_version.setText(ver_text if ver_text not in ("orange", "red", "gray") else "Not Installed")
+            self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e67e22; border-radius: 4px; padding: 2px 6px; color: #e67e22;")
             self.btn_refresh.setEnabled(True)
             self.progress_bar.setVisible(False)
             self.lbl_progress_meta.setVisible(False)
@@ -527,6 +561,8 @@ class MediaDownloaderOptionsHub(QFrame):
             self.engine_rows[tool] = row_widget
             layout.addWidget(row_widget)
 
+        self._refresh_summary()
+
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setFrameShadow(QFrame.Shadow.Sunken)
@@ -574,11 +610,15 @@ class MediaDownloaderOptionsHub(QFrame):
 
     def _refresh_summary(self):
         any_updating = False
+        any_update_available = False
         all_ready = True
         ready_count = 0
         for r in self.engine_rows.values():
-            if r.progress_bar.isVisible() or "Updating" in r.lbl_version.text():
+            ver_text = r.lbl_version.text()
+            if r.progress_bar.isVisible() or "Updating" in ver_text:
                 any_updating = True
+            if "Update Available" in ver_text or ("update" in ver_text.lower() and "updating" not in ver_text.lower()):
+                any_update_available = True
             if "color: #2ec27e" in r.lbl_version.styleSheet():
                 ready_count += 1
             else:
@@ -588,14 +628,18 @@ class MediaDownloaderOptionsHub(QFrame):
             self.lbl_summary_badge.setText("↻ Updating...")
             self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #e5a50a; background-color: palette(alternate-base); border: 1px solid #e5a50a; border-radius: 10px; padding: 2px 8px;")
             self.dialog.btn_three_dots.set_status("yellow")
-        elif all_ready:
+        elif any_update_available:
+            self.lbl_summary_badge.setText("↻ Update Available")
+            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #e5a50a; background-color: palette(alternate-base); border: 1px solid #e5a50a; border-radius: 10px; padding: 2px 8px;")
+            self.dialog.btn_three_dots.set_status("yellow")
+        elif not all_ready:
+            self.lbl_summary_badge.setText(f"● {ready_count}/5 Ready")
+            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #e67e22; background-color: palette(alternate-base); border: 1px solid #e67e22; border-radius: 10px; padding: 2px 8px;")
+            self.dialog.btn_three_dots.set_status("orange")
+        else:
             self.lbl_summary_badge.setText("● 5 Operational")
             self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #2ec27e; background-color: palette(alternate-base); border: 1px solid #2ec27e; border-radius: 10px; padding: 2px 8px;")
-            self.dialog.btn_three_dots.set_status("green")
-        else:
-            self.lbl_summary_badge.setText(f"● {ready_count}/5 Ready")
-            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #888888; background-color: palette(alternate-base); border: 1px solid palette(mid); border-radius: 10px; padding: 2px 8px;")
-            self.dialog.btn_three_dots.set_status("gray")
+            self.dialog.btn_three_dots.set_status(None)
 
 
 class MediaDownloaderDialog(QDialog):
