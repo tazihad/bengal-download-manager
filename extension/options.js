@@ -89,6 +89,11 @@ async function testConnection(port, token, ipcPort) {
   if (!refreshBtn) return;
 
   const effectiveIpcPort = ipcPort || parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
+  const ipcPortsToTry = [effectiveIpcPort];
+  for (const fp of [26900, 26901, 26902]) {
+    if (!ipcPortsToTry.includes(fp)) ipcPortsToTry.push(fp);
+  }
+  if (!ipcPortsToTry.includes(56900)) ipcPortsToTry.push(56900);
 
   if (connTextRpc) connTextRpc.textContent = "RPC: Checking...";
   if (dotRpc) dotRpc.className = "dot";
@@ -100,46 +105,90 @@ async function testConnection(port, token, ipcPort) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    // 1. Query Bengal DM app backend on configured IPC port
+    // 1. Query Bengal DM app backend on configured IPC port or fallback ports
     let bdmOnline = false;
     let bdmVersion = "";
-    try {
-      let bdmResp = null;
+    let bdmData = null;
+    let boundIpcPort = effectiveIpcPort;
+
+    for (const tryPort of ipcPortsToTry) {
       try {
-        bdmResp = await fetch(`http://127.0.0.1:${effectiveIpcPort}/`, {
+        const resp = await fetch(`http://127.0.0.1:${tryPort}/`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal
         });
+        if (resp && resp.ok) {
+          bdmData = await resp.json();
+          bdmOnline = true;
+          bdmVersion = bdmData.version || "";
+          boundIpcPort = bdmData.ipc_port || tryPort;
+          break;
+        }
       } catch {
-        bdmResp = await fetch(`http://localhost:${effectiveIpcPort}/`, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          signal: controller.signal
-        });
+        // Continue to next candidate port
       }
-      if (bdmResp && bdmResp.ok) {
-        const bdmData = await bdmResp.json();
-        bdmOnline = true;
-        bdmVersion = bdmData.version || "";
-      }
-    } catch {}
+    }
+
+    const ipcPortInput = document.getElementById('ipc-port');
+    const ipcBadge = document.getElementById('ipc-port-status');
 
     if (bdmOnline) {
       if (dotIpc) dotIpc.className = "dot online";
       const formattedVer = formatAppVersion(bdmVersion);
-      if (connTextIpc) connTextIpc.textContent = formattedVer ? `IPC: Connected (${formattedVer})` : "IPC: Connected";
-      if (bdmVersion) {
-        chrome.storage.local.set({ bdmVersion });
+      const isFallback = Boolean(bdmData && bdmData.is_fallback);
+
+      if (isFallback || boundIpcPort !== effectiveIpcPort) {
+        if (connTextIpc) {
+          connTextIpc.textContent = `IPC: Connected (${boundIpcPort})`;
+          connTextIpc.title = `Connected via backup port ${boundIpcPort} (primary port was occupied)`;
+        }
+      } else {
+        if (connTextIpc) {
+          connTextIpc.textContent = formattedVer ? `IPC: Connected (${formattedVer})` : "IPC: Connected";
+          connTextIpc.title = `IPC: Connected (Port ${boundIpcPort})`;
+        }
       }
+
       if (aboutAppVer) {
         aboutAppVer.textContent = formattedVer || "Connected (Active)";
       }
+
+      if (ipcPortInput) {
+        ipcPortInput.value = boundIpcPort;
+      }
+
+      if (ipcBadge) {
+        if (isFallback || boundIpcPort !== (bdmData?.configured_ipc_port || 56900)) {
+          const origPort = bdmData?.configured_ipc_port || 56900;
+          ipcBadge.className = 'port-status-badge visible fallback';
+          ipcBadge.textContent = `⚡ Active on backup port ${boundIpcPort} (primary port ${origPort} is occupied by another process)`;
+        } else {
+          ipcBadge.className = 'port-status-badge visible connected';
+          ipcBadge.textContent = `● Active and connected on port ${boundIpcPort}`;
+        }
+      }
+
+      chrome.storage.local.set({
+        ipcPort: boundIpcPort,
+        activeIpcPort: boundIpcPort,
+        bdmVersion: bdmVersion
+      });
     } else {
-      if (dotIpc) dotIpc.className = "dot offline";
-      if (connTextIpc) connTextIpc.textContent = "IPC: Disconnected";
+      if (dotIpc) {
+        dotIpc.className = "dot offline";
+        dotIpc.title = `Disconnected on port ${effectiveIpcPort}`;
+      }
+      if (connTextIpc) {
+        connTextIpc.textContent = "IPC: Disconnected";
+        connTextIpc.title = "Bengal DM application is not running or unreachable";
+      }
       if (aboutAppVer) {
         aboutAppVer.textContent = "Disconnected (App Not Running)";
+      }
+      if (ipcBadge) {
+        ipcBadge.className = 'port-status-badge visible disconnected';
+        ipcBadge.textContent = `● Disconnected — Bengal DM is not running on port ${effectiveIpcPort} or backup ports`;
       }
     }
 
@@ -206,6 +255,11 @@ async function testConnection(port, token, ipcPort) {
     if (connTextRpc) connTextRpc.textContent = "RPC: Disconnected";
     if (dotIpc) dotIpc.className = "dot offline";
     if (connTextIpc) connTextIpc.textContent = "IPC: Disconnected";
+    const ipcBadge = document.getElementById('ipc-port-status');
+    if (ipcBadge) {
+      ipcBadge.className = 'port-status-badge visible disconnected';
+      ipcBadge.textContent = "● Disconnected — Unable to contact Bengal DM";
+    }
     chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
   } finally {
     refreshBtn.classList.remove('spinning');
@@ -482,12 +536,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('sync').addEventListener('click', async () => {
-    showToast('Syncing Aria2 RPC settings...', 'success');
+    showToast('Syncing Bengal DM & Aria2 settings...', 'success');
 
     const enteredIpcPort = parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
     let response = null;
     const portsToTry = [enteredIpcPort];
-    if (enteredIpcPort !== 56900) portsToTry.push(56900);
+    for (const fp of [26900, 26901, 26902]) {
+      if (!portsToTry.includes(fp)) portsToTry.push(fp);
+    }
+    if (!portsToTry.includes(56900)) portsToTry.push(56900);
 
     for (const testPort of portsToTry) {
       try {
@@ -505,30 +562,32 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!response || !response.ok) throw new Error("Bengal DM IPC not responding");
 
       const data = await response.json();
+      const savePayload = {};
+
+      if (data.ipc_port) {
+        document.getElementById('ipc-port').value = data.ipc_port;
+        savePayload.ipcPort = data.ipc_port;
+        savePayload.activeIpcPort = data.ipc_port;
+      }
 
       if (data.aria2) {
         const { port, token } = data.aria2;
         document.getElementById('port').value = port;
         document.getElementById('token').value = token || '';
-
-        const savePayload = {
-          port,
-          token: token || ''
-        };
-
-        if (data.version) {
-          savePayload.bdmVersion = data.version;
-          const aboutAppVer = document.getElementById('about-app-version');
-          if (aboutAppVer) aboutAppVer.textContent = formatAppVersion(data.version);
-        }
-
-        chrome.storage.local.set(savePayload, () => {
-          showToast('Aria2 RPC Synced & Saved ✓', 'success');
-          testConnection(port, token || '', enteredIpcPort);
-        });
-      } else {
-        showToast('No Aria2 configuration received', 'error');
+        savePayload.port = port;
+        savePayload.token = token || '';
       }
+
+      if (data.version) {
+        savePayload.bdmVersion = data.version;
+        const aboutAppVer = document.getElementById('about-app-version');
+        if (aboutAppVer) aboutAppVer.textContent = formatAppVersion(data.version);
+      }
+
+      chrome.storage.local.set(savePayload, () => {
+        showToast('Settings Synced from Bengal DM ✓', 'success');
+        testConnection(savePayload.port || 56800, savePayload.token || '', savePayload.ipcPort || enteredIpcPort);
+      });
     } catch (err) {
       showToast('Sync Failed (Is Bengal DM running?)', 'error');
     }

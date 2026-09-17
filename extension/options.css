@@ -718,6 +718,40 @@ body {
   color: #ffffff;
 }
 
+.port-status-badge {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.port-status-badge.visible {
+  display: flex;
+}
+
+.port-status-badge.connected {
+  background-color: rgba(46, 204, 113, 0.12);
+  color: #27ae60;
+  border: 1px solid rgba(46, 204, 113, 0.28);
+}
+
+.port-status-badge.fallback {
+  background-color: rgba(243, 156, 18, 0.12);
+  color: #d35400;
+  border: 1px solid rgba(243, 156, 18, 0.28);
+}
+
+.port-status-badge.disconnected {
+  background-color: rgba(231, 76, 60, 0.1);
+  color: #c0392b;
+  border: 1px solid rgba(231, 76, 60, 0.22);
+}
+
 @media (max-height: 640px) {
   body {
     height: auto;

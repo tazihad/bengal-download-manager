@@ -163,7 +163,7 @@ class TwoRowTabWidget(QWidget):
                 self._buttons[idx].setText(text)
 
 class OptionsDialog(QDialog):
-    def __init__(self, main_window=None, parent=None):
+    def __init__(self, main_window=None, parent=None, initial_tab=None):
         # Pass parent=None to QDialog superclass so it is initialized as an independent top-level window in taskbar panels while sharing WM_CLASS
         super().__init__(None)
         self._main_window = main_window or parent
@@ -228,8 +228,11 @@ class OptionsDialog(QDialog):
         self.setup_proxy_tab()
         self.tabs.addTab(self.proxy_tab, "Proxy / Socks", row=2)
 
-        # Default to General tab in Row 1
-        self.tabs.setCurrentWidget(self.general_tab)
+        # Default to General tab in Row 1 or initial_tab if specified
+        if initial_tab is not None:
+            self.select_tab(initial_tab)
+        else:
+            self.tabs.setCurrentWidget(self.general_tab)
 
         self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if any(k in self.tabs.tabText(idx) for k in ("Downloads", "Aria2", "RPC")) else None)
         if hasattr(self, 'spin_aria_port'):
@@ -256,6 +259,21 @@ class OptionsDialog(QDialog):
         btn_layout.addWidget(self.btn_ok)
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
+
+    def select_tab(self, target):
+        """Switches to the tab specified by QWidget, index (int), or name string (e.g. 'media')."""
+        if isinstance(target, QWidget):
+            self.tabs.setCurrentWidget(target)
+            return
+        if isinstance(target, int):
+            self.tabs.setCurrentIndex(target)
+            return
+        if isinstance(target, str):
+            target_lower = target.strip().lower()
+            for idx, (_, label, _) in enumerate(self.tabs._widgets):
+                if target_lower in label.lower():
+                    self.tabs.setCurrentIndex(idx)
+                    return
 
     @property
     def main_win(self):
@@ -1064,15 +1082,28 @@ class OptionsDialog(QDialog):
         self.spin_ipc_port = QSpinBox()
         self.spin_ipc_port.setFixedHeight(28)
         self.spin_ipc_port.setRange(1024, 65535)
-        self.spin_ipc_port.setValue(self.extension_data.get("ipc_port", 56900))
+        configured_port = self.extension_data.get("ipc_port", 56900)
+        self.spin_ipc_port.setValue(configured_port)
         self.spin_ipc_port.setToolTip(
             "Local IPC port for browser extension downloads. Change if 56900 is in use."
         )
         ipc_layout.addWidget(self.spin_ipc_port, 0, 1)
 
-        ipc_hint = QLabel("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.")
+        parent_mw = self.parent()
+        active_ipc_port = None
+        if parent_mw and hasattr(parent_mw, "listener_thread") and parent_mw.listener_thread:
+            active_ipc_port = getattr(parent_mw.listener_thread, "port", None)
+
+        if active_ipc_port and active_ipc_port != configured_port:
+            ipc_hint = QLabel(
+                f"Configured port: {configured_port}. Active fallback listener: Port {active_ipc_port} "
+                "(primary port is occupied by another process/socket)."
+            )
+            ipc_hint.setStyleSheet("color: #e67e22; font-size: 11px; font-weight: 500;")
+        else:
+            ipc_hint = QLabel("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.")
+            ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
         ipc_hint.setWordWrap(True)
-        ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
         ipc_layout.addWidget(ipc_hint, 1, 0, 1, 2)
 
         layout.addWidget(grp_ipc)

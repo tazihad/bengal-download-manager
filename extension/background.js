@@ -591,24 +591,18 @@ async function resolveDownloadTarget(url, userAgent, cookies) {
 async function isBengalDMOnline() {
   let online = false;
   let config = null;
-  const ipcPort = cachedIpcPort || 56900;
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
-    const response = await fetch(`http://127.0.0.1:${ipcPort}/`, {
-      method: 'GET',
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (response.ok) {
-      online = true;
-      try { config = await response.json(); } catch {}
-    }
-  } catch {
+  const primaryPort = cachedIpcPort || 56900;
+  const portsToTry = [primaryPort];
+  for (const fp of [26900, 26901, 26902]) {
+    if (!portsToTry.includes(fp)) portsToTry.push(fp);
+  }
+  if (!portsToTry.includes(56900)) portsToTry.push(56900);
+
+  for (const port of portsToTry) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const response = await fetch(`http://localhost:${ipcPort}/`, {
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const response = await fetch(`http://127.0.0.1:${port}/`, {
         method: 'GET',
         signal: controller.signal
       });
@@ -616,17 +610,29 @@ async function isBengalDMOnline() {
       if (response.ok) {
         online = true;
         try { config = await response.json(); } catch {}
+        if (config && config.ipc_port) {
+          cachedIpcPort = parseInt(config.ipc_port, 10) || port;
+        } else {
+          cachedIpcPort = port;
+        }
+        break;
       }
     } catch {
-      online = false;
+      // Continue to next port candidate
     }
   }
 
   if (config) {
     if (config.ipc_port) {
-      cachedIpcPort = parseInt(config.ipc_port, 10) || ipcPort;
+      cachedIpcPort = parseInt(config.ipc_port, 10) || cachedIpcPort;
     }
     updateDynamicMediaConfig(config);
+    chrome.storage.local.set({
+      ipcPort: cachedIpcPort,
+      activeIpcPort: cachedIpcPort,
+      isIpcFallback: Boolean(config.is_fallback),
+      configuredIpcPort: config.configured_ipc_port || 56900
+    });
   }
 
   await updateAppConnectionBadge(online);

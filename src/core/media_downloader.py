@@ -39,7 +39,10 @@ DEPENDENCY_TOOLS = {
             if IS_ARM else
             "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
         ),
-        "type": "direct"
+        "type": "direct",
+        "role": "Core Video & Audio Extractor",
+        "icon": "📥",
+        "desc": "Parses video streams, playlists, audio tracks, and formats across 1000+ media sites."
     },
     "ffmpeg": {
         "binary_name": "ffmpeg",
@@ -50,7 +53,10 @@ DEPENDENCY_TOOLS = {
             "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
         ),
         "type": "tar.xz",
-        "extract_files": ["ffmpeg", "ffprobe"]
+        "extract_files": ["ffmpeg", "ffprobe"],
+        "role": "Stream Multiplexer & Transcoder",
+        "icon": "🎬",
+        "desc": "Merges separate high-res video and audio tracks, extracts MP3/M4A, and converts codecs."
     },
     "ffprobe": {
         "binary_name": "ffprobe",
@@ -61,7 +67,10 @@ DEPENDENCY_TOOLS = {
             "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
         ),
         "type": "tar.xz",
-        "extract_files": ["ffmpeg", "ffprobe"]
+        "extract_files": ["ffmpeg", "ffprobe"],
+        "role": "Stream Analyzer & Inspector",
+        "icon": "🔍",
+        "desc": "Inspects media container metadata, bitrates, audio channels, and stream packet structures."
     },
     "deno": {
         "binary_name": "deno",
@@ -72,14 +81,20 @@ DEPENDENCY_TOOLS = {
             "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip"
         ),
         "type": "zip",
-        "extract_files": ["deno"]
+        "extract_files": ["deno"],
+        "role": "Modern JS Runtime (YouTube Cipher)",
+        "icon": "🦕",
+        "desc": "Executes client-side YouTube signature cipher solver and n-token evaluation algorithms."
     },
     "AtomicParsley": {
         "binary_name": "AtomicParsley",
         "version_cmd": ["-v"],
         "url": "https://github.com/wez/atomicparsley/releases/download/20240608.083822.1ed9031/AtomicParsleyLinux.zip",
         "type": "zip",
-        "extract_files": ["AtomicParsley"]
+        "extract_files": ["AtomicParsley"],
+        "role": "Metadata & Artwork Tagger",
+        "icon": "🏷️",
+        "desc": "Embeds MP4/M4A thumbnail album art, ID3 tags, and chapters into finished media files."
     }
 }
 
@@ -112,7 +127,7 @@ def get_tool_version(tool_name: str, local_only: bool = True) -> str:
     try:
         cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
         clean_env = get_clean_env(str(BIN_DIR))
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=3, env=clean_env)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5, env=clean_env)
         out = (res.stdout + res.stderr).strip()
         if not out:
             return "Installed"
@@ -216,13 +231,14 @@ class DependencyManagerWorker(QThread):
     tool_status_signal = pyqtSignal(str, str, str)
     all_finished_signal = pyqtSignal()
 
-    def __init__(self, force_download: bool = False):
+    def __init__(self, force_download: bool = False, target_tool: str = ""):
         super().__init__()
         self.force_download = force_download
+        self.target_tool = target_tool
 
     def run(self):
         BIN_DIR.mkdir(parents=True, exist_ok=True)
-        tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
+        tool_names = [self.target_tool] if self.target_tool and self.target_tool in DEPENDENCY_TOOLS else ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
         downloaded_extract_urls = set()
 
         for tool in tool_names:
@@ -235,7 +251,7 @@ class DependencyManagerWorker(QThread):
 
             if self.force_download:
                 self.tool_status_signal.emit(tool, f"{tool} (Checking...)", "yellow")
-                self.msleep(50)
+                self.msleep(40)
 
             # Skip redundant archive download if previously extracted by companion tool (e.g., ffprobe from ffmpeg)
             tool_url = DEPENDENCY_TOOLS[tool]["url"]
@@ -244,15 +260,115 @@ class DependencyManagerWorker(QThread):
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
                 continue
 
-            if not is_local_installed or self.force_download:
+            if not is_local_installed:
                 success = self._download_and_install_tool(tool)
                 if success:
                     downloaded_extract_urls.add(tool_url)
+            elif self.force_download:
+                needs_update, latest_ver = self._is_update_available(tool)
+                if needs_update:
+                    success = self._download_and_install_tool(tool)
+                    if success:
+                        downloaded_extract_urls.add(tool_url)
+                else:
+                    ver = latest_ver or get_tool_version(tool, local_only=True) or "Installed"
+                    self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
             else:
                 ver = get_tool_version(tool, local_only=True) or "Installed"
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
+                # Perform light background update check for version-tagged tools
+                if tool in ("yt-dlp", "deno"):
+                    try:
+                        needs_update, latest_ver = self._is_update_available(tool)
+                        if needs_update and latest_ver and latest_ver.lstrip("v") != ver.lstrip("v"):
+                            self.tool_status_signal.emit(tool, f"{tool} (Update Available: {latest_ver})", "yellow")
+                    except Exception:
+                        pass
 
         self.all_finished_signal.emit()
+
+    def _save_tool_metadata(self, key: str, value: str):
+        v_file = BIN_DIR / ".versions.json"
+        data = {}
+        if v_file.exists():
+            try:
+                data = json.loads(v_file.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        data[key] = value
+        try:
+            v_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _is_update_available(self, tool_name: str) -> tuple[bool, str]:
+        """
+        Checks whether remote version is newer than installed version.
+        Returns (needs_update, current_or_latest_version_string).
+        """
+        local_ver = get_tool_version(tool_name, local_only=True)
+        if not local_ver:
+            return True, ""
+
+        if tool_name == "AtomicParsley":
+            # Fixed release URL pinned in configuration
+            return False, local_ver
+
+        url = DEPENDENCY_TOOLS[tool_name]["url"]
+
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(_NoRedirect)
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
+        )
+
+        loc = ""
+        try:
+            resp = opener.open(req, timeout=8)
+            loc = resp.headers.get("Location", "")
+            resp.close()
+        except urllib.error.HTTPError as e:
+            loc = e.headers.get("Location", "")
+        except Exception:
+            return False, local_ver
+
+        if tool_name in ("yt-dlp", "deno"):
+            m = re.search(r"/releases/download/([^/]+)/", loc)
+            if m:
+                remote_tag = m.group(1).lstrip("v")
+                local_clean = local_ver.lstrip("v")
+                if remote_tag == local_clean:
+                    return False, local_ver
+                return True, f"v{remote_tag}"
+        elif tool_name in ("ffmpeg", "ffprobe"):
+            head_req = urllib.request.Request(
+                loc,
+                method="HEAD",
+                headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"}
+            )
+            try:
+                with urllib.request.urlopen(head_req, timeout=8) as head_resp:
+                    remote_etag = head_resp.headers.get("etag", "").strip('"')
+                    v_file = BIN_DIR / ".versions.json"
+                    saved_etag = ""
+                    if v_file.exists():
+                        try:
+                            saved_etag = json.loads(v_file.read_text(encoding="utf-8")).get("ffmpeg_etag", "")
+                        except Exception:
+                            pass
+                    if saved_etag and saved_etag == remote_etag:
+                        return False, local_ver
+                    elif not saved_etag and remote_etag:
+                        self._save_tool_metadata("ffmpeg_etag", remote_etag)
+                        return False, local_ver
+            except Exception:
+                return False, local_ver
+
+        return True, "vLatest"
 
     def _download_and_install_tool(self, tool_name: str) -> bool:
         import ssl
@@ -306,6 +422,11 @@ class DependencyManagerWorker(QThread):
                     out_f.write(chunk)
                     blocknum += 1
                     _reporthook(blocknum, blocksize, totalsize)
+
+            if tool_name in ("ffmpeg", "ffprobe") and resp:
+                remote_etag = resp.headers.get("etag", "").strip('"')
+                if remote_etag:
+                    self._save_tool_metadata("ffmpeg_etag", remote_etag)
 
             if tool_type == "direct":
                 dest = BIN_DIR / binary_name

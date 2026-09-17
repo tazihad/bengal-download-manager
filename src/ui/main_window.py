@@ -337,6 +337,13 @@ class MainWindow(QMainWindow):
             token = ext_data.get("token", "")
             max_conn = str(ext_data.get("max_connections", 8))
 
+            # Auto-reclaim port if held by an orphaned instance or prior crash
+            try:
+                from core.services.port_service import reclaim_port
+                reclaim_port(port, "aria2", ["aria2c", "aria2"], rpc_token=token)
+            except Exception as pe:
+                if is_debug_mode():
+                    logger.debug("[Aria2Daemon] Pre-launch port reclamation check: %s", pe)
 
             # Note: --no-proxy is not needed for the server side of RPC
             cmd = [
@@ -375,6 +382,12 @@ class MainWindow(QMainWindow):
                     except Exception:
                         pass
                 threading.Thread(target=_stream_aria2_stderr, args=(proc,), daemon=True).start()
+
+            # Brief check to ensure daemon did not immediately fail to bind
+            time.sleep(0.05)
+            if proc and proc.poll() is not None:
+                logger.error("[Aria2Daemon] aria2 daemon exited immediately with code %s", proc.returncode)
+                return None
 
             return proc
         except Exception as e:
@@ -1414,21 +1427,11 @@ class MainWindow(QMainWindow):
         is_running = False
         try:
             from core.services.ipc_service import get_ipc_port
-            port = get_ipc_port()
+            port = getattr(self.listener_thread, "port", None) or get_ipc_port()
         except Exception:
             port = 56900
 
-        if hasattr(self, "listener_thread") and self.listener_thread and self.listener_thread.isRunning():
-            is_running = True
-        else:
-            try:
-                import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.15)
-                    if s.connect_ex(("127.0.0.1", port)) == 0:
-                        is_running = True
-            except Exception:
-                pass
+        is_running = bool(hasattr(self, "listener_thread") and self.listener_thread and self.listener_thread.isRunning())
 
         if is_running:
             self.status_ipc_label.setText("● IPC: Active")
@@ -1489,6 +1492,23 @@ class MainWindow(QMainWindow):
         self.status_memory_label.setToolTip(f"Application Memory Usage (RSS): {format_bytes(mem_bytes)}")
 
     def update_periodic_status(self):
+        # Background watchdog & sleep/resume detection
+        now_wall = time.time()
+        last_wall = getattr(self, "_last_watchdog_wall_time", None)
+        self._last_watchdog_wall_time = now_wall
+
+        system_resumed = False
+        if last_wall is not None and (now_wall - last_wall > 6.0):
+            system_resumed = True
+            logger.info("[Watchdog] System resume from sleep/suspend detected (gap: %.1fs). Verifying services...", now_wall - last_wall)
+
+        watchdog_ticks = getattr(self, "_watchdog_ticks", 0) + 1
+        self._watchdog_ticks = watchdog_ticks
+
+        # Check and recover services on sleep resume or every 5 seconds
+        if system_resumed or (watchdog_ticks % 5 == 0):
+            self._check_and_recover_services(force_restart=system_resumed)
+
         self.update_status_bar_memory()
         self.update_status_bar_aria2()
         self.update_status_bar_ipc()
@@ -1497,6 +1517,38 @@ class MainWindow(QMainWindow):
             self.fetch_public_ip_async()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
+
+    def _check_and_recover_services(self, force_restart: bool = False):
+        """Monitors background service health (Aria2 daemon and Extension IPC listener).
+        Automatically reclaims ports and restores inactive services without manual intervention."""
+        if getattr(self, "is_quitting", False) or getattr(self, "_is_closing", False):
+            return
+
+        from core.services.ipc_service import get_ipc_port
+        ext_data = load_extension_config()
+        aria2_port = ext_data.get("port", 56800)
+        ipc_port = get_ipc_port()
+
+        # 1. Aria2 daemon health check
+        aria2_dead = (
+            not hasattr(self, "aria2_process")
+            or self.aria2_process is None
+            or self.aria2_process.poll() is not None
+        )
+        if aria2_dead:
+            logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", aria2_port)
+            self.aria2_process = self.start_aria2_daemon()
+
+        # 2. Extension IPC listener health check
+        if getattr(self, "start_ipc", True):
+            ipc_dead = (
+                not hasattr(self, "listener_thread")
+                or self.listener_thread is None
+                or not self.listener_thread.isRunning()
+            )
+            if ipc_dead:
+                logger.info("[Watchdog] Extension IPC listener is inactive (port %d). Auto-restarting...", ipc_port)
+                self.restart_ipc_listener(port=ipc_port)
 
     def update_status_bar(self):
         self.update_status_bar_items()
@@ -3910,16 +3962,51 @@ class MainWindow(QMainWindow):
         if is_debug_mode():
             logger.debug("[MainWindow] process_incoming_url invoked with data: %s", data[:300])
 
-        parts = data.split("|", 8)
-        url = parts[0]
-        user_agent = parts[1] if len(parts) > 1 else ""
-        cookies = parts[2] if len(parts) > 2 else ""
-        referrer = parts[3] if len(parts) > 3 else ""
-        is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
-        selected_quality = parts[5] if len(parts) > 5 else ""
-        custom_title = parts[6] if len(parts) > 6 else ""
-        size_bytes = int(parts[7].strip()) if len(parts) > 7 and parts[7].strip().isdigit() else 0
-        size_str = parts[8] if len(parts) > 8 else ""
+        url = ""
+        user_agent = ""
+        cookies = ""
+        referrer = ""
+        is_media_flag = False
+        selected_quality = ""
+        custom_title = ""
+        size_bytes = 0
+        size_str = ""
+
+        is_json = False
+        if isinstance(data, str) and data.strip().startswith("{"):
+            try:
+                import json
+                j = json.loads(data)
+                url = j.get("url", "")
+                user_agent = j.get("userAgent") or j.get("user_agent", "")
+                cookies = j.get("cookies", "")
+                referrer = j.get("referrer", "")
+                is_media_flag = bool(j.get("isMedia") or j.get("is_media", False))
+                selected_quality = j.get("quality", "")
+                custom_title = j.get("title", "")
+                size_bytes = int(j.get("sizeBytes") or j.get("size_bytes", 0) or 0)
+                size_str = j.get("sizeStr") or j.get("size_str", "")
+                is_json = True
+            except Exception:
+                is_json = False
+
+        if not is_json:
+            parts = str(data).split("|")
+            url = parts[0]
+            user_agent = parts[1] if len(parts) > 1 else ""
+            cookies = parts[2] if len(parts) > 2 else ""
+            referrer = parts[3] if len(parts) > 3 else ""
+            is_media_flag = (len(parts) > 4 and parts[4] in ("1", "true", "True"))
+            selected_quality = parts[5] if len(parts) > 5 else ""
+            if len(parts) >= 9:
+                if parts[-2].strip().isdigit() or parts[-1].strip().startswith("~") or any(u in parts[-1] for u in ("B", "KB", "MB", "GB")):
+                    size_str = parts[-1]
+                    size_bytes = int(parts[-2].strip()) if parts[-2].strip().isdigit() else 0
+                    custom_title = "|".join(parts[6:-2])
+                else:
+                    custom_title = "|".join(parts[6:])
+            elif len(parts) > 6:
+                custom_title = "|".join(parts[6:])
 
         if not url:
             if is_debug_mode():
@@ -4137,15 +4224,16 @@ class MainWindow(QMainWindow):
                 if is_special_case:
                     full_title = title
                 else:
-                    has_id_in_title = bool(video_id and video_id in title)
+                    clean_title = title.rstrip("-_| ").strip() or title
+                    has_id_in_title = bool(video_id and video_id in clean_title)
                     if has_id_in_title:
-                        full_title = f"{title} [{height}p]" if (height and not is_audio) else title
+                        full_title = f"{clean_title} [{height}p]" if (height and not is_audio) else clean_title
                     elif video_id:
-                        full_title = f"{title} [{video_id}]" if is_audio else (f"{title} [{video_id}] [{height}p]" if height else f"{title} [{video_id}]")
+                        full_title = f"{clean_title} [{video_id}]" if is_audio else (f"{clean_title} [{video_id}] [{height}p]" if height else f"{clean_title} [{video_id}]")
                     elif height and not is_audio:
-                        full_title = f"{title} [{height}p]"
+                        full_title = f"{clean_title} [{height}p]"
                     else:
-                        full_title = title
+                        full_title = clean_title
                 filename = sanitize_media_filename(full_title, ext=ext)
 
                 self.start_media_download(
@@ -5728,14 +5816,18 @@ class MainWindow(QMainWindow):
         except (RuntimeError, Exception):
             return
     
-    def open_options(self):
+    def open_options(self, target_tab=None):
         from ui.dialogs import OptionsDialog
+        if isinstance(target_tab, bool):
+            target_tab = None
         if MemoryGuard.is_widget_alive(getattr(self, "_options_dlg", None)):
+            if target_tab is not None and hasattr(self._options_dlg, "select_tab"):
+                self._options_dlg.select_tab(target_tab)
             self._options_dlg.raise_()
             self._options_dlg.activateWindow()
             return
         # Top-level window (parent=None) sharing app WM_CLASS so it appears as a separate icon in taskbar panel
-        self._options_dlg = OptionsDialog(main_window=self)
+        self._options_dlg = OptionsDialog(main_window=self, initial_tab=target_tab)
         self._options_dlg.accepted.connect(self._handle_options_accepted)
         self._options_dlg.finished.connect(lambda *_: setattr(self, "_options_dlg", None))
         self._options_dlg.show()

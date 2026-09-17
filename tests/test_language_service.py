@@ -134,7 +134,7 @@ def test_json_catalog_and_tr(qapp):
 def test_main_window_retranslate_ui(qapp):
     from ui.main_window import MainWindow
     apply_language(qapp, "en")
-    win = MainWindow()
+    win = MainWindow(start_ipc=False)
     assert win.action_add_url.text() == "Add URL"
     assert win.download_table.horizontalHeaderItem(0).text() == "File Name"
 
@@ -150,5 +150,7 @@ def test_main_window_retranslate_ui(qapp):
     assert win.action_add_url.text() == "Add URL"
     assert win.download_table.horizontalHeaderItem(0).text() == "File Name"
 
+    win.is_quitting = True
+    win.close()
     win.deleteLater()
     qapp.processEvents()

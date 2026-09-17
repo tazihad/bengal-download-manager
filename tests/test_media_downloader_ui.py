@@ -10,6 +10,12 @@ from main import MainWindow
 from core.utils import sanitize_media_filename
 
 
+@pytest.fixture(autouse=True)
+def mock_dep_worker_run(monkeypatch):
+    """Prevent background dependency downloads over network during UI tests."""
+    monkeypatch.setattr("core.media_downloader.DependencyManagerWorker.run", lambda self: None)
+
+
 def test_media_downloader_dialog_init(qapp):
     """Verify MediaDownloaderDialog initialization, window flags, and title."""
     dlg = MediaDownloaderDialog()
@@ -199,6 +205,7 @@ def test_youtube_media_popup_filename_numeric_video_id(qapp):
         assert filename_1 != "31.mkv"
         assert "31wLxwewzlM" in filename_1
         assert "Laila Full Video" in filename_1
+        assert "John Abraham" in filename_1
         assert "1080p" in filename_1
 
         mock_start.reset_mock()
@@ -225,6 +232,60 @@ def test_youtube_media_popup_filename_numeric_video_id(qapp):
     mw.close()
 
 
+def test_youtube_download_name_with_pipes_from_extension(qapp):
+    """Verify that YouTube video titles containing pipes '|' are not truncated and adhere to YouTube standard."""
+    import json
+    mw = MainWindow(start_ipc=False)
+    with patch.object(mw, "start_media_download") as mock_start:
+        # 1. Pipe-separated IPC format
+        ipc_pipe = (
+            "https://www.youtube.com/watch?v=60ItHLz5WEA|"
+            "Mozilla/5.0|"
+            "|"
+            "https://www.youtube.com/|"
+            "1|"
+            "1080p|"
+            "Alan Walker - Faded | Official Music Video | 4K Ultra HD|"
+            "104857600|"
+            "~100 MB"
+        )
+        mw.process_incoming_url(ipc_pipe)
+        assert mock_start.called
+        kwargs_pipe = mock_start.call_args.kwargs
+        fn_pipe = kwargs_pipe.get("filename")
+        assert "60ItHLz5WEA" in fn_pipe
+        assert "Alan Walker - Faded" in fn_pipe
+        assert "Official Music Video" in fn_pipe
+        assert "4K Ultra HD" in fn_pipe
+        assert "1080p" in fn_pipe
+
+        # 2. JSON IPC format
+        mock_start.reset_mock()
+        ipc_json = json.dumps({
+            "url": "https://www.youtube.com/watch?v=60ItHLz5WEA",
+            "userAgent": "Mozilla/5.0",
+            "cookies": "",
+            "referrer": "https://www.youtube.com/",
+            "isMedia": True,
+            "quality": "1080p",
+            "title": "Alan Walker - Faded | Official Music Video | 4K Ultra HD",
+            "sizeBytes": 104857600,
+            "sizeStr": "~100 MB"
+        })
+        mw.process_incoming_url(ipc_json)
+        assert mock_start.called
+        kwargs_json = mock_start.call_args.kwargs
+        fn_json = kwargs_json.get("filename")
+        assert "60ItHLz5WEA" in fn_json
+        assert "Alan Walker - Faded" in fn_json
+        assert "Official Music Video" in fn_json
+        assert "4K Ultra HD" in fn_json
+        assert "1080p" in fn_json
+        assert fn_json == fn_pipe
+
+    mw.close()
+
+
 def test_facebook_media_popup_filename(qapp):
     """Verify that Facebook URLs continue to extract video ID properly."""
     mw = MainWindow(start_ipc=False)
@@ -247,4 +308,88 @@ def test_facebook_media_popup_filename(qapp):
         assert filename_fb == "10214828192847192.mkv"
 
     mw.close()
+
+
+def test_three_dots_options_hub(qapp):
+    """Verify ThreeDotsButton and MediaDownloaderOptionsHub initialization and behavior."""
+    dlg = MediaDownloaderDialog()
+    assert hasattr(dlg, "btn_three_dots")
+    assert dlg.btn_three_dots.text() == "⋮"
+    assert hasattr(dlg, "options_hub")
+    assert len(dlg.options_hub.engine_rows) == 5
+
+    # Verify transparent background attribute and card styling (prevents black rectangular corners)
+    assert dlg.options_hub.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground) is True
+    assert hasattr(dlg.options_hub, "card")
+    assert dlg.options_hub.card.objectName() == "optionsHubCard"
+    assert dlg.options_hub.card.graphicsEffect() is not None
+
+    # Toggle options hub
+    dlg._toggle_options_hub()
+    assert dlg.options_hub.isVisible() is True
+
+    # Test engine status update through the hub
+    # When all 5 engines are operational (green), three dots status must be None (no notification dot)
+    for tool in ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]:
+        dlg.options_hub.update_engine(tool, f"{tool} (v1.0)", "green")
+    assert dlg.btn_three_dots._status is None
+
+    # When an update is available or updating, status is yellow
+    dlg.options_hub.update_engine("yt-dlp", "yt-dlp (Update Available: v2026.09.01)", "yellow")
+    assert dlg.btn_three_dots._status == "yellow"
+
+    # When an engine is missing/failed, status is orange
+    dlg.options_hub.update_engine("yt-dlp", "yt-dlp (v1.0)", "green")
+    dlg.options_hub.update_engine("deno", "deno (Not Installed)", "gray")
+    assert dlg.btn_three_dots._status == "orange"
+
+    dlg._toggle_options_hub()
+    assert dlg.options_hub.isVisible() is False
+    dlg.close()
+
+
+def test_media_downloader_engine_role_descriptions_visible(qapp):
+    """Verify that all 5 pipeline engine role descriptions use readable palette(placeholder-text) and set tooltips."""
+    from ui.dialogs.media_downloader import DEPENDENCY_TOOLS
+    dlg = MediaDownloaderDialog()
+    for tool_name, row in dlg.options_hub.engine_rows.items():
+        assert hasattr(row, "lbl_role")
+        sheet = row.lbl_role.styleSheet()
+        # Must use placeholder-text and NOT mid (which is invisible in dark themes)
+        assert "palette(placeholder-text)" in sheet
+        assert "palette(mid)" not in sheet
+        expected_desc = DEPENDENCY_TOOLS[tool_name].get("desc", "")
+        assert row.lbl_role.toolTip() == expected_desc
+    dlg.close()
+
+
+def test_three_dots_opens_media_tab(qapp):
+    """Verify that clicking Media Options in the 3-dot options hub opens the Media tab in OptionsDialog."""
+    from unittest.mock import MagicMock
+    from ui.dialogs.options import OptionsDialog
+
+    # Test OptionsDialog select_tab and initial_tab
+    options_dlg = OptionsDialog(initial_tab="media")
+    assert options_dlg.tabs.currentWidget() == options_dlg.media_tab
+    assert "Media" in options_dlg.tabs.tabText(options_dlg.tabs.currentIndex())
+    assert "Save To" not in options_dlg.tabs.tabText(options_dlg.tabs.currentIndex())
+    options_dlg.reject()
+
+    # Test that options hub delegates to main_win.open_options("media")
+    mock_main_win = MagicMock()
+    dlg = MediaDownloaderDialog(main_window=mock_main_win)
+    dlg.options_hub._open_options_dialog()
+    mock_main_win.open_options.assert_called_once_with("media")
+    dlg.close()
+
+
+def test_engine_update_check_skips_identical_version():
+    """Verify that DependencyManagerWorker._is_update_available returns False when versions match."""
+    from core.media_downloader import DependencyManagerWorker
+    worker = DependencyManagerWorker(force_download=True)
+    with patch("core.media_downloader.get_tool_version", return_value="v2026.08.19"):
+        needs_update, ver = worker._is_update_available("AtomicParsley")
+        assert needs_update is False
+        assert ver == "v2026.08.19"
+
 
