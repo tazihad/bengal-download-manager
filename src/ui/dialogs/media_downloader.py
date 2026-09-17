@@ -438,26 +438,40 @@ class MediaDownloaderOptionsHub(QFrame):
     def __init__(self, dialog, parent=None):
         super().__init__(dialog, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.dialog = dialog
-        self.setObjectName("optionsHubFrame")
-        self.setFixedWidth(460)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setObjectName("optionsHubRoot")
+        self.setFixedWidth(480)
         self.setStyleSheet("""
-            QFrame#optionsHubFrame {
+            QFrame#optionsHubRoot {
+                background-color: transparent;
+                border: none;
+            }
+            QFrame#optionsHubCard {
                 background-color: palette(window);
                 border: 1px solid palette(mid);
                 border-radius: 10px;
             }
         """)
 
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 120))
-        shadow.setOffset(0, 6)
-        self.setGraphicsEffect(shadow)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setSpacing(0)
+
+        self.card = QFrame(self)
+        self.card.setObjectName("optionsHubCard")
+
+        shadow = QGraphicsDropShadowEffect(self.card)
+        shadow.setBlurRadius(16)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        shadow.setOffset(0, 4)
+        self.card.setGraphicsEffect(shadow)
+
+        root_layout.addWidget(self.card)
 
         self._setup_ui()
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self.card)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
@@ -1014,7 +1028,8 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.tbl_playlist.setItemDelegateForColumn(0, CheckableTableItemDelegate(self.tbl_playlist))
+        self._playlist_delegate = CheckableTableItemDelegate(self.tbl_playlist)
+        self.tbl_playlist.setItemDelegateForColumn(0, self._playlist_delegate)
 
         font_pl_tbl = self.tbl_playlist.font()
         font_pl_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)
@@ -1027,8 +1042,8 @@ class MediaDownloaderDialog(QDialog):
             self.options_hub.hide()
         else:
             global_pos = self.btn_three_dots.mapToGlobal(QPoint(0, self.btn_three_dots.height() + 4))
-            x = global_pos.x() + self.btn_three_dots.width() - self.options_hub.width()
-            y = global_pos.y()
+            x = global_pos.x() + self.btn_three_dots.width() - self.options_hub.width() + 10
+            y = global_pos.y() - 10
             self.options_hub.move(x, y)
             self.options_hub.show()
             self.options_hub.raise_()
@@ -2163,6 +2178,11 @@ class MediaDownloaderDialog(QDialog):
                 self.options_hub.close()
             except Exception:
                 pass
+        if hasattr(self, "tbl_playlist"):
+            try:
+                self.tbl_playlist.setItemDelegateForColumn(0, None)
+            except Exception:
+                pass
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
             try:
                 self._worker.stop()
@@ -2183,7 +2203,10 @@ class MediaDownloaderDialog(QDialog):
                     pass
                 self._dep_worker.requestInterruption()
                 self._dep_worker.quit()
-                self._dep_worker.wait(1000)
+                self._dep_worker.wait(500)
+                if self._dep_worker.isRunning():
+                    self._dep_worker.terminate()
+                    self._dep_worker.wait(500)
             except Exception:
                 pass
         for attr in ("_thumb_worker", "_pl_thumb_worker"):

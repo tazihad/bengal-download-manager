@@ -10,6 +10,12 @@ from main import MainWindow
 from core.utils import sanitize_media_filename
 
 
+@pytest.fixture(autouse=True)
+def mock_dep_worker_run(monkeypatch):
+    """Prevent background dependency downloads over network during UI tests."""
+    monkeypatch.setattr("core.media_downloader.DependencyManagerWorker.run", lambda self: None)
+
+
 def test_media_downloader_dialog_init(qapp):
     """Verify MediaDownloaderDialog initialization, window flags, and title."""
     dlg = MediaDownloaderDialog()
@@ -311,6 +317,12 @@ def test_three_dots_options_hub(qapp):
     assert dlg.btn_three_dots.text() == "⋮"
     assert hasattr(dlg, "options_hub")
     assert len(dlg.options_hub.engine_rows) == 5
+
+    # Verify transparent background attribute and card styling (prevents black rectangular corners)
+    assert dlg.options_hub.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground) is True
+    assert hasattr(dlg.options_hub, "card")
+    assert dlg.options_hub.card.objectName() == "optionsHubCard"
+    assert dlg.options_hub.card.graphicsEffect() is not None
 
     # Toggle options hub
     dlg._toggle_options_hub()
