@@ -155,6 +155,9 @@ class MainWindow(QMainWindow):
         
         self.setGeometry(200, 150, 1000, 600)
         
+        from core.download_store import DownloadStore
+        self.download_store = DownloadStore(parent=self)
+
         self.setup_actions()
         self.setup_menu_bar()
         self.setup_toolbar()
@@ -177,8 +180,12 @@ class MainWindow(QMainWindow):
         else:
             self._is_in_tray = False
         
-        self.active_downloads = {}
-        self.active_speeds = {}
+        from core.download_controller import DownloadController, set_global_download_controller
+        self.download_controller = DownloadController()
+        set_global_download_controller(self.download_controller)
+        self.active_downloads = self.download_controller
+        self.active_speeds = self.download_controller._speeds
+        self.download_controller.aggregate_speed_changed.connect(lambda total, count: self.update_status_bar_speed())
         self._pending_tray_updates = {}
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
@@ -232,20 +239,24 @@ class MainWindow(QMainWindow):
                 app_inst.paletteChanged.connect(self.on_system_theme_changed)
         
         # Auto-start local Aria2 daemon for accelerated downloading
+        from core.aria2_daemon import get_aria2_daemon_manager
+        self.aria2_daemon_manager = get_aria2_daemon_manager()
+        self.aria2_daemon_manager.status_changed.connect(lambda running, msg: self.update_status_bar_aria2())
         self.aria2_process = self.start_aria2_daemon()
         self.is_quitting = False
         
-        # Scheduler periodic background timer
-        self._last_scheduled_minute = {}
-        self._last_sync_times = {}
+        # Scheduler periodic background timer driven by QueueManager
         self.download_retry_counts = {}
-        self.scheduler_timer = QTimer(self)
-        self.scheduler_timer.setInterval(1000)
-        self.scheduler_timer.timeout.connect(self._check_scheduled_queues)
-        self.scheduler_timer.start()
-
-        # Check and start queues configured to run on application startup
-        QTimer.singleShot(100, self._check_startup_queues)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.start_timer()
+            # Check and start queues configured to run on application startup
+            QTimer.singleShot(100, self.queue_manager.check_startup_queues)
+        else:
+            self.scheduler_timer = QTimer(self)
+            self.scheduler_timer.setInterval(1000)
+            self.scheduler_timer.timeout.connect(self._check_scheduled_queues)
+            self.scheduler_timer.start()
+            QTimer.singleShot(100, self._check_startup_queues)
 
     def restart_ipc_listener(self, port=None):
         """Safely restart the background TCP IPC listener with updated port configuration."""
@@ -267,55 +278,20 @@ class MainWindow(QMainWindow):
 
     def stop_aria2_daemon(self):
         """Gracefully shuts down the internal aria2 daemon process and releases its port."""
-        proc = getattr(self, "aria2_process", None)
-        if not proc:
-            return
+        if hasattr(self, "aria2_daemon_manager") and self.aria2_daemon_manager:
+            self.aria2_daemon_manager.stop()
         self.aria2_process = None
-
-        # 1. Attempt graceful RPC shutdown
-        try:
-            ext_data = load_extension_config()
-            port = ext_data.get("port", 56800)
-            token = ext_data.get("token", "")
-            payload = {
-                "jsonrpc": "2.0",
-                "id": "shutdown",
-                "method": "aria2.shutdown",
-                "params": [f"token:{token}"] if token else []
-            }
-            import urllib.request
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{port}/jsonrpc",
-                data=json.dumps(payload).encode('utf-8'),
-                headers={"Content-Type": "application/json"}
-            )
-            urllib.request.urlopen(req, timeout=0.8)
-        except Exception:
-            pass
-
-        # 2. Wait for process to exit cleanly
-        try:
-            proc.wait(timeout=1.0)
-            return
-        except Exception:
-            pass
-
-        # 3. Terminate if still running
-        try:
-            proc.terminate()
-            proc.wait(timeout=1.0)
-        except Exception:
-            try:
-                proc.kill()
-                proc.wait(timeout=0.5)
-            except Exception:
-                pass
 
     def _handle_options_accepted(self):
         # Clean restart aria2 daemon
-        self.stop_aria2_daemon()
-        self.aria2_process = self.start_aria2_daemon()
+        if hasattr(self, "aria2_daemon_manager") and self.aria2_daemon_manager:
+            self.aria2_daemon_manager.restart()
+            self.aria2_process = self.aria2_daemon_manager.process
+        else:
+            self.stop_aria2_daemon()
+            self.aria2_process = self.start_aria2_daemon()
         self.update_status_bar_aria2()
+        self.update_status_bar_proxy(force=True)
 
         # Check and restart IPC listener if port was updated
         ext_cfg = load_extension_config()
@@ -327,72 +303,15 @@ class MainWindow(QMainWindow):
         if current_ipc_port != target_ipc_port:
             self.restart_ipc_listener(target_ipc_port)
 
-    def start_aria2_daemon(self):
-        try:
-            self.stop_aria2_daemon()
+    def start_aria2_daemon(self, port: Optional[int] = None):
+        """Starts the internal aria2 daemon process via the core Aria2DaemonManager."""
+        from core.aria2_daemon import get_aria2_daemon_manager
+        if not hasattr(self, "aria2_daemon_manager") or not self.aria2_daemon_manager:
+            self.aria2_daemon_manager = get_aria2_daemon_manager()
+        self.aria2_daemon_manager.start(port=port)
+        self.aria2_process = self.aria2_daemon_manager.process
+        return self.aria2_process
 
-            aria2_bin = ensure_aria2() or "aria2c"
-            ext_data = load_extension_config()
-            port = ext_data.get("port", 56800)
-            token = ext_data.get("token", "")
-            max_conn = str(ext_data.get("max_connections", 8))
-
-            # Auto-reclaim port if held by an orphaned instance or prior crash
-            try:
-                from core.services.port_service import reclaim_port
-                reclaim_port(port, "aria2", ["aria2c", "aria2"], rpc_token=token)
-            except Exception as pe:
-                if is_debug_mode():
-                    logger.debug("[Aria2Daemon] Pre-launch port reclamation check: %s", pe)
-
-            # Note: --no-proxy is not needed for the server side of RPC
-            cmd = [
-                aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
-                "--rpc-listen-all=false", "--rpc-allow-origin-all",
-                f"--max-connection-per-server={max_conn}", "--min-split-size=1M",
-                f"--split={max_conn}", "--daemon=false",
-                "--no-proxy=127.0.0.1,localhost"
-            ]
-            if token: cmd.append(f"--rpc-secret={token}")
-
-            # --- APPLY PROXY SETTINGS NATIVELY ---
-            proxy_url = get_aria2_proxy_url()
-            if proxy_url:
-                cmd.append(f"--all-proxy={proxy_url}")
-
-            debug_active = is_debug_mode()
-            if debug_active:
-                logger.debug("[Aria2Daemon] Launching daemon on port %s: %s", port, " ".join(cmd))
-
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE if debug_active else subprocess.DEVNULL,
-                env=get_clean_env()
-            )
-
-            if debug_active and proc:
-                logger.debug("[Aria2Daemon] Process spawned with PID %s", proc.pid)
-                def _stream_aria2_stderr(p):
-                    try:
-                        for line in p.stderr:
-                            msg = line.decode('utf-8', errors='ignore').strip()
-                            if msg:
-                                logger.debug("[Aria2Daemon] %s", msg)
-                    except Exception:
-                        pass
-                threading.Thread(target=_stream_aria2_stderr, args=(proc,), daemon=True).start()
-
-            # Brief check to ensure daemon did not immediately fail to bind
-            time.sleep(0.05)
-            if proc and proc.poll() is not None:
-                logger.error("[Aria2Daemon] aria2 daemon exited immediately with code %s", proc.returncode)
-                return None
-
-            return proc
-        except Exception as e:
-            logger.error("[Aria2Daemon] Failed to start aria2 daemon: %s", e, exc_info=True)
-            return None
     def close(self):
         self._is_closing = True
         if hasattr(self, "_active_retry_timers"):
@@ -402,6 +321,8 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
             self._active_retry_timers.clear()
+        if hasattr(self, "download_controller") and self.download_controller:
+            self.download_controller.clear()
         return super().close()
 
     def closeEvent(self, event: QCloseEvent):
@@ -424,6 +345,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tray_icon") and self.tray_icon:
             try:
                 self.tray_icon.hide()
+            except Exception:
+                pass
+
+        if getattr(self, "_proxy_sb_worker", None) and self._proxy_sb_worker.isRunning():
+            try:
+                self._proxy_sb_worker.terminate()
+                self._proxy_sb_worker.wait(200)
             except Exception:
                 pass
 
@@ -802,6 +730,13 @@ class MainWindow(QMainWindow):
         self.action_sb_public_ip.triggered.connect(self._on_status_bar_child_toggled)
         self.status_bar_menu.addAction(self.action_sb_public_ip)
 
+        prev_proxy = getattr(self, "action_sb_proxy", None).isChecked() if hasattr(self, "action_sb_proxy") else False
+        self.action_sb_proxy = QAction(self.tr("&Proxy Status"), self)
+        self.action_sb_proxy.setCheckable(True)
+        self.action_sb_proxy.setChecked(prev_proxy)
+        self.action_sb_proxy.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_proxy)
+
         self.action_hide_categories = QAction(self.tr("&Hide left panel"), self)
         self.action_hide_categories.setCheckable(True)
         self.action_hide_categories.setChecked(getattr(self, "_categories_hidden", False))
@@ -1046,10 +981,11 @@ class MainWindow(QMainWindow):
         self.queues_header.setToolTip(0, self.tr("Download queues and scheduler"))
         self.queues_header.setExpanded(True)
 
-        from ui.dialogs.scheduler import DEFAULT_QUEUES, _make_default_queue
-        # _queues_data is loaded from SQLite database, falling back to defaults if empty
-        db_queues = get_all_queues()
-        self._queues_data = [dict(q) for q in (db_queues if db_queues else DEFAULT_QUEUES)]
+        from core.queue_manager import QueueManager, DEFAULT_QUEUES, make_default_queue, _make_default_queue
+        self.queue_manager = QueueManager(active_count_provider=self._get_active_count_for_queue, auto_start_timer=False, parent=self)
+        self.queue_manager.queueStartRequested.connect(lambda q_name, max_c: self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False))
+        self.queue_manager.queueStopRequested.connect(self._stop_queue_downloads)
+        self._queues_data = self.queue_manager._queues
         for q in self._queues_data:
             q["daily_days"] = list(q.get("daily_days", [True, True, True, True, True, True, True]))
         self._sidebar_queue_names = []
@@ -1245,7 +1181,18 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self.sep_public_ip)
         status_bar.addPermanentWidget(self.status_public_ip_label)
 
-        # 5. Memory Status
+        # 5. Proxy Status
+        self.sep_proxy = create_sep()
+        self.status_proxy_label = QLabel("Proxy: Direct", self)
+        self.status_proxy_label.setFont(tnum_font)
+        self.status_proxy_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_proxy_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.status_proxy_label.setToolTip("Proxy Status (Click to configure)")
+        self.status_proxy_label.mousePressEvent = self._on_proxy_status_clicked
+        status_bar.addPermanentWidget(self.sep_proxy)
+        status_bar.addPermanentWidget(self.status_proxy_label)
+
+        # 6. Memory Status
         self.sep_memory = create_sep()
         self.status_memory_label = QLabel("Memory: 0 B", self)
         self.status_memory_label.setFont(tnum_font)
@@ -1268,6 +1215,7 @@ class MainWindow(QMainWindow):
             (getattr(self, "status_aria2_label", None), getattr(self, "sep_aria2", None), self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else False),
             (getattr(self, "status_ipc_label", None), getattr(self, "sep_ipc", None), self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else False),
             (getattr(self, "status_public_ip_label", None), getattr(self, "sep_public_ip", None), self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False),
+            (getattr(self, "status_proxy_label", None), getattr(self, "sep_proxy", None), self.action_sb_proxy.isChecked() if hasattr(self, "action_sb_proxy") else False),
             (getattr(self, "status_memory_label", None), getattr(self, "sep_memory", None), self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True),
         ]
 
@@ -1286,6 +1234,8 @@ class MainWindow(QMainWindow):
         self._update_status_bar_visibility()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
+            self.update_status_bar_proxy()
         if hasattr(self, "save_settings"):
             self.save_settings()
 
@@ -1344,21 +1294,12 @@ class MainWindow(QMainWindow):
             self.status_items_label.setToolTip(f"{sel_count} of {total_rows} {unit} selected{size_str}")
 
     def update_status_bar_speed(self):
-        if not hasattr(self, "active_speeds"):
-            self.active_speeds = {}
-        if not hasattr(self, "active_downloads"):
-            self.active_downloads = {}
-
-        total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
-        active_workers = 0
-        for k, entry in getattr(self, "active_downloads", {}).items():
-            if entry is True:
-                active_workers += 1
-            else:
-                worker = getattr(entry, 'worker', entry)
-                if worker is not None and not getattr(worker, 'is_paused', False) and not getattr(worker, 'is_pause_requested', False):
-                    active_workers += 1
-        active_count = active_workers or len(self.active_speeds)
+        if hasattr(self, "download_controller") and self.download_controller:
+            total_speed = self.download_controller.get_total_speed()
+            active_count = self.download_controller.get_active_count()
+        else:
+            total_speed = sum(self.active_speeds.values()) if hasattr(self, "active_speeds") and self.active_speeds else 0.0
+            active_count = len(self.active_speeds) if hasattr(self, "active_speeds") else 0
 
         # Update status bar speed label
         if hasattr(self, "status_speed_label") and self.status_speed_label:
@@ -1389,27 +1330,11 @@ class MainWindow(QMainWindow):
     def update_status_bar_aria2(self):
         if not hasattr(self, "status_aria2_label"):
             return
-        is_running = False
-        pid = None
-
-        try:
-            ext_data = load_extension_config()
-            port = ext_data.get("port", 56800)
-        except Exception:
-            port = 56800
-
-        if hasattr(self, "aria2_process") and self.aria2_process and self.aria2_process.poll() is None:
-            is_running = True
-            pid = getattr(self.aria2_process, "pid", None)
-        else:
-            try:
-                import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.15)
-                    if s.connect_ex(("127.0.0.1", port)) == 0:
-                        is_running = True
-            except Exception:
-                pass
+        from core.aria2_daemon import get_aria2_daemon_manager
+        mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+        is_running = mgr.is_running()
+        pid = mgr.pid
+        port = mgr.port
 
         if is_running:
             pid_info = f", PID {pid}" if pid else ""
@@ -1484,6 +1409,89 @@ class MainWindow(QMainWindow):
                 cb.setText(ip)
             QToolTip.showText(QCursor.pos(), self.tr("Public IP copied to clipboard!"), self.status_public_ip_label, QRect(), 2000)
 
+    def _on_proxy_status_clicked(self, event):
+        self.open_options(target_tab="Proxy / Socks")
+
+    def on_proxy_verified(self, result):
+        """Called when OptionsDialog verifies a proxy connection."""
+        self._cached_proxy_result = result
+        self._last_proxy_check_time = time.time()
+        self._render_proxy_status(result)
+
+    def update_status_bar_proxy(self, force: bool = False):
+        if not hasattr(self, "status_proxy_label"):
+            return
+        if hasattr(self, "action_sb_proxy") and not self.action_sb_proxy.isChecked():
+            return
+
+        from core.utils import load_proxy_config
+        proxy_config = load_proxy_config()
+        mode = proxy_config.get("mode", "no_proxy")
+
+        if mode != "manual":
+            self.status_proxy_label.setText("Proxy: Direct")
+            self.status_proxy_label.setToolTip("Direct connection (No proxy configured)\nClick to configure")
+            return
+
+        host = proxy_config.get("host", "").strip()
+        if not host:
+            self.status_proxy_label.setText("Proxy: Direct")
+            self.status_proxy_label.setToolTip("Direct connection (Proxy host is empty)\nClick to configure")
+            return
+
+        now = time.time()
+        cached = getattr(self, "_cached_proxy_result", None)
+        last_check = getattr(self, "_last_proxy_check_time", 0)
+        if not force and cached and (now - last_check < 600):
+            self._render_proxy_status(cached)
+            return
+
+        if getattr(self, "_proxy_sb_worker", None) and self._proxy_sb_worker.isRunning():
+            return
+
+        from core.services.proxy_service import ProxyDetectorWorker
+        self._proxy_sb_worker = ProxyDetectorWorker(proxy_config, timeout=6.0, parent=self)
+        self._proxy_sb_worker.detection_finished.connect(self._on_status_bar_proxy_detected)
+        self._proxy_sb_worker.start()
+
+    def _on_status_bar_proxy_detected(self, result):
+        self._cached_proxy_result = result
+        self._last_proxy_check_time = time.time()
+        self._render_proxy_status(result)
+
+    def _render_proxy_status(self, result):
+        if not hasattr(self, "status_proxy_label"):
+            return
+        from core.utils import load_proxy_config
+        proxy_config = load_proxy_config()
+        ptype = str(proxy_config.get("type", "http")).upper()
+        host = proxy_config.get("host", "")
+        port = proxy_config.get("port", 8080)
+
+        if result.is_working:
+            flag = result.flag_emoji or "🌐"
+            ip_display = result.ip if result.ip else "Active"
+            self.status_proxy_label.setText(f"Proxy: {flag} {ip_display}")
+            country_info = result.country if result.country else "Unknown"
+            if result.city:
+                country_info = f"{result.city}, {country_info}"
+            tooltip = (
+                f"Proxy is working\n"
+                f"Protocol: {ptype}\n"
+                f"Server: {host}:{port}\n"
+                f"Public IP: {result.ip}\n"
+                f"Country: {country_info}\n"
+                f"Click to configure"
+            )
+            self.status_proxy_label.setToolTip(tooltip)
+        else:
+            self.status_proxy_label.setText("Proxy: Error")
+            self.status_proxy_label.setToolTip(
+                f"Proxy connection failed: {result.error_message}\n"
+                f"Server: {host}:{port} ({ptype})\n"
+                f"Click to configure"
+            )
+
     def update_status_bar_memory(self):
         if not hasattr(self, "status_memory_label"):
             return
@@ -1515,6 +1523,8 @@ class MainWindow(QMainWindow):
         self.update_status_bar_speed()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
+            self.update_status_bar_proxy()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
 
@@ -1530,14 +1540,17 @@ class MainWindow(QMainWindow):
         ipc_port = get_ipc_port()
 
         # 1. Aria2 daemon health check
+        from core.aria2_daemon import get_aria2_daemon_manager
+        mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
         aria2_dead = (
             not hasattr(self, "aria2_process")
             or self.aria2_process is None
-            or self.aria2_process.poll() is not None
+            or (hasattr(self.aria2_process, "poll") and self.aria2_process.poll() is not None)
+            or not mgr.is_running()
         )
         if aria2_dead:
             logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", aria2_port)
-            self.aria2_process = self.start_aria2_daemon()
+            self.start_aria2_daemon(port=aria2_port)
 
         # 2. Extension IPC listener health check
         if getattr(self, "start_ipc", True):
@@ -1558,6 +1571,8 @@ class MainWindow(QMainWindow):
         self.update_status_bar_memory()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
+            self.update_status_bar_proxy()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
 
@@ -2040,77 +2055,16 @@ class MainWindow(QMainWindow):
                 self._scheduler_dlg.tabs.setCurrentIndex(tab_index)
 
     def _check_scheduled_queues(self):
-        """Periodically checks queue schedules (start_at, stop_at, sync_interval)."""
-        from PyQt6.QtCore import QDateTime
-        now = QDateTime.currentDateTime()
-        current_time_str = now.toString("HH:mm:ss")
-        current_time_hm = now.toString("HH:mm")
-        current_date_str = now.toString("yyyy-MM-dd")
-        current_weekday = (now.date().dayOfWeek() % 7)  # 0=Sun, 1=Mon, ..., 6=Sat
-
-        queues = getattr(self, "_queues_data", [])
-        if not queues:
-            db_queues = get_all_queues()
-            queues = db_queues if db_queues else []
-
-        for q in queues:
-            if not isinstance(q, dict):
-                continue
-            q_name = q.get("name", "Main download queue")
-            max_c = q.get("max_concurrent", 4)
-
-            # 1. Start At Check
-            if q.get("start_at_enabled", False):
-                sched_type = q.get("schedule_type", "daily")
-                can_run_today = False
-                if sched_type == "once":
-                    can_run_today = (q.get("once_date") == current_date_str)
-                else:
-                    days = q.get("daily_days", [True] * 7)
-                    if current_weekday < len(days) and days[current_weekday]:
-                        can_run_today = True
-
-                if can_run_today:
-                    target_time = q.get("start_at_time", "23:00:00")
-                    match_time = (current_time_str == target_time) or (len(target_time) == 5 and current_time_hm == target_time) or (len(target_time) >= 5 and current_time_hm == target_time[:5] and not target_time.endswith(":00") and current_time_str == target_time)
-                    trigger_key = f"start_{q_name}_{current_date_str}_{target_time}"
-                    if match_time and not getattr(self, "_last_scheduled_minute", {}).get(trigger_key):
-                        if not hasattr(self, "_last_scheduled_minute"):
-                            self._last_scheduled_minute = {}
-                        self._last_scheduled_minute[trigger_key] = True
-                        self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False)
-
-            # 2. Stop At Check
-            if q.get("stop_at_enabled", False):
-                target_stop_time = q.get("stop_at_time", "07:30:00")
-                match_stop = (current_time_str == target_stop_time) or (len(target_stop_time) == 5 and current_time_hm == target_stop_time)
-                trigger_stop_key = f"stop_{q_name}_{current_date_str}_{target_stop_time}"
-                if match_stop and not getattr(self, "_last_scheduled_minute", {}).get(trigger_stop_key):
-                    if not hasattr(self, "_last_scheduled_minute"):
-                        self._last_scheduled_minute = {}
-                    self._last_scheduled_minute[trigger_stop_key] = True
-                    self._stop_queue_downloads(q_name)
-
-            # 3. Periodic Sync Check
-            if q.get("mode") == "sync" and q.get("sync_interval_enabled", False):
-                interval_sec = q.get("sync_hours", 2) * 3600 + q.get("sync_minutes", 0) * 60
-                if interval_sec > 0:
-                    if not hasattr(self, "_last_sync_times"):
-                        self._last_sync_times = {}
-                    last_sync = self._last_sync_times.get(q_name, 0)
-                    if time.time() - last_sync >= interval_sec:
-                        self._last_sync_times[q_name] = time.time()
-                        self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False)
+        """Periodically checks queue schedules (delegated to QueueManager)."""
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.check_scheduled_queues()
+            return
 
     def _check_startup_queues(self):
         """Starts any queues configured to run on application startup."""
-        db_queues = get_all_queues()
-        queues = db_queues if db_queues else getattr(self, "_queues_data", [])
-        for q in queues:
-            if isinstance(q, dict) and q.get("start_on_startup", False):
-                qname = q.get("name", "Main download queue")
-                max_c = q.get("max_concurrent", 4)
-                self._start_queue_downloads(qname, max_concurrent=max_c, show_dialog=False)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.check_startup_queues()
+            return
 
     def _start_queue_downloads(self, queue_name: str, max_concurrent: int = None, show_dialog: bool = False):
         """Starts incomplete downloads belonging to the specified queue."""
@@ -2248,19 +2202,16 @@ class MainWindow(QMainWindow):
     def _get_queue_max_concurrent(self, queue_name: str) -> int:
         """Returns the configured max_concurrent value for the specified queue."""
         target = queue_name or "Main download queue"
-        queues = getattr(self, "_queues_data", [])
-        if not queues:
-            try:
-                from core.database import get_all_queues
-                queues = get_all_queues() or []
-            except Exception:
-                queues = []
-        for q in queues:
-            if isinstance(q, dict) and q.get("name") == target:
-                try:
-                    return max(1, int(q.get("max_concurrent", 4)))
-                except (ValueError, TypeError):
-                    return 4
+        queues = getattr(self, "_queues_data", None)
+        if queues:
+            for q in queues:
+                if isinstance(q, dict) and q.get("name") == target:
+                    try:
+                        return max(1, int(q.get("max_concurrent", 4)))
+                    except (ValueError, TypeError):
+                        return 4
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            return self.queue_manager.get_queue_max_concurrent(target)
         if target == "Main download queue":
             return max(1, getattr(self, "MAX_CONCURRENT_DOWNLOADS", 4))
         return 4
@@ -2286,12 +2237,18 @@ class MainWindow(QMainWindow):
 
     def _queue_action_start(self, queue_name):
         """Starts downloads in the named queue."""
-        max_c = self._get_queue_max_concurrent(queue_name)
-        self._start_queue_downloads(queue_name, max_concurrent=max_c, show_dialog=False)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.start_queue(queue_name)
+        else:
+            max_c = self._get_queue_max_concurrent(queue_name)
+            self._start_queue_downloads(queue_name, max_concurrent=max_c, show_dialog=False)
 
     def _queue_action_stop(self, queue_name):
         """Stops downloads in the named queue."""
-        self._stop_queue_downloads(queue_name)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.stop_queue(queue_name)
+        else:
+            self._stop_queue_downloads(queue_name)
 
     def _delete_sidebar_queue(self, item):
         """Deletes a queue from the sidebar and from the scheduler if open."""
@@ -2307,11 +2264,15 @@ class MainWindow(QMainWindow):
             self._sidebar_queue_names.remove(queue_name)
 
         # Remove from persistent queue data
-        self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
-        try:
-            delete_queue(queue_name)
-        except Exception:
-            pass
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.delete_queue(queue_name)
+            self._queues_data = self.queue_manager._queues
+        else:
+            self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
+            try:
+                delete_queue(queue_name)
+            except Exception:
+                pass
 
         # Also remove from scheduler if it's open
         if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
@@ -2324,7 +2285,6 @@ class MainWindow(QMainWindow):
 
     def _create_sidebar_queue(self):
         """Creates a new queue and adds it to both sidebar and scheduler."""
-        from ui.dialogs.scheduler import _make_default_queue
         base = "Queue"
         existing = set(self._sidebar_queue_names)
         i = 1
@@ -2333,12 +2293,17 @@ class MainWindow(QMainWindow):
         name = f"{base} # {i}"
 
         # Persist into the source-of-truth list
-        new_q = _make_default_queue(name)
-        self._queues_data.append(new_q)
-        try:
-            upsert_queue(new_q)
-        except Exception:
-            pass
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            new_q = self.queue_manager.create_queue(name)
+            self._queues_data = self.queue_manager._queues
+        else:
+            from core.queue_manager import make_default_queue
+            new_q = make_default_queue(name)
+            self._queues_data.append(new_q)
+            try:
+                upsert_queue(new_q)
+            except Exception:
+                pass
 
         # Add to sidebar
         child = QTreeWidgetItem(self.queues_header, [name])
@@ -2364,13 +2329,17 @@ class MainWindow(QMainWindow):
             return
 
         # Save the dialog's current queue state back into the persistent store
-        self._queues_data = [dict(q) for q in self._scheduler_dlg.queues]
-        for q in self._queues_data:
-            q["daily_days"] = list(q["daily_days"])
-        try:
-            save_all_queues(self._queues_data)
-        except Exception:
-            pass
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.set_queues(self._scheduler_dlg.queues)
+            self._queues_data = self.queue_manager._queues
+        else:
+            self._queues_data = [dict(q) for q in self._scheduler_dlg.queues]
+            for q in self._queues_data:
+                q["daily_days"] = list(q["daily_days"])
+            try:
+                save_all_queues(self._queues_data)
+            except Exception:
+                pass
 
         # Capture currently selected queue name before clearing children
         current_item = self.category_tree.currentItem()
@@ -2488,14 +2457,24 @@ class MainWindow(QMainWindow):
                 }
                 downloads.append(dl_data)
             
-            save_all_downloads(downloads)
-            save_all_queues(self._queues_data)
+            if hasattr(self, "download_store") and self.download_store:
+                self.download_store.set_all_items(downloads, persist=True)
+            else:
+                save_all_downloads(downloads)
+
+            if hasattr(self, "queue_manager") and self.queue_manager:
+                self.queue_manager.persist()
+            else:
+                save_all_queues(self._queues_data)
         except Exception:
             pass
 
     def load_data(self):
         try:
-            downloads = get_all_downloads()
+            if hasattr(self, "download_store") and self.download_store:
+                downloads = self.download_store.load_from_database()
+            else:
+                downloads = get_all_downloads()
             if not downloads:
                 return
             
@@ -2908,6 +2887,7 @@ class MainWindow(QMainWindow):
                     "ipc": self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else False,
                     "speed": self.action_sb_speed.isChecked() if hasattr(self, "action_sb_speed") else False,
                     "public_ip": self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False,
+                    "proxy": self.action_sb_proxy.isChecked() if hasattr(self, "action_sb_proxy") else False,
                 }
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
@@ -3286,6 +3266,10 @@ class MainWindow(QMainWindow):
             self.action_sb_public_ip.setChecked(sb_items.get("public_ip", False))
             if sb_items.get("public_ip", False):
                 self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy"):
+            self.action_sb_proxy.setChecked(sb_items.get("proxy", False))
+            if sb_items.get("proxy", False):
+                self.update_status_bar_proxy()
         self._update_status_bar_visibility()
 
         show_toolbar = settings.get("show_toolbar", True)
@@ -4860,21 +4844,13 @@ class MainWindow(QMainWindow):
         # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.
         use_aria2 = True
         try:
-            is_aria2_live = False
-            if hasattr(self, 'aria2_process') and self.aria2_process and self.aria2_process.poll() is None:
-                is_aria2_live = True
-            else:
-                import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.15)
-                    ext_data = load_extension_config()
-                    r_port = ext_data.get("port", 56800)
-                    if s.connect_ex(("127.0.0.1", r_port)) == 0:
-                        is_aria2_live = True
-            if not is_aria2_live:
-                use_aria2 = False
+            from core.aria2_daemon import get_aria2_daemon_manager
+            mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+            use_aria2 = mgr.is_running()
+            is_aria2_live = use_aria2
         except Exception:
             use_aria2 = False
+            is_aria2_live = False
 
         if use_aria2:
             if is_debug_mode():
@@ -5345,29 +5321,17 @@ class MainWindow(QMainWindow):
             self.download_table.setSortingEnabled(False)
         self.download_table.blockSignals(True)
         try:
-            for key, entry in list(self.active_downloads.items()):
-                worker = getattr(entry, 'worker', entry)
-                if worker is not None and hasattr(worker, 'pause'):
-                    try:
-                        worker.pause()
-                    except Exception:
-                        pass
-                from core.media_downloader import YtDlpDownloadWorker
-                if isinstance(worker, YtDlpDownloadWorker):
-                    self.active_downloads.pop(key, None)
-                    if hasattr(self, "active_speeds"):
-                        self.active_speeds.pop(key, None)
-                    self.update_status_bar_speed()
-                
-                if hasattr(entry, 'lbl_main_status'):
-                    try:
-                        entry.lbl_main_status.setText("Paused")
-                        entry.btn_pause.setText("Resume")
-                        entry.btn_cancel.setText("Close")
-                        entry.lbl_speed.setText("0.00 B/s")
-                        entry.lbl_time.setText("-")
-                    except Exception:
-                        pass
+            if hasattr(self, "download_controller") and self.download_controller:
+                self.download_controller.stop_all()
+            else:
+                for key, entry in list(self.active_downloads.items()):
+                    worker = getattr(entry, 'worker', entry)
+                    if worker is not None and hasattr(worker, 'pause'):
+                        try:
+                            worker.pause()
+                        except Exception:
+                            pass
+            self.update_status_bar_speed()
 
             # Update all rows in download_table to ensure active, queued, and pending downloads are paused
             for r in range(self.download_table.rowCount()):

@@ -1185,23 +1185,14 @@ def get_themed_tray_icon(tray_option=None) -> QIcon:
     return QIcon()
 
 
-CATEGORY_EXTENSIONS = {
-    "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".iso", ".bz2", ".xz", ".tgz"],
-    "Documents": [".pdf", ".doc", ".docx", ".txt", ".ppt", ".pptx", ".xls", ".xlsx", ".csv", ".rtf", ".odt"],
-    "Music": [".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a", ".wma"],
-    "Programs": [".exe", ".msi", ".deb", ".rpm", ".apk", ".appimage", ".flatpak", ".snap", ".sh", ".bin", ".bat", ".cmd", ".run", ".dmg", ".pkg", ".jar", ".msu"],
-    "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]
-}
-
-
-def get_category_for_filename(filename: str) -> str:
-    if not filename:
-        return "General"
-    fn = filename.lower()
-    for cat, exts in CATEGORY_EXTENSIONS.items():
-        if any(fn.endswith(ext) for ext in exts):
-            return cat
-    return "General"
+from core.categories import (
+    CATEGORY_EXTENSIONS,
+    get_category_for_filename,
+    get_all_categories,
+    format_timestamp_relative,
+    parse_size_to_bytes,
+    parse_time_to_sec,
+)
 
 
 def get_file_icon(filename: str) -> QIcon:
@@ -1248,57 +1239,3 @@ def get_file_icon(filename: str) -> QIcon:
     }
     return fallbacks.get(cat, QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon))
 
-
-def format_timestamp_relative(timestamp_str: str, max_relative_seconds: int = 30) -> str: 
-    if not timestamp_str or timestamp_str == "...":
-        return "..."
-        
-    try:
-        timestamp_float = float(timestamp_str)
-    except ValueError:
-        return timestamp_str
-    
-    current_time = time.time()
-    diff = current_time - timestamp_float
-    
-    if diff < 60:
-        return "Just now"
-    elif diff < max_relative_seconds:
-        minutes_ago = int(diff // 60)
-        if minutes_ago == 0:
-            return "Just now"
-        return f"{minutes_ago} min ago"
-    else:
-        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp_float))
-
-
-def parse_size_to_bytes(text: str) -> float:
-    try:
-        if not text or text == "...":
-            return 0.0
-        parts = text.split()
-        val = float(parts[0])
-        unit = parts[1].upper() if len(parts) > 1 else ""
-        multipliers = {'B': 1, 'K': 1024, 'KB': 1024, 'M': 1024**2, 'MB': 1024**2, 'G': 1024**3, 'GB': 1024**3}
-        for key, mult in multipliers.items():
-            if unit.startswith(key):
-                return val * mult
-        return val
-    except Exception:
-        return 0.0
-
-
-def parse_time_to_sec(text: str) -> float:
-    try:
-        if not text or text == "...":
-            return 0.0
-        parts = text.split()
-        val = float(parts[0])
-        unit = parts[1].lower() if len(parts) > 1 else ""
-        if 'hr' in unit:
-            return val * 3600
-        if 'min' in unit:
-            return val * 60
-        return val 
-    except Exception:
-        return 0.0

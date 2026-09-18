@@ -7,14 +7,19 @@ class DownloadBridge(QObject):
     downloadsChanged = pyqtSignal()
     statusMessageChanged = pyqtSignal(str)
 
-    def __init__(self, main_window=None, parent=None):
+    def __init__(self, main_window=None, store=None, parent=None):
         super().__init__(parent)
         self._main_window = main_window
+        self._store = store
+        if self._store:
+            self._store.downloadsChanged.connect(self.downloadsChanged.emit)
         self._downloads_data = []
         self._status_message = "Ready"
 
     @pyqtProperty(list, notify=downloadsChanged)
     def downloads(self):
+        if self._store:
+            return self._store.get_all_items()
         if self._main_window:
             return self._main_window.get_qml_downloads_data()
         return self._downloads_data
@@ -30,19 +35,29 @@ class DownloadBridge(QObject):
 
     @pyqtProperty(bool, notify=downloadsChanged)
     def aria2Running(self):
-        if self._main_window and hasattr(self._main_window, 'aria2_process') and self._main_window.aria2_process:
-            return self._main_window.aria2_process.poll() is None
-        return False
+        try:
+            from core.aria2_daemon import get_aria2_daemon_manager
+            return get_aria2_daemon_manager().is_running()
+        except Exception:
+            return False
 
     @pyqtProperty(str, notify=downloadsChanged)
     def totalSpeed(self):
-        if self._main_window and hasattr(self._main_window, 'active_speeds') and self._main_window.active_speeds:
+        try:
+            from core.download_controller import get_download_controller
             from core.utils import format_bytes
-            return f"{format_bytes(sum(self._main_window.active_speeds.values()))}/s"
-        return "0 B/s"
+            ctrl = get_download_controller()
+            total = ctrl.get_total_speed()
+            if total <= 0.0 and self._main_window and hasattr(self._main_window, 'active_speeds') and self._main_window.active_speeds:
+                total = sum(self._main_window.active_speeds.values())
+            return f"{format_bytes(total)}/s" if total > 0 else "0 B/s"
+        except Exception:
+            return "0 B/s"
 
     @pyqtProperty(int, notify=downloadsChanged)
     def itemCount(self):
+        if self._store:
+            return self._store.count()
         if self._main_window and hasattr(self._main_window, 'download_table'):
             return self._main_window.download_table.rowCount()
         return len(self._downloads_data)

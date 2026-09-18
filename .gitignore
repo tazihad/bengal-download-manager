@@ -30,6 +30,8 @@ Thumbs.db
 # custom
 docs/*
 !docs/*.md
+!docs/adr/
+!docs/adr/*.md
 .superpowers/
 .worktrees/
 .agents/

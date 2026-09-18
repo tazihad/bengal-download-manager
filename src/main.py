@@ -272,7 +272,7 @@ def main():
 
             qml_engine = QQmlApplicationEngine()
             qml_engine.addImportPath("/usr/lib/x86_64-linux-gnu/qt6/qml")
-            bridge = DownloadBridge(main_window=window)
+            bridge = DownloadBridge(main_window=window, store=getattr(window, "download_store", None))
             window.bridge = bridge
             qml_engine.rootContext().setContextProperty("downloadBridge", bridge)
 
