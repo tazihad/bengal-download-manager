@@ -124,3 +124,22 @@ def test_main_window_proxy_status_bar(qapp):
             mock_open_opts.assert_called_once_with(target_tab="Proxy / Socks")
     finally:
         win.close()
+
+
+def test_options_dialog_cleanup_proxy_worker(qapp):
+    from ui.dialogs.options import OptionsDialog
+
+    with patch("core.services.proxy_service.ProxyDetectorWorker.start"), \
+         patch("ui.dialogs.options.load_proxy_config", return_value={"mode": "manual", "type": "http", "host": "1.2.3.4", "port": 8080}), \
+         patch("ui.dialogs.options.load_extension_config", return_value={}):
+        dlg = OptionsDialog(initial_tab="Proxy / Socks")
+        mock_worker = MagicMock()
+        mock_worker.isRunning.return_value = True
+        dlg._proxy_worker = mock_worker
+
+        dlg._cleanup_proxy_worker()
+
+        mock_worker.stop.assert_called_once()
+        mock_worker.wait.assert_called_once()
+        assert dlg._proxy_worker is None
+

@@ -134,12 +134,22 @@ class Aria2DaemonManager(QObject):
             aria2_bin = ensure_aria2() or "aria2c"
 
             # Auto-reclaim port if occupied by orphaned instance
+            reclaimed = False
             try:
                 from core.services.port_service import reclaim_port
-                reclaim_port(self._port, "aria2", ["aria2c", "aria2"], rpc_token=self._token)
+                reclaimed = reclaim_port(self._port, "aria2", ["aria2c", "aria2"], rpc_token=self._token, timeout_sec=2.0)
             except Exception as pe:
                 if is_debug_mode():
                     logger.debug("[Aria2DaemonManager] Pre-launch port reclamation check: %s", pe)
+
+            if not reclaimed and self.is_port_active(timeout=0.2):
+                logger.warning("[Aria2DaemonManager] Port %s still occupied; waiting for socket release...", self._port)
+                time.sleep(1.0)
+                try:
+                    from core.services.port_service import reclaim_port
+                    reclaim_port(self._port, "aria2", ["aria2c", "aria2"], rpc_token=self._token, timeout_sec=1.5)
+                except Exception:
+                    pass
 
             cmd: List[str] = [
                 aria2_bin,
@@ -173,10 +183,28 @@ class Aria2DaemonManager(QObject):
                 proc = subprocess.Popen(
                     cmd,
                     stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE if debug_active else subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                     env=get_clean_env(),
                 )
                 self._process = proc
+
+                time.sleep(0.08)
+                if proc.poll() is not None:
+                    ret = proc.returncode
+                    stderr_msg = ""
+                    try:
+                        if proc.stderr:
+                            stderr_msg = proc.stderr.read().decode("utf-8", errors="ignore").strip()
+                    except Exception:
+                        pass
+                    err_msg = f"aria2 daemon exited immediately with return code {ret}"
+                    if stderr_msg:
+                        err_msg += f": {stderr_msg}"
+                    logger.error("[Aria2DaemonManager] %s", err_msg)
+                    self._process = None
+                    self.status_changed.emit(False, "Stopped")
+                    self.error_occurred.emit(err_msg)
+                    return False
 
                 if debug_active and proc and proc.stderr:
                     logger.debug("[Aria2DaemonManager] Process spawned with PID %s", proc.pid)
@@ -192,16 +220,6 @@ class Aria2DaemonManager(QObject):
                             pass
 
                     threading.Thread(target=_stream_stderr, args=(proc,), daemon=True).start()
-
-                time.sleep(0.05)
-                if proc.poll() is not None:
-                    ret = proc.returncode
-                    err_msg = f"aria2 daemon exited immediately with return code {ret}"
-                    logger.error("[Aria2DaemonManager] %s", err_msg)
-                    self._process = None
-                    self.status_changed.emit(False, "Stopped")
-                    self.error_occurred.emit(err_msg)
-                    return False
 
                 self.status_changed.emit(True, f"Connected (PID {proc.pid})")
                 self.started.emit(self._port)
@@ -284,6 +302,12 @@ class Aria2DaemonManager(QObject):
             self._process = None
 
             if not proc:
+                if self.is_port_active(timeout=0.15):
+                    try:
+                        from core.services.port_service import reclaim_port
+                        reclaim_port(self._port, "aria2", ["aria2c", "aria2"], timeout_sec=min(1.0, timeout_sec), rpc_token=self._token)
+                    except Exception:
+                        pass
                 return True
 
             # 1. Graceful RPC shutdown

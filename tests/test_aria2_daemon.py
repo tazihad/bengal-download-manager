@@ -104,6 +104,26 @@ def test_daemon_start_failure_immediate_exit(daemon_manager):
         assert daemon_manager.is_running() is False
 
 
+def test_daemon_start_captures_stderr_on_exit(daemon_manager):
+    import io
+    dead_proc = DummyProcess(pid=1112, returncode=1)
+    dead_proc.stderr = io.BytesIO(b"Exception: [Failed to bind port 56800]")
+
+    error_signals = []
+    daemon_manager.error_occurred.connect(lambda msg: error_signals.append(msg))
+
+    with patch("core.aria2_daemon.ensure_aria2", return_value="aria2c"), \
+         patch("core.aria2_daemon.load_extension_config", return_value={}), \
+         patch("subprocess.Popen", return_value=dead_proc), \
+         patch("core.services.port_service.reclaim_port"):
+
+        res = daemon_manager.start()
+        assert res is False
+        assert len(error_signals) == 1
+        assert "Failed to bind port 56800" in error_signals[0]
+
+
+
 def test_daemon_stop_graceful_rpc(daemon_manager):
     dummy = DummyProcess(pid=4321, returncode=None)
     daemon_manager._process = dummy

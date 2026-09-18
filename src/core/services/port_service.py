@@ -231,9 +231,18 @@ def _is_safe_to_terminate(pid: int, cmdline: str, allowed_patterns: List[str]) -
 
 
 def _attempt_aria2_rpc_shutdown(port: int, token: str = "") -> bool:
-    """Attempts graceful JSON-RPC shutdown of an existing Aria2 daemon."""
-    import urllib.request
+    """Attempts graceful JSON-RPC shutdown of an existing Aria2 daemon via raw loopback socket."""
     try:
+        from core.utils import call_aria2_rpc
+        res = call_aria2_rpc("aria2.shutdown", port=port, token=token)
+        if res is not None:
+            return True
+    except Exception:
+        pass
+
+    # Fallback to direct raw HTTP without environment proxies
+    try:
+        import urllib.request
         payload = {
             "jsonrpc": "2.0",
             "id": "shutdown",
@@ -245,7 +254,8 @@ def _attempt_aria2_rpc_shutdown(port: int, token: str = "") -> bool:
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=0.8) as resp:
+        no_proxy_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with no_proxy_opener.open(req, timeout=0.8) as resp:
             return resp.status == 200
     except Exception:
         return False
@@ -289,11 +299,13 @@ def reclaim_port(
         except Exception:
             pass
 
-        # Check if RPC shutdown was sufficient
-        time.sleep(0.15)
-        if not is_port_in_use(port):
-            logger.info("[PortService] Port %d (%s) successfully reclaimed via RPC shutdown.", port, service_name)
-            return True
+        # Check if RPC shutdown was sufficient with short wait
+        wait_deadline = time.time() + 0.35
+        while time.time() < wait_deadline:
+            if not is_port_in_use(port):
+                logger.info("[PortService] Port %d (%s) successfully reclaimed via RPC shutdown.", port, service_name)
+                return True
+            time.sleep(0.05)
 
     # 2. Identify the process listening on the port
     proc_info = get_pid_listening_on_port(port)
