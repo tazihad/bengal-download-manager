@@ -389,7 +389,7 @@ def test_main_window_add_batch_downloads(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr("PyQt6.QtWidgets.QMessageBox.information", lambda *args, **kwargs: None)
 
     from ui.main_window import MainWindow
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     window.hide()
 
     started_workers = []

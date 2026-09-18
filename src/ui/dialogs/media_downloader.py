@@ -13,15 +13,18 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QMessageBox, QApplication, QFrame, QCheckBox,
-    QAbstractItemView, QToolButton, QToolTip, QFileDialog
+    QAbstractItemView, QToolButton, QToolTip, QFileDialog, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer, QPoint, QUrl
 from PyQt6.QtGui import (
     QFont, QIcon, QKeySequence, QShortcut, QPixmap, QImage, QPainter,
-    QPainterPath, QColor, QPen, QLinearGradient, QPalette
+    QPainterPath, QColor, QPen, QLinearGradient, QPalette, QBrush
 )
 import logging
-from core.media_downloader import YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive
+from core.media_downloader import (
+    YtDlpManager, MediaExtractorWorker, DependencyManagerWorker, _keep_thread_alive,
+    BIN_DIR, DEPENDENCY_TOOLS
+)
 from core.memory_guard import MemoryGuard
 from core.utils import is_debug_mode
 from ui.delegates import CheckableTableItemDelegate
@@ -232,6 +235,413 @@ class AndroidProgressBar(QProgressBar):
         painter.end()
 
 
+class ThreeDotsButton(QPushButton):
+    """Modern 3-dot options button with integrated status dot for engine pipeline."""
+    def __init__(self, parent=None):
+        super().__init__("⋮", parent)
+        self.setFixedSize(36, 34)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Pipeline Engines & Settings")
+        self._status = None  # None (no dot), "yellow" (update/updating), "orange" (missing/attention)
+        self.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                border: 1px solid palette(mid);
+                border-radius: 6px;
+                background-color: palette(button);
+                color: palette(button-text);
+            }
+            QPushButton:hover {
+                background-color: palette(alternate-base);
+                border-color: palette(highlight);
+            }
+        """)
+
+    def set_status(self, status: str | None):
+        if self._status != status:
+            self._status = status
+            if status == "yellow":
+                self.setToolTip("Pipeline Engines & Settings (Update Available)")
+            elif status in ("orange", "red", "gray", "missing"):
+                self.setToolTip("Pipeline Engines & Settings (Engines Missing / Attention Needed)")
+            else:
+                self.setToolTip("Pipeline Engines & Settings")
+            self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        # Suppress dot when operational or no status
+        if not self._status or self._status in ("none", "green", "normal"):
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._status == "yellow":
+            dot_color = QColor("#e5a50a")
+        elif self._status in ("orange", "red", "gray", "missing"):
+            dot_color = QColor("#e67e22")
+        else:
+            dot_color = QColor("#e67e22")
+        painter.setBrush(QBrush(dot_color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(self.width() - 9, 5, 6, 6)
+        painter.end()
+
+
+class EngineRowWidget(QFrame):
+    """Individual engine item widget with role, version badge, refresh button, and inline progress bar."""
+    def __init__(self, tool_name: str, on_update_clicked, parent=None):
+        super().__init__(parent)
+        self.tool_name = tool_name
+        self.on_update_clicked = on_update_clicked
+        self.tool_info = DEPENDENCY_TOOLS.get(tool_name, {})
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setStyleSheet("""
+            QFrame {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 6px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        vbox = QVBoxLayout(self)
+        vbox.setContentsMargins(10, 6, 10, 6)
+        vbox.setSpacing(4)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(8)
+
+        # Icon / Avatar
+        icon_str = self.tool_info.get("icon", "⚙️")
+        lbl_icon = QLabel(icon_str)
+        lbl_icon.setFixedWidth(20)
+        lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        top_row.addWidget(lbl_icon)
+
+        # Name + Role
+        info_vbox = QVBoxLayout()
+        info_vbox.setSpacing(0)
+
+        name_row = QHBoxLayout()
+        name_row.setSpacing(6)
+        self.lbl_name = QLabel(self.tool_name)
+        font_name = QFont()
+        font_name.setBold(True)
+        font_name.setPointSize(10)
+        self.lbl_name.setFont(font_name)
+        name_row.addWidget(self.lbl_name)
+
+        self.lbl_dot = QLabel("●")
+        self.lbl_dot.setStyleSheet("color: #888888; font-size: 8px;")
+        name_row.addWidget(self.lbl_dot)
+        name_row.addStretch()
+        info_vbox.addLayout(name_row)
+
+        self.lbl_role = QLabel(self.tool_info.get("role", ""))
+        self.lbl_role.setStyleSheet("color: palette(placeholder-text); font-size: 10.5px;")
+        self.lbl_role.setToolTip(self.tool_info.get("desc", "") or self.tool_info.get("role", ""))
+        info_vbox.addWidget(self.lbl_role)
+        top_row.addLayout(info_vbox, stretch=1)
+
+        # Version Pill Badge (initialized synchronously from local cache)
+        self.lbl_version = QLabel("Installed")
+        font_ver = QFont()
+        font_ver.setPointSize(9)
+        self.lbl_version.setFont(font_ver)
+        from core.media_downloader import get_local_tool_path
+        if get_local_tool_path(self.tool_name):
+            self.lbl_dot.setStyleSheet("color: #2ec27e; font-size: 8px;")
+            self.lbl_version.setText("Installed")
+            self.lbl_version.setStyleSheet("""
+                background-color: palette(base);
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                padding: 2px 6px;
+                color: #2ec27e;
+                font-weight: bold;
+            """)
+        else:
+            self.lbl_dot.setStyleSheet("color: #e67e22; font-size: 8px;")
+            self.lbl_version.setText("Not Installed")
+            self.lbl_version.setStyleSheet("""
+                background-color: palette(base);
+                border: 1px solid #e67e22;
+                border-radius: 4px;
+                padding: 2px 6px;
+                color: #e67e22;
+            """)
+        top_row.addWidget(self.lbl_version)
+
+        # Refresh / Update Button
+        self.btn_refresh = QToolButton()
+        self.btn_refresh.setText("↻")
+        self.btn_refresh.setFixedSize(24, 24)
+        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_refresh.setToolTip(f"Check / Update {self.tool_name}")
+        self.btn_refresh.setStyleSheet("""
+            QToolButton {
+                border-radius: 4px;
+                border: 1px solid palette(mid);
+                background-color: palette(button);
+                color: palette(button-text);
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QToolButton:hover {
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }
+        """)
+        self.btn_refresh.clicked.connect(lambda: self.on_update_clicked(self.tool_name))
+        top_row.addWidget(self.btn_refresh)
+
+        vbox.addLayout(top_row)
+
+        # Micro progress bar (hidden by default)
+        self.progress_bar = AndroidProgressBar()
+        self.progress_bar.setFixedHeight(4)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
+        vbox.addWidget(self.progress_bar)
+
+        self.lbl_progress_meta = QLabel()
+        self.lbl_progress_meta.setStyleSheet("font-size: 10px; color: #e5a50a;")
+        self.lbl_progress_meta.setVisible(False)
+        vbox.addWidget(self.lbl_progress_meta)
+
+    def set_status(self, display_text: str, status_color: str):
+        ver_text = display_text
+        if display_text.startswith(f"{self.tool_name} (") and display_text.endswith(")"):
+            ver_text = display_text[len(self.tool_name) + 2 : -1]
+
+        if status_color == "yellow":
+            self.lbl_dot.setStyleSheet("color: #e5a50a; font-size: 8px;")
+            if "Update Available" in ver_text or "Update Available" in display_text:
+                self.lbl_version.setText("Update Available")
+                self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e5a50a; border-radius: 4px; padding: 2px 6px; color: #e5a50a; font-weight: bold;")
+                self.lbl_version.setToolTip(ver_text)
+                self.btn_refresh.setEnabled(True)
+                self.progress_bar.setVisible(False)
+                self.lbl_progress_meta.setVisible(False)
+            else:
+                self.lbl_version.setText("Updating...")
+                self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e5a50a; border-radius: 4px; padding: 2px 6px; color: #e5a50a; font-weight: bold;")
+                self.btn_refresh.setEnabled(False)
+                self.progress_bar.setVisible(True)
+                self.lbl_progress_meta.setVisible(True)
+                self.lbl_progress_meta.setText(ver_text)
+                if "MB" in ver_text:
+                    m = re.search(r"([\d.]+)\s*MB\s*/\s*([\d.]+)\s*MB", ver_text)
+                    if m:
+                        dl = float(m.group(1))
+                        tot = float(m.group(2))
+                        pct = int((dl / tot) * 100) if tot > 0 else 0
+                        self.progress_bar.setRange(0, 100)
+                        self.progress_bar.setValue(pct)
+                    else:
+                        self.progress_bar.setRange(0, 0)
+                else:
+                    self.progress_bar.setRange(0, 0)
+        elif status_color == "green":
+            self.lbl_dot.setStyleSheet("color: #2ec27e; font-size: 8px;")
+            self.lbl_version.setText(ver_text)
+            self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid palette(mid); border-radius: 4px; padding: 2px 6px; color: #2ec27e; font-weight: bold;")
+            self.lbl_version.setToolTip("")
+            self.btn_refresh.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            self.lbl_progress_meta.setVisible(False)
+        else:
+            self.lbl_dot.setStyleSheet("color: #e67e22; font-size: 8px;")
+            self.lbl_version.setText(ver_text if ver_text not in ("orange", "red", "gray") else "Not Installed")
+            self.lbl_version.setStyleSheet("background-color: palette(base); border: 1px solid #e67e22; border-radius: 4px; padding: 2px 6px; color: #e67e22;")
+            self.btn_refresh.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            self.lbl_progress_meta.setVisible(False)
+
+
+class MediaDownloaderOptionsHub(QFrame):
+    """
+    Modern popover control center for runtime engines and media pipeline options.
+    """
+    def __init__(self, dialog, parent=None):
+        super().__init__(dialog, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.dialog = dialog
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setObjectName("optionsHubRoot")
+        self.setFixedWidth(480)
+        self.setStyleSheet("""
+            QFrame#optionsHubRoot {
+                background-color: transparent;
+                border: none;
+            }
+            QFrame#optionsHubCard {
+                background-color: palette(window);
+                border: 1px solid palette(mid);
+                border-radius: 10px;
+            }
+        """)
+
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setSpacing(0)
+
+        self.card = QFrame(self)
+        self.card.setObjectName("optionsHubCard")
+
+        shadow = QGraphicsDropShadowEffect(self.card)
+        shadow.setBlurRadius(16)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        shadow.setOffset(0, 4)
+        self.card.setGraphicsEffect(shadow)
+
+        root_layout.addWidget(self.card)
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self.card)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        header_layout = QHBoxLayout()
+        lbl_title_icon = QLabel("⚡")
+        lbl_title_icon.setStyleSheet("font-size: 14px;")
+        header_layout.addWidget(lbl_title_icon)
+
+        lbl_title = QLabel("Pipeline Engines")
+        font_t = QFont()
+        font_t.setBold(True)
+        font_t.setPointSize(11)
+        lbl_title.setFont(font_t)
+        header_layout.addWidget(lbl_title)
+
+        self.lbl_summary_badge = QLabel("● Checking...")
+        self.lbl_summary_badge.setStyleSheet("""
+            font-size: 11px;
+            font-weight: bold;
+            color: #2ec27e;
+            background-color: palette(alternate-base);
+            border: 1px solid palette(mid);
+            border-radius: 10px;
+            padding: 2px 8px;
+        """)
+        header_layout.addWidget(self.lbl_summary_badge)
+        header_layout.addStretch()
+
+        self.btn_update_all = QPushButton("Update All")
+        self.btn_update_all.setFixedHeight(28)
+        self.btn_update_all.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_update_all.setStyleSheet("""
+            QPushButton {
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 4px;
+                padding: 0 12px;
+            }
+            QPushButton:hover {
+                background-color: palette(highlight);
+                opacity: 0.9;
+            }
+        """)
+        self.btn_update_all.clicked.connect(self.dialog.update_all_dependencies)
+        header_layout.addWidget(self.btn_update_all)
+        layout.addLayout(header_layout)
+
+        self.engine_rows = {}
+        for tool in ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]:
+            row_widget = EngineRowWidget(tool, on_update_clicked=self.dialog.update_single_dependency, parent=self)
+            self.engine_rows[tool] = row_widget
+            layout.addWidget(row_widget)
+
+        self._refresh_summary()
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setStyleSheet("border: none; background-color: palette(mid); max-height: 1px;")
+        layout.addWidget(sep)
+
+        footer_layout = QHBoxLayout()
+        btn_open_folder = QPushButton("📁 Open Binaries Folder")
+        btn_open_folder.setFlat(True)
+        btn_open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_open_folder.setStyleSheet("font-size: 11px; color: palette(highlight); text-align: left; padding: 2px;")
+        btn_open_folder.clicked.connect(self._open_bin_folder)
+        footer_layout.addWidget(btn_open_folder)
+
+        footer_layout.addStretch()
+
+        btn_options = QPushButton("⚙️ Media Options...")
+        btn_options.setFlat(True)
+        btn_options.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_options.setStyleSheet("font-size: 11px; color: palette(highlight); text-align: right; padding: 2px;")
+        btn_options.clicked.connect(self._open_options_dialog)
+        footer_layout.addWidget(btn_options)
+
+        layout.addLayout(footer_layout)
+
+    def _open_bin_folder(self):
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(BIN_DIR)))
+
+    def _open_options_dialog(self):
+        self.hide()
+        main_win = self.dialog.main_win
+        if main_win and hasattr(main_win, "open_options"):
+            main_win.open_options("media")
+        else:
+            from ui.dialogs import OptionsDialog
+            dlg = OptionsDialog(main_window=main_win, parent=self.dialog, initial_tab="media")
+            dlg.exec()
+
+    def update_engine(self, tool_name: str, display_text: str, status_color: str):
+        if tool_name in self.engine_rows:
+            self.engine_rows[tool_name].set_status(display_text, status_color)
+        self._refresh_summary()
+
+    def _refresh_summary(self):
+        any_updating = False
+        any_update_available = False
+        all_ready = True
+        ready_count = 0
+        for r in self.engine_rows.values():
+            ver_text = r.lbl_version.text()
+            if r.progress_bar.isVisible() or "Updating" in ver_text:
+                any_updating = True
+            if "Update Available" in ver_text or ("update" in ver_text.lower() and "updating" not in ver_text.lower()):
+                any_update_available = True
+            if "color: #2ec27e" in r.lbl_version.styleSheet():
+                ready_count += 1
+            else:
+                all_ready = False
+
+        if any_updating:
+            self.lbl_summary_badge.setText("↻ Updating...")
+            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #e5a50a; background-color: palette(alternate-base); border: 1px solid #e5a50a; border-radius: 10px; padding: 2px 8px;")
+            self.dialog.btn_three_dots.set_status("yellow")
+        elif any_update_available:
+            self.lbl_summary_badge.setText("↻ Update Available")
+            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #e5a50a; background-color: palette(alternate-base); border: 1px solid #e5a50a; border-radius: 10px; padding: 2px 8px;")
+            self.dialog.btn_three_dots.set_status("yellow")
+        elif not all_ready:
+            self.lbl_summary_badge.setText(f"● {ready_count}/5 Ready")
+            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #e67e22; background-color: palette(alternate-base); border: 1px solid #e67e22; border-radius: 10px; padding: 2px 8px;")
+            self.dialog.btn_three_dots.set_status("orange")
+        else:
+            self.lbl_summary_badge.setText("● 5 Operational")
+            self.lbl_summary_badge.setStyleSheet("font-size: 11px; font-weight: bold; color: #2ec27e; background-color: palette(alternate-base); border: 1px solid #2ec27e; border-radius: 10px; padding: 2px 8px;")
+            self.dialog.btn_three_dots.set_status(None)
+
+
 class MediaDownloaderDialog(QDialog):
     """
     Top-level Media Downloader Window.
@@ -283,96 +693,6 @@ class MediaDownloaderDialog(QDialog):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
 
-        # 0. Dependency Engines & Status Section
-        dep_frame = QFrame()
-        dep_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        dep_frame.setStyleSheet("""
-            QFrame {
-                background-color: palette(alternate-base);
-                border: 1px solid palette(mid);
-                border-radius: 6px;
-            }
-        """)
-        dep_layout = QHBoxLayout(dep_frame)
-        dep_layout.setContentsMargins(10, 6, 10, 6)
-        dep_layout.setSpacing(10)
-
-        lbl_dep_title = QLabel("Engines:")
-        font_dep_title = QFont()
-        font_dep_title.setBold(True)
-        lbl_dep_title.setFont(font_dep_title)
-        dep_layout.addWidget(lbl_dep_title)
-
-        self.dep_tools = {}
-        tool_names = ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
-        for tool in tool_names:
-            box = QFrame()
-            box.setFrameShape(QFrame.Shape.StyledPanel)
-            box.setStyleSheet("""
-                QFrame {
-                    background-color: palette(base);
-                    border: 1px solid palette(mid);
-                    border-radius: 6px;
-                }
-                QLabel {
-                    border: none;
-                    background: transparent;
-                }
-            """)
-            box_layout = QHBoxLayout(box)
-            box_layout.setContentsMargins(8, 4, 8, 4)
-            box_layout.setSpacing(6)
-            box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            lbl_name = QLabel(tool)
-            lbl_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            font_name = QFont()
-            font_name.setPointSize(9)
-            font_name.setBold(True)
-            lbl_name.setFont(font_name)
-            lbl_name.setStyleSheet("color: gray; font-weight: bold;")
-
-            btn_info = QToolButton()
-            btn_info.setText("ⓘ")
-            btn_info.setFixedSize(18, 18)
-            btn_info.setToolTip(f"{tool}: Checking status...")
-            btn_info.setStyleSheet("""
-                QToolButton {
-                    border-radius: 9px;
-                    border: 1px solid palette(mid);
-                    background-color: palette(button);
-                    color: palette(button-text);
-                    font-size: 10px;
-                    font-weight: bold;
-                }
-                QToolButton:hover {
-                    background-color: palette(highlight);
-                    color: palette(highlighted-text);
-                }
-            """)
-            btn_info.clicked.connect(lambda _, t=tool, b=btn_info: QToolTip.showText(b.mapToGlobal(b.rect().center()), b.toolTip(), b))
-
-            box_layout.addWidget(lbl_name)
-            box_layout.addWidget(btn_info)
-
-            self.dep_tools[tool] = {
-                "name_label": lbl_name,
-                "info_btn": btn_info,
-                "box": box
-            }
-            dep_layout.addWidget(box)
-
-        dep_layout.addStretch()
-
-        self.btn_update_deps = QPushButton("Update")
-        self.btn_update_deps.setFixedHeight(30)
-        self.btn_update_deps.setFixedWidth(80)
-        self.btn_update_deps.setToolTip("Check and download latest yt-dlp, ffmpeg, ffprobe, deno, and AtomicParsley engines")
-        self.btn_update_deps.clicked.connect(self.update_all_dependencies)
-        dep_layout.addWidget(self.btn_update_deps)
-
-        main_layout.addWidget(dep_frame)
-
         # 1. Header Area: "Enter URL"
         lbl_header = QLabel("Enter URL")
         header_font = QFont()
@@ -408,146 +728,26 @@ class MediaDownloaderDialog(QDialog):
         self.btn_analyze.setToolTip("Parse media formats or playlist items using yt-dlp")
         self.btn_analyze.clicked.connect(self._on_analyze_or_stop_clicked)
 
-        self.btn_prefs = QPushButton("🍪 Cookies ▾")
-        self.btn_prefs.setFixedHeight(34)
-        self.btn_prefs.setFixedWidth(130)
-        self.btn_prefs.setCheckable(True)
-        self.btn_prefs.setToolTip("Configure Browser Cookies & Authentication (cookies.txt / Auto-Extract)")
-        self.btn_prefs.clicked.connect(self._toggle_cookies_prefs)
+        self.btn_three_dots = ThreeDotsButton(self)
+        self.btn_three_dots.clicked.connect(self._toggle_options_hub)
 
         input_layout.addWidget(self.txt_url)
         input_layout.addWidget(self.btn_paste)
         input_layout.addWidget(self.btn_analyze)
-        input_layout.addWidget(self.btn_prefs)
+        input_layout.addWidget(self.btn_three_dots)
         main_layout.addLayout(input_layout)
 
-        # 2b. Cookies & Authentication Configuration Panel (Software Engineering UI Standard)
-        self.frame_cookies_prefs = QFrame()
-        self.frame_cookies_prefs.setObjectName("cookiesPrefsFrame")
-        self.frame_cookies_prefs.setFrameShape(QFrame.Shape.NoFrame)
-        self.frame_cookies_prefs.setStyleSheet("""
-            QFrame#cookiesPrefsFrame {
-                background-color: palette(alternate-base);
-                border: 1px solid palette(mid);
-                border-radius: 8px;
+        # Popover Options Hub
+        self.options_hub = MediaDownloaderOptionsHub(self)
+        self.btn_update_deps = self.options_hub.btn_update_all
+        self.dep_tools = {
+            tool: {
+                "name_label": row.lbl_name,
+                "info_btn": row.btn_refresh,
+                "box": row
             }
-            QFrame#cookiesPrefsFrame QLabel {
-                background: transparent;
-                border: none;
-            }
-        """)
-        self.frame_cookies_prefs.hide()
-
-        cookies_layout = QVBoxLayout(self.frame_cookies_prefs)
-        cookies_layout.setContentsMargins(14, 12, 14, 12)
-        cookies_layout.setSpacing(10)
-
-        # Header Row with Mode Selector
-        auth_header_layout = QHBoxLayout()
-        lbl_cookies_header = QLabel("Authentication & Cookie Vault")
-        font_c = QFont()
-        font_c.setBold(True)
-        lbl_cookies_header.setFont(font_c)
-        auth_header_layout.addWidget(lbl_cookies_header)
-        auth_header_layout.addStretch()
-
-        lbl_mode = QLabel("Auth Source:")
-        lbl_mode.setStyleSheet("font-weight: bold; font-size: 11px;")
-        self.cmb_cookies_mode = QComboBox()
-        self.cmb_cookies_mode.setFixedHeight(28)
-        self.cmb_cookies_mode.addItems([
-            "Netscape cookies.txt File",
-            "Auto-Extract from Browser",
-            "None (Direct Public Access)"
-        ])
-        self.cmb_cookies_mode.currentIndexChanged.connect(self._on_cookies_mode_changed)
-        auth_header_layout.addWidget(lbl_mode)
-        auth_header_layout.addWidget(self.cmb_cookies_mode)
-        cookies_layout.addLayout(auth_header_layout)
-
-        # Stack for Mode Controls
-        self.stack_cookies = QStackedWidget()
-
-        # Page 0: Netscape cookies.txt File Mode
-        page_file = QWidget()
-        page_file_layout = QVBoxLayout(page_file)
-        page_file_layout.setContentsMargins(0, 0, 0, 0)
-        page_file_layout.setSpacing(6)
-
-        file_row = QHBoxLayout()
-        file_row.setSpacing(8)
-        lbl_manual_path = QLabel("File Path:")
-        self.txt_cookies_path = QLineEdit()
-        self.txt_cookies_path.setPlaceholderText("Select or paste absolute path to cookies.txt...")
-        self.txt_cookies_path.setFixedHeight(28)
-        self.txt_cookies_path.textChanged.connect(self._on_cookies_text_changed)
-
-        self.btn_browse_cookies = QPushButton("Browse...")
-        self.btn_browse_cookies.setFixedHeight(28)
-        self.btn_browse_cookies.setToolTip("Select Netscape formatted cookies.txt file from disk")
-        self.btn_browse_cookies.clicked.connect(self._on_browse_cookies_clicked)
-
-        self.btn_clear_cookies = QPushButton("Clear")
-        self.btn_clear_cookies.setFixedHeight(28)
-        self.btn_clear_cookies.setToolTip("Clear selected cookies configuration")
-        self.btn_clear_cookies.clicked.connect(self._on_clear_cookies_clicked)
-
-        file_row.addWidget(lbl_manual_path)
-        file_row.addWidget(self.txt_cookies_path, stretch=1)
-        file_row.addWidget(self.btn_browse_cookies)
-        file_row.addWidget(self.btn_clear_cookies)
-        page_file_layout.addLayout(file_row)
-
-        self.lbl_cookies_status = QLabel("No cookies file configured.")
-        self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: gray;")
-        page_file_layout.addWidget(self.lbl_cookies_status)
-
-        self.stack_cookies.addWidget(page_file)
-
-        # Page 1: Browser Extraction Mode
-        page_browser = QWidget()
-        page_browser_layout = QHBoxLayout(page_browser)
-        page_browser_layout.setContentsMargins(0, 0, 0, 0)
-        page_browser_layout.setSpacing(8)
-
-        lbl_browser_sel = QLabel("Installed Browser:")
-        self.cmb_cookies_browser = QComboBox()
-        self.cmb_cookies_browser.setFixedHeight(28)
-        self.cmb_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera", "Safari"])
-        self.cmb_cookies_browser.currentIndexChanged.connect(self._save_cookies_path_permanently)
-
-        lbl_browser_hint = QLabel("• Auto-loads session auth cookies via yt-dlp native extraction.")
-        lbl_browser_hint.setStyleSheet("font-size: 11px; color: gray;")
-
-        page_browser_layout.addWidget(lbl_browser_sel)
-        page_browser_layout.addWidget(self.cmb_cookies_browser)
-        page_browser_layout.addWidget(lbl_browser_hint, stretch=1)
-
-        self.stack_cookies.addWidget(page_browser)
-
-        # Page 2: None / Anonymous Mode
-        page_none = QWidget()
-        page_none_layout = QHBoxLayout(page_none)
-        page_none_layout.setContentsMargins(0, 0, 0, 0)
-        lbl_none_hint = QLabel("Anonymous access active. Standard public streams will be fetched without cookies.")
-        lbl_none_hint.setStyleSheet("font-size: 11px; color: gray; font-style: italic;")
-        page_none_layout.addWidget(lbl_none_hint)
-
-        self.stack_cookies.addWidget(page_none)
-
-        cookies_layout.addWidget(self.stack_cookies)
-
-        # Information & Security note
-        self.lbl_cookies_info = QLabel(
-            '🔒 <b>Local Execution:</b> Cookies are read strictly locally, never shared. • <a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: palette(highlight); text-decoration: underline;">How to export cookies.txt guide</a>'
-        )
-        self.lbl_cookies_info.setStyleSheet("font-size: 11px; color: palette(window-text); opacity: 0.85;")
-        self.lbl_cookies_info.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_cookies_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        self.lbl_cookies_info.setOpenExternalLinks(True)
-        cookies_layout.addWidget(self.lbl_cookies_info)
-
-        main_layout.addWidget(self.frame_cookies_prefs)
+            for tool, row in self.options_hub.engine_rows.items()
+        }
 
         # 3. Status Bar & Progress
         self.lbl_status = QLabel("Ready")
@@ -872,7 +1072,8 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.tbl_playlist.setItemDelegateForColumn(0, CheckableTableItemDelegate(self.tbl_playlist))
+        self._playlist_delegate = CheckableTableItemDelegate(self.tbl_playlist)
+        self.tbl_playlist.setItemDelegateForColumn(0, self._playlist_delegate)
 
         font_pl_tbl = self.tbl_playlist.font()
         font_pl_tbl.setFeature(QFont.Tag.fromString('tnum'), 1)
@@ -880,11 +1081,24 @@ class MediaDownloaderDialog(QDialog):
 
         layout.addWidget(self.tbl_playlist, stretch=1)
 
-    def check_all_dependencies(self, force_download: bool = False):
+    def _toggle_options_hub(self):
+        if self.options_hub.isVisible():
+            self.options_hub.hide()
+        else:
+            global_pos = self.btn_three_dots.mapToGlobal(QPoint(0, self.btn_three_dots.height() + 4))
+            x = global_pos.x() + self.btn_three_dots.width() - self.options_hub.width() + 10
+            y = global_pos.y() - 10
+            self.options_hub.move(x, y)
+            self.options_hub.show()
+            self.options_hub.raise_()
+
+    def check_all_dependencies(self, force_download: bool = False, target_tool: str = ""):
         """Spawns DependencyManagerWorker to verify and install missing engines."""
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             if force_download:
                 try:
+                    self._dep_worker.tool_status_signal.disconnect()
+                    self._dep_worker.all_finished_signal.disconnect()
                     self._dep_worker.requestInterruption()
                     self._dep_worker.quit()
                     self._dep_worker.wait(1000)
@@ -896,47 +1110,28 @@ class MediaDownloaderDialog(QDialog):
             else:
                 return
 
-        self._dep_worker = DependencyManagerWorker(force_download=force_download)
+        self._dep_worker = DependencyManagerWorker(force_download=force_download, target_tool=target_tool)
         self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
         self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
         self._dep_worker.start()
 
     def update_all_dependencies(self):
         """Forces checking and updating of all 5 dependency tools."""
-        self.btn_update_deps.setText("Checking...")
-        self.btn_update_deps.setEnabled(False)
-        for tool, item in self.dep_tools.items():
-            item["name_label"].setStyleSheet("color: #e5a50a; font-weight: bold;")
-            item["info_btn"].setToolTip(f"{tool}: Checking for updates...")
+        self.options_hub.btn_update_all.setText("Checking...")
+        self.options_hub.btn_update_all.setEnabled(False)
         self.check_all_dependencies(force_download=True)
 
+    def update_single_dependency(self, tool_name: str):
+        """Checks and updates a single dependency tool."""
+        self.check_all_dependencies(force_download=True, target_tool=tool_name)
+
     def _on_all_deps_finished(self):
-        self.btn_update_deps.setText("Update")
-        self.btn_update_deps.setEnabled(True)
+        self.options_hub.btn_update_all.setText("Update All")
+        self.options_hub.btn_update_all.setEnabled(True)
+        self.options_hub._refresh_summary()
 
     def _on_dep_status_updated(self, tool_name: str, display_text: str, status_color: str):
-        if tool_name in self.dep_tools:
-            item = self.dep_tools[tool_name]
-            lbl_name = item["name_label"]
-            btn_info = item["info_btn"]
-
-            ver_text = display_text
-            if display_text.startswith(f"{tool_name} (") and display_text.endswith(")"):
-                ver_text = display_text[len(tool_name) + 2 : -1]
-
-            if status_color == "yellow":
-                dl_label = ver_text if ("Downloading" in ver_text or "Checking" in ver_text) else f"{ver_text} Downloading..."
-                lbl_name.setText(f"{tool_name} ({dl_label})")
-                lbl_name.setStyleSheet("color: #e5a50a; font-weight: bold;")
-                btn_info.setToolTip(f"{tool_name}: ({dl_label})")
-            elif status_color == "green":
-                lbl_name.setText(tool_name)
-                lbl_name.setStyleSheet("color: #2ec27e; font-weight: bold;")
-                btn_info.setToolTip(f"{tool_name} Version: {ver_text}")
-            else:
-                lbl_name.setText(tool_name)
-                lbl_name.setStyleSheet("color: gray; font-weight: bold;")
-                btn_info.setToolTip(f"{tool_name}: Not Installed")
+        self.options_hub.update_engine(tool_name, display_text, status_color)
 
     def _on_ctrl_v_paste(self):
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
@@ -970,82 +1165,24 @@ class MediaDownloaderDialog(QDialog):
         self._finish_loading()
         self.lbl_status.setText("Analysis cancelled.")
 
-    def _toggle_cookies_prefs(self):
-        is_open = self.btn_prefs.isChecked()
-        self.frame_cookies_prefs.setVisible(is_open)
-        self.btn_prefs.setText("🍪 Cookies ▴" if is_open else "🍪 Cookies ▾")
-
-    def _on_cookies_mode_changed(self, idx: int):
-        if hasattr(self, "stack_cookies"):
-            self.stack_cookies.setCurrentIndex(idx)
-        self._save_cookies_path_permanently()
-
-    def _on_cookies_text_changed(self, text: str):
-        self._update_cookies_status_indicator()
-        self._save_cookies_path_permanently()
-
-    def _update_cookies_status_indicator(self):
-        if not hasattr(self, "lbl_cookies_status") or not hasattr(self, "txt_cookies_path"):
-            return
-        c_path = self.txt_cookies_path.text().strip()
-        if not c_path:
-            self.lbl_cookies_status.setText("No cookies file configured.")
-            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: gray;")
-            if hasattr(self, "btn_prefs"):
-                self.btn_prefs.setToolTip("Configure Browser Cookies & Authentication (cookies.txt / Auto-Extract)")
-            return
-        if not os.path.exists(c_path):
-            self.lbl_cookies_status.setText(f"⚠️ File does not exist: {c_path}")
-            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
-            if hasattr(self, "btn_prefs"):
-                self.btn_prefs.setToolTip(f"Cookies: ⚠️ File not found ({c_path})")
-            return
-        try:
-            sz = os.path.getsize(c_path)
-            sz_str = f"{sz / 1024:.1f} KB" if sz >= 1024 else f"{sz} B"
-            self.lbl_cookies_status.setText(f"✓ Valid Netscape Cookie file ({sz_str}) • Ready for yt-dlp authentication")
-            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #2ec27e; font-weight: bold;")
-            if hasattr(self, "btn_prefs"):
-                self.btn_prefs.setToolTip(f"Cookies Active: Netscape ({sz_str})")
-        except Exception as e:
-            self.lbl_cookies_status.setText(f"⚠️ Error accessing file: {e}")
-            self.lbl_cookies_status.setStyleSheet("font-size: 11px; color: #e5a50a;")
-
-    def _on_browse_cookies_clicked(self):
-        from core.utils import choose_portal_open_file_path, get_user_home_dir
-
-        file_path = choose_portal_open_file_path(title="Select Cookies File", folder=get_user_home_dir())
-        if file_path is None:
-            file_path, _ = QFileDialog.getOpenFileName(
-                self,
-                "Select Cookies File",
-                get_user_home_dir(),
-                "Text Files (*.txt);;All Files (*)"
-            )
-        if file_path:
-            self.txt_cookies_path.setText(file_path)
-            self._update_cookies_status_indicator()
-            self._save_cookies_path_permanently()
-
-    def _on_clear_cookies_clicked(self):
-        self.txt_cookies_path.clear()
-        self._update_cookies_status_indicator()
-        self._save_cookies_path_permanently()
-
     def _get_cookies_args(self):
-        mode_idx = self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0
-        if mode_idx == 1:  # Browser Auto-Extract
-            browser = self.cmb_cookies_browser.currentText().lower() if hasattr(self, "cmb_cookies_browser") else None
-            return browser, None
-        elif mode_idx == 2:  # None
-            return None, None
-        else:  # Netscape File Mode (Index 0 / Default)
-            c_path = self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else ""
-            if not c_path:
-                c_path = getattr(self, "_cookies_file", "") or ""
-            if c_path and os.path.exists(c_path):
-                return None, c_path
-            return None, None
+        """Resolves cookies configuration from caller context or persistent application options."""
+        c_path = getattr(self, "_cookies_file", "") or ""
+        if c_path and os.path.exists(c_path):
+            return None, c_path
+        try:
+            from core.config import load_category_config
+            cfg = load_category_config()
+            media_defaults = cfg.get("media_downloader_defaults", {})
+            opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+            opt_cbrowser = cfg.get("media_downloader_cookies_browser") or media_defaults.get("cookies_browser", "")
+            if opt_cpath and os.path.exists(opt_cpath):
+                return None, opt_cpath
+            elif opt_cbrowser and opt_cbrowser.lower() != "none":
+                return opt_cbrowser.lower(), None
+        except Exception:
+            pass
+        return None, None
 
     def set_request_context(self, referrer=None, user_agent=None, custom_title=None, cookies=None, estimated_size_bytes=0, cookies_file=None):
         """Sets incoming HTTP context (referrer, user-agent), cookies, custom title, and estimated size for media analysis and downloads."""
@@ -1056,8 +1193,6 @@ class MediaDownloaderDialog(QDialog):
         self._estimated_size_bytes = estimated_size_bytes
         if cookies_file:
             self._cookies_file = cookies_file
-            if hasattr(self, "txt_cookies_path"):
-                self.txt_cookies_path.setText(cookies_file)
 
     def analyze_and_download(self, url: str, auto_start: bool = False, target_preset: str = ""):
         """Sets URL, applies auto-start flags, and initiates analysis."""
@@ -1648,26 +1783,6 @@ class MediaDownloaderDialog(QDialog):
         if not use_manual:
             self.tbl_formats.clearSelection()
 
-        mode_idx = prefs.get("cookies_mode_idx", 0)
-        if hasattr(self, "cmb_cookies_mode"):
-            self.cmb_cookies_mode.blockSignals(True)
-            self.cmb_cookies_mode.setCurrentIndex(min(max(0, mode_idx), self.cmb_cookies_mode.count() - 1))
-            self.cmb_cookies_mode.blockSignals(False)
-            if hasattr(self, "stack_cookies"):
-                self.stack_cookies.setCurrentIndex(self.cmb_cookies_mode.currentIndex())
-
-        browser_name = config.get("media_downloader_cookies_browser", prefs.get("cookies_browser", "Chrome"))
-        if hasattr(self, "cmb_cookies_browser"):
-            idx_b = self.cmb_cookies_browser.findText(browser_name, Qt.MatchFlag.MatchFixedString)
-            if idx_b >= 0:
-                self.cmb_cookies_browser.setCurrentIndex(idx_b)
-
-        c_path = config.get("media_downloader_cookies_path", prefs.get("cookies_path", ""))
-        self.txt_cookies_path.blockSignals(True)
-        self.txt_cookies_path.setText(c_path)
-        self.txt_cookies_path.blockSignals(False)
-        self._update_cookies_status_indicator()
-
         self.cmb_quality_preset.blockSignals(False)
         self.cmb_video_format.blockSignals(False)
         self.cmb_audio_format.blockSignals(False)
@@ -1683,24 +1798,6 @@ class MediaDownloaderDialog(QDialog):
         config["media_downloader_defaults"] = defaults
         save_category_config(config)
 
-    def _save_cookies_path_permanently(self):
-        """Always save cookies configurations persistently across app restarts."""
-        from core.config import load_category_config, save_category_config
-        config = load_category_config()
-        path = self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else ""
-        config["media_downloader_cookies_path"] = path
-        
-        mode_idx = self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0
-        browser_name = self.cmb_cookies_browser.currentText() if hasattr(self, "cmb_cookies_browser") else "Chrome"
-        config["media_downloader_cookies_browser"] = browser_name
-
-        defaults = config.get("media_downloader_defaults", {})
-        defaults["cookies_path"] = path
-        defaults["cookies_mode_idx"] = mode_idx
-        defaults["cookies_browser"] = browser_name
-        config["media_downloader_defaults"] = defaults
-        save_category_config(config)
-
     def _save_preferences_if_enabled(self):
         if hasattr(self, "chk_save_defaults") and self.chk_save_defaults.isChecked():
             from core.config import load_category_config, save_category_config
@@ -1712,9 +1809,6 @@ class MediaDownloaderDialog(QDialog):
                 "audio_format_idx": self.cmb_audio_format.currentIndex(),
                 "use_manual_selection": self.chk_manual_selection.isChecked(),
                 "save_defaults": True,
-                "cookies_path": self.txt_cookies_path.text().strip() if hasattr(self, "txt_cookies_path") else "",
-                "cookies_mode_idx": self.cmb_cookies_mode.currentIndex() if hasattr(self, "cmb_cookies_mode") else 0,
-                "cookies_browser": self.cmb_cookies_browser.currentText() if hasattr(self, "cmb_cookies_browser") else "Chrome",
                 "auto_start_media": self.chk_auto_start_browser.isChecked() if hasattr(self, "chk_auto_start_browser") else defaults.get("auto_start_media", False)
             })
             config["media_downloader_defaults"] = defaults
@@ -1929,7 +2023,7 @@ class MediaDownloaderDialog(QDialog):
                         v_id = m_x_id.group(1) if m_x_id else (self._current_video_data.get("id") or "")
                 filename = sanitize_media_filename(f"{u}-{v_id}" if (u and v_id) else (v_id or title), ext=ext)
             elif (is_youtube or is_popular_platform) and video_id:
-                clean_title = title.strip()
+                clean_title = title.rstrip("-_| ").strip() or title
                 if is_audio_only:
                     full_title = f"{clean_title} [{video_id}]"
                 else:
@@ -2123,6 +2217,16 @@ class MediaDownloaderDialog(QDialog):
             self.close()
 
     def closeEvent(self, event):
+        if hasattr(self, "options_hub") and self.options_hub:
+            try:
+                self.options_hub.close()
+            except Exception:
+                pass
+        if hasattr(self, "tbl_playlist"):
+            try:
+                self.tbl_playlist.setItemDelegateForColumn(0, None)
+            except Exception:
+                pass
         if hasattr(self, "_worker") and self._worker and self._worker.isRunning():
             try:
                 self._worker.stop()
@@ -2136,12 +2240,17 @@ class MediaDownloaderDialog(QDialog):
                 pass
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             try:
+                try:
+                    self._dep_worker.tool_status_signal.disconnect()
+                    self._dep_worker.all_finished_signal.disconnect()
+                except Exception:
+                    pass
                 self._dep_worker.requestInterruption()
                 self._dep_worker.quit()
-                self._dep_worker.wait(2000)
+                self._dep_worker.wait(500)
                 if self._dep_worker.isRunning():
                     self._dep_worker.terminate()
-                    self._dep_worker.wait(2000)
+                    self._dep_worker.wait(500)
             except Exception:
                 pass
         for attr in ("_thumb_worker", "_pl_thumb_worker"):

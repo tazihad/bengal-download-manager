@@ -46,7 +46,10 @@ class CheckableTableItemDelegate(QStyledItemDelegate):
     across all themes, preventing black-on-black invisible checkmarks.
     """
     def initStyleOption(self, option: QStyleOptionViewItem, index):
-        super().initStyleOption(option, index)
+        try:
+            super().initStyleOption(option, index)
+        except RuntimeError:
+            return
         option.state &= ~QStyle.StateFlag.State_HasFocus
         if option.state & QStyle.StateFlag.State_Selected:
             option.palette.setColor(
@@ -55,9 +58,12 @@ class CheckableTableItemDelegate(QStyledItemDelegate):
             )
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        super().paint(painter, opt, index)
+        try:
+            opt = QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            super().paint(painter, opt, index)
+        except RuntimeError:
+            return
 
         check_state = index.data(Qt.ItemDataRole.CheckStateRole)
         is_checked = (check_state in (Qt.CheckState.Checked, 2))

@@ -18,10 +18,11 @@ class Aria2Worker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True):
+    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, **kwargs):
         super().__init__()
         self.url = url
-        self.row_index = row_index
+        self.download_id = kwargs.get("row_index", download_id)
+        self.row_index = self.download_id
         self.save_dir = save_dir
         self.temp_dir = temp_dir
         self.user_agent = user_agent
@@ -32,8 +33,8 @@ class Aria2Worker(QThread):
         self.gid = None
         
         ext_data = load_extension_config()
-        self.rpc_port = ext_data.get("port", 56800)
-        self.rpc_token = ext_data.get("token", "")
+        self.rpc_port = kwargs.get("rpc_port") if kwargs.get("rpc_port") is not None else ext_data.get("port", 56800)
+        self.rpc_token = kwargs.get("rpc_token") if kwargs.get("rpc_token") is not None else ext_data.get("token", "")
         self.rpc_url = f"http://127.0.0.1:{self.rpc_port}/jsonrpc"
         
         if resume_filename:
@@ -140,11 +141,46 @@ class Aria2Worker(QThread):
         active_indices = []
         last_update_time = time.time()
         
+        consecutive_failures = 0
         while self.is_running:
             status = self.call_rpc("aria2.tellStatus", [self.gid])
             if not status:
+                consecutive_failures += 1
+                if consecutive_failures >= 5:
+                    logger.warning("[Aria2Worker] GID %s lost after 5 consecutive status failures", self.gid)
+                    file_to_check = self.target_path if os.path.exists(self.target_path) else os.path.join(self.working_dir, self.filename)
+                    if os.path.exists(file_to_check) and os.path.getsize(file_to_check) > 0 and not os.path.exists(file_to_check + ".aria2"):
+                        total_length = os.path.getsize(file_to_check)
+                        logger.info("[Aria2Worker] Target file %s is intact (%d bytes). Completing download.", file_to_check, total_length)
+                        self.log_signal.emit("Aria2 download verified and completed.")
+                        if file_to_check != self.target_path:
+                            try:
+                                if os.path.exists(self.target_path):
+                                    os.remove(self.target_path)
+                                shutil.move(file_to_check, self.target_path)
+                            except Exception as move_err:
+                                logger.error("[Aria2Worker] Error moving file to final destination: %s", move_err)
+                        self.main_progress_signal.emit(self.row_index, (
+                            self.filename,
+                            self.format_bytes(total_length, precision=2, pad=False),
+                            "Complete",
+                            "",
+                            "",
+                            total_length,
+                            total_length,
+                            0,
+                            getattr(self, 'generation', 0)
+                        ))
+                        self.main_bar_signal.emit(total_length, total_length)
+                        self.finished_signal.emit(self.row_index, "Complete")
+                    else:
+                        self.log_signal.emit("Download lost or failed in Aria2 engine.")
+                        self.finished_signal.emit(self.row_index, "Error")
+                    break
                 time.sleep(1)
                 continue
+
+            consecutive_failures = 0
 
             total_length = int(status.get("totalLength", 0))
             completed_length = int(status.get("completedLength", 0))

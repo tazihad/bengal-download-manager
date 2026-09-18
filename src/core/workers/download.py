@@ -149,10 +149,11 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True):
+    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, **kwargs):
         super().__init__()
         self.url = url
-        self.row_index = row_index
+        self.download_id = kwargs.get("row_index", download_id)
+        self.row_index = self.download_id
         self.save_dir = save_dir
         self.temp_dir = temp_dir
         self.user_agent = user_agent
@@ -192,7 +193,33 @@ class DownloadWorker(QThread):
         self.opener = self.create_opener()
 
     def create_opener(self):
-        return urllib.request.build_opener()
+        import ssl
+        try:
+            import certifi
+            ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            ssl_ctx = ssl.create_default_context()
+
+        try:
+            ssl_ctx.load_default_certs()
+        except Exception:
+            pass
+
+        handlers = [urllib.request.HTTPSHandler(context=ssl_ctx)]
+
+        try:
+            from core.utils import load_proxy_config, get_upstream_proxy_url
+            proxy_cfg = load_proxy_config()
+            if isinstance(proxy_cfg, dict) and proxy_cfg.get("mode") == "manual":
+                ptype = str(proxy_cfg.get("type", "http")).lower()
+                if ptype in ("http", "https"):
+                    purl = get_upstream_proxy_url(proxy_cfg)
+                    if purl:
+                        handlers.append(urllib.request.ProxyHandler({"http": purl, "https": purl}))
+        except Exception:
+            pass
+
+        return urllib.request.build_opener(*handlers)
 
     def set_global_speed_limit(self, limit_bytes_per_sec):
         self.current_global_limit = limit_bytes_per_sec
@@ -239,9 +266,25 @@ class DownloadWorker(QThread):
                 parsed = urlparse(self.url)
                 req.add_header('Referer', f"{parsed.scheme}://{parsed.netloc}/")
 
-            with self.opener.open(req) as response:
-                total_size = int(response.info().get('Content-Length', 0))
-                accept_ranges = response.info().get('Accept-Ranges', 'none')
+            try:
+                with self.opener.open(req) as response:
+                    total_size = int(response.info().get('Content-Length', 0))
+                    accept_ranges = response.info().get('Accept-Ranges', 'none')
+            except urllib.error.URLError as url_err:
+                err_str = str(url_err)
+                if hasattr(url_err, "reason"):
+                    err_str += f" {url_err.reason}"
+                if "CERTIFICATE_VERIFY_FAILED" in err_str:
+                    logger.warning("[DownloadWorker] SSL verification failed (%s). Retrying with unverified SSL fallback...", url_err)
+                    self.log_signal.emit("SSL certificate warning: retrying with fallback security context...")
+                    import ssl
+                    unverified_ctx = ssl._create_unverified_context()
+                    self.opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=unverified_ctx))
+                    with self.opener.open(req) as response:
+                        total_size = int(response.info().get('Content-Length', 0))
+                        accept_ranges = response.info().get('Accept-Ranges', 'none')
+                else:
+                    raise
             
             if is_debug_mode():
                 logger.debug("[DownloadWorker] HEAD response: total_size=%d bytes, accept_ranges=%s for %s", total_size, accept_ranges, self.url)

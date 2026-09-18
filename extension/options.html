@@ -105,7 +105,8 @@
           <div class="form-group">
             <label for="ipc-port">IPC Port</label>
             <input type="number" id="ipc-port" class="form-input" value="56900" min="1024" max="65535">
-            <span class="field-hint">Default is 56900. Change here if you modified the IPC Port in Bengal DM.</span>
+            <span class="field-hint">Default is 56900. Automatically syncs with Bengal DM if active on a backup port.</span>
+            <div id="ipc-port-status" class="port-status-badge"></div>
           </div>
 
           <div class="card-actions">

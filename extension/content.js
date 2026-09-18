@@ -1409,15 +1409,20 @@
   }
 
   // 8. Video Title & Duration Extraction
-  function cleanTitleString(str) {
+  function cleanTitleString(str, isYouTube = false) {
     if (!str || typeof str !== 'string') return "";
     let clean = str.trim();
+    if (isYouTube) {
+      // For YouTube, follow standard media download title handling: preserve full title and '|', only strip trailing "- YouTube" or "| YouTube"
+      clean = clean.replace(/\s*[-–—|]\s*YouTube$/i, '');
+      return clean.trim();
+    }
     // Strip common leading noise
     clean = clean.replace(/^(Watch\s*[:-]?\s*|Streaming\s*[:-]?\s*|Play\s*[:-]?\s*)/i, '');
     // Strip trailing site brandings like "- Vidara", "| Vidara", "- YouTube", "- Vidara.so", " | 123movies", etc.
     clean = clean.replace(/\s*[-–—|]\s*([a-zA-Z0-9.-]+\.(com|org|net|so|to|is|io|me|tv|cc|cx)|Vidara|YouTube|Vimeo|Dailymotion|StreamTape|SuperStream|Flixtor|Fmovies|123movies|BiliBili|Twitch|SoundCloud|Facebook|Twitter|TikTok|Reddit)[^|\-–—]*$/i, '');
     clean = clean.replace(/\s*[-–—|]\s*Watch\s+.*$/i, '');
-    clean = clean.replace(/\s*[-–—|]\s*Official\s+(Website|Site|Stream|Video).*$/i, '');
+    clean = clean.replace(/\s*[-–—|]\s*Official\s+(Website|Site).*$/i, '');
     return clean.trim();
   }
 
@@ -1761,30 +1766,31 @@
       }
     }
 
+    const isYouTubePage = window.location.hostname.includes('youtube.com') || window.location.hostname.includes('youtu.be');
     if (activeIframeData && activeIframeData.title) {
-      const t = cleanTitleString(activeIframeData.title);
+      const t = cleanTitleString(activeIframeData.title, isYouTubePage);
       if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
     }
     if (ytMediaInfo && ytMediaInfo.title) {
-      const t = cleanTitleString(ytMediaInfo.title);
+      const t = cleanTitleString(ytMediaInfo.title, true);
       if (t && !isGenericTitle(t)) return t;
     }
     const ytTitle = document.querySelector('h1.ytd-watch-metadata, #title h1, h1.title');
     if (ytTitle && ytTitle.innerText.trim()) {
-      const t = cleanTitleString(ytTitle.innerText);
+      const t = cleanTitleString(ytTitle.innerText, true);
       if (t && !isGenericTitle(t)) return t;
     }
     if (cachedTabInfo && cachedTabInfo.title) {
-      let t = cleanTitleString(cachedTabInfo.title);
+      let t = cleanTitleString(cachedTabInfo.title, isYouTubePage);
       if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
     }
     const metaTitle = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]');
     if (metaTitle && metaTitle.content && metaTitle.content.trim()) {
-      const t = cleanTitleString(metaTitle.content);
+      const t = cleanTitleString(metaTitle.content, isYouTubePage);
       if (t && !isGenericTitle(t) && !t.toLowerCase().includes('embed') && t.toLowerCase() !== 'index') return t;
     }
     if (video && video.title && video.title.trim()) {
-      const t = cleanTitleString(video.title);
+      const t = cleanTitleString(video.title, isYouTubePage);
       if (t && !isGenericTitle(t)) return t;
     }
     // Check social container captions (Facebook, Instagram, etc.)
@@ -1803,7 +1809,7 @@
       } catch (e) {}
     }
     if (document.title && document.title.trim()) {
-      let dt = cleanTitleString(document.title);
+      let dt = cleanTitleString(document.title, isYouTubePage);
       if (dt && !isGenericTitle(dt) && !dt.toLowerCase().includes('embed') && dt.toLowerCase() !== 'index') {
         return dt;
       }
