@@ -39,7 +39,7 @@ runs:
         mkdir -p "dist/${DIR_NAME}"
         cp dist/bengal-download-manager "dist/${DIR_NAME}/"
         chmod 755 "dist/${DIR_NAME}/bengal-download-manager"
-        cp -r ../assets "dist/${DIR_NAME}/assets" 2>/dev/null || true
+        bash ../scripts/prepare_runtime_assets.sh "dist/${DIR_NAME}/assets" "${ARCH}"
         cp ../README.md ../LICENSE "dist/${DIR_NAME}/" 2>/dev/null || true
 
         cd dist
