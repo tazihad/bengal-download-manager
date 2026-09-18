@@ -286,19 +286,19 @@ jobs:
               lines.append("<table>")
               lines.append("  <thead>")
               lines.append("    <tr>")
-              lines.append("      <th style=\"width: 18%;\">Package / Format</th>")
-              lines.append("      <th style=\"text-align: center; width: 14%;\">Architecture</th>")
-              lines.append("      <th>Download Link</th>")
-              lines.append("      <th style=\"width: 38%;\">Notes</th>")
+              lines.append("      <th style=\"width: 15%;\">Package / Format</th>")
+              lines.append("      <th style=\"text-align: center; width: 12%;\">Architecture</th>")
+              lines.append("      <th style=\"white-space: nowrap;\">Download Link</th>")
+              lines.append("      <th style=\"width: 25%;\">Notes</th>")
               lines.append("    </tr>")
               lines.append("  </thead>")
               lines.append("  <tbody>")
 
               linux_notes = {
-                  "AppImage": f"Universal standalone Linux bundle" + (f' ([zsync]({base_url}/bengal-download-manager-{version}-x86_64.AppImage.zsync))' if any(os.path.exists(f) for f in os.listdir(".") if f.endswith(".zsync")) else ""),
-                  "Flatpak": "Single-file offline Flatpak bundle",
+                  "AppImage": "Universal standalone bundle",
+                  "Flatpak": "Single-file offline bundle",
                   "Snap": "Canonical Snap package",
-                  ".tar.xz": "Portable tarball archive (extract & run)"
+                  ".tar.xz": "Portable tarball archive"
               }
 
               for pkg in ["AppImage", "Flatpak", "Snap", ".tar.xz"]:
@@ -317,7 +317,7 @@ jobs:
                           else:
                               lines.append(f'      <td><b>{pkg}</b></td>')
                       lines.append(f'      <td style="text-align: center;"><code>{arch}</code></td>')
-                      lines.append(f'      <td><a href="{url}">{fname}</a></td>')
+                      lines.append(f'      <td style="white-space: nowrap;"><a href="{url}">{fname}</a></td>')
                       if first:
                           if count > 1:
                               lines.append(f'      <td rowspan="{count}">{note}</td>')
