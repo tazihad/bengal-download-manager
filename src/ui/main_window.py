@@ -235,6 +235,9 @@ class MainWindow(QMainWindow):
                 app_inst.paletteChanged.connect(self.on_system_theme_changed)
         
         # Auto-start local Aria2 daemon for accelerated downloading
+        from core.aria2_daemon import get_aria2_daemon_manager
+        self.aria2_daemon_manager = get_aria2_daemon_manager()
+        self.aria2_daemon_manager.status_changed.connect(lambda running, msg: self.update_status_bar_aria2())
         self.aria2_process = self.start_aria2_daemon()
         self.is_quitting = False
         
@@ -271,54 +274,18 @@ class MainWindow(QMainWindow):
 
     def stop_aria2_daemon(self):
         """Gracefully shuts down the internal aria2 daemon process and releases its port."""
-        proc = getattr(self, "aria2_process", None)
-        if not proc:
-            return
+        if hasattr(self, "aria2_daemon_manager") and self.aria2_daemon_manager:
+            self.aria2_daemon_manager.stop()
         self.aria2_process = None
-
-        # 1. Attempt graceful RPC shutdown
-        try:
-            ext_data = load_extension_config()
-            port = ext_data.get("port", 56800)
-            token = ext_data.get("token", "")
-            payload = {
-                "jsonrpc": "2.0",
-                "id": "shutdown",
-                "method": "aria2.shutdown",
-                "params": [f"token:{token}"] if token else []
-            }
-            import urllib.request
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{port}/jsonrpc",
-                data=json.dumps(payload).encode('utf-8'),
-                headers={"Content-Type": "application/json"}
-            )
-            urllib.request.urlopen(req, timeout=0.8)
-        except Exception:
-            pass
-
-        # 2. Wait for process to exit cleanly
-        try:
-            proc.wait(timeout=1.0)
-            return
-        except Exception:
-            pass
-
-        # 3. Terminate if still running
-        try:
-            proc.terminate()
-            proc.wait(timeout=1.0)
-        except Exception:
-            try:
-                proc.kill()
-                proc.wait(timeout=0.5)
-            except Exception:
-                pass
 
     def _handle_options_accepted(self):
         # Clean restart aria2 daemon
-        self.stop_aria2_daemon()
-        self.aria2_process = self.start_aria2_daemon()
+        if hasattr(self, "aria2_daemon_manager") and self.aria2_daemon_manager:
+            self.aria2_daemon_manager.restart()
+            self.aria2_process = self.aria2_daemon_manager.process
+        else:
+            self.stop_aria2_daemon()
+            self.aria2_process = self.start_aria2_daemon()
         self.update_status_bar_aria2()
 
         # Check and restart IPC listener if port was updated
@@ -332,71 +299,13 @@ class MainWindow(QMainWindow):
             self.restart_ipc_listener(target_ipc_port)
 
     def start_aria2_daemon(self):
-        try:
-            self.stop_aria2_daemon()
-
-            aria2_bin = ensure_aria2() or "aria2c"
-            ext_data = load_extension_config()
-            port = ext_data.get("port", 56800)
-            token = ext_data.get("token", "")
-            max_conn = str(ext_data.get("max_connections", 8))
-
-            # Auto-reclaim port if held by an orphaned instance or prior crash
-            try:
-                from core.services.port_service import reclaim_port
-                reclaim_port(port, "aria2", ["aria2c", "aria2"], rpc_token=token)
-            except Exception as pe:
-                if is_debug_mode():
-                    logger.debug("[Aria2Daemon] Pre-launch port reclamation check: %s", pe)
-
-            # Note: --no-proxy is not needed for the server side of RPC
-            cmd = [
-                aria2_bin, "--enable-rpc=true", f"--rpc-listen-port={port}",
-                "--rpc-listen-all=false", "--rpc-allow-origin-all",
-                f"--max-connection-per-server={max_conn}", "--min-split-size=1M",
-                f"--split={max_conn}", "--daemon=false",
-                "--no-proxy=127.0.0.1,localhost"
-            ]
-            if token: cmd.append(f"--rpc-secret={token}")
-
-            # --- APPLY PROXY SETTINGS NATIVELY ---
-            proxy_url = get_aria2_proxy_url()
-            if proxy_url:
-                cmd.append(f"--all-proxy={proxy_url}")
-
-            debug_active = is_debug_mode()
-            if debug_active:
-                logger.debug("[Aria2Daemon] Launching daemon on port %s: %s", port, " ".join(cmd))
-
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE if debug_active else subprocess.DEVNULL,
-                env=get_clean_env()
-            )
-
-            if debug_active and proc:
-                logger.debug("[Aria2Daemon] Process spawned with PID %s", proc.pid)
-                def _stream_aria2_stderr(p):
-                    try:
-                        for line in p.stderr:
-                            msg = line.decode('utf-8', errors='ignore').strip()
-                            if msg:
-                                logger.debug("[Aria2Daemon] %s", msg)
-                    except Exception:
-                        pass
-                threading.Thread(target=_stream_aria2_stderr, args=(proc,), daemon=True).start()
-
-            # Brief check to ensure daemon did not immediately fail to bind
-            time.sleep(0.05)
-            if proc and proc.poll() is not None:
-                logger.error("[Aria2Daemon] aria2 daemon exited immediately with code %s", proc.returncode)
-                return None
-
-            return proc
-        except Exception as e:
-            logger.error("[Aria2Daemon] Failed to start aria2 daemon: %s", e, exc_info=True)
-            return None
+        """Starts the internal aria2 daemon process via the core Aria2DaemonManager."""
+        from core.aria2_daemon import get_aria2_daemon_manager
+        if not hasattr(self, "aria2_daemon_manager") or not self.aria2_daemon_manager:
+            self.aria2_daemon_manager = get_aria2_daemon_manager()
+        self.aria2_daemon_manager.start()
+        self.aria2_process = self.aria2_daemon_manager.process
+        return self.aria2_process
     def close(self):
         self._is_closing = True
         if hasattr(self, "_active_retry_timers"):
@@ -1394,27 +1303,11 @@ class MainWindow(QMainWindow):
     def update_status_bar_aria2(self):
         if not hasattr(self, "status_aria2_label"):
             return
-        is_running = False
-        pid = None
-
-        try:
-            ext_data = load_extension_config()
-            port = ext_data.get("port", 56800)
-        except Exception:
-            port = 56800
-
-        if hasattr(self, "aria2_process") and self.aria2_process and self.aria2_process.poll() is None:
-            is_running = True
-            pid = getattr(self.aria2_process, "pid", None)
-        else:
-            try:
-                import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.15)
-                    if s.connect_ex(("127.0.0.1", port)) == 0:
-                        is_running = True
-            except Exception:
-                pass
+        from core.aria2_daemon import get_aria2_daemon_manager
+        mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+        is_running = mgr.is_running()
+        pid = mgr.pid
+        port = mgr.port
 
         if is_running:
             pid_info = f", PID {pid}" if pid else ""
@@ -1535,14 +1428,12 @@ class MainWindow(QMainWindow):
         ipc_port = get_ipc_port()
 
         # 1. Aria2 daemon health check
-        aria2_dead = (
-            not hasattr(self, "aria2_process")
-            or self.aria2_process is None
-            or self.aria2_process.poll() is not None
-        )
-        if aria2_dead:
-            logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", aria2_port)
-            self.aria2_process = self.start_aria2_daemon()
+        from core.aria2_daemon import get_aria2_daemon_manager
+        mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+        if not mgr.is_running():
+            logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", mgr.port)
+            mgr.start()
+            self.aria2_process = mgr.process
 
         # 2. Extension IPC listener health check
         if getattr(self, "start_ipc", True):
@@ -4829,21 +4720,13 @@ class MainWindow(QMainWindow):
         # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.
         use_aria2 = True
         try:
-            is_aria2_live = False
-            if hasattr(self, 'aria2_process') and self.aria2_process and self.aria2_process.poll() is None:
-                is_aria2_live = True
-            else:
-                import socket
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.15)
-                    ext_data = load_extension_config()
-                    r_port = ext_data.get("port", 56800)
-                    if s.connect_ex(("127.0.0.1", r_port)) == 0:
-                        is_aria2_live = True
-            if not is_aria2_live:
-                use_aria2 = False
+            from core.aria2_daemon import get_aria2_daemon_manager
+            mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+            use_aria2 = mgr.is_running()
+            is_aria2_live = use_aria2
         except Exception:
             use_aria2 = False
+            is_aria2_live = False
 
         if use_aria2:
             if is_debug_mode():

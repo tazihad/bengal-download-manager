@@ -35,9 +35,11 @@ class DownloadBridge(QObject):
 
     @pyqtProperty(bool, notify=downloadsChanged)
     def aria2Running(self):
-        if self._main_window and hasattr(self._main_window, 'aria2_process') and self._main_window.aria2_process:
-            return self._main_window.aria2_process.poll() is None
-        return False
+        try:
+            from core.aria2_daemon import get_aria2_daemon_manager
+            return get_aria2_daemon_manager().is_running()
+        except Exception:
+            return False
 
     @pyqtProperty(str, notify=downloadsChanged)
     def totalSpeed(self):
