@@ -71,6 +71,9 @@ echo "========================================================"
 
 echo "=== 1. Building PyInstaller Standalone Application ==="
 rm -rf build dist
+RUNTIME_ASSETS_DIR="build/runtime_assets"
+bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH_NAME"
+
 PYTHONPATH=src $PYINSTALLER_BIN \
     --name "bengal-download-manager" \
     --onedir \
@@ -78,7 +81,8 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --paths "src" \
     --collect-all core \
     --collect-all ui \
-    --add-data "assets:assets" \
+    --collect-all python_socks \
+    --add-data "$RUNTIME_ASSETS_DIR:assets" \
     --distpath "dist" \
     --workpath "build" \
     --noconfirm src/main.py

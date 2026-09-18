@@ -163,14 +163,14 @@ jobs:
       - name: Stage Release Artifacts
         run: |
           mkdir -p release_artifacts
-          cp build_cmake/dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }} release_artifacts/ 2>/dev/null || true
+          cp dist/*.tar.xz release_artifacts/ 2>/dev/null || cp build_cmake/dist/*.tar.xz release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage.zsync release_artifacts/ 2>/dev/null || true
           cp dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
           cp dist/*.snap release_artifacts/ 2>/dev/null || cp *.snap release_artifacts/ 2>/dev/null || true
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            cp extension-chromium.crx release_artifacts/ 2>/dev/null || true
-            cp extension-firefox.xpi release_artifacts/ 2>/dev/null || true
+            cp extension-chromium-*.crx release_artifacts/ 2>/dev/null || cp extension-chromium.crx release_artifacts/ 2>/dev/null || true
+            cp extension-firefox-*.xpi release_artifacts/ 2>/dev/null || cp extension-firefox.xpi release_artifacts/ 2>/dev/null || true
           fi
 
       - name: Upload Build Artifacts
@@ -234,6 +234,7 @@ jobs:
 
           python3 - << 'EOF'
           import os
+          import re
 
           tag = os.environ.get("TAG", "")
           base_url = os.environ.get("BASE_URL", "")
@@ -243,53 +244,128 @@ jobs:
 
           os.chdir("release_dist")
           special_files = {"SHA256SUMS", "SHA256SUMS.sig", "SHA256SUMS.txt"}
-          files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files]
+          files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files and not f.endswith(".zsync")]
 
-          def categorize(filename):
-              if filename.endswith(".AppImage"):
-                  arch = "ARM64" if "aarch64" in filename else "x86_64"
-                  return (1, f"🐧 **Linux AppImage ({arch})**", filename)
-              elif filename.endswith(".flatpak"):
-                  arch = "ARM64" if "aarch64" in filename else "x86_64"
-                  return (2, f"📦 **Flatpak Bundle ({arch})**", filename)
-              elif filename.endswith(".snap"):
-                  arch = "ARM64" if "arm64" in filename or "aarch64" in filename else "x86_64"
-                  return (3, f"🛍️ **Snap Package ({arch})**", filename)
-              elif filename.endswith(".crx"):
-                  return (4, "🌐 **Chrome / Chromium Extension**", filename)
-              elif filename.endswith(".xpi"):
-                  return (5, "🌐 **Firefox Extension**", filename)
-              elif filename.endswith(".zsync"):
-                  return (7, "🔄 **AppImage ZSync Delta**", filename)
-              else:
-                  arch = "ARM64" if "aarch64" in filename else "x86_64"
-                  return (6, f"⚙️ **Standalone Binary ({arch})**", filename)
+          linux_groups = {"AppImage": [], "Flatpak": [], "Snap": [], ".tar.xz": []}
+          windows_items = []
+          macos_items = []
+          extension_items = []
 
-          categorized = [categorize(f) for f in files]
-          categorized.sort(key=lambda x: (x[0], x[2]))
+          for fname in files:
+              arch = "aarch64" if ("aarch64" in fname or "arm64" in fname) else "x86_64"
+              url = f"{base_url}/{fname}"
+
+              if fname.endswith(".AppImage"):
+                  linux_groups["AppImage"].append((arch, fname, url))
+              elif fname.endswith(".flatpak"):
+                  linux_groups["Flatpak"].append((arch, fname, url))
+              elif fname.endswith(".snap"):
+                  linux_groups["Snap"].append((arch, fname, url))
+              elif fname.endswith(".tar.xz"):
+                  linux_groups[".tar.xz"].append((arch, fname, url))
+              elif fname.endswith(".exe") or ("windows" in fname and fname.endswith(".zip")):
+                  pkg = "Setup Installer" if "setup" in fname.lower() else ("Portable ZIP" if fname.endswith(".zip") else "Standalone Executable")
+                  windows_items.append((pkg, arch, fname, url, ""))
+              elif fname.endswith(".dmg") or ("macos" in fname and fname.endswith(".zip")):
+                  pkg = ".dmg" if fname.endswith(".dmg") else ".zip"
+                  macos_items.append((pkg, "Universal", fname, url, ""))
+              elif fname.endswith(".crx"):
+                  match = re.search(r"extension-chromium-?(.*?)\.crx", fname)
+                  ext_ver = f"v{match.group(1)}" if match and match.group(1) else "v0.8"
+                  extension_items.append(("Chrome / Chromium / Edge / Brave", ext_ver, ".crx", fname, url, "Drag into chrome://extensions (Developer mode ON)"))
+              elif fname.endswith(".xpi"):
+                  match = re.search(r"extension-firefox-?(.*?)\.xpi", fname)
+                  ext_ver = f"v{match.group(1)}" if match and match.group(1) else "v0.8"
+                  extension_items.append(("Firefox / Floorp / LibreWolf", ext_ver, ".xpi", fname, url, "Open or install via about:addons"))
 
           lines = []
-          lines.append("### 📦 Packages & Direct Downloads\n")
-          lines.append("| Platform / Format | Download Link |")
-          lines.append("|---|---|")
-          for _, label, fname in categorized:
-              url = f"{base_url}/{fname}"
-              lines.append(f"| {label} | [{fname}]({url}) |")
-          
-          lines.append(f"| 📄 **SHA-256 Checksums** | [SHA256SUMS]({base_url}/SHA256SUMS) |")
-          if os.path.exists("SHA256SUMS.sig"):
-              lines.append(f"| 🔏 **GPG Signature** | [SHA256SUMS.sig]({base_url}/SHA256SUMS.sig) |")
-          lines.append("\n---\n")
-          
+
+          has_linux = any(len(items) > 0 for items in linux_groups.values())
+          if has_linux:
+              lines.append("### 🐧 Linux\n")
+              lines.append("<table>")
+              lines.append("  <thead>")
+              lines.append("    <tr>")
+              lines.append("      <th style=\"width: 15%;\">Package / Format</th>")
+              lines.append("      <th style=\"text-align: center; width: 12%;\">Architecture</th>")
+              lines.append("      <th style=\"white-space: nowrap;\">Download Link</th>")
+              lines.append("      <th style=\"width: 25%;\">Notes</th>")
+              lines.append("    </tr>")
+              lines.append("  </thead>")
+              lines.append("  <tbody>")
+
+              linux_notes = {
+                  "AppImage": "Universal standalone bundle",
+                  "Flatpak": "Single-file offline bundle",
+                  "Snap": "Canonical Snap package",
+                  ".tar.xz": "Portable tarball archive"
+              }
+
+              for pkg in ["AppImage", "Flatpak", "Snap", ".tar.xz"]:
+                  items = linux_groups.get(pkg, [])
+                  if not items:
+                      continue
+                  items.sort(key=lambda x: 0 if x[0] == "x86_64" else 1)
+                  count = len(items)
+                  note = linux_notes.get(pkg, "")
+                  first = True
+                  for arch, fname, url in items:
+                      lines.append("    <tr>")
+                      if first:
+                          if count > 1:
+                              lines.append(f'      <td rowspan="{count}"><b>{pkg}</b></td>')
+                          else:
+                              lines.append(f'      <td><b>{pkg}</b></td>')
+                      lines.append(f'      <td style="text-align: center;"><code>{arch}</code></td>')
+                      lines.append(f'      <td style="white-space: nowrap;"><a href="{url}">{fname}</a></td>')
+                      if first:
+                          if count > 1:
+                              lines.append(f'      <td rowspan="{count}">{note}</td>')
+                          else:
+                              lines.append(f'      <td>{note}</td>')
+                      lines.append("    </tr>")
+                      first = False
+
+              lines.append("  </tbody>")
+              lines.append("</table>\n")
+
+          if windows_items:
+              lines.append("### 🪟 Windows\n")
+              lines.append("| Package / Format | Architecture | Download Link | Notes |")
+              lines.append("| :--- | :---: | :--- | :--- |")
+              for pkg, arch, fname, url, note in windows_items:
+                  lines.append(f"| **{pkg}** | `{arch}` | [{fname}]({url}) | {note} |")
+              lines.append("")
+
+          if macos_items:
+              lines.append("### 🍎 macOS\n")
+              lines.append("| Package / Format | Architecture | Download Link | Notes |")
+              lines.append("| :--- | :---: | :--- | :--- |")
+              for pkg, arch, fname, url, note in macos_items:
+                  lines.append(f"| **{pkg}** | `{arch}` | [{fname}]({url}) | {note} |")
+              lines.append("")
+
+          if extension_items:
+              lines.append("### 🌐 Browser Extensions\n")
+              lines.append("| Browser Target | Extension Ver | Format | Download Link | Installation Guide |")
+              lines.append("| :--- | :---: | :---: | :--- | :--- |")
+              for browser, ext_ver, fmt, fname, url, guide in extension_items:
+                  lines.append(f"| **{browser}** | `{ext_ver}` | `{fmt}` | [{fname}]({url}) | {guide} |")
+              lines.append("")
+
+          lines.append("---\n")
           is_stable = not any(k in tag.lower() for k in ("alpha", "beta", "rc", "dev"))
-          lines.append("### 🛡️ Verification & Security\n")
+          
+          # Pre-collapsed Verification & Security
+          lines.append("<details>")
+          lines.append("<summary><b>🛡️ Verification & Security Guide</b> — <i>Click to expand</i></summary>\n")
           if is_stable:
               lines.append("#### GitHub Artifact Attestation (Sigstore SLSA)\n")
               lines.append("Every artifact in this release is signed and attested via GitHub Artifact Attestations.\n")
               lines.append("Verify the provenance of any downloaded binary with the GitHub CLI:\n```bash")
               lines.append(f"gh attestation verify <downloaded-file> --repo {repo}")
               lines.append("```\n")
-          
+
           if os.path.exists("SHA256SUMS.sig"):
               lines.append("#### GPG Signature & Checksum Verification\n```bash")
               lines.append("# Verify SHA256SUMS signature")
@@ -301,13 +377,17 @@ jobs:
               lines.append("#### Checksum Verification\n```bash")
               lines.append("sha256sum -c SHA256SUMS --ignore-missing")
               lines.append("```\n")
+          lines.append("</details>\n")
 
-          lines.append("---\n")
-          lines.append("### 🔒 Checksums (SHA-256)\n```text")
+          # Pre-collapsed Checksums (SHA-256)
           if os.path.exists("SHA256SUMS"):
+              lines.append("<details>")
+              lines.append("<summary><b>🔒 Checksums (SHA-256)</b> — <i>Click to expand</i></summary>\n")
+              lines.append("```text")
               with open("SHA256SUMS", "r") as f:
                   lines.append(f.read().strip())
-          lines.append("```\n\n---\n")
+              lines.append("```")
+              lines.append("</details>\n")
 
           with open("../release_body.md", "w") as f:
               f.write("\n".join(lines))
@@ -329,6 +409,6 @@ jobs:
           draft: false
           prerelease: ${{ contains(needs.prepare.outputs.tag, 'alpha') || contains(needs.prepare.outputs.tag, 'beta') || contains(needs.prepare.outputs.tag, 'rc') || inputs.is_prerelease }}
           generate_release_notes: true
-          append_body: true
+          append_body: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

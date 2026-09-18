@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-version: '0.2.51'
+version: '0.2.52-alpha.8'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -78,9 +78,10 @@ parts:
     override-build: |
       craftctl default
 
-      # 1. Install app sources and assets
+      # 1. Install app sources and runtime assets
       install -d "$CRAFT_PART_INSTALL/share/bengal-download-manager"
-      cp -r src assets "$CRAFT_PART_INSTALL/share/bengal-download-manager/"
+      cp -r src "$CRAFT_PART_INSTALL/share/bengal-download-manager/"
+      bash scripts/prepare_runtime_assets.sh "$CRAFT_PART_INSTALL/share/bengal-download-manager/assets" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
 
       # 2. Install desktop entry & AppStream metadata
       install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.desktop "$CRAFT_PART_INSTALL/usr/share/applications/io.github.tazihad.bengal-download-manager.desktop"

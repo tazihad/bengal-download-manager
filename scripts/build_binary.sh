@@ -67,7 +67,8 @@ if [ "$DO_CLEAN" -eq 1 ]; then
     rm -rf "$PYINSTALLER_WORKPATH" dist
 fi
 
-mkdir -p dist "$PYINSTALLER_WORKPATH"
+RUNTIME_ASSETS_DIR="$PYINSTALLER_WORKPATH/runtime_assets"
+bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH"
 
 PYTHONPATH=src $PYINSTALLER_BIN \
     --name "bengal-download-manager" \
@@ -76,7 +77,7 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --collect-all core \
     --collect-all ui \
     --collect-all python_socks \
-    --add-data "assets:assets" \
+    --add-data "$RUNTIME_ASSETS_DIR:assets" \
     --distpath "dist" \
     --workpath "$PYINSTALLER_WORKPATH" \
     --noconfirm \

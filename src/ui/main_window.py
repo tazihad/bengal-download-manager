@@ -509,6 +509,11 @@ class MainWindow(QMainWindow):
             self.action_stop_all.triggered.connect(self.stop_all_downloads)
             self.action_stop_all.setEnabled(False)
 
+            self.action_stop_all_queues = QAction(_fi(get_themed_icon("stop_all_queues")), self.tr("Stop All Queues"), self)
+            self.action_stop_all_queues.setToolTip(self.tr("Stop all active download queues except Synchronization queue"))
+            self.action_stop_all_queues.triggered.connect(self.stop_all_queues)
+            self.action_stop_all_queues.setEnabled(False)
+
             self.action_resume = QAction(_fi(get_themed_icon("resume")), self.tr("Resume"), self)
             self.action_resume.setToolTip(self.tr("Resume downloading selected file(s)"))
             self.action_resume.triggered.connect(self.resume_selected_download)
@@ -566,6 +571,8 @@ class MainWindow(QMainWindow):
             self.action_stop.setToolTip(self.tr("Pause or stop selected download(s)"))
             self.action_stop_all.setText(self.tr("Stop All"))
             self.action_stop_all.setToolTip(self.tr("Pause or stop all currently active downloads"))
+            self.action_stop_all_queues.setText(self.tr("Stop All Queues"))
+            self.action_stop_all_queues.setToolTip(self.tr("Stop all active download queues except Synchronization queue"))
             self.action_resume.setText(self.tr("Resume"))
             self.action_resume.setToolTip(self.tr("Resume downloading selected file(s)"))
             self.action_download_now.setText(self.tr("Download Now"))
@@ -622,16 +629,18 @@ class MainWindow(QMainWindow):
 
         # 3. Downloads
         downloads_menu = menu_bar.addMenu(self.tr("&Downloads"))
+        downloads_menu.aboutToShow.connect(self.update_ui_states)
         downloads_menu.addAction(self.action_resume)
         downloads_menu.addAction(self.action_stop)
         downloads_menu.addAction(self.action_stop_all)
+        downloads_menu.addAction(self.action_stop_all_queues)
         downloads_menu.addSeparator()
         downloads_menu.addAction(self.action_delete)
         downloads_menu.addAction(self.action_clear)
         downloads_menu.addSeparator()
+        downloads_menu.addAction(self.action_options)
         downloads_menu.addAction(self.action_scheduler)
         downloads_menu.addAction(self.action_grabber)
-        downloads_menu.addAction(self.action_options)
         downloads_menu.addAction(self.action_media_downloader)
 
         # 4. View
@@ -737,18 +746,18 @@ class MainWindow(QMainWindow):
         self.action_sb_proxy.triggered.connect(self._on_status_bar_child_toggled)
         self.status_bar_menu.addAction(self.action_sb_proxy)
 
+        self.action_toolbar_toggle = QAction(self.tr("&Toolbar"), self)
+        self.action_toolbar_toggle.setCheckable(True)
+        self.action_toolbar_toggle.setChecked(True)
+        self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
+        view_menu.addAction(self.action_toolbar_toggle)
+
         self.action_hide_categories = QAction(self.tr("&Hide left panel"), self)
         self.action_hide_categories.setCheckable(True)
         self.action_hide_categories.setChecked(getattr(self, "_categories_hidden", False))
         self.action_hide_categories.setEnabled(True)
         self.action_hide_categories.triggered.connect(self.toggle_hide_categories)
         view_menu.addAction(self.action_hide_categories)
-
-        self.action_toolbar_toggle = QAction(self.tr("&Toolbar"), self)
-        self.action_toolbar_toggle.setCheckable(True)
-        self.action_toolbar_toggle.setChecked(True)
-        self.action_toolbar_toggle.triggered.connect(self._on_toolbar_toggled)
-        view_menu.addAction(self.action_toolbar_toggle)
 
         self.action_data_usage_toggle = QAction(self.tr("&Data usage summary"), self)
         self.action_data_usage_toggle.setCheckable(True)
@@ -1104,6 +1113,8 @@ class MainWindow(QMainWindow):
     def setup_status_bar(self):
         status_bar = self.statusBar()
         status_bar.setSizeGripEnabled(False)
+        if status_bar.layout():
+            status_bar.layout().setSpacing(3)
         status_bar.setStyleSheet("""
             QStatusBar {
                 background-color: palette(window);
@@ -1112,7 +1123,7 @@ class MainWindow(QMainWindow):
                 min-height: 26px;
                 max-height: 26px;
                 font-size: 11px;
-                padding: 0px 6px;
+                padding: 0px 4px;
             }
             QStatusBar::item {
                 border: none;
@@ -1134,20 +1145,20 @@ class MainWindow(QMainWindow):
         # 1. Item Selection Status (Left, stretchable)
         self.status_items_label = QLabel("0 items", self)
         self.status_items_label.setFont(tnum_font)
-        self.status_items_label.setStyleSheet("color: palette(window-text); padding: 0px 4px;")
+        self.status_items_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         status_bar.addWidget(self.status_items_label, 1)
 
         # Permanent widgets (Right): Speed, Aria2 Status, IPC Status, Public IP, Memory
         def create_sep():
             sep = QLabel("│", self)
-            sep.setStyleSheet("color: palette(mid); padding: 0px 2px;")
+            sep.setStyleSheet("color: palette(mid); padding: 0px 1px;")
             return sep
 
         # 1. Speed Status
         self.sep_speed = create_sep()
         self.status_speed_label = QLabel("Speed: 0 B/s", self)
         self.status_speed_label.setFont(tnum_font)
-        self.status_speed_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_speed_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         self.status_speed_label.setToolTip("Total Transfer Rate")
         status_bar.addPermanentWidget(self.sep_speed)
         status_bar.addPermanentWidget(self.status_speed_label)
@@ -1156,7 +1167,7 @@ class MainWindow(QMainWindow):
         self.sep_aria2 = create_sep()
         self.status_aria2_label = QLabel("● Aria2: Ready", self)
         self.status_aria2_label.setFont(tnum_font)
-        self.status_aria2_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_aria2_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         self.status_aria2_label.setToolTip("Aria2 RPC Status")
         status_bar.addPermanentWidget(self.sep_aria2)
         status_bar.addPermanentWidget(self.status_aria2_label)
@@ -1165,7 +1176,7 @@ class MainWindow(QMainWindow):
         self.sep_ipc = create_sep()
         self.status_ipc_label = QLabel("● IPC: Ready", self)
         self.status_ipc_label.setFont(tnum_font)
-        self.status_ipc_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_ipc_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         self.status_ipc_label.setToolTip("Browser Extension IPC Status")
         status_bar.addPermanentWidget(self.sep_ipc)
         status_bar.addPermanentWidget(self.status_ipc_label)
@@ -1174,7 +1185,7 @@ class MainWindow(QMainWindow):
         self.sep_public_ip = create_sep()
         self.status_public_ip_label = QLabel("IP: Detecting...", self)
         self.status_public_ip_label.setFont(tnum_font)
-        self.status_public_ip_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_public_ip_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         self.status_public_ip_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.status_public_ip_label.setToolTip("Public IP Address (Click to copy)")
         self.status_public_ip_label.mousePressEvent = self._on_public_ip_clicked
@@ -1185,7 +1196,7 @@ class MainWindow(QMainWindow):
         self.sep_proxy = create_sep()
         self.status_proxy_label = QLabel("Proxy: Direct", self)
         self.status_proxy_label.setFont(tnum_font)
-        self.status_proxy_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_proxy_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         self.status_proxy_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.status_proxy_label.setToolTip("Proxy Status (Click to configure)")
         self.status_proxy_label.mousePressEvent = self._on_proxy_status_clicked
@@ -1196,7 +1207,7 @@ class MainWindow(QMainWindow):
         self.sep_memory = create_sep()
         self.status_memory_label = QLabel("Memory: 0 B", self)
         self.status_memory_label.setFont(tnum_font)
-        self.status_memory_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_memory_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
         self.status_memory_label.setToolTip("Application Memory Usage (Resident Set Size)")
         status_bar.addPermanentWidget(self.sep_memory)
         status_bar.addPermanentWidget(self.status_memory_label)
@@ -1339,11 +1350,11 @@ class MainWindow(QMainWindow):
         if is_running:
             pid_info = f", PID {pid}" if pid else ""
             self.status_aria2_label.setText("● Aria2: Connected")
-            self.status_aria2_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 6px;")
+            self.status_aria2_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 3px;")
             self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Connected (Port {port}{pid_info})")
         else:
             self.status_aria2_label.setText("● Aria2: Stopped")
-            self.status_aria2_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")
+            self.status_aria2_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 3px;")
             self.status_aria2_label.setToolTip(f"Aria2 RPC Engine: Stopped (Port {port})")
 
     def update_status_bar_ipc(self):
@@ -1360,11 +1371,11 @@ class MainWindow(QMainWindow):
 
         if is_running:
             self.status_ipc_label.setText("● IPC: Active")
-            self.status_ipc_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 6px;")
+            self.status_ipc_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 3px;")
             self.status_ipc_label.setToolTip(f"Browser Extension IPC Listener: Active (Port {port})")
         else:
             self.status_ipc_label.setText("● IPC: Stopped")
-            self.status_ipc_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 6px;")
+            self.status_ipc_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 3px;")
             self.status_ipc_label.setToolTip(f"Browser Extension IPC Listener: Stopped (Port {port})")
 
     def fetch_public_ip_async(self, force: bool = False):
@@ -1377,8 +1388,14 @@ class MainWindow(QMainWindow):
         cached_ip = getattr(self, "_cached_public_ip", None)
         last_fetch = getattr(self, "_last_ip_fetch_time", 0)
         if not force and cached_ip and (now - last_fetch < 600):
-            self.status_public_ip_label.setText(f"IP: {cached_ip}")
-            self.status_public_ip_label.setToolTip(f"Public IP Address: {cached_ip} (Click to copy)")
+            flag = getattr(self, "_cached_public_flag", "🌐")
+            country = getattr(self, "_cached_public_country", "")
+            self.status_public_ip_label.setText(f"IP: {flag} {cached_ip}")
+            tooltip = f"Public IP Address: {cached_ip}"
+            if country:
+                tooltip += f"\nCountry: {country}"
+            tooltip += "\n(Click to copy)"
+            self.status_public_ip_label.setToolTip(tooltip)
             return
 
         if getattr(self, "_ip_worker", None) and self._ip_worker.isRunning():
@@ -1389,14 +1406,34 @@ class MainWindow(QMainWindow):
         self._ip_worker.ip_fetched.connect(self._on_public_ip_fetched)
         self._ip_worker.start()
 
-    def _on_public_ip_fetched(self, ip: str):
+    def _on_public_ip_fetched(self, result):
         if not hasattr(self, "status_public_ip_label"):
             return
+        from core.services.ip_service import PublicIpInfo
+        if isinstance(result, PublicIpInfo):
+            ip = result.ip
+            flag = result.flag_emoji or "🌐"
+            country = result.country
+        elif isinstance(result, str):
+            ip = result
+            flag = "🌐"
+            country = ""
+        else:
+            ip = ""
+            flag = "🌐"
+            country = ""
+
         if ip:
             self._cached_public_ip = ip
+            self._cached_public_flag = flag
+            self._cached_public_country = country
             self._last_ip_fetch_time = time.time()
-            self.status_public_ip_label.setText(f"IP: {ip}")
-            self.status_public_ip_label.setToolTip(f"Public IP Address: {ip} (Click to copy)")
+            self.status_public_ip_label.setText(f"IP: {flag} {ip}")
+            tooltip = f"Public IP Address: {ip}"
+            if country:
+                tooltip += f"\nCountry: {country}"
+            tooltip += "\n(Click to copy)"
+            self.status_public_ip_label.setToolTip(tooltip)
         else:
             self.status_public_ip_label.setText("IP: Unavailable")
             self.status_public_ip_label.setToolTip("Public IP: Unable to detect (offline or blocked)")
@@ -1817,24 +1854,36 @@ class MainWindow(QMainWindow):
         has_selection = len(selected_rows) > 0
         
         has_active_downloads = False
+        has_active_queues = False
         for r in range(self.download_table.rowCount()):
-            if self._is_row_active(r):
-                has_active_downloads = True
-                break
+            item = self.download_table.item(r, 0)
             status_item = self.download_table.item(r, 2)
-            if status_item:
-                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) or status_item.text()
-                if logic_status in ["Queued", "Starting...", "Connecting...", "Resuming...", "Downloading...", "Pending..."]:
-                    has_active_downloads = True
-                    break
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            current_status = logic_status or status_text
 
-        if not has_active_downloads and hasattr(self, "active_downloads"):
+            is_act = self._is_row_active(r)
+            is_queued_or_progress = current_status in ["Queued", "Starting...", "Connecting...", "Resuming...", "Downloading...", "Pending..."]
+
+            if is_act or is_queued_or_progress:
+                has_active_downloads = True
+                item_q = (item.data(Qt.ItemDataRole.UserRole + 8) if item else None) or "Main download queue"
+                if item_q != "Synchronization queue":
+                    has_active_queues = True
+
+            if has_active_downloads and has_active_queues:
+                break
+
+        if (not has_active_downloads or not has_active_queues) and hasattr(self, "active_downloads"):
             for key, entry in self.active_downloads.items():
                 worker = getattr(entry, 'worker', entry)
                 if worker is not None and not getattr(worker, 'is_paused', False) and not getattr(worker, 'is_pause_requested', False):
                     has_active_downloads = True
-                    break
-        
+                    item_ref = getattr(entry, 'item_ref', None)
+                    item_q = (item_ref.data(Qt.ItemDataRole.UserRole + 8) if item_ref else None) or "Main download queue"
+                    if item_q != "Synchronization queue":
+                        has_active_queues = True
+
         selection_has_active = False
         selection_has_pausable = False
         selection_has_resumable = False
@@ -1873,6 +1922,8 @@ class MainWindow(QMainWindow):
         # STOP action is for pausing an active download
         self.action_stop.setEnabled(selection_has_pausable)
         self.action_stop_all.setEnabled(has_active_downloads)
+        if hasattr(self, "action_stop_all_queues"):
+            self.action_stop_all_queues.setEnabled(has_active_queues)
         
         # RESUME action is for starting a paused/errored/cancelled download
         self.action_resume.setEnabled(selection_has_resumable)
@@ -5371,6 +5422,28 @@ class MainWindow(QMainWindow):
         self.update_status_bar_speed()
         self.update_ui_states()
         self._notify_views_changed()
+
+    def stop_all_queues(self):
+        """Stops all active download queues except the Synchronization queue."""
+        queue_names = set()
+        for q in getattr(self, "_queues_data", []):
+            if isinstance(q, dict) and q.get("name"):
+                queue_names.add(q["name"])
+        for r in range(self.download_table.rowCount()):
+            item = self.download_table.item(r, 0)
+            if item:
+                q_name = item.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+                queue_names.add(q_name)
+
+        for q_name in sorted(queue_names):
+            if q_name != "Synchronization queue":
+                self._queue_action_stop(q_name)
+
+        self.update_status_bar_speed()
+        self.update_ui_states()
+        self._notify_views_changed()
+        if hasattr(self, "statusBar") and self.statusBar():
+            self.statusBar().showMessage(self.tr("Stopped all download queues (Synchronization queue preserved)"), 4000)
 
     def remove_from_list(self):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
