@@ -68,6 +68,13 @@ from core.services.socks_bridge import (
     parse_host_port,
 )
 
+from core.services.proxy_service import (
+    ProxyDetectionResult,
+    country_code_to_flag,
+    detect_proxy_status,
+    ProxyDetectorWorker,
+)
+
 __all__ = [
     "DM_CONNECTOR_PORT",
     "SignalEmitter",
@@ -118,4 +125,8 @@ __all__ = [
     "SocksHttpBridge",
     "SocksBridgeRunner",
     "parse_host_port",
+    "ProxyDetectionResult",
+    "country_code_to_flag",
+    "detect_proxy_status",
+    "ProxyDetectorWorker",
 ]
