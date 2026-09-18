@@ -454,11 +454,16 @@ class OptionsDialog(QDialog):
         lbl_language.setToolTip("Select user interface language")
         self.combo_language = QComboBox()
         self.combo_language.setToolTip("Select interface language (Restart recommended to apply changes to all windows)")
+        self.combo_language.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.combo_language.setMinimumContentsLength(18)
         self.combo_language.setMaxVisibleItems(10)
         self.combo_language.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_lang = self.combo_language.view()
         if view_lang:
             view_lang.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            view_lang.setUniformItemSizes(True)
 
         from core.services.language_service import (
             get_available_languages, get_language_display
@@ -924,6 +929,15 @@ class OptionsDialog(QDialog):
         status_hlayout.addLayout(status_text_layout, 1)
 
         self.btn_test_proxy = QPushButton("Test Proxy")
+        self.btn_test_proxy.setFixedHeight(32)
+        self.btn_test_proxy.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_test_proxy.setStyleSheet("""
+            QPushButton {
+                padding: 4px 16px;
+                min-width: 95px;
+                font-weight: 500;
+            }
+        """)
         self.btn_test_proxy.setToolTip("Verify connection and detect external IP and country using this proxy")
         self.btn_test_proxy.clicked.connect(lambda: self.trigger_proxy_detection(force=True))
         status_hlayout.addWidget(self.btn_test_proxy)
@@ -1054,12 +1068,14 @@ class OptionsDialog(QDialog):
 
         self.btn_ext_github = QPushButton(" GitHub Releases")
         self.btn_ext_github.setFixedHeight(32)
+        self.btn_ext_github.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ext_github.setIcon(get_monochrome_icon("github", size=18))
         self.btn_ext_github.setToolTip("Open GitHub Releases page to download extension package (.xpi / .zip)")
         self.btn_ext_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
 
         self.btn_ext_firefox = QPushButton(" Firefox Store")
         self.btn_ext_firefox.setFixedHeight(32)
+        self.btn_ext_firefox.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ext_firefox.setIcon(get_monochrome_icon("firefox", size=18))
         self.btn_ext_firefox.setToolTip("Open Mozilla Firefox Add-ons Store page")
         self.btn_ext_firefox.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))

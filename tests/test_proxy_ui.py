@@ -20,12 +20,15 @@ def qapp():
 
 @pytest.fixture(autouse=True)
 def mock_proxy_detector():
-    with patch("core.services.proxy_service.ProxyDetectorWorker.start"):
+    with patch("core.services.proxy_service.ProxyDetectorWorker.start"), \
+         patch("core.services.ip_service.PublicIpWorker.start"), \
+         patch("ui.main_window.MainWindow.start_aria2_daemon", return_value=None):
         yield
 
 
 def test_options_dialog_proxy_tab_components(qapp):
     from ui.dialogs.options import OptionsDialog
+    from PyQt6.QtWidgets import QComboBox
 
     with patch("core.services.proxy_service.ProxyDetectorWorker.start"), \
          patch("ui.dialogs.options.load_proxy_config", return_value={
@@ -41,6 +44,11 @@ def test_options_dialog_proxy_tab_components(qapp):
         assert hasattr(dlg, "lbl_proxy_ip")
         assert hasattr(dlg, "btn_test_proxy")
         assert hasattr(dlg, "_proxy_debounce_timer")
+
+        # Verify button and combo optimizations
+        assert dlg.btn_test_proxy.maximumHeight() == 32
+        assert dlg.btn_test_proxy.cursor().shape() == Qt.CursorShape.PointingHandCursor
+        assert dlg.combo_language.sizeAdjustPolicy() == QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
 
         # Test successful detection callback
         res_ok = ProxyDetectionResult(

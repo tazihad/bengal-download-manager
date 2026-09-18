@@ -132,9 +132,20 @@ def main():
         # Ignore benign development-mode portal registration warning when running unpackaged
         if "Failed to register with host portal" in message and "App info not found" in message:
             return
-        if is_debug or mode in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
-            ctx_str = f" [{context.file}:{context.line}]" if context and context.file else ""
+        # Ignore benign HarfBuzz font shaping OpenType missing script coverage notices
+        if "OpenType support missing for" in message:
+            return
+
+        ctx_str = f" [{context.file}:{context.line}]" if context and context.file else ""
+        if mode in (QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
+            logger.critical("[QT %s]%s %s", level, ctx_str, message)
+        elif mode == QtMsgType.QtWarningMsg:
             logger.warning("[QT %s]%s %s", level, ctx_str, message)
+        elif is_debug:
+            if mode == QtMsgType.QtInfoMsg:
+                logger.info("[QT %s]%s %s", level, ctx_str, message)
+            else:
+                logger.debug("[QT %s]%s %s", level, ctx_str, message)
 
     sys.excepthook = exception_hook
     if hasattr(threading, "excepthook"):
