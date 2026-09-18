@@ -14,6 +14,9 @@ A persisted or active transfer request identified by a unique key.
 - **Status**: The operational state (`Queued`, `Connecting`, `Downloading`, `Paused`, `Complete`, `Error`, `Cancelled`).
 - **Transfer Metrics**: Numeric indicators including byte size, transfer rate, progress percentage, and time remaining (rendered with tabular figures `tnum`).
 
+### Download Store
+The authoritative in-memory repository module managing active and completed download records. It provides mutation interfaces, query methods, and reactive change signals to presentation adapters (desktop table and QML card views) while synchronizing with SQLite storage.
+
 ### Queue
 A managed execution group governing concurrency and order for a collection of Downloads.
 - **Main Download Queue**: The default FIFO queue for standard transfers.

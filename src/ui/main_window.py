@@ -155,6 +155,9 @@ class MainWindow(QMainWindow):
         
         self.setGeometry(200, 150, 1000, 600)
         
+        from core.download_store import DownloadStore
+        self.download_store = DownloadStore(parent=self)
+
         self.setup_actions()
         self.setup_menu_bar()
         self.setup_toolbar()
@@ -2444,14 +2447,24 @@ class MainWindow(QMainWindow):
                 }
                 downloads.append(dl_data)
             
-            save_all_downloads(downloads)
-            save_all_queues(self._queues_data)
+            if hasattr(self, "download_store") and self.download_store:
+                self.download_store.set_all_items(downloads, persist=True)
+            else:
+                save_all_downloads(downloads)
+
+            if hasattr(self, "queue_manager") and self.queue_manager:
+                self.queue_manager.persist()
+            else:
+                save_all_queues(self._queues_data)
         except Exception:
             pass
 
     def load_data(self):
         try:
-            downloads = get_all_downloads()
+            if hasattr(self, "download_store") and self.download_store:
+                downloads = self.download_store.load_from_database()
+            else:
+                downloads = get_all_downloads()
             if not downloads:
                 return
             
