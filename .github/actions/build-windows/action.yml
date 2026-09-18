@@ -97,6 +97,10 @@ runs:
       shell: pwsh
       run: |
         $version = "${{ inputs.version }}"
+        $numericVersion = ($version -replace "-.*$", "")
+        if ($numericVersion.Split('.').Count -eq 3) {
+            $numericVersion = "$numericVersion.0"
+        }
         $arch = "${{ inputs.arch }}"
         $appArch = "${{ inputs.app_arch }}"
         $outName = "bengal-download-manager-$version-windows-$arch-setup"
@@ -112,7 +116,7 @@ runs:
             }
         }
 
-        & $iscc "/DAppVersion=$version" "/DAppArch=$appArch" "/DOutputBaseFilenameOverride=$outName" build/windows/config/installer.iss
+        & $iscc "/DAppVersion=$version" "/DNumericVersion=$numericVersion" "/DAppArch=$appArch" "/DOutputBaseFilenameOverride=$outName" build/windows/config/installer.iss
 
     - name: Create Portable ZIP Archive
       shell: pwsh

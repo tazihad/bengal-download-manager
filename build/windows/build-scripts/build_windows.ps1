@@ -116,7 +116,11 @@ if (-not $SkipInstaller) {
     if ($ISCC) {
         $AppArch = if ($Architecture -eq "arm64") { "arm64" } else { "x64" }
         $OutBaseName = "bengal-download-manager-$Version-windows-$Architecture-setup"
-        & $ISCC "/DAppVersion=$Version" "/DAppArch=$AppArch" "/DOutputBaseFilenameOverride=$OutBaseName" "$IssFile"
+        $NumericVersion = ($Version -replace "-.*$", "")
+        if ($NumericVersion.Split('.').Count -eq 3) {
+            $NumericVersion = "$NumericVersion.0"
+        }
+        & $ISCC "/DAppVersion=$Version" "/DNumericVersion=$NumericVersion" "/DAppArch=$AppArch" "/DOutputBaseFilenameOverride=$OutBaseName" "$IssFile"
         Write-Host "  Installer generated: $WinDistDir\$OutBaseName.exe" -ForegroundColor Green
     } else {
         Write-Warning "ISCC (Inno Setup) not found. Skipping installer generation."

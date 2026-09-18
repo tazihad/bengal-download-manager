@@ -51,7 +51,11 @@ PrivilegesRequired=lowest
 CloseApplications=yes
 RestartApplications=yes
 CloseApplicationsFilter={#AppExeName}
-VersionInfoVersion={#AppVersion}
+#ifndef NumericVersion
+  #define NumericVersion "0.2.51.0"
+#endif
+VersionInfoVersion={#NumericVersion}
+VersionInfoTextVersion={#AppVersion}
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} Installer
 
