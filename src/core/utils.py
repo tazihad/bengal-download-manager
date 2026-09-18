@@ -717,25 +717,37 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
                 break
         
         if not response:
-            if debug_active:
+            if debug_active and method != "aria2.tellStatus":
                 rpc_logger.debug("[Aria2RPC] <<< No response from aria2 on port %s for %s", port, method)
             return None
         
         resp_str = response.decode('utf-8', errors='ignore')
-        if "200 OK" in resp_str:
-            body_start = resp_str.find("\r\n\r\n")
-            if body_start != -1:
-                body = resp_str[body_start+4:].strip()
-                if body:
-                    # Robust JSON detection
-                    j_start = body.find('{')
-                    j_end = body.rfind('}')
-                    if j_start != -1 and j_end != -1:
-                        parsed_res = json.loads(body[j_start:j_end+1]).get("result")
+        body_start = resp_str.find("\r\n\r\n")
+        if body_start != -1:
+            body = resp_str[body_start + 4:].strip()
+            if body:
+                j_start = body.find('{')
+                j_end = body.rfind('}')
+                if j_start != -1 and j_end != -1:
+                    try:
+                        payload = json.loads(body[j_start:j_end + 1])
+                        if "result" in payload:
+                            parsed_res = payload["result"]
+                            if debug_active and method != "aria2.tellStatus":
+                                rpc_logger.debug("[Aria2RPC] <<< Success for %s: %s", method, str(parsed_res)[:200])
+                            return parsed_res
+                        if "error" in payload:
+                            err = payload.get("error") or {}
+                            err_code = err.get("code")
+                            err_msg = err.get("message")
+                            if debug_active and method != "aria2.tellStatus":
+                                rpc_logger.debug("[Aria2RPC] <<< RPC error for %s (code=%s): %s", method, err_code, err_msg)
+                            return None
+                    except Exception as parse_err:
                         if debug_active and method != "aria2.tellStatus":
-                            rpc_logger.debug("[Aria2RPC] <<< Success for %s: %s", method, str(parsed_res)[:200])
-                        return parsed_res
-        if debug_active:
+                            rpc_logger.debug("[Aria2RPC] <<< JSON parse error for %s: %s", method, parse_err)
+
+        if debug_active and method != "aria2.tellStatus":
             rpc_logger.debug("[Aria2RPC] <<< HTTP error response for %s: %s", method, resp_str[:200])
         return None
     except Exception as e:
