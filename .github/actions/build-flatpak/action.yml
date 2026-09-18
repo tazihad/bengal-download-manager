@@ -42,10 +42,21 @@ runs:
                 "$BUILD_DIR/files/share/app-info/xmls" \
                 "$BUILD_DIR/files/share/app-info/icons/flatpak"
 
-        RAW_EXE="build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}"
-        if [ ! -f "$RAW_EXE" ]; then
-          RAW_EXE=$(find build_cmake/dist dist -maxdepth 1 -type f -name "bengal-download-manager*" -executable 2>/dev/null | head -n 1)
+        RAW_EXE=""
+        for candidate in \
+            "build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}" \
+            "build_cmake/dist/bengal-download-manager" \
+            "dist/bengal-download-manager-${VERSION}-${ARCH}" \
+            "dist/bengal-download-manager"; do
+            if [ -f "$candidate" ]; then
+                RAW_EXE="$candidate"
+                break
+            fi
+        done
+        if [ -z "$RAW_EXE" ]; then
+            RAW_EXE=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | head -n 1)
         fi
+        echo "Using compiled binary for Flatpak: $RAW_EXE"
         if [ -n "$RAW_EXE" ] && [ -f "$RAW_EXE" ]; then
           cp "$RAW_EXE" "$BUILD_DIR/files/bin/bengal-download-manager"
         fi

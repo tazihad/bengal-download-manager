@@ -26,6 +26,12 @@ runs:
         cd build_cmake
         cmake -DPython3_EXECUTABLE=$(which python) ..
         cmake --build .
+        # Preserve binary for downstream packaging (AppImage, Flatpak)
+        cp dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-${ARCH}
+        mkdir -p ../dist
+        cp dist/bengal-download-manager ../dist/bengal-download-manager
+        cp dist/bengal-download-manager-${VERSION}-${ARCH} ../dist/bengal-download-manager-${VERSION}-${ARCH}
+
         # Package portable tarball (.tar.xz)
         VERSION="${{ inputs.version }}"
         ARCH="${{ inputs.arch }}"
@@ -38,4 +44,5 @@ runs:
 
         cd dist
         tar -cJf "bengal-download-manager-${VERSION}-${ARCH}.tar.xz" "${DIR_NAME}"
+        cp "bengal-download-manager-${VERSION}-${ARCH}.tar.xz" ../../dist/ 2>/dev/null || true
         cd ..

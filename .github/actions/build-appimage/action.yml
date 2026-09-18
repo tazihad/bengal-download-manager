@@ -38,10 +38,21 @@ runs:
         cp assets/io.github.tazihad.bengal-download-manager.png assets/bengal-download-manager.png
 
         # Locate compiled binary
-        RAW_EXE="build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}"
-        if [ ! -f "$RAW_EXE" ]; then
-            RAW_EXE="dist/bengal-download-manager"
+        RAW_EXE=""
+        for candidate in \
+            "build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}" \
+            "build_cmake/dist/bengal-download-manager" \
+            "dist/bengal-download-manager-${VERSION}-${ARCH}" \
+            "dist/bengal-download-manager"; do
+            if [ -f "$candidate" ]; then
+                RAW_EXE="$candidate"
+                break
+            fi
+        done
+        if [ -z "$RAW_EXE" ]; then
+            RAW_EXE=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | head -n 1)
         fi
+        echo "Using compiled binary for AppImage: $RAW_EXE"
 
         # Pre-populate AppDir structure using install
         rm -rf AppDir
