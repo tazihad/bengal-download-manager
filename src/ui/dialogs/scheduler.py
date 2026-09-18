@@ -20,73 +20,12 @@ from core.services.theme_service import get_themed_icon
 from ui.components import SidebarItemDelegate
 
 
-# Default queue definitions
-DEFAULT_QUEUES = [
-    {
-        "name": "Main download queue",
-        "default": True,
-        "mode": "onetime",          # locked to "onetime" for this queue
-        "start_on_startup": False,
-        "start_at_enabled": False,
-        "start_at_time": "23:00:00",
-        "schedule_type": "daily",   # "once" or "daily"
-        "once_date": None,
-        "daily_days": [True, True, True, True, True, True, True],  # Sun-Sat
-        "stop_at_enabled": False,
-        "stop_at_time": "07:30:00",
-        "retries_enabled": False,
-        "retries_count": 10,
-        "sync_interval_enabled": False,
-        "sync_hours": 2,
-        "sync_minutes": 0,
-        "max_concurrent": 4,
-        "files": [],
-    },
-    {
-        "name": "Synchronization queue",
-        "default": True,
-        "mode": "sync",             # locked to "sync" for this queue
-        "start_on_startup": False,
-        "start_at_enabled": False,
-        "start_at_time": "23:00:00",
-        "schedule_type": "daily",
-        "once_date": None,
-        "daily_days": [True, True, True, True, True, True, True],
-        "stop_at_enabled": False,
-        "stop_at_time": "07:30:00",
-        "retries_enabled": False,
-        "retries_count": 10,
-        "sync_interval_enabled": False,
-        "sync_hours": 2,
-        "sync_minutes": 0,
-        "max_concurrent": 4,
-        "files": [],
-    },
-]
-
-
-def _make_default_queue(name):
-    """Creates a new queue dict with default values (same as Main download queue)."""
-    return {
-        "name": name,
-        "default": False,
-        "mode": "onetime",
-        "start_on_startup": False,
-        "start_at_enabled": False,
-        "start_at_time": "23:00:00",
-        "schedule_type": "daily",
-        "once_date": None,
-        "daily_days": [True, True, True, True, True, True, True],
-        "stop_at_enabled": False,
-        "stop_at_time": "07:30:00",
-        "retries_enabled": False,
-        "retries_count": 10,
-        "sync_interval_enabled": False,
-        "sync_hours": 2,
-        "sync_minutes": 0,
-        "max_concurrent": 4,
-        "files": [],
-    }
+# Canonical queue domain definitions re-exported for backward compatibility
+from core.queue_manager import (
+    DEFAULT_QUEUES,
+    make_default_queue,
+    _make_default_queue,
+)
 
 
 class SchedulerDialog(QDialog):

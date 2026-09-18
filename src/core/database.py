@@ -148,7 +148,7 @@ def _seed_default_queues_if_needed(conn: sqlite3.Connection) -> None:
     cur.execute("SELECT COUNT(*) FROM queues")
     count = cur.fetchone()[0]
     if count == 0:
-        from ui.dialogs.scheduler import DEFAULT_QUEUES
+        from core.queue_manager import DEFAULT_QUEUES
         now = str(time.time())
         with conn:
             for idx, q in enumerate(DEFAULT_QUEUES):

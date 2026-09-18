@@ -235,17 +235,18 @@ class MainWindow(QMainWindow):
         self.aria2_process = self.start_aria2_daemon()
         self.is_quitting = False
         
-        # Scheduler periodic background timer
-        self._last_scheduled_minute = {}
-        self._last_sync_times = {}
+        # Scheduler periodic background timer driven by QueueManager
         self.download_retry_counts = {}
-        self.scheduler_timer = QTimer(self)
-        self.scheduler_timer.setInterval(1000)
-        self.scheduler_timer.timeout.connect(self._check_scheduled_queues)
-        self.scheduler_timer.start()
-
-        # Check and start queues configured to run on application startup
-        QTimer.singleShot(100, self._check_startup_queues)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.start_timer()
+            # Check and start queues configured to run on application startup
+            QTimer.singleShot(100, self.queue_manager.check_startup_queues)
+        else:
+            self.scheduler_timer = QTimer(self)
+            self.scheduler_timer.setInterval(1000)
+            self.scheduler_timer.timeout.connect(self._check_scheduled_queues)
+            self.scheduler_timer.start()
+            QTimer.singleShot(100, self._check_startup_queues)
 
     def restart_ipc_listener(self, port=None):
         """Safely restart the background TCP IPC listener with updated port configuration."""
@@ -1046,10 +1047,11 @@ class MainWindow(QMainWindow):
         self.queues_header.setToolTip(0, self.tr("Download queues and scheduler"))
         self.queues_header.setExpanded(True)
 
-        from ui.dialogs.scheduler import DEFAULT_QUEUES, _make_default_queue
-        # _queues_data is loaded from SQLite database, falling back to defaults if empty
-        db_queues = get_all_queues()
-        self._queues_data = [dict(q) for q in (db_queues if db_queues else DEFAULT_QUEUES)]
+        from core.queue_manager import QueueManager, DEFAULT_QUEUES, make_default_queue, _make_default_queue
+        self.queue_manager = QueueManager(active_count_provider=self._get_active_count_for_queue, auto_start_timer=False, parent=self)
+        self.queue_manager.queueStartRequested.connect(lambda q_name, max_c: self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False))
+        self.queue_manager.queueStopRequested.connect(self._stop_queue_downloads)
+        self._queues_data = self.queue_manager._queues
         for q in self._queues_data:
             q["daily_days"] = list(q.get("daily_days", [True, True, True, True, True, True, True]))
         self._sidebar_queue_names = []
@@ -2040,77 +2042,16 @@ class MainWindow(QMainWindow):
                 self._scheduler_dlg.tabs.setCurrentIndex(tab_index)
 
     def _check_scheduled_queues(self):
-        """Periodically checks queue schedules (start_at, stop_at, sync_interval)."""
-        from PyQt6.QtCore import QDateTime
-        now = QDateTime.currentDateTime()
-        current_time_str = now.toString("HH:mm:ss")
-        current_time_hm = now.toString("HH:mm")
-        current_date_str = now.toString("yyyy-MM-dd")
-        current_weekday = (now.date().dayOfWeek() % 7)  # 0=Sun, 1=Mon, ..., 6=Sat
-
-        queues = getattr(self, "_queues_data", [])
-        if not queues:
-            db_queues = get_all_queues()
-            queues = db_queues if db_queues else []
-
-        for q in queues:
-            if not isinstance(q, dict):
-                continue
-            q_name = q.get("name", "Main download queue")
-            max_c = q.get("max_concurrent", 4)
-
-            # 1. Start At Check
-            if q.get("start_at_enabled", False):
-                sched_type = q.get("schedule_type", "daily")
-                can_run_today = False
-                if sched_type == "once":
-                    can_run_today = (q.get("once_date") == current_date_str)
-                else:
-                    days = q.get("daily_days", [True] * 7)
-                    if current_weekday < len(days) and days[current_weekday]:
-                        can_run_today = True
-
-                if can_run_today:
-                    target_time = q.get("start_at_time", "23:00:00")
-                    match_time = (current_time_str == target_time) or (len(target_time) == 5 and current_time_hm == target_time) or (len(target_time) >= 5 and current_time_hm == target_time[:5] and not target_time.endswith(":00") and current_time_str == target_time)
-                    trigger_key = f"start_{q_name}_{current_date_str}_{target_time}"
-                    if match_time and not getattr(self, "_last_scheduled_minute", {}).get(trigger_key):
-                        if not hasattr(self, "_last_scheduled_minute"):
-                            self._last_scheduled_minute = {}
-                        self._last_scheduled_minute[trigger_key] = True
-                        self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False)
-
-            # 2. Stop At Check
-            if q.get("stop_at_enabled", False):
-                target_stop_time = q.get("stop_at_time", "07:30:00")
-                match_stop = (current_time_str == target_stop_time) or (len(target_stop_time) == 5 and current_time_hm == target_stop_time)
-                trigger_stop_key = f"stop_{q_name}_{current_date_str}_{target_stop_time}"
-                if match_stop and not getattr(self, "_last_scheduled_minute", {}).get(trigger_stop_key):
-                    if not hasattr(self, "_last_scheduled_minute"):
-                        self._last_scheduled_minute = {}
-                    self._last_scheduled_minute[trigger_stop_key] = True
-                    self._stop_queue_downloads(q_name)
-
-            # 3. Periodic Sync Check
-            if q.get("mode") == "sync" and q.get("sync_interval_enabled", False):
-                interval_sec = q.get("sync_hours", 2) * 3600 + q.get("sync_minutes", 0) * 60
-                if interval_sec > 0:
-                    if not hasattr(self, "_last_sync_times"):
-                        self._last_sync_times = {}
-                    last_sync = self._last_sync_times.get(q_name, 0)
-                    if time.time() - last_sync >= interval_sec:
-                        self._last_sync_times[q_name] = time.time()
-                        self._start_queue_downloads(q_name, max_concurrent=max_c, show_dialog=False)
+        """Periodically checks queue schedules (delegated to QueueManager)."""
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.check_scheduled_queues()
+            return
 
     def _check_startup_queues(self):
         """Starts any queues configured to run on application startup."""
-        db_queues = get_all_queues()
-        queues = db_queues if db_queues else getattr(self, "_queues_data", [])
-        for q in queues:
-            if isinstance(q, dict) and q.get("start_on_startup", False):
-                qname = q.get("name", "Main download queue")
-                max_c = q.get("max_concurrent", 4)
-                self._start_queue_downloads(qname, max_concurrent=max_c, show_dialog=False)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.check_startup_queues()
+            return
 
     def _start_queue_downloads(self, queue_name: str, max_concurrent: int = None, show_dialog: bool = False):
         """Starts incomplete downloads belonging to the specified queue."""
@@ -2248,19 +2189,16 @@ class MainWindow(QMainWindow):
     def _get_queue_max_concurrent(self, queue_name: str) -> int:
         """Returns the configured max_concurrent value for the specified queue."""
         target = queue_name or "Main download queue"
-        queues = getattr(self, "_queues_data", [])
-        if not queues:
-            try:
-                from core.database import get_all_queues
-                queues = get_all_queues() or []
-            except Exception:
-                queues = []
-        for q in queues:
-            if isinstance(q, dict) and q.get("name") == target:
-                try:
-                    return max(1, int(q.get("max_concurrent", 4)))
-                except (ValueError, TypeError):
-                    return 4
+        queues = getattr(self, "_queues_data", None)
+        if queues:
+            for q in queues:
+                if isinstance(q, dict) and q.get("name") == target:
+                    try:
+                        return max(1, int(q.get("max_concurrent", 4)))
+                    except (ValueError, TypeError):
+                        return 4
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            return self.queue_manager.get_queue_max_concurrent(target)
         if target == "Main download queue":
             return max(1, getattr(self, "MAX_CONCURRENT_DOWNLOADS", 4))
         return 4
@@ -2286,12 +2224,18 @@ class MainWindow(QMainWindow):
 
     def _queue_action_start(self, queue_name):
         """Starts downloads in the named queue."""
-        max_c = self._get_queue_max_concurrent(queue_name)
-        self._start_queue_downloads(queue_name, max_concurrent=max_c, show_dialog=False)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.start_queue(queue_name)
+        else:
+            max_c = self._get_queue_max_concurrent(queue_name)
+            self._start_queue_downloads(queue_name, max_concurrent=max_c, show_dialog=False)
 
     def _queue_action_stop(self, queue_name):
         """Stops downloads in the named queue."""
-        self._stop_queue_downloads(queue_name)
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.stop_queue(queue_name)
+        else:
+            self._stop_queue_downloads(queue_name)
 
     def _delete_sidebar_queue(self, item):
         """Deletes a queue from the sidebar and from the scheduler if open."""
@@ -2307,11 +2251,15 @@ class MainWindow(QMainWindow):
             self._sidebar_queue_names.remove(queue_name)
 
         # Remove from persistent queue data
-        self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
-        try:
-            delete_queue(queue_name)
-        except Exception:
-            pass
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.delete_queue(queue_name)
+            self._queues_data = self.queue_manager._queues
+        else:
+            self._queues_data = [q for q in self._queues_data if q["name"] != queue_name]
+            try:
+                delete_queue(queue_name)
+            except Exception:
+                pass
 
         # Also remove from scheduler if it's open
         if MemoryGuard.is_widget_alive(getattr(self, "_scheduler_dlg", None)):
@@ -2324,7 +2272,6 @@ class MainWindow(QMainWindow):
 
     def _create_sidebar_queue(self):
         """Creates a new queue and adds it to both sidebar and scheduler."""
-        from ui.dialogs.scheduler import _make_default_queue
         base = "Queue"
         existing = set(self._sidebar_queue_names)
         i = 1
@@ -2333,12 +2280,17 @@ class MainWindow(QMainWindow):
         name = f"{base} # {i}"
 
         # Persist into the source-of-truth list
-        new_q = _make_default_queue(name)
-        self._queues_data.append(new_q)
-        try:
-            upsert_queue(new_q)
-        except Exception:
-            pass
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            new_q = self.queue_manager.create_queue(name)
+            self._queues_data = self.queue_manager._queues
+        else:
+            from core.queue_manager import make_default_queue
+            new_q = make_default_queue(name)
+            self._queues_data.append(new_q)
+            try:
+                upsert_queue(new_q)
+            except Exception:
+                pass
 
         # Add to sidebar
         child = QTreeWidgetItem(self.queues_header, [name])
@@ -2364,13 +2316,17 @@ class MainWindow(QMainWindow):
             return
 
         # Save the dialog's current queue state back into the persistent store
-        self._queues_data = [dict(q) for q in self._scheduler_dlg.queues]
-        for q in self._queues_data:
-            q["daily_days"] = list(q["daily_days"])
-        try:
-            save_all_queues(self._queues_data)
-        except Exception:
-            pass
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            self.queue_manager.set_queues(self._scheduler_dlg.queues)
+            self._queues_data = self.queue_manager._queues
+        else:
+            self._queues_data = [dict(q) for q in self._scheduler_dlg.queues]
+            for q in self._queues_data:
+                q["daily_days"] = list(q["daily_days"])
+            try:
+                save_all_queues(self._queues_data)
+            except Exception:
+                pass
 
         # Capture currently selected queue name before clearing children
         current_item = self.category_tree.currentItem()

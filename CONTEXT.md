@@ -21,6 +21,9 @@ A managed execution group governing concurrency and order for a collection of Do
 - **Custom Queue**: User-defined transfer queues with independent scheduling rules and concurrency caps.
 - **Queue Schedule**: Temporal constraints defining when a queue may automatically activate, pause, or retry (e.g., daily time windows, day-of-week filters).
 
+### Queue Manager
+The core controller module orchestrating queue lifecycle, schedule timers, and concurrency caps. It acts as the single source of truth for queue configurations, evaluating active execution windows and signaling when queues should start or stop without coupling to presentation widgets.
+
 ### Download Engine (Worker)
 An execution adapter fulfilling the transfer interface at the download seam.
 - **Python Segment Worker**: Multi-threaded HTTP/HTTPS chunk downloader utilizing byte-range requests.

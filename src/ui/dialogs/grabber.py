@@ -716,7 +716,7 @@ class GrabberDialog(QDialog):
         else:
             try:
                 from core.database import get_all_queues
-                from ui.dialogs.scheduler import DEFAULT_QUEUES
+                from core.queue_manager import DEFAULT_QUEUES
                 db_q = get_all_queues()
                 queues = db_q if db_q else DEFAULT_QUEUES
                 for q in queues:
