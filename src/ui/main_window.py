@@ -180,8 +180,11 @@ class MainWindow(QMainWindow):
         else:
             self._is_in_tray = False
         
-        self.active_downloads = {}
-        self.active_speeds = {}
+        from core.download_controller import get_download_controller
+        self.download_controller = get_download_controller()
+        self.active_downloads = self.download_controller
+        self.active_speeds = self.download_controller._speeds
+        self.download_controller.aggregate_speed_changed.connect(lambda total, count: self.update_status_bar_speed())
         self._pending_tray_updates = {}
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
@@ -1258,21 +1261,12 @@ class MainWindow(QMainWindow):
             self.status_items_label.setToolTip(f"{sel_count} of {total_rows} {unit} selected{size_str}")
 
     def update_status_bar_speed(self):
-        if not hasattr(self, "active_speeds"):
-            self.active_speeds = {}
-        if not hasattr(self, "active_downloads"):
-            self.active_downloads = {}
-
-        total_speed = sum(self.active_speeds.values()) if self.active_speeds else 0.0
-        active_workers = 0
-        for k, entry in getattr(self, "active_downloads", {}).items():
-            if entry is True:
-                active_workers += 1
-            else:
-                worker = getattr(entry, 'worker', entry)
-                if worker is not None and not getattr(worker, 'is_paused', False) and not getattr(worker, 'is_pause_requested', False):
-                    active_workers += 1
-        active_count = active_workers or len(self.active_speeds)
+        if hasattr(self, "download_controller") and self.download_controller:
+            total_speed = self.download_controller.get_total_speed()
+            active_count = self.download_controller.get_active_count()
+        else:
+            total_speed = sum(self.active_speeds.values()) if hasattr(self, "active_speeds") and self.active_speeds else 0.0
+            active_count = len(self.active_speeds) if hasattr(self, "active_speeds") else 0
 
         # Update status bar speed label
         if hasattr(self, "status_speed_label") and self.status_speed_label:
@@ -5197,29 +5191,17 @@ class MainWindow(QMainWindow):
             self.download_table.setSortingEnabled(False)
         self.download_table.blockSignals(True)
         try:
-            for key, entry in list(self.active_downloads.items()):
-                worker = getattr(entry, 'worker', entry)
-                if worker is not None and hasattr(worker, 'pause'):
-                    try:
-                        worker.pause()
-                    except Exception:
-                        pass
-                from core.media_downloader import YtDlpDownloadWorker
-                if isinstance(worker, YtDlpDownloadWorker):
-                    self.active_downloads.pop(key, None)
-                    if hasattr(self, "active_speeds"):
-                        self.active_speeds.pop(key, None)
-                    self.update_status_bar_speed()
-                
-                if hasattr(entry, 'lbl_main_status'):
-                    try:
-                        entry.lbl_main_status.setText("Paused")
-                        entry.btn_pause.setText("Resume")
-                        entry.btn_cancel.setText("Close")
-                        entry.lbl_speed.setText("0.00 B/s")
-                        entry.lbl_time.setText("-")
-                    except Exception:
-                        pass
+            if hasattr(self, "download_controller") and self.download_controller:
+                self.download_controller.stop_all()
+            else:
+                for key, entry in list(self.active_downloads.items()):
+                    worker = getattr(entry, 'worker', entry)
+                    if worker is not None and hasattr(worker, 'pause'):
+                        try:
+                            worker.pause()
+                        except Exception:
+                            pass
+            self.update_status_bar_speed()
 
             # Update all rows in download_table to ensure active, queued, and pending downloads are paused
             for r in range(self.download_table.rowCount()):

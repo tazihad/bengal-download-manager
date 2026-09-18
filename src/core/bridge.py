@@ -43,10 +43,16 @@ class DownloadBridge(QObject):
 
     @pyqtProperty(str, notify=downloadsChanged)
     def totalSpeed(self):
-        if self._main_window and hasattr(self._main_window, 'active_speeds') and self._main_window.active_speeds:
+        try:
+            from core.download_controller import get_download_controller
             from core.utils import format_bytes
-            return f"{format_bytes(sum(self._main_window.active_speeds.values()))}/s"
-        return "0 B/s"
+            ctrl = get_download_controller()
+            total = ctrl.get_total_speed()
+            if total <= 0.0 and self._main_window and hasattr(self._main_window, 'active_speeds') and self._main_window.active_speeds:
+                total = sum(self._main_window.active_speeds.values())
+            return f"{format_bytes(total)}/s" if total > 0 else "0 B/s"
+        except Exception:
+            return "0 B/s"
 
     @pyqtProperty(int, notify=downloadsChanged)
     def itemCount(self):
