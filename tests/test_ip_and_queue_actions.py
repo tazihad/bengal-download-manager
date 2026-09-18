@@ -174,3 +174,33 @@ def test_downloads_menu_options_and_stop_all_queues(qapp):
             assert not win.action_stop_all_queues.isEnabled()
         finally:
             win.close()
+
+
+def test_view_menu_toolbar_above_hide_left_panel(qapp):
+    from ui.main_window import MainWindow
+
+    with patch("core.services.proxy_service.ProxyDetectorWorker.start"), \
+         patch("core.services.ip_service.PublicIpWorker.start"), \
+         patch("ui.main_window.MainWindow.start_aria2_daemon", return_value=None):
+        win = MainWindow()
+        try:
+            view_menu = None
+            for action in win.menuBar().actions():
+                menu = action.menu()
+                if menu and "View" in action.text():
+                    view_menu = menu
+                    break
+
+            assert view_menu is not None
+            actions = view_menu.actions()
+            action_texts = [a.text().replace("&", "") for a in actions if not a.isSeparator()]
+
+            assert "Toolbar" in action_texts
+            assert "Hide left panel" in action_texts
+
+            toolbar_idx = action_texts.index("Toolbar")
+            hide_left_idx = action_texts.index("Hide left panel")
+            assert toolbar_idx < hide_left_idx
+        finally:
+            win.close()
+
