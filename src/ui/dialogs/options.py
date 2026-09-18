@@ -1466,7 +1466,7 @@ class OptionsDialog(QDialog):
 
         cfg = self.get_current_proxy_data()
         from core.services.proxy_service import ProxyDetectorWorker
-        self._proxy_worker = ProxyDetectorWorker(cfg, timeout=6.0, parent=self)
+        self._proxy_worker = ProxyDetectorWorker(cfg, timeout=6.0, parent=None)
         self._proxy_worker.detection_finished.connect(self._on_proxy_detection_finished)
         self._proxy_worker.start()
 
@@ -1711,27 +1711,32 @@ class OptionsDialog(QDialog):
 
         self.accept()
 
-    def closeEvent(self, event):
+    def _cleanup_proxy_worker(self):
         if hasattr(self, "_proxy_debounce_timer") and self._proxy_debounce_timer.isActive():
             self._proxy_debounce_timer.stop()
-        if getattr(self, "_proxy_worker", None) and self._proxy_worker.isRunning():
+        worker = getattr(self, "_proxy_worker", None)
+        if worker:
             try:
-                self._proxy_worker.terminate()
-                self._proxy_worker.wait(200)
+                worker.detection_finished.disconnect(self._on_proxy_detection_finished)
             except Exception:
                 pass
+            if hasattr(worker, "stop") and callable(worker.stop):
+                worker.stop()
+            if worker.isRunning():
+                worker.wait(200)
+            self._proxy_worker = None
+
+    def closeEvent(self, event):
+        self._cleanup_proxy_worker()
         super().closeEvent(event)
 
     def reject(self):
-        if hasattr(self, "_proxy_debounce_timer") and self._proxy_debounce_timer.isActive():
-            self._proxy_debounce_timer.stop()
-        if getattr(self, "_proxy_worker", None) and self._proxy_worker.isRunning():
-            try:
-                self._proxy_worker.terminate()
-                self._proxy_worker.wait(200)
-            except Exception:
-                pass
+        self._cleanup_proxy_worker()
         super().reject()
+
+    def accept(self):
+        self._cleanup_proxy_worker()
+        super().accept()
 
     def get_language(self) -> str:
         from core.services.language_service import get_language_code

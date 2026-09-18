@@ -180,3 +180,12 @@ def test_tcp_listener_fallback_on_unreclaimable_port():
         thread.wait(2000)
         s.close()
 
+
+def test_attempt_aria2_rpc_shutdown():
+    """Verify _attempt_aria2_rpc_shutdown calls call_aria2_rpc properly."""
+    from core.services.port_service import _attempt_aria2_rpc_shutdown
+    with patch("core.utils.call_aria2_rpc", return_value="OK") as mock_rpc:
+        assert _attempt_aria2_rpc_shutdown(56800, "mytoken") is True
+        mock_rpc.assert_called_once_with("aria2.shutdown", port=56800, token="mytoken")
+
+

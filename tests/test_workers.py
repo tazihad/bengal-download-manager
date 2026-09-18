@@ -129,3 +129,13 @@ def test_aria2_worker_completes_on_repeated_failures_if_file_intact(qapp, monkey
     worker.run()
     assert finished_statuses == ["Complete"]
 
+
+def test_download_worker_create_opener(qapp):
+    worker = DownloadWorker("https://example.com/test.zip", 0, "/tmp/test.zip")
+    opener = worker.create_opener()
+    assert opener is not None
+    import urllib.request
+    has_https_handler = any(isinstance(h, urllib.request.HTTPSHandler) for h in opener.handlers)
+    assert has_https_handler is True
+
+
