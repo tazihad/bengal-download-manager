@@ -567,36 +567,94 @@ def save_extension_config(data):
             json.dump(data, f, indent=4)
     except: pass
 
+def is_socks_proxy_config(proxy_config=None) -> bool:
+    """
+    Returns True if proxy configuration is manually set to a SOCKS proxy type.
+    """
+    if proxy_config is None:
+        proxy_config = load_proxy_config()
+    if not isinstance(proxy_config, dict) or proxy_config.get("mode") != "manual":
+        return False
+    host = str(proxy_config.get("host") or "").strip()
+    if not host:
+        return False
+    ptype = str(proxy_config.get("type") or "http").lower()
+    return ptype in ("socks4", "socks4a", "socks5", "socks5h")
+
+
+def get_upstream_proxy_url(proxy_config=None) -> str:
+    """
+    Returns full upstream proxy URI formatted for the configured protocol
+    (http, https, socks4, socks5), or empty string if no manual proxy configured.
+    """
+    if proxy_config is None:
+        proxy_config = load_proxy_config()
+
+    if not isinstance(proxy_config, dict) or proxy_config.get("mode") != "manual":
+        return ""
+
+    host = str(proxy_config.get("host") or "").strip()
+    if not host:
+        return ""
+
+    ptype = str(proxy_config.get("type") or "http").lower()
+    if ptype not in ("http", "https", "socks4", "socks4a", "socks5", "socks5h"):
+        ptype = "http"
+
+    try:
+        default_port = 1080 if "socks" in ptype else 8080
+        port = int(proxy_config.get("port") or default_port)
+    except (ValueError, TypeError):
+        port = 1080 if "socks" in ptype else 8080
+
+    user = str(proxy_config.get("user") or "")
+    password = str(proxy_config.get("password") or "")
+
+    from urllib.parse import quote
+
+    if proxy_config.get("auth") and user:
+        encoded_user = quote(user, safe="")
+        if ptype.startswith("socks4"):
+            # SOCKS4 only supports user identification without password
+            return f"{ptype}://{encoded_user}@{host}:{port}"
+        elif password:
+            encoded_pass = quote(password, safe="")
+            return f"{ptype}://{encoded_user}:{encoded_pass}@{host}:{port}"
+        else:
+            return f"{ptype}://{encoded_user}@{host}:{port}"
+    else:
+        return f"{ptype}://{host}:{port}"
+
+
 def get_aria2_proxy_url(proxy_config=None) -> str:
     """
     Returns native proxy URI for Aria2 (--all-proxy option), or empty string if no proxy configured.
     Format: [http|https]://[user:password@]host:port
+    Note: For SOCKS proxies, Aria2 requires a local HTTP-to-SOCKS bridge.
     """
     if proxy_config is None:
         proxy_config = load_proxy_config()
-    
-    if not isinstance(proxy_config, dict):
+
+    if not isinstance(proxy_config, dict) or proxy_config.get("mode") != "manual":
         return ""
-        
-    if proxy_config.get("mode") != "manual":
-        return ""
-        
+
     host = str(proxy_config.get("host") or "").strip()
     if not host:
         return ""
-        
+
     ptype = str(proxy_config.get("type") or "http").lower()
     if ptype not in ("http", "https"):
-        ptype = "http"
-        
+        # For non-HTTP proxies, Aria2 cannot connect directly
+        return ""
+
     try:
         port = int(proxy_config.get("port") or 8080)
     except (ValueError, TypeError):
         port = 8080
-        
+
     user = str(proxy_config.get("user") or "")
     password = str(proxy_config.get("password") or "")
-    
+
     if proxy_config.get("auth") and user and password:
         from urllib.parse import quote
         encoded_user = quote(user, safe="")
@@ -659,25 +717,37 @@ def call_aria2_rpc(method, params=None, port=56800, token=""):
                 break
         
         if not response:
-            if debug_active:
+            if debug_active and method != "aria2.tellStatus":
                 rpc_logger.debug("[Aria2RPC] <<< No response from aria2 on port %s for %s", port, method)
             return None
         
         resp_str = response.decode('utf-8', errors='ignore')
-        if "200 OK" in resp_str:
-            body_start = resp_str.find("\r\n\r\n")
-            if body_start != -1:
-                body = resp_str[body_start+4:].strip()
-                if body:
-                    # Robust JSON detection
-                    j_start = body.find('{')
-                    j_end = body.rfind('}')
-                    if j_start != -1 and j_end != -1:
-                        parsed_res = json.loads(body[j_start:j_end+1]).get("result")
+        body_start = resp_str.find("\r\n\r\n")
+        if body_start != -1:
+            body = resp_str[body_start + 4:].strip()
+            if body:
+                j_start = body.find('{')
+                j_end = body.rfind('}')
+                if j_start != -1 and j_end != -1:
+                    try:
+                        payload = json.loads(body[j_start:j_end + 1])
+                        if "result" in payload:
+                            parsed_res = payload["result"]
+                            if debug_active and method != "aria2.tellStatus":
+                                rpc_logger.debug("[Aria2RPC] <<< Success for %s: %s", method, str(parsed_res)[:200])
+                            return parsed_res
+                        if "error" in payload:
+                            err = payload.get("error") or {}
+                            err_code = err.get("code")
+                            err_msg = err.get("message")
+                            if debug_active and method != "aria2.tellStatus":
+                                rpc_logger.debug("[Aria2RPC] <<< RPC error for %s (code=%s): %s", method, err_code, err_msg)
+                            return None
+                    except Exception as parse_err:
                         if debug_active and method != "aria2.tellStatus":
-                            rpc_logger.debug("[Aria2RPC] <<< Success for %s: %s", method, str(parsed_res)[:200])
-                        return parsed_res
-        if debug_active:
+                            rpc_logger.debug("[Aria2RPC] <<< JSON parse error for %s: %s", method, parse_err)
+
+        if debug_active and method != "aria2.tellStatus":
             rpc_logger.debug("[Aria2RPC] <<< HTTP error response for %s: %s", method, resp_str[:200])
         return None
     except Exception as e:

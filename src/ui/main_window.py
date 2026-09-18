@@ -291,6 +291,7 @@ class MainWindow(QMainWindow):
             self.stop_aria2_daemon()
             self.aria2_process = self.start_aria2_daemon()
         self.update_status_bar_aria2()
+        self.update_status_bar_proxy(force=True)
 
         # Check and restart IPC listener if port was updated
         ext_cfg = load_extension_config()
@@ -344,6 +345,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tray_icon") and self.tray_icon:
             try:
                 self.tray_icon.hide()
+            except Exception:
+                pass
+
+        if getattr(self, "_proxy_sb_worker", None) and self._proxy_sb_worker.isRunning():
+            try:
+                self._proxy_sb_worker.terminate()
+                self._proxy_sb_worker.wait(200)
             except Exception:
                 pass
 
@@ -721,6 +729,13 @@ class MainWindow(QMainWindow):
         self.action_sb_public_ip.setChecked(prev_ip)
         self.action_sb_public_ip.triggered.connect(self._on_status_bar_child_toggled)
         self.status_bar_menu.addAction(self.action_sb_public_ip)
+
+        prev_proxy = getattr(self, "action_sb_proxy", None).isChecked() if hasattr(self, "action_sb_proxy") else False
+        self.action_sb_proxy = QAction(self.tr("&Proxy Status"), self)
+        self.action_sb_proxy.setCheckable(True)
+        self.action_sb_proxy.setChecked(prev_proxy)
+        self.action_sb_proxy.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_proxy)
 
         self.action_hide_categories = QAction(self.tr("&Hide left panel"), self)
         self.action_hide_categories.setCheckable(True)
@@ -1166,7 +1181,18 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self.sep_public_ip)
         status_bar.addPermanentWidget(self.status_public_ip_label)
 
-        # 5. Memory Status
+        # 5. Proxy Status
+        self.sep_proxy = create_sep()
+        self.status_proxy_label = QLabel("Proxy: Direct", self)
+        self.status_proxy_label.setFont(tnum_font)
+        self.status_proxy_label.setStyleSheet("color: palette(window-text); padding: 0px 6px;")
+        self.status_proxy_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.status_proxy_label.setToolTip("Proxy Status (Click to configure)")
+        self.status_proxy_label.mousePressEvent = self._on_proxy_status_clicked
+        status_bar.addPermanentWidget(self.sep_proxy)
+        status_bar.addPermanentWidget(self.status_proxy_label)
+
+        # 6. Memory Status
         self.sep_memory = create_sep()
         self.status_memory_label = QLabel("Memory: 0 B", self)
         self.status_memory_label.setFont(tnum_font)
@@ -1189,6 +1215,7 @@ class MainWindow(QMainWindow):
             (getattr(self, "status_aria2_label", None), getattr(self, "sep_aria2", None), self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else False),
             (getattr(self, "status_ipc_label", None), getattr(self, "sep_ipc", None), self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else False),
             (getattr(self, "status_public_ip_label", None), getattr(self, "sep_public_ip", None), self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False),
+            (getattr(self, "status_proxy_label", None), getattr(self, "sep_proxy", None), self.action_sb_proxy.isChecked() if hasattr(self, "action_sb_proxy") else False),
             (getattr(self, "status_memory_label", None), getattr(self, "sep_memory", None), self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True),
         ]
 
@@ -1207,6 +1234,8 @@ class MainWindow(QMainWindow):
         self._update_status_bar_visibility()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
+            self.update_status_bar_proxy()
         if hasattr(self, "save_settings"):
             self.save_settings()
 
@@ -1380,6 +1409,89 @@ class MainWindow(QMainWindow):
                 cb.setText(ip)
             QToolTip.showText(QCursor.pos(), self.tr("Public IP copied to clipboard!"), self.status_public_ip_label, QRect(), 2000)
 
+    def _on_proxy_status_clicked(self, event):
+        self.open_options(target_tab="Proxy / Socks")
+
+    def on_proxy_verified(self, result):
+        """Called when OptionsDialog verifies a proxy connection."""
+        self._cached_proxy_result = result
+        self._last_proxy_check_time = time.time()
+        self._render_proxy_status(result)
+
+    def update_status_bar_proxy(self, force: bool = False):
+        if not hasattr(self, "status_proxy_label"):
+            return
+        if hasattr(self, "action_sb_proxy") and not self.action_sb_proxy.isChecked():
+            return
+
+        from core.utils import load_proxy_config
+        proxy_config = load_proxy_config()
+        mode = proxy_config.get("mode", "no_proxy")
+
+        if mode != "manual":
+            self.status_proxy_label.setText("Proxy: Direct")
+            self.status_proxy_label.setToolTip("Direct connection (No proxy configured)\nClick to configure")
+            return
+
+        host = proxy_config.get("host", "").strip()
+        if not host:
+            self.status_proxy_label.setText("Proxy: Direct")
+            self.status_proxy_label.setToolTip("Direct connection (Proxy host is empty)\nClick to configure")
+            return
+
+        now = time.time()
+        cached = getattr(self, "_cached_proxy_result", None)
+        last_check = getattr(self, "_last_proxy_check_time", 0)
+        if not force and cached and (now - last_check < 600):
+            self._render_proxy_status(cached)
+            return
+
+        if getattr(self, "_proxy_sb_worker", None) and self._proxy_sb_worker.isRunning():
+            return
+
+        from core.services.proxy_service import ProxyDetectorWorker
+        self._proxy_sb_worker = ProxyDetectorWorker(proxy_config, timeout=6.0, parent=self)
+        self._proxy_sb_worker.detection_finished.connect(self._on_status_bar_proxy_detected)
+        self._proxy_sb_worker.start()
+
+    def _on_status_bar_proxy_detected(self, result):
+        self._cached_proxy_result = result
+        self._last_proxy_check_time = time.time()
+        self._render_proxy_status(result)
+
+    def _render_proxy_status(self, result):
+        if not hasattr(self, "status_proxy_label"):
+            return
+        from core.utils import load_proxy_config
+        proxy_config = load_proxy_config()
+        ptype = str(proxy_config.get("type", "http")).upper()
+        host = proxy_config.get("host", "")
+        port = proxy_config.get("port", 8080)
+
+        if result.is_working:
+            flag = result.flag_emoji or "🌐"
+            ip_display = result.ip if result.ip else "Active"
+            self.status_proxy_label.setText(f"Proxy: {flag} {ip_display}")
+            country_info = result.country if result.country else "Unknown"
+            if result.city:
+                country_info = f"{result.city}, {country_info}"
+            tooltip = (
+                f"Proxy is working\n"
+                f"Protocol: {ptype}\n"
+                f"Server: {host}:{port}\n"
+                f"Public IP: {result.ip}\n"
+                f"Country: {country_info}\n"
+                f"Click to configure"
+            )
+            self.status_proxy_label.setToolTip(tooltip)
+        else:
+            self.status_proxy_label.setText("Proxy: Error")
+            self.status_proxy_label.setToolTip(
+                f"Proxy connection failed: {result.error_message}\n"
+                f"Server: {host}:{port} ({ptype})\n"
+                f"Click to configure"
+            )
+
     def update_status_bar_memory(self):
         if not hasattr(self, "status_memory_label"):
             return
@@ -1411,6 +1523,8 @@ class MainWindow(QMainWindow):
         self.update_status_bar_speed()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
+            self.update_status_bar_proxy()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
 
@@ -1457,6 +1571,8 @@ class MainWindow(QMainWindow):
         self.update_status_bar_memory()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
+            self.update_status_bar_proxy()
         if hasattr(self, "data_usage_widget") and self.data_usage_widget:
             self.data_usage_widget.refresh_stats(self)
 
@@ -2771,6 +2887,7 @@ class MainWindow(QMainWindow):
                     "ipc": self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else False,
                     "speed": self.action_sb_speed.isChecked() if hasattr(self, "action_sb_speed") else False,
                     "public_ip": self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False,
+                    "proxy": self.action_sb_proxy.isChecked() if hasattr(self, "action_sb_proxy") else False,
                 }
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
@@ -3149,6 +3266,10 @@ class MainWindow(QMainWindow):
             self.action_sb_public_ip.setChecked(sb_items.get("public_ip", False))
             if sb_items.get("public_ip", False):
                 self.fetch_public_ip_async()
+        if hasattr(self, "action_sb_proxy"):
+            self.action_sb_proxy.setChecked(sb_items.get("proxy", False))
+            if sb_items.get("proxy", False):
+                self.update_status_bar_proxy()
         self._update_status_bar_visibility()
 
         show_toolbar = settings.get("show_toolbar", True)

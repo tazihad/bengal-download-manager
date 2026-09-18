@@ -249,4 +249,11 @@ The modularized media extraction and downloading domain package (`src/core/media
 - **Media Worker**: Multi-connection stream download and ffmpeg format muxing worker.
 - **Media Facade**: Adapter facade (`src/core/media_downloader.py`) preserving backwards compatibility for callers.
 
+### Proxy Detection & Geolocation Service
+The core service module querying external IP and country geolocation over configured proxy adapters (HTTP, HTTPS, SOCKS4, SOCKS5) without requiring API keys or captchas (`src/core/services/proxy_service.py`). Powers auto-updating status displays in both Options and MainWindow status bar.
+
+### Socks Proxy Bridge
+The local asynchronous proxy adapter (`src/core/services/socks_bridge.py`) resolving Aria2's lack of native SOCKS client capabilities. It binds to an unprivileged loopback address (`127.0.0.1:0`), accepting incoming HTTP/HTTPS CONNECT requests from Aria2 and tunneling them to upstream SOCKS4, SOCKS4a, SOCKS5, or SOCKS5h proxies via `python-socks[asyncio]`.
+
+
 

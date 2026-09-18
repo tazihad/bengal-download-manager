@@ -7,7 +7,8 @@ from PyQt6.QtWidgets import (
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
     QApplication, QStackedWidget, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal
+from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont
 from core.utils import (
     load_proxy_config, save_proxy_config, get_aria2_proxy_url,
     load_extension_config, save_extension_config, call_aria2_rpc,
@@ -808,15 +809,25 @@ class OptionsDialog(QDialog):
         self.rb_https = QRadioButton("HTTPS")
         self.rb_https.setToolTip("Use secure HTTPS proxy protocol")
         self.rb_https.toggled.connect(self.on_proxy_toggle)
-        
+        self.rb_socks5 = QRadioButton("SOCKS5")
+        self.rb_socks5.setToolTip("Use SOCKS5 proxy protocol (with optional user/password authentication)")
+        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
+        self.rb_socks4 = QRadioButton("SOCKS4")
+        self.rb_socks4.setToolTip("Use SOCKS4 proxy protocol (user identity only)")
+        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
+
         self.bg_type.addButton(self.rb_http)
         self.bg_type.addButton(self.rb_https)
-        
+        self.bg_type.addButton(self.rb_socks5)
+        self.bg_type.addButton(self.rb_socks4)
+
         lbl_type = QLabel("Type:")
         lbl_type.setToolTip("Select proxy protocol type")
         type_layout.addWidget(lbl_type)
         type_layout.addWidget(self.rb_http)
         type_layout.addWidget(self.rb_https)
+        type_layout.addWidget(self.rb_socks5)
+        type_layout.addWidget(self.rb_socks4)
         type_layout.addStretch()
         manual_layout.addLayout(type_layout)
         
@@ -873,6 +884,68 @@ class OptionsDialog(QDialog):
         
         manual_layout.addLayout(auth_layout)
         
+        # Status section for auto-detecting proxy connectivity, IP, and country flag
+        self.proxy_status_frame = QFrame()
+        self.proxy_status_frame.setObjectName("proxy_status_frame")
+        self.proxy_status_frame.setStyleSheet("""
+            QFrame#proxy_status_frame {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 6px;
+                padding: 6px 10px;
+                margin-top: 6px;
+            }
+        """)
+        status_hlayout = QHBoxLayout(self.proxy_status_frame)
+        status_hlayout.setContentsMargins(8, 6, 8, 6)
+        status_hlayout.setSpacing(10)
+
+        self.lbl_proxy_flag = QLabel("🌐")
+        self.lbl_proxy_flag.setStyleSheet("font-size: 22px;")
+        self.lbl_proxy_flag.setToolTip("Country flag")
+        status_hlayout.addWidget(self.lbl_proxy_flag)
+
+        status_text_layout = QVBoxLayout()
+        status_text_layout.setContentsMargins(0, 0, 0, 0)
+        status_text_layout.setSpacing(2)
+
+        self.lbl_proxy_status = QLabel("Proxy status: Not checked")
+        self.lbl_proxy_status.setStyleSheet("font-weight: bold; color: palette(window-text);")
+        status_text_layout.addWidget(self.lbl_proxy_status)
+
+        self.lbl_proxy_ip = QLabel("")
+        tnum_font = QFont(self.font())
+        tnum_font.setPointSize(9)
+        tnum_font.setFeature(QFont.Tag.fromString('tnum'), 1)
+        self.lbl_proxy_ip.setFont(tnum_font)
+        self.lbl_proxy_ip.setStyleSheet("color: palette(window-text);")
+        status_text_layout.addWidget(self.lbl_proxy_ip)
+
+        status_hlayout.addLayout(status_text_layout, 1)
+
+        self.btn_test_proxy = QPushButton("Test Proxy")
+        self.btn_test_proxy.setToolTip("Verify connection and detect external IP and country using this proxy")
+        self.btn_test_proxy.clicked.connect(lambda: self.trigger_proxy_detection(force=True))
+        status_hlayout.addWidget(self.btn_test_proxy)
+
+        manual_layout.addWidget(self.proxy_status_frame)
+
+        # Debounce timer for auto-detecting proxy changes
+        self._proxy_debounce_timer = QTimer(self)
+        self._proxy_debounce_timer.setSingleShot(True)
+        self._proxy_debounce_timer.setInterval(750)
+        self._proxy_debounce_timer.timeout.connect(self.trigger_proxy_detection)
+
+        self.txt_host.textChanged.connect(self._schedule_proxy_detection)
+        self.spin_port.valueChanged.connect(self._schedule_proxy_detection)
+        self.chk_auth.toggled.connect(self._schedule_proxy_detection)
+        self.txt_user.textChanged.connect(self._schedule_proxy_detection)
+        self.txt_pass.textChanged.connect(self._schedule_proxy_detection)
+        self.rb_http.toggled.connect(self._schedule_proxy_detection)
+        self.rb_https.toggled.connect(self._schedule_proxy_detection)
+        self.rb_socks5.toggled.connect(self._schedule_proxy_detection)
+        self.rb_socks4.toggled.connect(self._schedule_proxy_detection)
+
         layout.addWidget(self.grp_manual)
         layout.addStretch()
         
@@ -881,6 +954,8 @@ class OptionsDialog(QDialog):
         self.rb_no_proxy.blockSignals(True)
         self.rb_http.blockSignals(True)
         self.rb_https.blockSignals(True)
+        self.rb_socks5.blockSignals(True)
+        self.rb_socks4.blockSignals(True)
         self.txt_host.blockSignals(True)
         self.spin_port.blockSignals(True)
         self.chk_auth.blockSignals(True)
@@ -895,6 +970,10 @@ class OptionsDialog(QDialog):
         ptype = str(self.proxy_data.get("type", "http")).lower()
         if ptype == "https":
             self.rb_https.setChecked(True)
+        elif ptype in ("socks5", "socks5h"):
+            self.rb_socks5.setChecked(True)
+        elif ptype in ("socks4", "socks4a"):
+            self.rb_socks4.setChecked(True)
         else:
             self.rb_http.setChecked(True)
         
@@ -908,6 +987,8 @@ class OptionsDialog(QDialog):
         self.rb_no_proxy.blockSignals(False)
         self.rb_http.blockSignals(False)
         self.rb_https.blockSignals(False)
+        self.rb_socks5.blockSignals(False)
+        self.rb_socks4.blockSignals(False)
         self.txt_host.blockSignals(False)
         self.spin_port.blockSignals(False)
         self.chk_auth.blockSignals(False)
@@ -915,6 +996,8 @@ class OptionsDialog(QDialog):
         self.txt_pass.blockSignals(False)
         
         self.update_proxy_ui()
+        if self.rb_manual.isChecked() and self.txt_host.text().strip():
+            QTimer.singleShot(200, self.trigger_proxy_detection)
 
     def setup_extension_tab(self):
         layout = QVBoxLayout(self.extension_tab)
@@ -1291,14 +1374,28 @@ class OptionsDialog(QDialog):
     def update_proxy_ui(self):
         manual = self.rb_manual.isChecked()
         self.grp_manual.setEnabled(manual)
+        if hasattr(self, "proxy_status_frame"):
+            self.proxy_status_frame.setEnabled(manual)
         
+        is_socks4 = hasattr(self, "rb_socks4") and self.rb_socks4.isChecked()
         auth = self.chk_auth.isChecked() and manual
         self.txt_user.setEnabled(auth)
-        self.txt_pass.setEnabled(auth)
+        self.txt_pass.setEnabled(auth and not is_socks4)
+        if is_socks4:
+            self.chk_auth.setText("User identity required (SOCKS4)")
+        else:
+            self.chk_auth.setText("Authentication required")
 
     def save_proxy_data(self):
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
-        ptype = "https" if self.rb_https.isChecked() else "http"
+        if hasattr(self, "rb_https") and self.rb_https.isChecked():
+            ptype = "https"
+        elif hasattr(self, "rb_socks5") and self.rb_socks5.isChecked():
+            ptype = "socks5"
+        elif hasattr(self, "rb_socks4") and self.rb_socks4.isChecked():
+            ptype = "socks4"
+        else:
+            ptype = "http"
         
         self.proxy_data = {
             "mode": mode,
@@ -1311,14 +1408,115 @@ class OptionsDialog(QDialog):
         }
         save_proxy_config(self.proxy_data)
 
-        # Dynamically update running Aria2 daemon proxy settings via RPC
-        proxy_url = get_aria2_proxy_url(self.proxy_data)
-        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
-        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        # Dynamically coordinate proxy transitions via Aria2DaemonManager
         try:
-            call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": proxy_url}], port=rpc_port, token=token)
+            from core.aria2_daemon import get_aria2_daemon_manager
+            mgr = get_aria2_daemon_manager()
+            mgr.update_proxy(self.proxy_data)
         except Exception:
-            pass
+            # Fallback direct RPC call
+            proxy_url = get_aria2_proxy_url(self.proxy_data)
+            token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+            rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+            try:
+                call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": proxy_url}], port=rpc_port, token=token)
+            except Exception:
+                pass
+
+        # Notify main window to update its proxy status bar
+        if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "update_status_bar_proxy"):
+            try:
+                self.main_window.update_status_bar_proxy(force=True)
+            except Exception:
+                pass
+
+    def _schedule_proxy_detection(self):
+        if not hasattr(self, "rb_manual") or not self.rb_manual.isChecked():
+            return
+        host = self.txt_host.text().strip() if hasattr(self, "txt_host") else ""
+        if not host:
+            if hasattr(self, "lbl_proxy_status"):
+                self.lbl_proxy_status.setText("Proxy status: Host is empty")
+                self.lbl_proxy_status.setStyleSheet("color: palette(placeholder-text);")
+                self.lbl_proxy_flag.setText("🌐")
+                self.lbl_proxy_flag.setToolTip("Enter proxy host to test connection")
+                self.lbl_proxy_ip.setText("")
+            return
+        if hasattr(self, "lbl_proxy_status"):
+            self.lbl_proxy_status.setText("Proxy status: Waiting to test...")
+            self.lbl_proxy_status.setStyleSheet("color: palette(window-text);")
+        if hasattr(self, "_proxy_debounce_timer"):
+            self._proxy_debounce_timer.start(750)
+
+    def trigger_proxy_detection(self, force: bool = False):
+        if not hasattr(self, "rb_manual") or not self.rb_manual.isChecked():
+            return
+        host = self.txt_host.text().strip() if hasattr(self, "txt_host") else ""
+        if not host:
+            return
+        if getattr(self, "_proxy_worker", None) and self._proxy_worker.isRunning():
+            return
+
+        self.lbl_proxy_status.setText("Testing proxy...")
+        self.lbl_proxy_status.setStyleSheet("color: palette(window-text); font-weight: bold;")
+        self.lbl_proxy_flag.setText("⏳")
+        self.lbl_proxy_flag.setToolTip("Testing connection through configured proxy...")
+        if hasattr(self, "btn_test_proxy"):
+            self.btn_test_proxy.setEnabled(False)
+
+        cfg = self.get_current_proxy_data()
+        from core.services.proxy_service import ProxyDetectorWorker
+        self._proxy_worker = ProxyDetectorWorker(cfg, timeout=6.0, parent=self)
+        self._proxy_worker.detection_finished.connect(self._on_proxy_detection_finished)
+        self._proxy_worker.start()
+
+    def _on_proxy_detection_finished(self, result):
+        if hasattr(self, "btn_test_proxy"):
+            self.btn_test_proxy.setEnabled(True)
+        if not hasattr(self, "lbl_proxy_status"):
+            return
+
+        if result.is_working:
+            self.lbl_proxy_flag.setText(result.flag_emoji or "🌐")
+            tooltip_country = result.country if result.country else "Unknown Country"
+            if result.city:
+                tooltip_country = f"{result.city}, {tooltip_country}"
+            self.lbl_proxy_flag.setToolTip(tooltip_country)
+            self.lbl_proxy_status.setText("Proxy is working")
+            self.lbl_proxy_status.setStyleSheet("color: #2eb85c; font-weight: bold;")
+            self.lbl_proxy_ip.setText(f"IP: {result.ip}")
+            if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "on_proxy_verified"):
+                try:
+                    self.main_window.on_proxy_verified(result)
+                except Exception:
+                    pass
+        else:
+            self.lbl_proxy_flag.setText("⚠️")
+            self.lbl_proxy_flag.setToolTip(result.error_message or "Proxy error")
+            self.lbl_proxy_status.setText(f"Connection failed: {result.error_message}")
+            self.lbl_proxy_status.setStyleSheet("color: #e55353; font-weight: bold;")
+            self.lbl_proxy_ip.setText("")
+
+    def get_current_proxy_data(self) -> dict:
+        mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
+        if hasattr(self, "rb_https") and self.rb_https.isChecked():
+            ptype = "https"
+        elif hasattr(self, "rb_socks5") and self.rb_socks5.isChecked():
+            ptype = "socks5"
+        elif hasattr(self, "rb_socks4") and self.rb_socks4.isChecked():
+            ptype = "socks4"
+        else:
+            ptype = "http"
+
+        return {
+            "mode": mode,
+            "type": ptype,
+            "host": self.txt_host.text().strip() if hasattr(self, "txt_host") else "",
+            "port": self.spin_port.value() if hasattr(self, "spin_port") else 8080,
+            "auth": self.chk_auth.isChecked() if hasattr(self, "chk_auth") else False,
+            "user": self.txt_user.text() if hasattr(self, "txt_user") else "",
+            "password": self.txt_pass.text() if hasattr(self, "txt_pass") else "",
+        }
 
     def save_extension_data(self):
         max_c = 8
@@ -1512,6 +1710,28 @@ class OptionsDialog(QDialog):
             )
 
         self.accept()
+
+    def closeEvent(self, event):
+        if hasattr(self, "_proxy_debounce_timer") and self._proxy_debounce_timer.isActive():
+            self._proxy_debounce_timer.stop()
+        if getattr(self, "_proxy_worker", None) and self._proxy_worker.isRunning():
+            try:
+                self._proxy_worker.terminate()
+                self._proxy_worker.wait(200)
+            except Exception:
+                pass
+        super().closeEvent(event)
+
+    def reject(self):
+        if hasattr(self, "_proxy_debounce_timer") and self._proxy_debounce_timer.isActive():
+            self._proxy_debounce_timer.stop()
+        if getattr(self, "_proxy_worker", None) and self._proxy_worker.isRunning():
+            try:
+                self._proxy_worker.terminate()
+                self._proxy_worker.wait(200)
+            except Exception:
+                pass
+        super().reject()
 
     def get_language(self) -> str:
         from core.services.language_service import get_language_code
