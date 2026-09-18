@@ -74,6 +74,13 @@ class DownloadController(QObject):
         with self._lock:
             return list(self._entries.items())
 
+    def clear(self) -> None:
+        """Clears all active download registrations and instantaneous speeds."""
+        with self._lock:
+            self._entries.clear()
+            self._speeds.clear()
+        self._notify_aggregate_speed()
+
     # --- Core Lifecycle Management ---
     def register(self, key: Any, entry: Any, dialog: Optional[Any] = None) -> None:
         """
@@ -222,6 +229,12 @@ class DownloadController(QObject):
 
 # Module-level singleton helper
 _GLOBAL_DOWNLOAD_CONTROLLER: Optional[DownloadController] = None
+
+
+def set_global_download_controller(controller: Optional[DownloadController]) -> None:
+    """Sets or clears the application-wide DownloadController instance."""
+    global _GLOBAL_DOWNLOAD_CONTROLLER
+    _GLOBAL_DOWNLOAD_CONTROLLER = controller
 
 
 def get_download_controller() -> DownloadController:

@@ -35,26 +35,27 @@ def get_all_categories() -> List[str]:
 
 
 def parse_size_to_bytes(text: str) -> float:
-    """Parses a formatted size string (e.g. '12.5 MB') to a numeric float in bytes."""
+    """Parses a formatted size string (e.g. '12.5 MB', '10.00MiB', '500KiB') to a numeric float in bytes."""
     try:
         if not text or text == "...":
             return 0.0
-        parts = text.split()
-        val = float(parts[0])
-        unit = parts[1].upper() if len(parts) > 1 else ""
-        multipliers = {
-            'B': 1,
-            'K': 1024,
-            'KB': 1024,
-            'M': 1024**2,
-            'MB': 1024**2,
-            'G': 1024**3,
-            'GB': 1024**3,
+        s = str(text).strip().upper()
+        units = {
+            "KIB": 1024, "KB": 1024, "K": 1024,
+            "MIB": 1024**2, "MB": 1024**2, "M": 1024**2,
+            "GIB": 1024**3, "GB": 1024**3, "G": 1024**3,
+            "TIB": 1024**4, "TB": 1024**4, "T": 1024**4,
+            "B": 1
         }
-        for key, mult in multipliers.items():
-            if unit.startswith(key):
-                return val * mult
-        return val
+        for u, factor in units.items():
+            if s.endswith(u):
+                try:
+                    num = float(s[:-len(u)].strip())
+                    return float(num * factor)
+                except ValueError:
+                    pass
+        clean = re.sub(r"[^\d.]", "", s)
+        return float(clean) if clean else 0.0
     except Exception:
         return 0.0
 

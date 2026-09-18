@@ -180,8 +180,9 @@ class MainWindow(QMainWindow):
         else:
             self._is_in_tray = False
         
-        from core.download_controller import get_download_controller
-        self.download_controller = get_download_controller()
+        from core.download_controller import DownloadController, set_global_download_controller
+        self.download_controller = DownloadController()
+        set_global_download_controller(self.download_controller)
         self.active_downloads = self.download_controller
         self.active_speeds = self.download_controller._speeds
         self.download_controller.aggregate_speed_changed.connect(lambda total, count: self.update_status_bar_speed())
@@ -301,14 +302,15 @@ class MainWindow(QMainWindow):
         if current_ipc_port != target_ipc_port:
             self.restart_ipc_listener(target_ipc_port)
 
-    def start_aria2_daemon(self):
+    def start_aria2_daemon(self, port: Optional[int] = None):
         """Starts the internal aria2 daemon process via the core Aria2DaemonManager."""
         from core.aria2_daemon import get_aria2_daemon_manager
         if not hasattr(self, "aria2_daemon_manager") or not self.aria2_daemon_manager:
             self.aria2_daemon_manager = get_aria2_daemon_manager()
-        self.aria2_daemon_manager.start()
+        self.aria2_daemon_manager.start(port=port)
         self.aria2_process = self.aria2_daemon_manager.process
         return self.aria2_process
+
     def close(self):
         self._is_closing = True
         if hasattr(self, "_active_retry_timers"):
@@ -318,6 +320,8 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
             self._active_retry_timers.clear()
+        if hasattr(self, "download_controller") and self.download_controller:
+            self.download_controller.clear()
         return super().close()
 
     def closeEvent(self, event: QCloseEvent):
@@ -1424,10 +1428,15 @@ class MainWindow(QMainWindow):
         # 1. Aria2 daemon health check
         from core.aria2_daemon import get_aria2_daemon_manager
         mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
-        if not mgr.is_running():
-            logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", mgr.port)
-            mgr.start()
-            self.aria2_process = mgr.process
+        aria2_dead = (
+            not hasattr(self, "aria2_process")
+            or self.aria2_process is None
+            or (hasattr(self.aria2_process, "poll") and self.aria2_process.poll() is not None)
+            or not mgr.is_running()
+        )
+        if aria2_dead:
+            logger.info("[Watchdog] Aria2 daemon is inactive (port %d). Auto-restarting...", aria2_port)
+            self.start_aria2_daemon(port=aria2_port)
 
         # 2. Extension IPC listener health check
         if getattr(self, "start_ipc", True):

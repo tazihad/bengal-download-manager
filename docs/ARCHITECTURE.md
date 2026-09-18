@@ -236,3 +236,17 @@ The presentation seam connecting the core application model to alternative front
 ### Desktop Integration
 The platform seam managing system interactions: XDG Desktop Portals, D-Bus file manager discovery, system tray status, and autostart launchers.
 
+### Aria2 Daemon Manager
+The deep module supervising the background `aria2c` process lifecycle (`src/core/aria2_daemon.py`). It manages pre-launch port reclamation, proxy configuration, background logging, and graceful JSON-RPC shutdowns, decoupling process management completely from presentation windows.
+
+### Download Controller
+The core execution controller coordinating active download worker threads and bandwidth metrics (`src/core/download_controller.py`). It serves as the single runtime source for worker references, active states, and real-time aggregate speed calculations.
+
+### Media Downloader Subsystem
+The modularized media extraction and downloading domain package (`src/core/media/`):
+- **Dependencies Manager**: Acquires and validates external tools (`yt-dlp`, `ffmpeg`, `ffprobe`, `deno`, `AtomicParsley`).
+- **Media Extractor**: Probes remote media URLs and extracts audio/video and playlist metadata.
+- **Media Worker**: Multi-connection stream download and ffmpeg format muxing worker.
+- **Media Facade**: Adapter facade (`src/core/media_downloader.py`) preserving backwards compatibility for callers.
+
+
