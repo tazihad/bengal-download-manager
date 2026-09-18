@@ -43,7 +43,7 @@ def draw_icon_path(painter: QPainter, name: str, size: int):
         rect = QRectF(s * 0.26, s * 0.26, s * 0.48, s * 0.48)
         painter.drawRoundedRect(rect, 3, 3)
 
-    elif name == "stop_all":
+    elif name in ("stop_all", "stop_all_queues"):
         # Double Square Stop
         r1 = QRectF(s * 0.20, s * 0.20, s * 0.38, s * 0.38)
         r2 = QRectF(s * 0.42, s * 0.42, s * 0.38, s * 0.38)
@@ -440,7 +440,7 @@ def draw_colorful_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(s * 0.40, s * 0.34), QPointF(s * 0.40, s * 0.66))
         painter.drawLine(QPointF(s * 0.60, s * 0.34), QPointF(s * 0.60, s * 0.66))
 
-    elif name == "stop_all":
+    elif name in ("stop_all", "stop_all_queues"):
         # Vibrant Rose gradient circle + white stop square
         grad = QLinearGradient(0, 0, s, s)
         grad.setColorAt(0.0, QColor("#f43f5e"))
@@ -936,7 +936,7 @@ def draw_yaru_icon_path(painter: QPainter, name: str, size: int):
         painter.drawLine(QPointF(s * 0.40, s * 0.34), QPointF(s * 0.40, s * 0.66))
         painter.drawLine(QPointF(s * 0.60, s * 0.34), QPointF(s * 0.60, s * 0.66))
 
-    elif name == "stop_all":
+    elif name in ("stop_all", "stop_all_queues"):
         # Yaru Red Squircle + Stop Square
         _draw_squircle("#c7162b")
         painter.setBrush(QColor("#ffffff"))

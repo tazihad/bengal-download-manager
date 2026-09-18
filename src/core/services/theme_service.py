@@ -876,6 +876,7 @@ FREEDESKTOP_MAP = {
     "resume": ["media-playback-start", "go-down", "start"],
     "stop": ["process-stop", "media-playback-stop", "stop"],
     "stop_all": ["process-stop", "media-playback-stop", "stop"],
+    "stop_all_queues": ["process-stop", "media-playback-stop", "stop"],
     "delete": ["user-trash", "edit-delete", "delete"],
     "clear_completed": ["edit-clear-all", "edit-clear", "clear"],
     "options": ["preferences-system", "configure", "settings"],
