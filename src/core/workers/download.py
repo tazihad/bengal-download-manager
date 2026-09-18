@@ -149,10 +149,11 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, row_index, save_dir, resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True):
+    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, **kwargs):
         super().__init__()
         self.url = url
-        self.row_index = row_index
+        self.download_id = kwargs.get("row_index", download_id)
+        self.row_index = self.download_id
         self.save_dir = save_dir
         self.temp_dir = temp_dir
         self.user_agent = user_agent

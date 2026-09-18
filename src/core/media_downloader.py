@@ -912,10 +912,11 @@ class YtDlpDownloadWorker(QThread):
     init_segments_signal = pyqtSignal(int)
     segment_update_signal = pyqtSignal(int, int, int, float, str)
 
-    def __init__(self, url: str, row_index: int, save_dir: str, filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None):
+    def __init__(self, url: str, download_id: int = 0, save_dir: str = "", filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None, **kwargs):
         super().__init__()
         self.url = url
-        self.row_index = row_index
+        self.download_id = kwargs.get("row_index", download_id)
+        self.row_index = self.download_id
         self.save_dir = save_dir
         self.filename = filename or "media_download"
         self.format_spec = format_spec
