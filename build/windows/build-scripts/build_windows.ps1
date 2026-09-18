@@ -3,6 +3,7 @@
 
 param(
     [string]$Version       = "",
+    [string]$Architecture  = "x86_64",
     [switch]$SkipBuild,
     [switch]$SkipInstaller,
     [switch]$SkipArchive,
@@ -113,8 +114,10 @@ if (-not $SkipBuild) {
 if (-not $SkipInstaller) {
     Write-Host "`n[3/4] Compiling Inno Setup installer..." -ForegroundColor Yellow
     if ($ISCC) {
-        & $ISCC "/DAppVersion=$Version" "$IssFile"
-        Write-Host "  Installer generated: $WinDistDir\BengalSetup-$Version.exe" -ForegroundColor Green
+        $AppArch = if ($Architecture -eq "arm64") { "arm64" } else { "x64" }
+        $OutBaseName = "bengal-download-manager-$Version-windows-$Architecture-setup"
+        & $ISCC "/DAppVersion=$Version" "/DAppArch=$AppArch" "/DOutputBaseFilenameOverride=$OutBaseName" "$IssFile"
+        Write-Host "  Installer generated: $WinDistDir\$OutBaseName.exe" -ForegroundColor Green
     } else {
         Write-Warning "ISCC (Inno Setup) not found. Skipping installer generation."
     }
@@ -123,7 +126,7 @@ if (-not $SkipInstaller) {
 # ── 6. Portable ZIP Archive ──────────────────────────────────────────────────
 if (-not $SkipArchive) {
     Write-Host "`n[4/4] Creating portable archive..." -ForegroundColor Yellow
-    $ZipFile = "$WinDistDir\bengal-download-manager-$Version-windows-x64.zip"
+    $ZipFile = "$WinDistDir\bengal-download-manager-$Version-windows-$Architecture.zip"
     if (Test-Path $ZipFile) { Remove-Item -Force $ZipFile }
     
     if ($7Z) {

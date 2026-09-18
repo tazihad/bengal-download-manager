@@ -52,6 +52,16 @@ hiddenimports = [
     "theme_fix.windows_theme_fix",
 ]
 
+from PyInstaller.utils.hooks import collect_all
+for mod in ["core", "ui", "python_socks"]:
+    try:
+        tmp_ret = collect_all(mod)
+        datas += tmp_ret[0]
+        binaries += tmp_ret[1]
+        hiddenimports += tmp_ret[2]
+    except Exception:
+        pass
+
 a = Analysis(
     [entrypoint_file],
     pathex=[src_path, fixes_path, WINDOWS_DIR, PROJECT_ROOT],
@@ -80,7 +90,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -96,7 +106,8 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name="bengal-download-manager",
 )
+
