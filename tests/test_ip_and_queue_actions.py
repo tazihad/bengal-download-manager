@@ -143,5 +143,34 @@ def test_downloads_menu_options_and_stop_all_queues(qapp):
                 assert "Main download queue" in stopped_queues
                 assert "Queue A" in stopped_queues
                 assert "Synchronization queue" not in stopped_queues
+
+            # Test enabled/disabled state of action_stop_all_queues
+            win.update_ui_states()
+            assert not win.action_stop_all_queues.isEnabled()
+
+            # Add an active/queued download in Main download queue -> Should be enabled
+            from PyQt6.QtWidgets import QTableWidgetItem
+            win.download_table.setRowCount(1)
+            item_name = QTableWidgetItem("file1.zip")
+            item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+            status_item = QTableWidgetItem("Queued")
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Queued")
+            win.download_table.setItem(0, 0, item_name)
+            win.download_table.setItem(0, 2, status_item)
+
+            win.update_ui_states()
+            assert win.action_stop_all_queues.isEnabled()
+
+            # Change to Synchronization queue -> Should be disabled
+            item_name.setData(Qt.ItemDataRole.UserRole + 8, "Synchronization queue")
+            win.update_ui_states()
+            assert not win.action_stop_all_queues.isEnabled()
+
+            # Change to completed -> Should be disabled
+            item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+            status_item.setText("Complete")
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Complete")
+            win.update_ui_states()
+            assert not win.action_stop_all_queues.isEnabled()
         finally:
             win.close()

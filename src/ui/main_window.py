@@ -512,6 +512,7 @@ class MainWindow(QMainWindow):
             self.action_stop_all_queues = QAction(_fi(get_themed_icon("stop_all_queues")), self.tr("Stop All Queues"), self)
             self.action_stop_all_queues.setToolTip(self.tr("Stop all active download queues except Synchronization queue"))
             self.action_stop_all_queues.triggered.connect(self.stop_all_queues)
+            self.action_stop_all_queues.setEnabled(False)
 
             self.action_resume = QAction(_fi(get_themed_icon("resume")), self.tr("Resume"), self)
             self.action_resume.setToolTip(self.tr("Resume downloading selected file(s)"))
@@ -628,6 +629,7 @@ class MainWindow(QMainWindow):
 
         # 3. Downloads
         downloads_menu = menu_bar.addMenu(self.tr("&Downloads"))
+        downloads_menu.aboutToShow.connect(self.update_ui_states)
         downloads_menu.addAction(self.action_resume)
         downloads_menu.addAction(self.action_stop)
         downloads_menu.addAction(self.action_stop_all)
@@ -1852,24 +1854,36 @@ class MainWindow(QMainWindow):
         has_selection = len(selected_rows) > 0
         
         has_active_downloads = False
+        has_active_queues = False
         for r in range(self.download_table.rowCount()):
-            if self._is_row_active(r):
-                has_active_downloads = True
-                break
+            item = self.download_table.item(r, 0)
             status_item = self.download_table.item(r, 2)
-            if status_item:
-                logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) or status_item.text()
-                if logic_status in ["Queued", "Starting...", "Connecting...", "Resuming...", "Downloading...", "Pending..."]:
-                    has_active_downloads = True
-                    break
+            logic_status = status_item.data(Qt.ItemDataRole.UserRole + 1) if status_item else ""
+            status_text = status_item.text() if status_item else ""
+            current_status = logic_status or status_text
 
-        if not has_active_downloads and hasattr(self, "active_downloads"):
+            is_act = self._is_row_active(r)
+            is_queued_or_progress = current_status in ["Queued", "Starting...", "Connecting...", "Resuming...", "Downloading...", "Pending..."]
+
+            if is_act or is_queued_or_progress:
+                has_active_downloads = True
+                item_q = (item.data(Qt.ItemDataRole.UserRole + 8) if item else None) or "Main download queue"
+                if item_q != "Synchronization queue":
+                    has_active_queues = True
+
+            if has_active_downloads and has_active_queues:
+                break
+
+        if (not has_active_downloads or not has_active_queues) and hasattr(self, "active_downloads"):
             for key, entry in self.active_downloads.items():
                 worker = getattr(entry, 'worker', entry)
                 if worker is not None and not getattr(worker, 'is_paused', False) and not getattr(worker, 'is_pause_requested', False):
                     has_active_downloads = True
-                    break
-        
+                    item_ref = getattr(entry, 'item_ref', None)
+                    item_q = (item_ref.data(Qt.ItemDataRole.UserRole + 8) if item_ref else None) or "Main download queue"
+                    if item_q != "Synchronization queue":
+                        has_active_queues = True
+
         selection_has_active = False
         selection_has_pausable = False
         selection_has_resumable = False
@@ -1908,6 +1922,8 @@ class MainWindow(QMainWindow):
         # STOP action is for pausing an active download
         self.action_stop.setEnabled(selection_has_pausable)
         self.action_stop_all.setEnabled(has_active_downloads)
+        if hasattr(self, "action_stop_all_queues"):
+            self.action_stop_all_queues.setEnabled(has_active_queues)
         
         # RESUME action is for starting a paused/errored/cancelled download
         self.action_resume.setEnabled(selection_has_resumable)
