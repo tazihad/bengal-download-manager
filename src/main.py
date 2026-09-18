@@ -141,12 +141,31 @@ def main():
         threading.excepthook = thread_exception_hook
     qInstallMessageHandler(qt_message_handler)
 
+    if sys.platform == "win32" or platform.system() == "Windows":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("io.github.tazihad.bengal-download-manager")
+        except Exception:
+            pass
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
     app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
     app.setQuitOnLastWindowClosed(False)
+
+    if sys.platform == "win32" or platform.system() == "Windows":
+        from core.services.theme_service import apply_windows_dark_title_bar, is_dark_theme
+
+        def on_focus_win_changed(win):
+            if win:
+                apply_windows_dark_title_bar(win, is_dark_theme(app))
+
+        try:
+            app.focusWindowChanged.connect(on_focus_win_changed)
+        except Exception:
+            pass
 
     # --- SINGLE INSTANCE ENFORCEMENT ---
     if "--no-single-instance" not in sys.argv:

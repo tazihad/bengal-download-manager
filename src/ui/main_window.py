@@ -311,7 +311,6 @@ class MainWindow(QMainWindow):
         self.aria2_daemon_manager.start(port=port)
         self.aria2_process = self.aria2_daemon_manager.process
         return self.aria2_process
-
     def close(self):
         self._is_closing = True
         if hasattr(self, "_active_retry_timers"):

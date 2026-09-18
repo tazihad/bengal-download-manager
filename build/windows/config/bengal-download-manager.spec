@@ -10,7 +10,7 @@ import sys
 
 block_cipher = None
 
-CONFIG_DIR = os.path.abspath(os.path.dirname(__file__))
+CONFIG_DIR = os.path.abspath(SPECPATH)
 WINDOWS_DIR = os.path.abspath(os.path.join(CONFIG_DIR, ".."))
 BUILD_DIR = os.path.abspath(os.path.join(WINDOWS_DIR, ".."))
 PROJECT_ROOT = os.path.abspath(os.path.join(BUILD_DIR, ".."))
@@ -19,7 +19,9 @@ src_path = os.path.join(PROJECT_ROOT, "src")
 fixes_path = os.path.join(WINDOWS_DIR, "fixes")
 assets_path = os.path.join(PROJECT_ROOT, "assets")
 version_file = os.path.join(PROJECT_ROOT, "VERSION")
-icon_file = os.path.join(CONFIG_DIR, "assets", "app_icon.ico")
+icon_file = os.path.join(assets_path, "app_icon.ico")
+if not os.path.exists(icon_file):
+    icon_file = os.path.join(CONFIG_DIR, "assets", "app_icon.ico")
 entrypoint_file = os.path.join(fixes_path, "entrypoint_windows.py")
 
 datas = [
@@ -50,6 +52,16 @@ hiddenimports = [
     "theme_fix.windows_theme_fix",
 ]
 
+from PyInstaller.utils.hooks import collect_all
+for mod in ["core", "ui", "python_socks"]:
+    try:
+        tmp_ret = collect_all(mod)
+        datas += tmp_ret[0]
+        binaries += tmp_ret[1]
+        hiddenimports += tmp_ret[2]
+    except Exception:
+        pass
+
 a = Analysis(
     [entrypoint_file],
     pathex=[src_path, fixes_path, WINDOWS_DIR, PROJECT_ROOT],
@@ -78,7 +90,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -94,7 +106,8 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name="bengal-download-manager",
 )
+

@@ -179,9 +179,55 @@ jobs:
           name: release-assets-${{ matrix.arch }}
           path: release_artifacts/*
 
+  build-windows:
+    name: Build Windows (${{ matrix.arch }})
+    needs: [test, prepare]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-latest
+            app_arch: x64
+            py_arch: x64
+          - arch: arm64
+            runner: windows-11-arm
+            app_arch: arm64
+            py_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.py_arch }}
+          cache: 'pip'
+
+      - name: Build Windows Packages
+        uses: ./.github/actions/build-windows
+        with:
+          version: ${{ needs.prepare.outputs.version }}
+          arch: ${{ matrix.arch }}
+          app_arch: ${{ matrix.app_arch }}
+
+      - name: Upload Windows Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-windows-${{ matrix.arch }}
+          path: dist/windows/*
+          if-no-files-found: error
+
   release:
     name: Publish Release
-    needs: [test, prepare, build]
+    needs: [test, prepare, build, build-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -255,15 +301,21 @@ jobs:
               elif filename.endswith(".snap"):
                   arch = "ARM64" if "arm64" in filename or "aarch64" in filename else "x86_64"
                   return (3, f"🛍️ **Snap Package ({arch})**", filename)
+              elif filename.endswith(".exe"):
+                  arch = "ARM64" if "arm64" in filename.lower() else "x86_64"
+                  return (4, f"🪟 **Windows Setup Installer ({arch})**", filename)
+              elif filename.endswith(".zip") and "windows" in filename.lower():
+                  arch = "ARM64" if "arm64" in filename.lower() else "x86_64"
+                  return (5, f"🪟 **Windows Portable ({arch})**", filename)
               elif filename.endswith(".crx"):
-                  return (4, "🌐 **Chrome / Chromium Extension**", filename)
+                  return (6, "🌐 **Chrome / Chromium Extension**", filename)
               elif filename.endswith(".xpi"):
-                  return (5, "🌐 **Firefox Extension**", filename)
+                  return (7, "🌐 **Firefox Extension**", filename)
               elif filename.endswith(".zsync"):
-                  return (7, "🔄 **AppImage ZSync Delta**", filename)
+                  return (9, "🔄 **AppImage ZSync Delta**", filename)
               else:
                   arch = "ARM64" if "aarch64" in filename else "x86_64"
-                  return (6, f"⚙️ **Standalone Binary ({arch})**", filename)
+                  return (8, f"⚙️ **Standalone Binary ({arch})**", filename)
 
           categorized = [categorize(f) for f in files]
           categorized.sort(key=lambda x: (x[0], x[2]))

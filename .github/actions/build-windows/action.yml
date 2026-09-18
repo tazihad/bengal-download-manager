@@ -1,0 +1,128 @@
+name: 'Build Windows'
+description: 'Builds Bengal Download Manager for Windows (PyInstaller onedir and Inno Setup installer)'
+inputs:
+  version:
+    description: 'Version string (without leading v)'
+    required: true
+  arch:
+    description: 'Target architecture (x86_64 or arm64)'
+    required: false
+    default: 'x86_64'
+  app_arch:
+    description: 'Inno Setup architecture (x64 or arm64)'
+    required: false
+    default: 'x64'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Inno Setup
+      shell: pwsh
+      run: |
+        $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+        if (-not $iscc) {
+            $knownPaths = @(
+                "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+                "C:\Program Files\Inno Setup 6\ISCC.exe"
+            )
+            foreach ($p in $knownPaths) {
+                if (Test-Path $p) {
+                    $isccDir = Split-Path -Parent $p
+                    Write-Host "Found existing Inno Setup at $isccDir"
+                    $isccDir | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+                    $iscc = $p
+                    break
+                }
+            }
+        }
+        if (-not $iscc) {
+            Write-Host "Installing Inno Setup..."
+            if (Get-Command choco -ErrorAction SilentlyContinue) {
+                choco install innosetup --no-progress -y
+            } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
+                winget install --id JRSoftware.InnoSetup -e --accept-source-agreements --accept-package-agreements --silent
+            }
+            $innoDir = "C:\Program Files (x86)\Inno Setup 6"
+            if (Test-Path $innoDir) {
+                $innoDir | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+            }
+            $innoDir64 = "C:\Program Files\Inno Setup 6"
+            if (Test-Path $innoDir64) {
+                $innoDir64 | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+            }
+        }
+
+    - name: Download Windows Helper Binaries
+      shell: pwsh
+      run: |
+        $binDir = "build/windows/bin"
+        New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+
+        # Download yt-dlp.exe
+        $ytDlp = "$binDir/yt-dlp.exe"
+        if (-not (Test-Path $ytDlp)) {
+            Write-Host "Downloading yt-dlp.exe..."
+            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile $ytDlp
+        }
+
+        # Download aria2c.exe
+        $aria2 = "$binDir/aria2c.exe"
+        if (-not (Test-Path $aria2)) {
+            Write-Host "Downloading aria2c..."
+            $ariaZip = "$binDir/aria2.zip"
+            Invoke-WebRequest -Uri "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip" -OutFile $ariaZip
+            Expand-Archive -Path $ariaZip -DestinationPath "$binDir/aria2_tmp" -Force
+            $foundExe = Get-ChildItem -Path "$binDir/aria2_tmp" -Filter "aria2c.exe" -Recurse | Select-Object -First 1
+            if ($foundExe) {
+                Copy-Item -Path $foundExe.FullName -Destination $aria2 -Force
+            }
+            Remove-Item -Recurse -Force "$binDir/aria2_tmp", $ariaZip
+        }
+
+    - name: Install Python Dependencies
+      shell: pwsh
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller "python-socks[asyncio]" certifi
+
+    - name: Build Application with PyInstaller
+      shell: pwsh
+      run: |
+        $distDir = "dist"
+        $workDir = ".pyinstaller-build"
+        pyinstaller --noconfirm --distpath $distDir --workpath $workDir build/windows/config/bengal-download-manager.spec
+
+    - name: Package Inno Setup Installer
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $numericVersion = ($version -replace "-.*$", "")
+        if ($numericVersion.Split('.').Count -eq 3) {
+            $numericVersion = "$numericVersion.0"
+        }
+        $arch = "${{ inputs.arch }}"
+        $appArch = "${{ inputs.app_arch }}"
+        $outName = "bengal-download-manager-$version-windows-$arch-setup"
+        $winDistDir = "dist/windows"
+        New-Item -ItemType Directory -Path $winDistDir -Force | Out-Null
+
+        $iscc = "iscc"
+        if (-not (Get-Command $iscc -ErrorAction SilentlyContinue)) {
+            if (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe") {
+                $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            } elseif (Test-Path "C:\Program Files\Inno Setup 6\ISCC.exe") {
+                $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe"
+            }
+        }
+
+        & $iscc "/DAppVersion=$version" "/DNumericVersion=$numericVersion" "/DAppArch=$appArch" "/DOutputBaseFilenameOverride=$outName" build/windows/config/installer.iss
+
+    - name: Create Portable ZIP Archive
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $arch = "${{ inputs.arch }}"
+        $winDistDir = "dist/windows"
+        $zipFile = "$winDistDir/bengal-download-manager-$version-windows-$arch.zip"
+        Compress-Archive -Path "dist/bengal-download-manager/*" -DestinationPath $zipFile -Force

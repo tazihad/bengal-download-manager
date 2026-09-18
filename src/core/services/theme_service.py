@@ -96,6 +96,17 @@ def get_windows_accent_color() -> Optional[QColor]:
     if platform.system() != "Windows":
         return None
     try:
+        import winreg  # type: ignore
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\DWM") as key:
+            val, _ = winreg.QueryValueEx(key, "AccentColor")
+            r = val & 0xFF
+            g = (val >> 8) & 0xFF
+            b = (val >> 16) & 0xFF
+            return QColor(r, g, b)
+    except Exception:
+        pass
+
+    try:
         dwm = ctypes.WinDLL("dwmapi")
         color = wintypes.DWORD()
         opaque = wintypes.BOOL()
@@ -112,6 +123,52 @@ def get_windows_accent_color() -> Optional[QColor]:
     except Exception:
         pass
     return None
+
+
+_DWM_APPLIED_HWNDS = {}
+
+
+def apply_windows_dark_title_bar(window_or_widget, is_dark: bool) -> bool:
+    """Applies DWM Immersive Dark Mode to Win32 window title bar (attributes 20 & 19)."""
+    if platform.system() != "Windows" or not window_or_widget:
+        return False
+    try:
+        wid = None
+        if hasattr(window_or_widget, "winId"):
+            wid = window_or_widget.winId()
+        elif hasattr(window_or_widget, "windowHandle") and window_or_widget.windowHandle():
+            wid = window_or_widget.windowHandle().winId()
+        elif hasattr(window_or_widget, "handle") and hasattr(window_or_widget.handle(), "winId"):
+            wid = window_or_widget.handle().winId()
+        if not wid:
+            return False
+        hwnd = int(wid)
+        target_val = bool(is_dark)
+        if hwnd in _DWM_APPLIED_HWNDS and _DWM_APPLIED_HWNDS[hwnd] == target_val:
+            return True
+        dwm = ctypes.WinDLL("dwmapi")
+        val = wintypes.BOOL(1 if target_val else 0)
+        hr = dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), wintypes.DWORD(20), ctypes.byref(val), ctypes.sizeof(val))
+        if hr != 0:
+            dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), wintypes.DWORD(19), ctypes.byref(val), ctypes.sizeof(val))
+        _DWM_APPLIED_HWNDS[hwnd] = target_val
+        return True
+    except Exception:
+        return False
+
+
+def is_windows_dark_mode() -> bool:
+    """Queries Windows Registry to determine if Windows 10/11 app mode is Dark."""
+    if platform.system() != "Windows":
+        return False
+    try:
+        import winreg  # type: ignore
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return val == 0
+    except Exception:
+        return False
 
 
 GNOME_ACCENT_MAP = {
@@ -320,10 +377,11 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     pal.setColor(QPalette.ColorRole.ButtonText, QColor(text))
     pal.setColor(QPalette.ColorRole.BrightText, QColor("#ff5555"))
     pal.setColor(QPalette.ColorRole.Highlight, QColor(hl))
-    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
-    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, QColor("#000000"))
-    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor("#000000"))
-    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor("#000000"))
+    hl_text_color = QColor(hl_text) if hl_text else (QColor("#ffffff") if is_dark else QColor("#000000"))
+    pal.setColor(QPalette.ColorRole.HighlightedText, hl_text_color)
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, hl_text_color)
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, hl_text_color)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, hl_text_color)
 
     # ── Structural derived roles ───────────────────────────────────────────────
     # QPalette() constructor copies unset roles from the CURRENT app palette,
@@ -665,7 +723,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         
         is_sys_dark = False
-        if hasattr(sh, "colorScheme"):
+        if platform.system() == "Windows":
+            is_sys_dark = is_windows_dark_mode()
+        elif hasattr(sh, "colorScheme"):
             cs = sh.colorScheme()
             if cs == Qt.ColorScheme.Dark:
                 is_sys_dark = True
@@ -726,7 +786,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QMenuBar::item:selected, QMenuBar::item:hover {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QMenuBar::item:disabled {
                 color: #888888;
@@ -746,7 +806,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QMenu::item:selected, QMenu::item:hover {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QMenu::item:disabled {
                 color: #888888;
@@ -785,7 +845,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QToolBar QToolButton:pressed {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QToolBar QToolButton:disabled {
                 opacity: 0.30;
@@ -793,19 +853,19 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 border: 1px solid transparent;
             }
             QTableWidget {
-                selection-color: #000000;
+                selection-color: palette(highlighted-text);
                 selection-background-color: palette(highlight);
             }
             QTableWidget::item:selected, QTableWidget::item:selected:active, QTableWidget::item:selected:!active {
-                color: #000000;
+                color: palette(highlighted-text);
                 background-color: palette(highlight);
             }
             QTreeWidget {
-                selection-color: #000000;
+                selection-color: palette(highlighted-text);
                 selection-background-color: palette(highlight);
             }
             QTreeWidget::item:selected, QTreeWidget::item:selected:active, QTreeWidget::item:selected:!active {
-                color: #000000;
+                color: palette(highlighted-text);
                 background-color: palette(highlight);
             }
             QSplitter::handle:horizontal {
@@ -819,6 +879,105 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 border-radius: 4px;
             }
         """)
+
+    if platform.system() == "Windows":
+        is_dark = is_dark_theme(app)
+        from PyQt6.QtWidgets import QStyleFactory
+        avail_styles = [s.lower() for s in QStyleFactory.keys()]
+        if is_dark:
+            if "fusion" in avail_styles and app.style().metaObject().className() != "QFusionStyle":
+                app.setStyle("Fusion")
+            win_dark_qss = """
+            QHeaderView::section {
+                background-color: #2a2e32;
+                color: #eff0f1;
+                border: 1px solid #1c1e20;
+                padding: 5px 8px;
+                font-weight: 500;
+            }
+            QHeaderView::section:hover {
+                background-color: #353a3e;
+            }
+            QComboBox {
+                background-color: #2a2e32;
+                color: #eff0f1;
+                border: 1px solid #3c4043;
+                border-radius: 4px;
+                padding: 3px 8px;
+                min-height: 22px;
+            }
+            QComboBox:hover {
+                border: 1px solid palette(highlight);
+            }
+            QComboBox:focus {
+                border: 1px solid palette(highlight);
+            }
+            QComboBox QAbstractItemView {
+                background-color: #202326;
+                color: #eff0f1;
+                selection-background-color: palette(highlight);
+                selection-color: palette(highlighted-text);
+                border: 1px solid #3c4043;
+            }
+            QGroupBox {
+                color: #eff0f1;
+                border: 1px solid #3c4043;
+                border-radius: 5px;
+                margin-top: 12px;
+                padding-top: 14px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 8px;
+                padding: 0 5px;
+                color: #eff0f1;
+                background-color: #202326;
+            }
+            QPushButton {
+                background-color: #2a2e32;
+                color: #eff0f1;
+                border: 1px solid #3c4043;
+                border-radius: 4px;
+                padding: 5px 14px;
+                min-height: 20px;
+            }
+            QPushButton:hover {
+                background-color: #353a3e;
+                border: 1px solid palette(highlight);
+            }
+            QPushButton:pressed {
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }
+            QScrollBar:vertical {
+                background-color: #1a1c1e;
+                width: 12px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #3c4043;
+                border-radius: 3px;
+            }
+            QScrollBar:horizontal {
+                background-color: #1a1c1e;
+                height: 12px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #3c4043;
+                border-radius: 3px;
+            }
+            """
+            app.setStyleSheet(f"{app.styleSheet()}\n{win_dark_qss}")
+        else:
+            if "windowsvista" in avail_styles and app.style().metaObject().className() != "QWindowsVistaStyle":
+                app.setStyle("windowsvista")
+            elif "windows" in avail_styles and app.style().metaObject().className() != "QWindowsStyle":
+                app.setStyle("Windows")
+
+        for top in app.topLevelWidgets():
+            apply_windows_dark_title_bar(top, is_dark)
+        for win in app.topLevelWindows():
+            apply_windows_dark_title_bar(win, is_dark)
 
     for w in app.allWidgets():
         try:
@@ -981,6 +1140,20 @@ def get_app_icon() -> QIcon:
     _module_root = os.path.dirname(os.path.dirname(os.path.dirname(_module_dir))) if _module_dir else None
 
     icon_locations = [
+        # 0. Windows native multi-resolution icon (16, 24, 32, 48, 64, 128, 256)
+        *([
+            os.path.join(_meipass, "assets", "app_icon.ico"),
+            os.path.join(_meipass, "app_icon.ico"),
+        ] if _meipass else []),
+        *([
+            os.path.join(_argv0_root, "assets", "app_icon.ico"),
+            os.path.join(_argv0_src, "assets", "app_icon.ico") if _argv0_src else "",
+        ] if _argv0_root else []),
+        *([
+            os.path.join(_module_root, "assets", "app_icon.ico"),
+        ] if _module_root else []),
+        os.path.join(get_data_dir(), "assets", "app_icon.ico"),
+
         # 1. PyInstaller bundle (_MEIPASS set at runtime by bootloader, only when frozen)
         *([
             os.path.join(_meipass, "assets", "icons", "256x256.png"),
@@ -1062,7 +1235,9 @@ def get_app_icon() -> QIcon:
         icon = QIcon.fromTheme(theme_name)
         if not icon.isNull():
             return icon
-                
+
+    return QIcon()
+
 def get_monochrome_app_icon(color=None, size=24) -> QIcon:
     """
     Converts the Bengal Download Manager application logo into a clean, sharp
