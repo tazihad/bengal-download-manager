@@ -62,6 +62,12 @@ from core.services.language_service import (
     apply_language,
 )
 
+from core.services.socks_bridge import (
+    SocksHttpBridge,
+    SocksBridgeRunner,
+    parse_host_port,
+)
+
 __all__ = [
     "DM_CONNECTOR_PORT",
     "SignalEmitter",
@@ -109,4 +115,7 @@ __all__ = [
     "get_current_language_code",
     "get_current_language_display",
     "apply_language",
+    "SocksHttpBridge",
+    "SocksBridgeRunner",
+    "parse_host_port",
 ]

@@ -75,6 +75,7 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --paths "src" \
     --collect-all core \
     --collect-all ui \
+    --collect-all python_socks \
     --add-data "assets:assets" \
     --distpath "dist" \
     --workpath "$PYINSTALLER_WORKPATH" \

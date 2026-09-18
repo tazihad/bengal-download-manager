@@ -808,15 +808,25 @@ class OptionsDialog(QDialog):
         self.rb_https = QRadioButton("HTTPS")
         self.rb_https.setToolTip("Use secure HTTPS proxy protocol")
         self.rb_https.toggled.connect(self.on_proxy_toggle)
-        
+        self.rb_socks5 = QRadioButton("SOCKS5")
+        self.rb_socks5.setToolTip("Use SOCKS5 proxy protocol (with optional user/password authentication)")
+        self.rb_socks5.toggled.connect(self.on_proxy_toggle)
+        self.rb_socks4 = QRadioButton("SOCKS4")
+        self.rb_socks4.setToolTip("Use SOCKS4 proxy protocol (user identity only)")
+        self.rb_socks4.toggled.connect(self.on_proxy_toggle)
+
         self.bg_type.addButton(self.rb_http)
         self.bg_type.addButton(self.rb_https)
-        
+        self.bg_type.addButton(self.rb_socks5)
+        self.bg_type.addButton(self.rb_socks4)
+
         lbl_type = QLabel("Type:")
         lbl_type.setToolTip("Select proxy protocol type")
         type_layout.addWidget(lbl_type)
         type_layout.addWidget(self.rb_http)
         type_layout.addWidget(self.rb_https)
+        type_layout.addWidget(self.rb_socks5)
+        type_layout.addWidget(self.rb_socks4)
         type_layout.addStretch()
         manual_layout.addLayout(type_layout)
         
@@ -881,6 +891,8 @@ class OptionsDialog(QDialog):
         self.rb_no_proxy.blockSignals(True)
         self.rb_http.blockSignals(True)
         self.rb_https.blockSignals(True)
+        self.rb_socks5.blockSignals(True)
+        self.rb_socks4.blockSignals(True)
         self.txt_host.blockSignals(True)
         self.spin_port.blockSignals(True)
         self.chk_auth.blockSignals(True)
@@ -895,6 +907,10 @@ class OptionsDialog(QDialog):
         ptype = str(self.proxy_data.get("type", "http")).lower()
         if ptype == "https":
             self.rb_https.setChecked(True)
+        elif ptype in ("socks5", "socks5h"):
+            self.rb_socks5.setChecked(True)
+        elif ptype in ("socks4", "socks4a"):
+            self.rb_socks4.setChecked(True)
         else:
             self.rb_http.setChecked(True)
         
@@ -908,6 +924,8 @@ class OptionsDialog(QDialog):
         self.rb_no_proxy.blockSignals(False)
         self.rb_http.blockSignals(False)
         self.rb_https.blockSignals(False)
+        self.rb_socks5.blockSignals(False)
+        self.rb_socks4.blockSignals(False)
         self.txt_host.blockSignals(False)
         self.spin_port.blockSignals(False)
         self.chk_auth.blockSignals(False)
@@ -1292,13 +1310,25 @@ class OptionsDialog(QDialog):
         manual = self.rb_manual.isChecked()
         self.grp_manual.setEnabled(manual)
         
+        is_socks4 = hasattr(self, "rb_socks4") and self.rb_socks4.isChecked()
         auth = self.chk_auth.isChecked() and manual
         self.txt_user.setEnabled(auth)
-        self.txt_pass.setEnabled(auth)
+        self.txt_pass.setEnabled(auth and not is_socks4)
+        if is_socks4:
+            self.chk_auth.setText("User identity required (SOCKS4)")
+        else:
+            self.chk_auth.setText("Authentication required")
 
     def save_proxy_data(self):
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
-        ptype = "https" if self.rb_https.isChecked() else "http"
+        if hasattr(self, "rb_https") and self.rb_https.isChecked():
+            ptype = "https"
+        elif hasattr(self, "rb_socks5") and self.rb_socks5.isChecked():
+            ptype = "socks5"
+        elif hasattr(self, "rb_socks4") and self.rb_socks4.isChecked():
+            ptype = "socks4"
+        else:
+            ptype = "http"
         
         self.proxy_data = {
             "mode": mode,
@@ -1311,14 +1341,20 @@ class OptionsDialog(QDialog):
         }
         save_proxy_config(self.proxy_data)
 
-        # Dynamically update running Aria2 daemon proxy settings via RPC
-        proxy_url = get_aria2_proxy_url(self.proxy_data)
-        token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
-        rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+        # Dynamically coordinate proxy transitions via Aria2DaemonManager
         try:
-            call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": proxy_url}], port=rpc_port, token=token)
+            from core.aria2_daemon import get_aria2_daemon_manager
+            mgr = get_aria2_daemon_manager()
+            mgr.update_proxy(self.proxy_data)
         except Exception:
-            pass
+            # Fallback direct RPC call
+            proxy_url = get_aria2_proxy_url(self.proxy_data)
+            token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
+            rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
+            try:
+                call_aria2_rpc("aria2.changeGlobalOption", [{"all-proxy": proxy_url}], port=rpc_port, token=token)
+            except Exception:
+                pass
 
     def save_extension_data(self):
         max_c = 8

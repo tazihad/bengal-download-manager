@@ -567,36 +567,94 @@ def save_extension_config(data):
             json.dump(data, f, indent=4)
     except: pass
 
+def is_socks_proxy_config(proxy_config=None) -> bool:
+    """
+    Returns True if proxy configuration is manually set to a SOCKS proxy type.
+    """
+    if proxy_config is None:
+        proxy_config = load_proxy_config()
+    if not isinstance(proxy_config, dict) or proxy_config.get("mode") != "manual":
+        return False
+    host = str(proxy_config.get("host") or "").strip()
+    if not host:
+        return False
+    ptype = str(proxy_config.get("type") or "http").lower()
+    return ptype in ("socks4", "socks4a", "socks5", "socks5h")
+
+
+def get_upstream_proxy_url(proxy_config=None) -> str:
+    """
+    Returns full upstream proxy URI formatted for the configured protocol
+    (http, https, socks4, socks5), or empty string if no manual proxy configured.
+    """
+    if proxy_config is None:
+        proxy_config = load_proxy_config()
+
+    if not isinstance(proxy_config, dict) or proxy_config.get("mode") != "manual":
+        return ""
+
+    host = str(proxy_config.get("host") or "").strip()
+    if not host:
+        return ""
+
+    ptype = str(proxy_config.get("type") or "http").lower()
+    if ptype not in ("http", "https", "socks4", "socks4a", "socks5", "socks5h"):
+        ptype = "http"
+
+    try:
+        default_port = 1080 if "socks" in ptype else 8080
+        port = int(proxy_config.get("port") or default_port)
+    except (ValueError, TypeError):
+        port = 1080 if "socks" in ptype else 8080
+
+    user = str(proxy_config.get("user") or "")
+    password = str(proxy_config.get("password") or "")
+
+    from urllib.parse import quote
+
+    if proxy_config.get("auth") and user:
+        encoded_user = quote(user, safe="")
+        if ptype.startswith("socks4"):
+            # SOCKS4 only supports user identification without password
+            return f"{ptype}://{encoded_user}@{host}:{port}"
+        elif password:
+            encoded_pass = quote(password, safe="")
+            return f"{ptype}://{encoded_user}:{encoded_pass}@{host}:{port}"
+        else:
+            return f"{ptype}://{encoded_user}@{host}:{port}"
+    else:
+        return f"{ptype}://{host}:{port}"
+
+
 def get_aria2_proxy_url(proxy_config=None) -> str:
     """
     Returns native proxy URI for Aria2 (--all-proxy option), or empty string if no proxy configured.
     Format: [http|https]://[user:password@]host:port
+    Note: For SOCKS proxies, Aria2 requires a local HTTP-to-SOCKS bridge.
     """
     if proxy_config is None:
         proxy_config = load_proxy_config()
-    
-    if not isinstance(proxy_config, dict):
+
+    if not isinstance(proxy_config, dict) or proxy_config.get("mode") != "manual":
         return ""
-        
-    if proxy_config.get("mode") != "manual":
-        return ""
-        
+
     host = str(proxy_config.get("host") or "").strip()
     if not host:
         return ""
-        
+
     ptype = str(proxy_config.get("type") or "http").lower()
     if ptype not in ("http", "https"):
-        ptype = "http"
-        
+        # For non-HTTP proxies, Aria2 cannot connect directly
+        return ""
+
     try:
         port = int(proxy_config.get("port") or 8080)
     except (ValueError, TypeError):
         port = 8080
-        
+
     user = str(proxy_config.get("user") or "")
     password = str(proxy_config.get("password") or "")
-    
+
     if proxy_config.get("auth") and user and password:
         from urllib.parse import quote
         encoded_user = quote(user, safe="")

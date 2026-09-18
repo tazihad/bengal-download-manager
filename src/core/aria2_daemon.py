@@ -28,9 +28,13 @@ from core.utils import (
     load_extension_config,
     ensure_aria2,
     get_clean_env,
+    load_proxy_config,
     get_aria2_proxy_url,
+    get_upstream_proxy_url,
+    is_socks_proxy_config,
     is_debug_mode,
 )
+from core.services.socks_bridge import SocksBridgeRunner
 
 logger = logging.getLogger("bengal.core.aria2_daemon")
 
@@ -51,6 +55,7 @@ class Aria2DaemonManager(QObject):
         self._process: Optional[subprocess.Popen] = None
         self._port: int = 56800
         self._token: str = ""
+        self._socks_bridge_runner: Optional[SocksBridgeRunner] = None
         self._lock = threading.RLock()
 
     @property
@@ -76,6 +81,12 @@ class Aria2DaemonManager(QObject):
     def token(self) -> str:
         """Configured RPC secret token."""
         return self._token
+
+    @property
+    def socks_bridge_runner(self) -> Optional[SocksBridgeRunner]:
+        """Active local HTTP-to-SOCKS bridge runner if SOCKS is configured."""
+        with self._lock:
+            return self._socks_bridge_runner
 
     def is_running(self) -> bool:
         """
@@ -146,7 +157,7 @@ class Aria2DaemonManager(QObject):
                 cmd.append(f"--rpc-secret={self._token}")
 
             # Apply system proxy if configured
-            proxy_url = get_aria2_proxy_url()
+            proxy_url = self._setup_proxy_for_startup()
             if proxy_url:
                 cmd.append(f"--all-proxy={proxy_url}")
 
@@ -204,12 +215,71 @@ class Aria2DaemonManager(QObject):
                 self.error_occurred.emit(err_msg)
                 return False
 
+    def _setup_proxy_for_startup(self, proxy_config: Optional[dict] = None) -> str:
+        """
+        Prepares the effective aria2 --all-proxy URL, automatically starting or
+        reconfiguring the local HTTP-to-SOCKS bridge if a SOCKS proxy is specified.
+        """
+        if proxy_config is None:
+            proxy_config = load_proxy_config()
+
+        if is_socks_proxy_config(proxy_config):
+            socks_url = get_upstream_proxy_url(proxy_config)
+            if (
+                not self._socks_bridge_runner
+                or self._socks_bridge_runner.proxy_url != socks_url
+                or not self._socks_bridge_runner.is_running()
+            ):
+                if self._socks_bridge_runner:
+                    self._socks_bridge_runner.stop()
+                self._socks_bridge_runner = SocksBridgeRunner(socks_url)
+                self._socks_bridge_runner.start(timeout=5.0)
+            return self._socks_bridge_runner.get_http_proxy_url()
+        else:
+            if self._socks_bridge_runner:
+                self._socks_bridge_runner.stop()
+                self._socks_bridge_runner = None
+            return get_aria2_proxy_url(proxy_config)
+
+    def update_proxy(self, proxy_config: Optional[dict] = None) -> str:
+        """
+        Dynamically coordinates proxy transitions (Direct, HTTP, SOCKS4/5),
+        starting/stopping the local HTTP-to-SOCKS bridge as needed,
+        and updating the running Aria2 daemon via JSON-RPC.
+        Returns the effective aria2 --all-proxy URL.
+        """
+        with self._lock:
+            effective_url = self._setup_proxy_for_startup(proxy_config)
+
+            if self.is_running():
+                from core.utils import call_aria2_rpc
+                try:
+                    call_aria2_rpc(
+                        "aria2.changeGlobalOption",
+                        [{"all-proxy": effective_url}],
+                        port=self._port,
+                        token=self._token,
+                    )
+                    logger.info("[Aria2DaemonManager] Dynamically updated Aria2 all-proxy to '%s'", effective_url)
+                except Exception as e:
+                    logger.warning("[Aria2DaemonManager] Failed to apply proxy dynamically via RPC: %s", e)
+
+            return effective_url
+
     def stop(self, timeout_sec: float = 2.0) -> bool:
         """
         Gracefully terminates the aria2 daemon process via JSON-RPC shutdown,
         falling back to SIGTERM and SIGKILL if unresponsive.
+        Also terminates any active local HTTP-to-SOCKS bridge.
         """
         with self._lock:
+            if self._socks_bridge_runner:
+                try:
+                    self._socks_bridge_runner.stop()
+                except Exception:
+                    pass
+                self._socks_bridge_runner = None
+
             proc = self._process
             self._process = None
 
