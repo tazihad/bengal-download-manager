@@ -642,220 +642,39 @@ class _KdeWaylandPaletteManager:
             return False
 
 
-def _apply_gnome_titlebar(is_dark: bool, mode: str) -> bool:
-    """Sets org.gnome.desktop.interface color-scheme via GSettings so that
-    GNOME/Mutter/libdecor draws its server-side title bar in the requested colour.
-
-    Values:
-      prefer-dark  → dark titlebar
-      prefer-light → light titlebar
-      default      → follow the system preference (Auto)
-
-    Guarded by XDG_CURRENT_DESKTOP — returns False immediately on non-GNOME DEs.
+def _apply_in_process_gtk_theme(is_dark: bool, mode: str = "Auto") -> bool:
+    """Sets in-memory GTK prefer-dark-theme and per-process environment for the current process only.
+    This safely influences in-process titlebar renderers (such as libdecor-gtk
+    on Wayland) WITHOUT modifying any global user configurations, files on disk,
+    or desktop-wide GSettings.
     """
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
-    gnome_family = ("GNOME", "UBUNTU", "UNITY", "PANTHEON", "POP", "ZORIN", "BUDGIE")
-    if not any(d in desktop for d in gnome_family):
-        return False
-
-    value = "prefer-dark" if mode == "Dark" else ("prefer-light" if mode == "Light" else "default")
-
-    # Path 1: gi.repository.Gio (already imported at module level as _HAS_GIO)
-    if _HAS_GIO:
-        try:
-            settings = Gio.Settings.new("org.gnome.desktop.interface")
-            settings.set_string("color-scheme", value)
-            settings.sync()
-            return True
-        except Exception:
-            pass
-
-    # Path 2: gsettings subprocess fallback
+    # 1. Per-process environment variable (strictly scoped to this process)
     try:
-        import shutil as _shutil, subprocess as _subprocess
-        if _shutil.which("gsettings"):
-            _subprocess.run(
-                ["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", value],
-                stdout=_subprocess.DEVNULL, stderr=_subprocess.DEVNULL, timeout=1.0
-            )
+        if mode == "Dark":
+            os.environ["GTK_THEME"] = "Adwaita:dark"
+        elif mode == "Light":
+            os.environ["GTK_THEME"] = "Adwaita:light"
+        else:
+            os.environ.pop("GTK_THEME", None)
+    except Exception:
+        pass
+
+    # 2. In-memory GtkSettings object (modifies process memory only)
+    try:
+        import ctypes
+        gtk = ctypes.CDLL("libgtk-3.so.0")
+        gobject = ctypes.CDLL("libgobject-2.0.so.0")
+        gtk.gtk_init_check(None, None)
+        gtk.gtk_settings_get_default.restype = ctypes.c_void_p
+        settings = gtk.gtk_settings_get_default()
+        if settings:
+            gobject.g_object_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+            val = ctypes.c_int(1 if is_dark else 0)
+            gobject.g_object_set(settings, b"gtk-application-prefer-dark-theme", val, None)
             return True
     except Exception:
         pass
     return False
-
-
-def _apply_xfce_titlebar(is_dark: bool, mode: str) -> bool:
-    """Switches the XFWM4 window manager theme between a dark/light variant via
-    xfconf-query.  XFWM4 does not support per-window dark titlebars, so we swap
-    the global WM theme name (e.g. "Adwaita" ↔ "Adwaita-dark").
-
-    Auto mode leaves the system theme unchanged.
-    Guarded by XDG_CURRENT_DESKTOP — returns False on non-XFCE DEs.
-    """
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
-    if "XFCE" not in desktop:
-        return False
-
-    try:
-        import shutil as _shutil, subprocess as _subprocess
-        if not _shutil.which("xfconf-query"):
-            return False
-
-        if mode == "Auto":
-            return True  # leave system as-is for Auto
-
-        # Read current XFWM4 theme
-        r = _subprocess.run(
-            ["xfconf-query", "-c", "xfwm4", "-p", "/general/theme"],
-            capture_output=True, text=True, timeout=1.0
-        )
-        current = r.stdout.strip()
-
-        if is_dark:
-            # Strip any existing suffix then append -dark
-            base = current
-            for suffix in ("-dark", "-Dark"):
-                if base.endswith(suffix):
-                    base = base[: -len(suffix)]
-                    break
-            candidate = base + "-dark"
-        else:
-            candidate = current
-            for suffix in ("-dark", "-Dark"):
-                if candidate.endswith(suffix):
-                    candidate = candidate[: -len(suffix)]
-                    break
-
-        _subprocess.run(
-            ["xfconf-query", "-c", "xfwm4", "-p", "/general/theme", "-s", candidate],
-            stdout=_subprocess.DEVNULL, stderr=_subprocess.DEVNULL, timeout=1.0
-        )
-        return True
-    except Exception:
-        return False
-
-
-def _apply_mate_titlebar(is_dark: bool, mode: str) -> bool:
-    """Switches the Marco window manager theme via dconf for MATE desktop.
-    MATE/Marco has no per-window dark titlebar support, so we swap the global
-    WM theme name (e.g. "Adwaita" ↔ "Adwaita-dark").
-
-    Auto mode leaves the system theme unchanged.
-    Guarded by XDG_CURRENT_DESKTOP — returns False on non-MATE DEs.
-    """
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
-    if "MATE" not in desktop:
-        return False
-
-    try:
-        import shutil as _shutil, subprocess as _subprocess
-        if not _shutil.which("dconf"):
-            return False
-
-        if mode == "Auto":
-            return True
-
-        r = _subprocess.run(
-            ["dconf", "read", "/org/mate/marco/general/theme"],
-            capture_output=True, text=True, timeout=1.0
-        )
-        current = r.stdout.strip().strip("'\"")
-
-        if is_dark:
-            base = current
-            for suffix in ("-dark", "-Dark"):
-                if base.endswith(suffix):
-                    base = base[: -len(suffix)]
-                    break
-            candidate = base + "-dark"
-        else:
-            candidate = current
-            for suffix in ("-dark", "-Dark"):
-                if candidate.endswith(suffix):
-                    candidate = candidate[: -len(suffix)]
-                    break
-
-        _subprocess.run(
-            ["dconf", "write", "/org/mate/marco/general/theme", f"'{candidate}'"],
-            stdout=_subprocess.DEVNULL, stderr=_subprocess.DEVNULL, timeout=1.0
-        )
-        return True
-    except Exception:
-        return False
-
-
-def _apply_cinnamon_titlebar(is_dark: bool, mode: str) -> bool:
-    """Switches the Cinnamon/Muffin WM theme via GSettings.
-    Cinnamon has no per-window dark titlebar support, so we swap the global
-    WM theme name (e.g. "Mint-Y" ↔ "Mint-Y-Dark").
-
-    Auto mode leaves the system theme unchanged.
-    Guarded by XDG_CURRENT_DESKTOP — returns False on non-Cinnamon DEs.
-    """
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
-    if "CINNAMON" not in desktop:
-        return False
-
-    try:
-        import shutil as _shutil, subprocess as _subprocess
-        if not _shutil.which("gsettings"):
-            return False
-
-        if mode == "Auto":
-            return True
-
-        r = _subprocess.run(
-            ["gsettings", "get", "org.cinnamon.desktop.wm.preferences", "theme"],
-            capture_output=True, text=True, timeout=1.0
-        )
-        current = r.stdout.strip().strip("'\"")
-
-        if is_dark:
-            base = current
-            for suffix in ("-dark", "-Dark"):
-                if base.endswith(suffix):
-                    base = base[: -len(suffix)]
-                    break
-            candidate = base + "-dark"
-        else:
-            candidate = current
-            for suffix in ("-dark", "-Dark"):
-                if candidate.endswith(suffix):
-                    candidate = candidate[: -len(suffix)]
-                    break
-
-        _subprocess.run(
-            ["gsettings", "set", "org.cinnamon.desktop.wm.preferences", "theme", candidate],
-            stdout=_subprocess.DEVNULL, stderr=_subprocess.DEVNULL, timeout=1.0
-        )
-        return True
-    except Exception:
-        return False
-
-
-def _apply_gtk_settings_ini(is_dark: bool) -> None:
-    """Writes gtk-application-prefer-dark-theme to GTK 3 and GTK 4 settings.ini.
-
-    This is a per-application GTK setting — it does NOT change system-wide
-    preferences.  It is read by any DE running a GTK platform theme plugin
-    (qt5-gtk, qt6-gtk, libdecor on Wayland, etc.) so acts as a universal
-    fallback across GNOME, XFCE, MATE, Cinnamon, and generic GTK environments.
-    """
-    value = "true" if is_dark else "false"
-    for gtk_ver in ("gtk-3.0", "gtk-4.0"):
-        settings_path = xdg_config_home() / gtk_ver / "settings.ini"
-        try:
-            cfg = configparser.ConfigParser()
-            if settings_path.exists():
-                cfg.read(str(settings_path))
-            if not cfg.has_section("Settings"):
-                cfg.add_section("Settings")
-            cfg.set("Settings", "gtk-application-prefer-dark-theme", value)
-            settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(settings_path), "w") as f:
-                cfg.write(f)
-        except Exception:
-            pass
 
 
 def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication, mode: str = "Auto") -> bool:
@@ -1005,17 +824,9 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
         except Exception:
             pass
 
-    # 3b. GNOME/Mutter: GSettings color-scheme (Wayland + X11)
-    # 3c. XFCE: xfconf-query xfwm4 global theme swap
-    # 3d. MATE: dconf marco global theme swap
-    # 3e. Cinnamon: gsettings cinnamon.desktop.wm.preferences theme swap
-    # 3f. GTK settings.ini: universal per-app GTK dark preference (safe on all DEs)
+    # 3b. In-process GTK decoration preference (for libdecor-gtk on Wayland, zero system mutation)
     if sys.platform.startswith("linux"):
-        _apply_gnome_titlebar(is_dark, mode)
-        _apply_xfce_titlebar(is_dark, mode)
-        _apply_mate_titlebar(is_dark, mode)
-        _apply_cinnamon_titlebar(is_dark, mode)
-        _apply_gtk_settings_ini(is_dark)
+        _apply_in_process_gtk_theme(is_dark, mode)
 
     # 4. Linux Wayland KDE KWin SSD Protocol
     if sys.platform.startswith("linux"):
