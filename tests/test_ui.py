@@ -866,6 +866,30 @@ def test_options_titlebar_setting_and_persistence(qapp, monkeypatch, tmp_path):
     assert get_current_titlebar_mode() == "Auto"
 
 
+def test_central_container_padding(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    assert hasattr(window, "central_container")
+    assert window.central_container is not None
+    assert window.centralWidget() == window.central_container
+
+    layout = window.central_container.layout()
+    assert layout is not None
+    margins = layout.contentsMargins()
+    assert margins.left() == 4
+    assert margins.right() == 4
+    assert margins.top() == 0
+    assert margins.bottom() == 0
+
+    assert hasattr(window, "splitter")
+    assert window.splitter is not None
+    assert window.splitter.count() == 2
+
+    window.close()
+
+
+
 
 
 

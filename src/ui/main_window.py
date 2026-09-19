@@ -1144,11 +1144,25 @@ class MainWindow(QMainWindow):
         self.data_usage_widget.setVisible(False)
         left_layout.addWidget(self.data_usage_widget, 0)
 
+        self.splitter = splitter
         splitter.addWidget(self.left_panel_container)
         splitter.addWidget(self.download_table)
         splitter.setSizes([230, 770])
         splitter.setCollapsible(0, False)
-        self.setCentralWidget(splitter)
+
+        # 4px Left and Right padding container matching toolbar color palette (palette(window))
+        self.central_container = QWidget()
+        self.central_container.setObjectName("centralContainer")
+        self.central_container.setStyleSheet("""
+            QWidget#centralContainer {
+                background-color: palette(window);
+            }
+        """)
+        central_layout = QHBoxLayout(self.central_container)
+        central_layout.setContentsMargins(4, 0, 4, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(splitter)
+        self.setCentralWidget(self.central_container)
 
 
     def setup_status_bar(self):
@@ -3275,8 +3289,14 @@ class MainWindow(QMainWindow):
             app.style().polish(sb)
             sb.update()
 
-        # Refresh central splitter, splitter handles, and download table header
-        splitter = self.centralWidget()
+        # Refresh central container, central splitter, splitter handles, and download table header
+        if hasattr(self, "central_container") and self.central_container and app:
+            self.central_container.setPalette(app.palette())
+            app.style().unpolish(self.central_container)
+            app.style().polish(self.central_container)
+            self.central_container.update()
+
+        splitter = getattr(self, "splitter", self.centralWidget())
         if splitter and isinstance(splitter, QSplitter) and app:
             splitter.setPalette(app.palette())
             app.style().unpolish(splitter)
