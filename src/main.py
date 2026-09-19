@@ -165,7 +165,7 @@ def main():
             print("Bengal Download Manager is already running. Primary instance brought to focus.")
             sys.exit(0)
 
-    saved_theme = "BDM Dark (Default)"
+    saved_theme = "BDM Auto (Default)"
     saved_accent = "BDM (Default)"
     saved_icon_theme = "BDM Auto (Default)"
     saved_tray_icon = "App Icon (Default)"

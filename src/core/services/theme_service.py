@@ -375,15 +375,15 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     return pal
 
 
-def normalize_theme_name(name, default="BDM Dark (Default)"):
+def normalize_theme_name(name, default="BDM Auto (Default)"):
     if not name:
         return default
     s = str(name).strip()
     s_lower = s.lower()
-    if s_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
-        return "BDM Dark (Default)"
     if s_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
-        return "BDM Auto"
+        return "BDM Auto (Default)"
+    if s_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
+        return "BDM Dark"
     if s_lower == "system":
         return "System"
     if s_lower in ("bdm light", "bdmlight", "light"):
@@ -443,7 +443,7 @@ def normalize_tray_icon_name(name, default="App Icon (Default)"):
     return s
 
 
-CURRENT_THEME = "BDM Dark (Default)"
+CURRENT_THEME = "BDM Auto (Default)"
 CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
 
@@ -660,7 +660,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
             p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))
             app.setPalette(p)
-    elif theme_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
+    elif theme_lower in ("bdm dark", "bdmdark", "dark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
+    else:  # BDM Auto (Default) / Default Fallback
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         
@@ -682,10 +686,6 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
         else:
             app.setPalette(_build_palette("#eff0f1", "#232629", "#ffffff", "#f8f9fa", "#eef0f2", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
-    else:  # BDM Dark (Default) / Default
-        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
-            sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
 
     # Icon theme handling
     global CURRENT_ICON_THEME, CURRENT_TRAY_ICON
@@ -715,6 +715,12 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         ensure_adaptive_icon_theme(app)
 
     app.setStyleSheet("""
+            QMainWindow#MainWindow {
+                border: 1px solid palette(mid);
+            }
+            QDialog {
+                border: 1px solid palette(mid);
+            }
             QMenuBar {
                 background-color: palette(window);
                 color: palette(window-text);

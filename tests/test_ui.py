@@ -609,6 +609,25 @@ def test_menu_outer_accent_border_and_clean_menubar(qapp):
     win.close()
 
 
+def test_theme_defaults_and_window_perimeter_borders(qapp):
+    """Verify BDM Auto is the default theme and window/dialog perimeter borders are applied."""
+    from core.services.theme_service import normalize_theme_name, apply_app_theme
+    
+    assert normalize_theme_name(None) == "BDM Auto (Default)"
+    assert normalize_theme_name("") == "BDM Auto (Default)"
+    assert normalize_theme_name("auto") == "BDM Auto (Default)"
+    assert normalize_theme_name("BDM Auto") == "BDM Auto (Default)"
+    assert normalize_theme_name("BDM Dark (Default)") == "BDM Dark"
+    assert normalize_theme_name("dark") == "BDM Dark"
+
+    apply_app_theme("BDM Auto (Default)")
+    app_sheet = qapp.styleSheet()
+    assert "QMainWindow#MainWindow {" in app_sheet
+    assert "border: 1px solid palette(mid);" in app_sheet
+    assert "QDialog {" in app_sheet
+
+
+
 def test_clean_config_view_menu_and_status_bar_defaults(qapp, monkeypatch, tmp_path):
     """Verify that on clean install/config, Data usage summary is unchecked,
     Hide left panel is renamed, and only Memory in status bar is checked while the rest are unchecked."""

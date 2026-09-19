@@ -147,6 +147,7 @@ def _resolve_symbol(name: str, fallback):
 class MainWindow(QMainWindow):
     def __init__(self, start_ipc=True):
         super().__init__()
+        self.setObjectName("MainWindow")
         self.start_ipc = start_ipc
         self.setWindowTitle("Bengal Download Manager")
         
@@ -782,7 +783,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     def is_dark_theme(self) -> bool:
-        theme = getattr(self, "settings", {}).get("theme", "BDM Dark (Default)")
+        theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
         theme_lower = str(theme).lower()
         if "light" in theme_lower:
             return False
@@ -2913,7 +2914,7 @@ class MainWindow(QMainWindow):
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
-                "theme": getattr(self, "settings", {}).get("theme", "BDM Dark (Default)"),
+                "theme": getattr(self, "settings", {}).get("theme", "BDM Auto (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
@@ -3089,7 +3090,7 @@ class MainWindow(QMainWindow):
     def on_system_theme_changed(self, *args):
         if getattr(self, "_is_applying_theme", False):
             return
-        current_theme = getattr(self, "settings", {}).get("theme", "BDM Dark (Default)")
+        current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
         if str(current_theme).lower() in ("bdm auto", "bdmauto", "automatic", "auto", "system"):
             self.apply_theme_setting(current_theme)
 
@@ -3239,7 +3240,7 @@ class MainWindow(QMainWindow):
 
     def load_settings(self):
         settings = {
-            "theme": "BDM Dark (Default)",
+            "theme": "BDM Auto (Default)",
             "accent": "BDM (Default)",
             "icon_theme": "BDM Auto (Default)",
             "tray_icon": "App Icon (Default)",
