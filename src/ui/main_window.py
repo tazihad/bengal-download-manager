@@ -1151,6 +1151,7 @@ class MainWindow(QMainWindow):
         splitter.setCollapsible(0, False)
 
         # 4px Left and Right padding container matching toolbar color palette (palette(window))
+        # 4px Bottom padding when status bar is unchecked/hidden
         self.central_container = QWidget()
         self.central_container.setObjectName("centralContainer")
         self.central_container.setStyleSheet("""
@@ -1159,7 +1160,8 @@ class MainWindow(QMainWindow):
             }
         """)
         central_layout = QHBoxLayout(self.central_container)
-        central_layout.setContentsMargins(4, 0, 4, 0)
+        bottom_margin = 0 if (not hasattr(self, "action_status_bar_toggle") or not self.action_status_bar_toggle or self.action_status_bar_toggle.isChecked()) else 4
+        central_layout.setContentsMargins(4, 0, 4, bottom_margin)
         central_layout.setSpacing(0)
         central_layout.addWidget(splitter)
         self.setCentralWidget(self.central_container)
@@ -1695,6 +1697,9 @@ class MainWindow(QMainWindow):
             sb.setVisible(visible)
         if hasattr(self, "action_status_bar_toggle") and self.action_status_bar_toggle:
             self.action_status_bar_toggle.setChecked(visible)
+        if hasattr(self, "central_container") and self.central_container and self.central_container.layout():
+            bottom_margin = 0 if visible else 4
+            self.central_container.layout().setContentsMargins(4, 0, 4, bottom_margin)
         if save and hasattr(self, "save_settings"):
             self.save_settings()
 

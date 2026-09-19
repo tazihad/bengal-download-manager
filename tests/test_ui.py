@@ -880,11 +880,24 @@ def test_central_container_padding(qapp):
     assert margins.left() == 4
     assert margins.right() == 4
     assert margins.top() == 0
+    # Status bar shown by default -> bottom margin is 0
     assert margins.bottom() == 0
 
     assert hasattr(window, "splitter")
     assert window.splitter is not None
     assert window.splitter.count() == 2
+
+    # When status bar is unchecked/hidden, bottom margin must be 4px
+    window.toggle_status_bar(False)
+    margins = window.central_container.layout().contentsMargins()
+    assert margins.bottom() == 4
+    assert margins.left() == 4
+    assert margins.right() == 4
+
+    # When status bar is re-checked/shown, bottom margin must return to 0px
+    window.toggle_status_bar(True)
+    margins = window.central_container.layout().contentsMargins()
+    assert margins.bottom() == 0
 
     window.close()
 
