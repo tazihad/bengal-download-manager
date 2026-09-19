@@ -23,6 +23,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
 SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yaml")
 METAINFO_FILE = os.path.join(ROOT_DIR, "flatpak", "io.github.tazihad.bengal-download-manager.metainfo.xml")
+PYPROJECT_FILE = os.path.join(ROOT_DIR, "pyproject.toml")
 VERSION_PY_FILE = os.path.join(ROOT_DIR, "src", "core", "version.py")
 
 
@@ -196,6 +197,13 @@ def check_consistency() -> bool:
                 found = m.group(1) if m else "None"
                 errors.append(f"metainfo.xml version ({found}) != base VERSION ({clean_root})")
 
+    # 3. pyproject.toml check
+    if os.path.exists(PYPROJECT_FILE):
+        with open(PYPROJECT_FILE, "r", encoding="utf-8") as f:
+            pyproject_content = f.read()
+            if 'version = { file = "VERSION" }' not in pyproject_content and f'version = "{root_ver}"' not in pyproject_content:
+                errors.append("pyproject.toml does not reference VERSION file dynamically or match root_ver")
+
     if errors:
         print("[!] Version consistency check FAILED:")
         for err in errors:
@@ -212,6 +220,7 @@ def create_git_tag_and_commit(ver: str):
         VERSION_FILE,
         SNAPCRAFT_FILE,
         METAINFO_FILE,
+        PYPROJECT_FILE,
         os.path.join(ROOT_DIR, "index.html"),
     ]
     staged = [f for f in files_to_stage if os.path.exists(f)]

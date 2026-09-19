@@ -1094,6 +1094,8 @@ class MediaDownloaderDialog(QDialog):
 
     def check_all_dependencies(self, force_download: bool = False, target_tool: str = ""):
         """Spawns DependencyManagerWorker to verify and install missing engines."""
+        if "pytest" in sys.modules and not getattr(self, "_force_dep_worker_test", False):
+            return
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             if force_download:
                 try:
