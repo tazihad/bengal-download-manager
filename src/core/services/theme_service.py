@@ -689,6 +689,11 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
         app = QApplication.instance()
     if not app:
         return
+    init_titlebar_filter(app)
+
+    global _THEME_CHANGE_ACTIVE
+    _THEME_CHANGE_ACTIVE = True
+    QTimer.singleShot(250, _clear_theme_change_active)
 
     if mode == "Dark":
         is_dark = True
@@ -793,6 +798,56 @@ def get_current_titlebar_mode() -> str:
     """Returns the current active title bar theme mode ('Auto', 'Light', or 'Dark')."""
     global CURRENT_TITLE_BAR_MODE
     return CURRENT_TITLE_BAR_MODE
+
+
+class _TitleBarEventFilter(QObject):
+    """
+    Application-wide event filter to ensure that any top-level window or dialog
+    (e.g., Options, Media Downloader, Add URL, Progress dialogs) automatically receives
+    the active title bar theme decoration when shown.
+    """
+    def eventFilter(self, watched, event):
+        try:
+            if event.type() == QEvent.Type.Show:
+                if hasattr(watched, "isWindow") and watched.isWindow():
+                    apply_titlebar_theme(get_current_titlebar_mode(), window=watched)
+        except Exception:
+            pass
+        return super().eventFilter(watched, event)
+
+
+_GLOBAL_TITLEBAR_FILTER = None
+
+
+def init_titlebar_filter(app: Optional[QApplication] = None):
+    """
+    Installs the global title bar event filter on the QApplication instance once.
+    """
+    global _GLOBAL_TITLEBAR_FILTER
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return
+    if app is None:
+        app = QApplication.instance()
+    if not app or _GLOBAL_TITLEBAR_FILTER is not None:
+        return
+    _GLOBAL_TITLEBAR_FILTER = _TitleBarEventFilter(app)
+    app.installEventFilter(_GLOBAL_TITLEBAR_FILTER)
+
+
+_THEME_CHANGE_ACTIVE = False
+
+
+def is_theme_change_active() -> bool:
+    """Returns True if an internal programmatic theme or title bar change is currently executing."""
+    global _THEME_CHANGE_ACTIVE
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return False
+    return _THEME_CHANGE_ACTIVE
+
+
+def _clear_theme_change_active():
+    global _THEME_CHANGE_ACTIVE
+    _THEME_CHANGE_ACTIVE = False
 
 
 def is_system_dark_theme(app=None) -> bool:
@@ -957,6 +1012,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         app = QApplication.instance()
     if not app:
         return
+
+    global _THEME_CHANGE_ACTIVE
+    _THEME_CHANGE_ACTIVE = True
+    QTimer.singleShot(250, _clear_theme_change_active)
 
     sh = app.styleHints()
     theme_lower = str(theme_name).strip().lower()

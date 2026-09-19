@@ -125,6 +125,8 @@ from core.services.theme_service import (
     get_file_icon,
     get_themed_icon,
     get_themed_tray_icon,
+    get_current_titlebar_mode,
+    is_theme_change_active,
     init_app_font,
     make_faded_icon,
     normalize_accent_name,
@@ -2971,6 +2973,7 @@ class MainWindow(QMainWindow):
             pass
 
     def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None):
+        self._is_previewing = False
         if getattr(self, "_is_applying_theme", False):
             return
         self._is_applying_theme = True
@@ -3048,6 +3051,7 @@ class MainWindow(QMainWindow):
             self.queues_header.setText(0, self.tr("Queues"))
 
     def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None):
+        self._is_previewing = True
         if getattr(self, "_is_applying_theme", False):
             return
         self._is_applying_theme = True
@@ -3068,7 +3072,7 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
-        apply_titlebar_theme(getattr(self, "settings", {}).get("title_bar", "Auto"), window=self)
+        apply_titlebar_theme(get_current_titlebar_mode(), window=self)
         if hasattr(self, "timestamp_timer") and not self.timestamp_timer.isActive():
             self.timestamp_timer.start(10000)
         if hasattr(self, "status_bar_timer") and not self.status_bar_timer.isActive():
@@ -3121,14 +3125,25 @@ class MainWindow(QMainWindow):
         @pyqtSlot(str, str, QtDBus.QDBusVariant)
         def _on_portal_setting_changed(self, namespace: str, key: str, value):
             if namespace == "org.freedesktop.appearance" and key == "color-scheme":
-                self.on_system_theme_changed()
+                self.on_system_theme_changed(force=True)
     else:
         def _on_portal_setting_changed(self, namespace: str, key: str, value):
             pass
 
-    def on_system_theme_changed(self, *args):
-        if getattr(self, "_is_applying_theme", False):
+    def on_system_theme_changed(self, *args, force=False):
+        if getattr(self, "_is_previewing", False):
             return
+        if not force and (
+            getattr(self, "_is_applying_theme", False)
+            or is_theme_change_active()
+        ):
+            return
+        if not force:
+            app = QApplication.instance()
+            if app:
+                for top in app.topLevelWidgets():
+                    if top and top.isWindow() and top.isVisible() and type(top).__name__ == "OptionsDialog":
+                        return
         current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
         current_titlebar = getattr(self, "settings", {}).get("title_bar", "Auto")
         if (str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system") or
@@ -3146,7 +3161,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             self.setPalette(app.palette())
-        apply_titlebar_theme(getattr(self, "settings", {}).get("title_bar", "Auto"), window=self)
+        apply_titlebar_theme(get_current_titlebar_mode(), window=self)
 
         # Refresh category tree style & icons
         if hasattr(self, "category_tree"):

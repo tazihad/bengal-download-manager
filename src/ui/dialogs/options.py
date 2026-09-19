@@ -1649,6 +1649,7 @@ class OptionsDialog(QDialog):
                 tr = getattr(self, 'initial_tray_icon', 'App Icon (Default)')
                 tb = getattr(self, 'initial_titlebar', 'Auto')
                 preview_fn(t, a, i, tr, tb)
+            setattr(self.main_win, "_is_previewing", False)
         self._cleanup_proxy_worker()
         super().reject()
 
