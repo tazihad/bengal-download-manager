@@ -1253,6 +1253,11 @@ class OptionsDialog(QDialog):
         self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
         vbox_browser.addWidget(self.chk_auto_start_media)
 
+        self.chk_auto_update_engine = QCheckBox("Auto-check and update media engine on startup")
+        self.chk_auto_update_engine.setToolTip("Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch")
+        self.chk_auto_update_engine.setChecked(bool(media_defaults.get("auto_update_engine_startup", True)))
+        vbox_browser.addWidget(self.chk_auto_update_engine)
+
         row_media_q = QHBoxLayout()
         row_media_q.addWidget(QLabel("Preselected Quality Target:"))
         self.cmb_media_quality = QComboBox()
@@ -1660,6 +1665,8 @@ class OptionsDialog(QDialog):
         media_defaults = self.config_data.get("media_downloader_defaults", {})
         if hasattr(self, "chk_auto_start_media"):
             media_defaults["auto_start_media"] = self.chk_auto_start_media.isChecked()
+        if hasattr(self, "chk_auto_update_engine"):
+            media_defaults["auto_update_engine_startup"] = self.chk_auto_update_engine.isChecked()
         if hasattr(self, "cmb_media_quality"):
             media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
         if hasattr(self, "cmb_opt_cookies_mode"):

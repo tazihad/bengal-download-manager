@@ -283,6 +283,9 @@ class MainWindow(QMainWindow):
             self.scheduler_timer.start()
             QTimer.singleShot(100, self._check_startup_queues)
 
+        # Automatically check and update media engine on application startup
+        QTimer.singleShot(500, self._check_media_engine_startup)
+
     def restart_ipc_listener(self, port=None):
         """Safely restart the background TCP IPC listener with updated port configuration."""
         if port is None:
@@ -377,6 +380,14 @@ class MainWindow(QMainWindow):
             try:
                 self._proxy_sb_worker.terminate()
                 self._proxy_sb_worker.wait(200)
+            except Exception:
+                pass
+
+        if getattr(self, "_media_engine_worker", None) and self._media_engine_worker.isRunning():
+            try:
+                self._media_engine_worker.requestInterruption()
+                self._media_engine_worker.quit()
+                self._media_engine_worker.wait(500)
             except Exception:
                 pass
 
@@ -765,6 +776,13 @@ class MainWindow(QMainWindow):
         self.action_sb_ipc.setChecked(prev_ipc)
         self.action_sb_ipc.triggered.connect(self._on_status_bar_child_toggled)
         self.status_bar_menu.addAction(self.action_sb_ipc)
+
+        prev_media = getattr(self, "action_sb_media", None).isChecked() if hasattr(self, "action_sb_media") else True
+        self.action_sb_media = QAction(self.tr("&Media Status"), self)
+        self.action_sb_media.setCheckable(True)
+        self.action_sb_media.setChecked(prev_media)
+        self.action_sb_media.triggered.connect(self._on_status_bar_child_toggled)
+        self.status_bar_menu.addAction(self.action_sb_media)
 
         prev_speed = getattr(self, "action_sb_speed", None).isChecked() if hasattr(self, "action_sb_speed") else False
         self.action_sb_speed = QAction(self.tr("&Speed"), self)
@@ -1238,7 +1256,18 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self.sep_ipc)
         status_bar.addPermanentWidget(self.status_ipc_label)
 
-        # 4. Public IP Status
+        # 4. Media Background / Engine Status
+        self.sep_media = create_sep()
+        self.status_media_label = QLabel("● Media: Ready", self)
+        self.status_media_label.setFont(tnum_font)
+        self.status_media_label.setStyleSheet("color: palette(window-text); padding: 0px 3px;")
+        self.status_media_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.status_media_label.setToolTip("Media Status (Click to open Media Downloader)")
+        self.status_media_label.mousePressEvent = self._on_media_status_clicked
+        status_bar.addPermanentWidget(self.sep_media)
+        status_bar.addPermanentWidget(self.status_media_label)
+
+        # 5. Public IP Status
         self.sep_public_ip = create_sep()
         self.status_public_ip_label = QLabel("IP: Detecting...", self)
         self.status_public_ip_label.setFont(tnum_font)
@@ -1249,7 +1278,7 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self.sep_public_ip)
         status_bar.addPermanentWidget(self.status_public_ip_label)
 
-        # 5. Proxy Status
+        # 6. Proxy Status
         self.sep_proxy = create_sep()
         self.status_proxy_label = QLabel("Proxy: Direct", self)
         self.status_proxy_label.setFont(tnum_font)
@@ -1260,7 +1289,7 @@ class MainWindow(QMainWindow):
         status_bar.addPermanentWidget(self.sep_proxy)
         status_bar.addPermanentWidget(self.status_proxy_label)
 
-        # 6. Memory Status
+        # 7. Memory Status
         self.sep_memory = create_sep()
         self.status_memory_label = QLabel("Memory: 0 B", self)
         self.status_memory_label.setFont(tnum_font)
@@ -1282,6 +1311,7 @@ class MainWindow(QMainWindow):
             (getattr(self, "status_speed_label", None), getattr(self, "sep_speed", None), self.action_sb_speed.isChecked() if hasattr(self, "action_sb_speed") else False),
             (getattr(self, "status_aria2_label", None), getattr(self, "sep_aria2", None), self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else False),
             (getattr(self, "status_ipc_label", None), getattr(self, "sep_ipc", None), self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else False),
+            (getattr(self, "status_media_label", None), getattr(self, "sep_media", None), self.action_sb_media.isChecked() if hasattr(self, "action_sb_media") else True),
             (getattr(self, "status_public_ip_label", None), getattr(self, "sep_public_ip", None), self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False),
             (getattr(self, "status_proxy_label", None), getattr(self, "sep_proxy", None), self.action_sb_proxy.isChecked() if hasattr(self, "action_sb_proxy") else False),
             (getattr(self, "status_memory_label", None), getattr(self, "sep_memory", None), self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True),
@@ -1304,6 +1334,8 @@ class MainWindow(QMainWindow):
             self.fetch_public_ip_async()
         if hasattr(self, "action_sb_proxy") and self.action_sb_proxy.isChecked():
             self.update_status_bar_proxy()
+        if hasattr(self, "action_sb_media") and self.action_sb_media.isChecked():
+            self.update_status_bar_media()
         if hasattr(self, "save_settings"):
             self.save_settings()
 
@@ -1434,6 +1466,159 @@ class MainWindow(QMainWindow):
             self.status_ipc_label.setText("● IPC: Stopped")
             self.status_ipc_label.setStyleSheet("color: #e74c3c; font-weight: 500; padding: 0px 3px;")
             self.status_ipc_label.setToolTip(f"Browser Extension IPC Listener: Stopped (Port {port})")
+
+    def update_status_bar_media(self):
+        """Updates the media background download and engine status bar indicator."""
+        if not hasattr(self, "status_media_label"):
+            return
+
+        # 1. First priority: active background/foreground media downloads
+        active_media = []
+        if hasattr(self, "active_downloads") and self.active_downloads:
+            try:
+                from core.media_downloader import YtDlpDownloadWorker
+                for key in list(self.active_downloads.keys()):
+                    worker = None
+                    if hasattr(self.active_downloads, "get_worker"):
+                        worker = self.active_downloads.get_worker(key)
+                    else:
+                        entry = self.active_downloads.get(key)
+                        worker = getattr(entry, "worker", entry)
+
+                    if isinstance(worker, YtDlpDownloadWorker) and worker.isRunning():
+                        cur = getattr(worker, "current_bytes", 0)
+                        tot = getattr(worker, "total_bytes", 0)
+                        pct = int((cur / tot) * 100) if tot > 0 else None
+                        speed = 0.0
+                        if hasattr(self, "active_speeds") and self.active_speeds:
+                            speed = float(self.active_speeds.get(key, 0.0))
+                        name = getattr(worker, "filename", "media")
+                        active_media.append({
+                            "name": name,
+                            "pct": pct,
+                            "speed": speed,
+                            "cur": cur,
+                            "tot": tot,
+                        })
+            except Exception as e:
+                logger.debug("[MainWindow] Error querying active media downloads: %s", e)
+
+        if active_media:
+            count = len(active_media)
+            if count == 1:
+                item = active_media[0]
+                if item["pct"] is not None:
+                    label_text = f"● Media: 1 active ({item['pct']}%)"
+                else:
+                    label_text = "● Media: 1 active"
+            else:
+                label_text = f"● Media: {count} active"
+
+            self.status_media_label.setText(label_text)
+            self.status_media_label.setStyleSheet("color: #3498db; font-weight: 500; padding: 0px 3px;")
+
+            from core.utils import format_bytes
+            tooltip_lines = [f"Media Background Downloads ({count} active):"]
+            for m in active_media:
+                pct_str = f"{m['pct']}%" if m['pct'] is not None else "--%"
+                speed_str = format_bytes(m['speed']) + "/s" if m['speed'] > 0 else "0 B/s"
+                tooltip_lines.append(f"• {m['name']} — {pct_str} ({speed_str})")
+            tooltip_lines.append("\nClick to open Media Downloader")
+            self.status_media_label.setToolTip("\n".join(tooltip_lines))
+            return
+
+        # 2. Second priority: media engine downloading, checking, or updating
+        if getattr(self, "_media_engine_worker", None) and self._media_engine_worker.isRunning():
+            tool_info = getattr(self, "_media_engine_status", None)
+            tool_name = tool_info[0] if tool_info else "Engine"
+            display_text = tool_info[1] if tool_info else "Checking..."
+
+            m = re.search(r"([\d.]+)\s*MB\s*/\s*([\d.]+)\s*MB", display_text)
+            if m:
+                dl = float(m.group(1))
+                tot = float(m.group(2))
+                pct = int((dl / tot) * 100) if tot > 0 else 0
+                label_text = f"● Media: {tool_name} {pct}%"
+            elif "MB" in display_text:
+                m_dl = re.search(r"([\d.]+)\s*MB", display_text)
+                if m_dl:
+                    label_text = f"● Media: {tool_name} {m_dl.group(1)}M"
+                else:
+                    label_text = f"● Media: dl {tool_name}"
+            elif "Downloading" in display_text:
+                label_text = f"● Media: dl {tool_name}"
+            elif "Checking" in display_text:
+                label_text = "● Media: Checking..."
+            elif "Installing" in display_text or "Extracting" in display_text:
+                label_text = f"● Media: {tool_name}..."
+            else:
+                label_text = f"● Media: {tool_name}..."
+
+            self.status_media_label.setText(label_text)
+            self.status_media_label.setStyleSheet("color: #e5a50a; font-weight: 500; padding: 0px 3px;")
+            self.status_media_label.setToolTip(f"Media Engine: {display_text}\nClick to open Media Downloader")
+            return
+
+        # 3. Third priority: idle media engine state
+        try:
+            from core.media_downloader import YtDlpManager, get_tool_version
+            is_ready = YtDlpManager.is_binary_available()
+        except Exception:
+            is_ready = False
+
+        if is_ready:
+            try:
+                ver = get_tool_version("yt-dlp", local_only=True)
+            except Exception:
+                ver = ""
+            ver_str = f" ({ver})" if ver else ""
+            self.status_media_label.setText("● Media: Ready")
+            self.status_media_label.setStyleSheet("color: #2ecc71; font-weight: 500; padding: 0px 3px;")
+            self.status_media_label.setToolTip(f"Media Engine: Ready{ver_str}\nClick to open Media Downloader")
+        else:
+            self.status_media_label.setText("● Media: Missing")
+            self.status_media_label.setStyleSheet("color: #e67e22; font-weight: 500; padding: 0px 3px;")
+            self.status_media_label.setToolTip("Media Engine: Missing or not installed\nClick to open Media Downloader and install")
+
+    def _on_media_status_clicked(self, event):
+        if event and event.button() == Qt.MouseButton.LeftButton:
+            self.open_media_downloader()
+
+    def _check_media_engine_startup(self):
+        """Automatically checks for missing media engine tools or updates on application startup."""
+        if getattr(self, "is_quitting", False) or getattr(self, "_is_closing", False):
+            return
+        if "pytest" in sys.modules and not getattr(self, "_force_media_engine_startup_test", False):
+            return
+        config = load_category_config()
+        media_defaults = config.get("media_downloader_defaults", {})
+        if not media_defaults.get("auto_update_engine_startup", True):
+            return
+
+        self._start_media_engine_check(force_download=True)
+
+    def _start_media_engine_check(self, force_download: bool = True):
+        """Spawns background DependencyManagerWorker to verify and download/update media engine."""
+        if getattr(self, "_media_engine_worker", None) and self._media_engine_worker.isRunning():
+            return
+        try:
+            from core.media_downloader import DependencyManagerWorker
+            self._media_engine_worker = DependencyManagerWorker(force_download=force_download)
+            self._media_engine_worker.tool_status_signal.connect(self._on_media_engine_status_updated)
+            self._media_engine_worker.all_finished_signal.connect(self._on_media_engine_finished)
+            self._media_engine_status = ("yt-dlp", "Checking...", "yellow")
+            self.update_status_bar_media()
+            self._media_engine_worker.start()
+        except Exception as e:
+            logger.debug("[MainWindow] Failed to start media engine worker: %s", e)
+
+    def _on_media_engine_status_updated(self, tool_name: str, display_text: str, color_type: str):
+        self._media_engine_status = (tool_name, display_text, color_type)
+        self.update_status_bar_media()
+
+    def _on_media_engine_finished(self):
+        self._media_engine_status = None
+        self.update_status_bar_media()
 
     def fetch_public_ip_async(self, force: bool = False):
         if not hasattr(self, "status_public_ip_label"):
@@ -1614,6 +1799,7 @@ class MainWindow(QMainWindow):
         self.update_status_bar_memory()
         self.update_status_bar_aria2()
         self.update_status_bar_ipc()
+        self.update_status_bar_media()
         self.update_status_bar_speed()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
@@ -1662,6 +1848,7 @@ class MainWindow(QMainWindow):
         self.update_status_bar_speed()
         self.update_status_bar_aria2()
         self.update_status_bar_ipc()
+        self.update_status_bar_media()
         self.update_status_bar_memory()
         if hasattr(self, "action_sb_public_ip") and self.action_sb_public_ip.isChecked():
             self.fetch_public_ip_async()
@@ -2997,6 +3184,7 @@ class MainWindow(QMainWindow):
                     "memory": self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True,
                     "aria2": self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else False,
                     "ipc": self.action_sb_ipc.isChecked() if hasattr(self, "action_sb_ipc") else False,
+                    "media": self.action_sb_media.isChecked() if hasattr(self, "action_sb_media") else True,
                     "speed": self.action_sb_speed.isChecked() if hasattr(self, "action_sb_speed") else False,
                     "public_ip": self.action_sb_public_ip.isChecked() if hasattr(self, "action_sb_public_ip") else False,
                     "proxy": self.action_sb_proxy.isChecked() if hasattr(self, "action_sb_proxy") else False,
@@ -3414,6 +3602,10 @@ class MainWindow(QMainWindow):
             self.action_sb_aria2.setChecked(sb_items.get("aria2", False))
         if hasattr(self, "action_sb_ipc"):
             self.action_sb_ipc.setChecked(sb_items.get("ipc", False))
+        if hasattr(self, "action_sb_media"):
+            self.action_sb_media.setChecked(sb_items.get("media", True))
+            if sb_items.get("media", True):
+                self.update_status_bar_media()
         if hasattr(self, "action_sb_speed"):
             self.action_sb_speed.setChecked(sb_items.get("speed", False))
         if hasattr(self, "action_sb_public_ip"):
@@ -6355,6 +6547,7 @@ class MainWindow(QMainWindow):
                 logger.debug("[MainWindow] Starting YtDlpDownloadWorker for '%s' (format=%s, audio_only=%s)",
                              filename, format_spec, is_audio_only)
             worker.start()
+        self.update_status_bar_media()
         self.download_table.setSortingEnabled(True)
         self.update_ui_states()
         self._sync_sidebar_queues()
@@ -6446,6 +6639,7 @@ class MainWindow(QMainWindow):
             self._set_status_text(row, "Downloading...")
             if not worker.isRunning():
                 worker.start()
+            self.update_status_bar_media()
             self.download_table.setSortingEnabled(True)
             self.update_ui_states()
             self._sync_sidebar_queues()
@@ -6463,6 +6657,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "active_speeds"):
             self.active_speeds.pop(key, None)
         self.update_status_bar_speed()
+        self.update_status_bar_media()
         if not self._is_item_valid(item_ref):
             self._try_start_queued()
             return
