@@ -710,7 +710,10 @@ def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication,
 
 
 def is_gnome_desktop() -> bool:
-    """Detects whether the running desktop environment is GNOME, Ubuntu, or derivative."""
+    """
+    Detects whether the running desktop environment is GNOME, GTK-based, Ubuntu, or derivative.
+    Matches GNOME, Ubuntu, Pop!_OS, Cinnamon, MATE, XFCE, Budgie, Pantheon, Cosmic, Deepin, LXDE.
+    """
     if os.environ.get("BDM_FORCE_CSD") == "1":
         return True
     if os.environ.get("BDM_DISABLE_CSD") == "1":
@@ -718,27 +721,34 @@ def is_gnome_desktop() -> bool:
     desktop = (
         os.environ.get("XDG_CURRENT_DESKTOP", "") + ":" +
         os.environ.get("GDMSESSION", "") + ":" +
-        os.environ.get("XDG_SESSION_DESKTOP", "")
+        os.environ.get("XDG_SESSION_DESKTOP", "") + ":" +
+        os.environ.get("DESKTOP_SESSION", "")
     ).upper()
-    return any(d in desktop for d in ("GNOME", "UBUNTU", "UNITY", "POPOS", "PANTHEON"))
+    gtk_desktops = (
+        "GNOME", "UBUNTU", "UNITY", "POPOS", "POP", "PANTHEON",
+        "CINNAMON", "X-CINNAMON", "MATE", "XFCE", "X-XFCE",
+        "BUDGIE", "COSMIC", "DEEPIN", "DDE", "LXDE"
+    )
+    return any(d in desktop for d in gtk_desktops)
+
+
+is_gnome_or_gtk_desktop = is_gnome_desktop
 
 
 def _apply_gnome_csd_titlebar(mode: str, is_dark: bool, windows: list):
     """
-    On GNOME (Wayland & X11), system window decorations cannot be arbitrarily recolored
-    per-app. When Light or Dark is selected, custom Client-Side Decorations (CSD)
-    provide the requested titlebar theme. When Automatic is selected, system default
-    decorations are used.
+    On GNOME and GTK-based distros, apply custom Libadwaita Client-Side Decorations (CSD).
+    Title bar theme options:
+      - 'Automatic': Follows system theme (Light/Dark) via XDG portal / D-Bus
+      - 'Light': Libadwaita light headerbar
+      - 'Dark': Libadwaita dark headerbar
     """
     try:
-        from ui.components.csd_titlebar import attach_csd, detach_csd
+        from ui.components.csd_titlebar import attach_csd
         for w in windows:
             if not w:
                 continue
-            if mode in ("Light", "Dark"):
-                attach_csd(w, is_dark=is_dark)
-            else:  # "Automatic"
-                detach_csd(w)
+            attach_csd(w, is_dark=is_dark, mode=mode)
     except Exception:
         pass
 
@@ -866,11 +876,17 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
     if sys.platform.startswith("linux"):
         _apply_kde_wayland_titlebar(is_dark, all_windows, app, mode=mode)
 
-    # 5. Linux GNOME Client-Side Decoration (CSD)
+    # 5. Linux GNOME / GTK Client-Side Decoration (CSD)
     if sys.platform.startswith("linux") and is_gnome_desktop():
         _apply_gnome_csd_titlebar(mode, is_dark, all_windows)
     else:
-        _apply_gnome_csd_titlebar("Automatic", is_dark, all_windows)
+        try:
+            from ui.components.csd_titlebar import detach_csd
+            for w in all_windows:
+                if w and getattr(w, "_csd_titlebar", None) is not None:
+                    detach_csd(w)
+        except Exception:
+            pass
 
 
 def get_current_titlebar_mode() -> str:

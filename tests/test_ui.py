@@ -907,9 +907,9 @@ def test_central_container_padding(qapp):
 
 
 def test_gnome_csd_titlebar_toggle(qapp, monkeypatch):
-    """Verify GNOME client-side decoration (CSD) attaches on Dark/Light and detaches on Automatic."""
+    """Verify GNOME/GTK Libadwaita client-side decoration (CSD) attaches on Dark/Light/Automatic and detaches cleanly."""
     from core.services.theme_service import apply_titlebar_theme, is_gnome_desktop
-    from ui.components.csd_titlebar import CsdTitleBar
+    from ui.components.csd_titlebar import CsdTitleBar, detach_csd
 
     monkeypatch.setenv("BDM_FORCE_CSD", "1")
     assert is_gnome_desktop() is True
@@ -918,22 +918,98 @@ def test_gnome_csd_titlebar_toggle(qapp, monkeypatch):
     win.hide()
 
     try:
-        # 1. Dark mode -> CSD attached
+        # 1. Dark mode -> CSD attached with Libadwaita dark styling
         apply_titlebar_theme("Dark", window=win, app=qapp)
         assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
         assert hasattr(win, "_csd_titlebar") and win._csd_titlebar is not None
         assert isinstance(win._csd_titlebar, CsdTitleBar)
         assert win._csd_titlebar._is_dark is True
+        assert win._csd_titlebar.height() == 46
+        assert win._csd_titlebar.btn_close.text() == "✕"
+        assert win._csd_titlebar.btn_min.text() == "–"
+        assert win._csd_titlebar.btn_max.text() == "□"
 
         # 2. Light mode -> CSD stays attached, styled light
         apply_titlebar_theme("Light", window=win, app=qapp)
         assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
         assert win._csd_titlebar._is_dark is False
 
-        # 3. Automatic -> CSD detached, system default frame restored
+        # 3. Automatic mode -> CSD stays attached on GNOME/GTK, follows system color scheme
         apply_titlebar_theme("Automatic", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+        assert hasattr(win, "_csd_titlebar") and win._csd_titlebar is not None
+
+        # 4. Explicit detach -> system frame restored
+        detach_csd(win)
         assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is False
         assert getattr(win, "_csd_titlebar", None) is None
     finally:
         win.is_quitting = True
         win.close()
+
+
+def test_dialog_csd_behavior(qapp, monkeypatch):
+    """Verify dialog CSD has close button, no minimize button, and 46px height."""
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout
+    from ui.components.csd_titlebar import attach_csd, detach_csd, CsdTitleBar
+
+    dlg = QDialog()
+    lay = QVBoxLayout(dlg)
+    lay.setContentsMargins(10, 10, 10, 10)
+
+    try:
+        attach_csd(dlg, is_dark=True)
+        assert hasattr(dlg, "_csd_titlebar") and dlg._csd_titlebar is not None
+        tb = dlg._csd_titlebar
+        assert isinstance(tb, CsdTitleBar)
+        assert tb.height() == 46
+        assert tb.btn_min is None
+        assert tb.btn_close is not None
+        assert tb.btn_close.text() == "✕"
+        assert tb._is_dark is True
+
+        # Style change to light
+        attach_csd(dlg, is_dark=False)
+        assert tb._is_dark is False
+
+        # Title change
+        dlg.setWindowTitle("Custom Dialog Title")
+        tb.update_title(dlg.windowTitle())
+        assert tb.title_lbl.text() == "Custom Dialog Title"
+
+        # Detach
+        detach_csd(dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is None
+    finally:
+        dlg.close()
+
+
+def test_gtk_desktops_detection(monkeypatch):
+    """Verify is_gnome_desktop detects all GNOME and GTK-based desktops properly."""
+    from core.services.theme_service import is_gnome_desktop
+
+    # GTK / GNOME environments
+    for env in ["GNOME", "ubuntu:GNOME", "Unity", "Pop:GNOME", "X-Cinnamon", "MATE", "XFCE", "Budgie:GNOME", "Pantheon", "cosmic"]:
+        monkeypatch.setenv("XDG_CURRENT_DESKTOP", env)
+        monkeypatch.delenv("BDM_FORCE_CSD", raising=False)
+        monkeypatch.delenv("BDM_DISABLE_CSD", raising=False)
+        assert is_gnome_desktop() is True, f"Failed for {env}"
+
+    # Non-GTK / KDE Plasma
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+    monkeypatch.setenv("GDMSESSION", "plasma")
+    monkeypatch.setenv("XDG_SESSION_DESKTOP", "plasma")
+    monkeypatch.setenv("DESKTOP_SESSION", "plasma")
+    assert is_gnome_desktop() is False
+
+    # Force disable override
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+    monkeypatch.setenv("BDM_DISABLE_CSD", "1")
+    assert is_gnome_desktop() is False
+
+    # Force enable override
+    monkeypatch.setenv("BDM_DISABLE_CSD", "0")
+    monkeypatch.setenv("BDM_FORCE_CSD", "1")
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+    assert is_gnome_desktop() is True
+
