@@ -403,7 +403,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: Release ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
           body_path: release_body.md
           files: release_dist/*
           draft: false

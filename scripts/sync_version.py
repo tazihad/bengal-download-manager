@@ -217,7 +217,7 @@ def create_git_tag_and_commit(ver: str):
     staged = [f for f in files_to_stage if os.path.exists(f)]
     subprocess.run(["git", "add"] + staged, check=True, cwd=ROOT_DIR)
     subprocess.run(["git", "commit", "-m", f"chore(release): bump version to {ver}"], check=True, cwd=ROOT_DIR)
-    subprocess.run(["git", "tag", "-a", tag, "-m", f"Release {tag}"], check=True, cwd=ROOT_DIR)
+    subprocess.run(["git", "tag", "-a", tag, "-m", tag], check=True, cwd=ROOT_DIR)
     print(f"[✓] Created commit and tag {tag}")
     print(f"To push: git push origin HEAD --tags")
 
