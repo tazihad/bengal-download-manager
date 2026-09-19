@@ -694,7 +694,12 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
     # 1. Cross-platform Qt styleHints (Qt 6.5+ sets Wayland / libdecor / macOS / Windows titlebar scheme)
     sh = app.styleHints()
     if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
-        sh.setColorScheme(Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light)
+        if mode == "Dark":
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        elif mode == "Light":
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        else:
+            sh.setColorScheme(getattr(Qt.ColorScheme, "Unknown", Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light))
 
     all_windows = []
     if window:
