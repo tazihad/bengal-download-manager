@@ -154,11 +154,15 @@ def main():
         threading.excepthook = thread_exception_hook
     qInstallMessageHandler(qt_message_handler)
 
+    from core.desktop import get_desktop_file_name, ensure_desktop_integration
+    ensure_desktop_integration()
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
-    app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
+    app.setApplicationDisplayName("Bengal Download Manager")
+    app.setDesktopFileName(get_desktop_file_name())
     app.setQuitOnLastWindowClosed(False)
 
     # --- SINGLE INSTANCE ENFORCEMENT ---

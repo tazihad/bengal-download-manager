@@ -391,6 +391,13 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+        if getattr(self, "_ip_worker", None) and self._ip_worker.isRunning():
+            try:
+                self._ip_worker.terminate()
+                self._ip_worker.wait(300)
+            except Exception:
+                pass
+
         # 2. Stop IPC Listener Thread and Single Instance Server
         if hasattr(self, "listener_thread") and self.listener_thread:
             try:
