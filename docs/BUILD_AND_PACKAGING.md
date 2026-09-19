@@ -16,9 +16,6 @@ cd bengal-download-manager
 
 # Install project in editable mode with dev dependencies via pyproject.toml
 uv pip install -e ".[dev]"
-
-# Or install standard dependencies via requirements.txt
-uv pip install -r requirements.txt
 ```
 
 ### Running in Development Mode

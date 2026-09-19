@@ -24,7 +24,7 @@ git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
 
 uv venv
-uv pip install -r requirements-dev.txt
+uv pip install -e ".[dev]"
 ```
 
 ---

@@ -56,8 +56,6 @@ parts:
   bengal-download-manager:
     plugin: python
     source: .
-    python-requirements:
-      - requirements.txt
     # Do NOT add librsvg2-2 or librsvg2-common to stage-packages.
     # The gnome-46-2404 content snap provides librsvg-2.so.2 v2.61.1, which
     # libpixbufloader_svg.so was compiled against and requires the symbol

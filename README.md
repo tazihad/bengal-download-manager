@@ -125,7 +125,7 @@ Run directly from source (see [DEPENDENCIES.md](DEPENDENCIES.md) for requirement
 ```bash
 git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
-pip install -r requirements.txt
+pip install -e .
 python3 src/main.py
 ```
 
@@ -135,7 +135,7 @@ Build a self-contained, single-file binary executable using **CMake** and **PyIn
 
 ```bash
 # Ensure dependencies and PyInstaller are installed
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
 # Configure CMake build tree
 cmake -B build -S .

@@ -40,7 +40,7 @@ modules:
   - name: bengal-download-manager
     buildsystem: simple
     build-commands:
-      - pip install --prefix=/app -r requirements.txt || true
+      - pip install --prefix=/app . || true
       - pyinstaller --onefile --name bengal-download-manager main.py
       - install -D -m 755 dist/bengal-download-manager /app/bin/bengal-download-manager
       - install -D -m 644 assets/icons/16x16.png /app/share/icons/hicolor/16x16/apps/${FLATPAK_ID}.png
