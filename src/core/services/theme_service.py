@@ -17,7 +17,7 @@ from typing import Optional, Tuple, List
 
 from PyQt6.QtWidgets import QApplication, QStyle, QFileIconProvider
 from PyQt6.QtGui import QColor, QPalette, QIcon, QFont, QPixmap, QImage, QPainter
-from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale
+from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale, QEvent, QTimer, QByteArray, QObject
 
 from core.utils import get_data_dir
 
@@ -463,6 +463,211 @@ CURRENT_TRAY_ICON = "App Icon (Default)"
 CURRENT_TITLE_BAR_MODE = "Auto"
 
 
+def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
+    """
+    Returns (scheme_name, scheme_path_or_name)
+    """
+    if is_dark:
+        candidates = [
+            "/usr/share/color-schemes/BreezeDark.colors",
+            "/usr/local/share/color-schemes/BreezeDark.colors",
+            str(xdg_data_home() / "color-schemes" / "BreezeDark.colors"),
+            "BreezeDark"
+        ]
+        default_name = "BreezeDark"
+    else:
+        candidates = [
+            "/usr/share/color-schemes/BreezeLight.colors",
+            "/usr/share/color-schemes/BreezeClassic.colors",
+            "/usr/local/share/color-schemes/BreezeLight.colors",
+            str(xdg_data_home() / "color-schemes" / "BreezeLight.colors"),
+            "BreezeLight"
+        ]
+        default_name = "BreezeLight"
+
+    for c in candidates:
+        if c.startswith("/") and os.path.isfile(c):
+            return default_name, c
+    return default_name, default_name
+
+
+def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication) -> bool:
+    """
+    Communicates directly with KWin compositor via Wayland protocol:
+    org_kde_kwin_server_decoration_palette.set_palette(scheme)
+    to immediately change server-side window title bar decorations on KDE Plasma Wayland.
+    """
+    if "PYTEST_CURRENT_TEST" in os.environ or not os.environ.get("WAYLAND_DISPLAY"):
+        return False
+    try:
+        import ctypes
+        import PyQt6.sip as sip
+        wl_client = ctypes.CDLL("libwayland-client.so.0")
+    except Exception:
+        return False
+
+    scheme_name, scheme_path = _find_kde_color_scheme(is_dark)
+
+    disp_wrapper = None
+    queue = None
+    registry = None
+    mgr_proxy = None
+    created_palettes = []
+
+    try:
+        import PyQt6
+        pyqt_dir = Path(PyQt6.__file__).parent
+        
+        gui_lib_path = pyqt_dir / "Qt6" / "lib" / "libQt6Gui.so.6"
+        gui_lib = ctypes.CDLL(str(gui_lib_path)) if gui_lib_path.exists() else ctypes.CDLL("libQt6Gui.so.6")
+        
+        get_pni = getattr(gui_lib, "_ZN15QGuiApplication23platformNativeInterfaceEv")
+        get_pni.restype = ctypes.c_void_p
+        pni = get_pni()
+        if not pni:
+            return False
+
+        wl_qt_path = pyqt_dir / "Qt6" / "lib" / "libQt6WaylandClient.so.6"
+        wl_qt_lib = ctypes.CDLL(str(wl_qt_path)) if wl_qt_path.exists() else ctypes.CDLL("libQt6WaylandClient.so.6")
+
+        res_fn = getattr(wl_qt_lib, "_ZN15QtWaylandClient23QWaylandNativeInterface28nativeResourceForIntegrationERK10QByteArray")
+        res_fn.restype = ctypes.c_void_p
+        res_fn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+        ba_display = QByteArray(b"display")
+        disp = res_fn(pni, sip.unwrapinstance(ba_display))
+        if not disp:
+            return False
+
+        surfaces = []
+        for w in windows:
+            if not w:
+                continue
+            if not getattr(w, "isVisible", lambda: False)() or getattr(w, "isHidden", lambda: True)():
+                continue
+            wh = getattr(w, "windowHandle", lambda: None)()
+            if not wh or not getattr(wh, "isExposed", lambda: False)():
+                continue
+            try:
+                wid = int(w.winId())
+                if wid > 0:
+                    surfaces.append(wid)
+            except Exception:
+                continue
+
+        if not surfaces:
+            return False
+
+        reg_iface_addr = ctypes.addressof(ctypes.c_char.in_dll(wl_client, "wl_registry_interface"))
+        surf_iface_addr = ctypes.addressof(ctypes.c_char.in_dll(wl_client, "wl_surface_interface"))
+
+        queue = wl_client.wl_display_create_queue(disp)
+        disp_wrapper = wl_client.wl_proxy_create_wrapper(disp)
+        wl_client.wl_proxy_set_queue(disp_wrapper, queue)
+
+        class _wl_message(ctypes.Structure):
+            _fields_ = [("name", ctypes.c_char_p), ("signature", ctypes.c_char_p), ("types", ctypes.c_void_p)]
+
+        class _wl_interface(ctypes.Structure):
+            _fields_ = [
+                ("name", ctypes.c_char_p), ("version", ctypes.c_int), ("method_count", ctypes.c_int),
+                ("methods", ctypes.POINTER(_wl_message)), ("event_count", ctypes.c_int), ("events", ctypes.c_void_p),
+            ]
+
+        palette_iface = _wl_interface()
+        palette_iface.name = b"org_kde_kwin_server_decoration_palette"
+        palette_iface.version = 1
+        palette_iface.method_count = 2
+        palette_methods = (_wl_message * 2)(_wl_message(b"set_palette", b"s", None), _wl_message(b"release", b"", None))
+        palette_iface.methods = palette_methods
+
+        types_create = (ctypes.c_void_p * 2)(ctypes.addressof(palette_iface), surf_iface_addr)
+        manager_iface = _wl_interface()
+        manager_iface.name = b"org_kde_kwin_server_decoration_palette_manager"
+        manager_iface.version = 1
+        manager_iface.method_count = 1
+        manager_methods = (_wl_message * 1)(_wl_message(b"create", b"no", ctypes.cast(types_create, ctypes.c_void_p)))
+        manager_iface.methods = manager_methods
+
+        marshal_flags = wl_client.wl_proxy_marshal_flags
+        marshal_flags.restype = ctypes.c_void_p
+        marshal_flags.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+
+        registry = marshal_flags(disp_wrapper, 1, reg_iface_addr, 1, 0, None)
+
+        GLOBAL_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32)
+        REMOVE_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32)
+
+        class _wl_registry_listener(ctypes.Structure):
+            _fields_ = [("global", GLOBAL_CB), ("global_remove", REMOVE_CB)]
+
+        palette_mgr_name = None
+        def on_global(data, reg, name, iface, version):
+            nonlocal palette_mgr_name
+            if iface == b"org_kde_kwin_server_decoration_palette_manager":
+                palette_mgr_name = name
+
+        listener = _wl_registry_listener(GLOBAL_CB(on_global), REMOVE_CB(lambda d, r, n: None))
+        wl_client.wl_proxy_add_listener(registry, ctypes.byref(listener), None)
+        wl_client.wl_display_roundtrip_queue(disp, queue)
+
+        if palette_mgr_name is None:
+            return False
+
+        marshal_flags_bind = wl_client.wl_proxy_marshal_flags
+        marshal_flags_bind.restype = ctypes.c_void_p
+        marshal_flags_bind.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_void_p]
+
+        mgr_proxy = marshal_flags_bind(
+            registry, 0, ctypes.byref(manager_iface), 1, 0,
+            ctypes.c_uint32(palette_mgr_name),
+            manager_iface.name,
+            ctypes.c_uint32(1),
+            None
+        )
+        wl_client.wl_proxy_set_queue(mgr_proxy, queue)
+
+        marshal_flags_create = wl_client.wl_proxy_marshal_flags
+        marshal_flags_create.restype = ctypes.c_void_p
+        marshal_flags_create.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_void_p]
+
+        marshal_flags_set = wl_client.wl_proxy_marshal_flags
+        marshal_flags_set.restype = ctypes.c_void_p
+        marshal_flags_set.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p]
+
+        for surf in surfaces:
+            palette_proxy = marshal_flags_create(
+                mgr_proxy, 0, ctypes.byref(palette_iface), 1, 0,
+                None,
+                surf
+            )
+            created_palettes.append(palette_proxy)
+            wl_client.wl_proxy_set_queue(palette_proxy, queue)
+            marshal_flags_set(palette_proxy, 0, None, 1, 0, scheme_path.encode())
+
+        wl_client.wl_display_flush(disp)
+        wl_client.wl_display_roundtrip_queue(disp, queue)
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            destroy_wrapper = getattr(wl_client, "wl_proxy_wrapper_destroy", None)
+            destroy_proxy = getattr(wl_client, "wl_proxy_destroy", None)
+            destroy_queue = getattr(wl_client, "wl_event_queue_destroy", None)
+
+            if disp_wrapper and destroy_wrapper:
+                destroy_wrapper(disp_wrapper)
+            if registry and destroy_proxy:
+                destroy_proxy(registry)
+            if mgr_proxy and destroy_proxy:
+                destroy_proxy(mgr_proxy)
+            if queue and destroy_queue:
+                destroy_queue(queue)
+        except Exception:
+            pass
+
+
 def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
     """
     Applies Title bar theme:
@@ -491,6 +696,32 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
     if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
         sh.setColorScheme(Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light)
 
+    all_windows = []
+    if window:
+        all_windows.append(window)
+    for w in app.topLevelWidgets():
+        if w and w.isWindow() and w not in all_windows:
+            all_windows.append(w)
+
+    scheme_name, scheme_path = _find_kde_color_scheme(is_dark)
+
+    # Dynamic Qt/KDE application and window properties
+    try:
+        app.setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
+        app.setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+    except Exception:
+        pass
+
+    for w in all_windows:
+        try:
+            w.setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
+            w.setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+            if hasattr(w, "windowHandle") and w.windowHandle():
+                w.windowHandle().setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
+                w.windowHandle().setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+        except Exception:
+            pass
+
     # 2. Windows DWM immersive dark mode
     if sys.platform == "win32":
         try:
@@ -501,17 +732,12 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
             val = ctypes.c_int(1 if is_dark else 0)
 
             hwnds = set()
-            if window and hasattr(window, "winId"):
-                try:
-                    hwnds.add(int(window.winId()))
-                except Exception:
-                    pass
-            for w in app.topLevelWidgets():
-                try:
-                    if w.isWindow():
+            for w in all_windows:
+                if hasattr(w, "winId"):
+                    try:
                         hwnds.add(int(w.winId()))
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
             for hwnd in hwnds:
                 res = dwm.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(val), ctypes.sizeof(val))
                 if res != 0:
@@ -519,34 +745,37 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
         except Exception:
             pass
 
-    # 3. Linux X11 / XWayland _GTK_THEME_VARIANT
+    # 3. Linux X11 / XWayland _GTK_THEME_VARIANT and _KDE_NET_WM_COLOR_SCHEME
     if sys.platform.startswith("linux"):
         try:
             variant = "dark" if is_dark else "light"
             import shutil, subprocess
             if shutil.which("xprop"):
                 hwnds = set()
-                if window and hasattr(window, "winId"):
-                    try:
-                        hwnds.add(int(window.winId()))
-                    except Exception:
-                        pass
-                for w in app.topLevelWidgets():
-                    try:
-                        if w.isWindow() and w.isVisible():
+                for w in all_windows:
+                    if hasattr(w, "winId") and w.isVisible():
+                        try:
                             hwnds.add(int(w.winId()))
-                    except Exception:
-                        pass
+                        except Exception:
+                            pass
                 for wid in hwnds:
                     try:
                         subprocess.run(
                             ["xprop", "-id", str(wid), "-f", "_GTK_THEME_VARIANT", "8s", "-set", "_GTK_THEME_VARIANT", variant],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
                         )
+                        subprocess.run(
+                            ["xprop", "-id", str(wid), "-f", "_KDE_NET_WM_COLOR_SCHEME", "8s", "-set", "_KDE_NET_WM_COLOR_SCHEME", scheme_name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
+                        )
                     except Exception:
                         pass
         except Exception:
             pass
+
+    # 4. Linux Wayland KDE KWin SSD Protocol
+    if sys.platform.startswith("linux"):
+        _apply_kde_wayland_titlebar(is_dark, all_windows, app)
 
 
 def get_current_titlebar_mode() -> str:
