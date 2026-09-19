@@ -1,3 +1,9 @@
+
+
+
+
+
+
 # Contributing to Bengal Download Manager
 
 Thank you for your interest in contributing to **Bengal Download Manager**! We welcome bug reports, feature suggestions, documentation updates, and code contributions.
