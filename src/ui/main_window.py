@@ -486,6 +486,22 @@ class MainWindow(QMainWindow):
             pass
 
 
+    def paintEvent(self, event):
+        """Draw 2px left/right border strips matching the status bar border color.
+
+        In GNOME light mode the central widget (palette(base) = white) blends
+        seamlessly with the OS window frame, making the window boundaries
+        invisible.  These strips use palette(Mid) — the same colour already
+        applied as the status bar's top border — so the window gets a
+        consistent visual frame on all four sides without any hard-coded colour.
+        """
+        super().paintEvent(event)
+        from PyQt6.QtGui import QPainter
+        painter = QPainter(self)
+        color = self.palette().color(QPalette.ColorRole.Mid)
+        painter.fillRect(0, 0, 2, self.height(), color)
+        painter.fillRect(self.width() - 2, 0, 2, self.height(), color)
+        painter.end()
 
     # --- DRAG AND DROP HANDLERS ---
     def dragEnterEvent(self, event):
