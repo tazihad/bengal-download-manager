@@ -284,7 +284,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(100, self._check_startup_queues)
 
         # Automatically check and update media engine on application startup
-        QTimer.singleShot(500, self._check_media_engine_startup)
+        QTimer.singleShot(1500, self._check_media_engine_startup)
 
     def restart_ipc_listener(self, port=None):
         """Safely restart the background TCP IPC listener with updated port configuration."""
@@ -6187,6 +6187,7 @@ class MainWindow(QMainWindow):
             return
         self._media_downloader_dlg = MediaDownloaderDialog(main_window=self)
         self._media_downloader_dlg.finished.connect(lambda *_: setattr(self, "_media_downloader_dlg", None))
+        self._media_downloader_dlg.finished.connect(self.update_status_bar_media)
         if hasattr(self._media_downloader_dlg, "set_request_context"):
             try:
                 self._media_downloader_dlg.set_request_context(referrer=referrer, user_agent=user_agent, custom_title=custom_title, cookies=cookies, estimated_size_bytes=estimated_size_bytes, cookies_file=cookies_file)

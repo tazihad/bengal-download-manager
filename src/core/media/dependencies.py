@@ -8,6 +8,7 @@ third-party media binaries (yt-dlp, ffmpeg, ffprobe, deno, AtomicParsley).
 import os
 import re
 import sys
+import time
 import json
 import shutil
 import logging
@@ -125,28 +126,71 @@ def get_tool_path(tool_name: str, allow_system: bool = False) -> str:
     return get_local_tool_path(tool_name)
 
 
+_TOOL_VERSION_CACHE: dict[str, tuple[float, str]] = {}
+
+
 def get_tool_version(tool_name: str, local_only: bool = True) -> str:
-    """Queries tool version strictly from XDG data BIN_DIR. Returns empty string if not installed."""
+    """Queries tool version strictly from XDG data BIN_DIR. Returns empty string if not installed.
+    Caches parsed versions using file mtime and persistent .versions.json to prevent UI freeze."""
+    path = get_tool_path(tool_name)
+    if not path or not os.path.exists(path) or not os.access(path, os.X_OK):
+        _TOOL_VERSION_CACHE.pop(tool_name, None)
+        return ""
+
+    try:
+        mtime = os.path.getmtime(path)
+        cached = _TOOL_VERSION_CACHE.get(tool_name)
+        if cached and cached[0] == mtime and cached[1]:
+            return cached[1]
+    except Exception:
+        mtime = 0.0
+
+    # Fast persistent metadata lookup
+    v_file = BIN_DIR / ".versions.json"
+    if v_file.exists():
+        try:
+            v_data = json.loads(v_file.read_text(encoding="utf-8"))
+            saved_ver = v_data.get(f"{tool_name}_version", "")
+            saved_mtime = v_data.get(f"{tool_name}_mtime", 0.0)
+            if saved_ver and (not mtime or abs(saved_mtime - mtime) < 1e-3):
+                _TOOL_VERSION_CACHE[tool_name] = (mtime, saved_ver)
+                return saved_ver
+        except Exception:
+            pass
+
     import sys
     md = sys.modules.get("core.media_downloader")
     subp = getattr(md, "subprocess", subprocess) if md else subprocess
-    path = get_tool_path(tool_name)
-    if not path or not os.path.exists(path) or not os.access(path, os.X_OK):
-        return ""
     try:
         cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
         clean_env = get_clean_env(str(BIN_DIR))
         res = subp.run(cmd, capture_output=True, text=True, timeout=5, env=clean_env)
         out = (res.stdout + res.stderr).strip()
         if not out:
-            return "Installed"
-        first_line = out.splitlines()[0]
-        m = re.search(r"v?(\d+[\d.a-zA-Z_\-]+)", first_line)
-        if m:
-            return f"v{m.group(1)}"
-        return first_line[:15]
+            ver = "Installed"
+        else:
+            first_line = out.splitlines()[0]
+            m = re.search(r"v?(\d+[\d.a-zA-Z_\-]+)", first_line)
+            ver = f"v{m.group(1)}" if m else first_line[:15]
     except Exception:
-        return "Installed"
+        ver = "Installed"
+
+    if ver:
+        _TOOL_VERSION_CACHE[tool_name] = (mtime, ver)
+        try:
+            v_data = {}
+            if v_file.exists():
+                try:
+                    v_data = json.loads(v_file.read_text(encoding="utf-8"))
+                except Exception:
+                    v_data = {}
+            v_data[f"{tool_name}_version"] = ver
+            v_data[f"{tool_name}_mtime"] = mtime
+            v_file.write_text(json.dumps(v_data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    return ver
 
 
 class DependencyManagerWorker(QThread):
@@ -314,10 +358,18 @@ class DependencyManagerWorker(QThread):
         os.makedirs(cache_dir, exist_ok=True)
         tmp_download_path = Path(os.path.join(cache_dir, f"{tool_name}_download.tmp"))
 
+        last_emit_time = 0.0
+
         def _reporthook(blocknum, blocksize, totalsize):
+            nonlocal last_emit_time
             if self.isInterruptionRequested():
                 raise InterruptedError("Download interrupted")
+            now = time.monotonic()
             dl_bytes = blocknum * blocksize
+            is_done = totalsize > 0 and dl_bytes >= totalsize
+            if not is_done and now - last_emit_time < 0.1:
+                return
+            last_emit_time = now
             if totalsize > 0:
                 dl_mb = dl_bytes / (1024 * 1024)
                 tot_mb = totalsize / (1024 * 1024)
@@ -432,9 +484,18 @@ class YtDlpManager:
         if progress_callback:
             progress_callback("Downloading yt-dlp engine...")
 
+        last_cb_time = 0.0
+
         def _reporthook(blocknum, blocksize, totalsize):
+            nonlocal last_cb_time
             if totalsize > 0 and progress_callback:
-                percent = int((blocknum * blocksize / totalsize) * 100)
+                now = time.monotonic()
+                dl_bytes = blocknum * blocksize
+                is_done = dl_bytes >= totalsize
+                if not is_done and now - last_cb_time < 0.1:
+                    return
+                last_cb_time = now
+                percent = int((dl_bytes / totalsize) * 100)
                 progress_callback(f"Downloading yt-dlp engine ({min(100, percent)}%)...")
 
         tmp_path = YT_DLP_BIN.with_suffix(".tmp")
