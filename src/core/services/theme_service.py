@@ -443,9 +443,116 @@ def normalize_tray_icon_name(name, default="App Icon (Default)"):
     return s
 
 
+def normalize_titlebar_name(name, default="Auto"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("auto", "auto (default)", "automatic", "system"):
+        return "Auto"
+    if s_lower in ("light", "system light", "system light title bar"):
+        return "Light"
+    if s_lower in ("dark", "system dark", "system dark title bar"):
+        return "Dark"
+    return "Auto"
+
+
 CURRENT_THEME = "BDM Auto (Default)"
 CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
+CURRENT_TITLE_BAR_MODE = "Auto"
+
+
+def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
+    """
+    Applies Title bar theme:
+      - 'Auto': Follows system theme (system dark -> dark title bar, system light -> light title bar)
+      - 'Light': System light title bar
+      - 'Dark': System dark title bar
+    """
+    global CURRENT_TITLE_BAR_MODE
+    mode = normalize_titlebar_name(title_bar_mode)
+    CURRENT_TITLE_BAR_MODE = mode
+
+    if app is None:
+        app = QApplication.instance()
+    if not app:
+        return
+
+    if mode == "Dark":
+        is_dark = True
+    elif mode == "Light":
+        is_dark = False
+    else:  # "Auto" -> follow system theme
+        is_dark = is_system_dark_theme(app)
+
+    # 1. Cross-platform Qt styleHints (Qt 6.5+ sets Wayland / libdecor / macOS / Windows titlebar scheme)
+    sh = app.styleHints()
+    if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+        sh.setColorScheme(Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light)
+
+    # 2. Windows DWM immersive dark mode
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            dwm = ctypes.windll.dwmapi
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19
+            val = ctypes.c_int(1 if is_dark else 0)
+
+            hwnds = set()
+            if window and hasattr(window, "winId"):
+                try:
+                    hwnds.add(int(window.winId()))
+                except Exception:
+                    pass
+            for w in app.topLevelWidgets():
+                try:
+                    if w.isWindow():
+                        hwnds.add(int(w.winId()))
+                except Exception:
+                    pass
+            for hwnd in hwnds:
+                res = dwm.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(val), ctypes.sizeof(val))
+                if res != 0:
+                    dwm.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ctypes.byref(val), ctypes.sizeof(val))
+        except Exception:
+            pass
+
+    # 3. Linux X11 / XWayland _GTK_THEME_VARIANT
+    if sys.platform.startswith("linux"):
+        try:
+            variant = "dark" if is_dark else "light"
+            import shutil, subprocess
+            if shutil.which("xprop"):
+                hwnds = set()
+                if window and hasattr(window, "winId"):
+                    try:
+                        hwnds.add(int(window.winId()))
+                    except Exception:
+                        pass
+                for w in app.topLevelWidgets():
+                    try:
+                        if w.isWindow() and w.isVisible():
+                            hwnds.add(int(w.winId()))
+                    except Exception:
+                        pass
+                for wid in hwnds:
+                    try:
+                        subprocess.run(
+                            ["xprop", "-id", str(wid), "-f", "_GTK_THEME_VARIANT", "8s", "-set", "_GTK_THEME_VARIANT", variant],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
+                        )
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+
+def get_current_titlebar_mode() -> str:
+    """Returns the current active title bar theme mode ('Auto', 'Light', or 'Dark')."""
+    global CURRENT_TITLE_BAR_MODE
+    return CURRENT_TITLE_BAR_MODE
 
 
 def is_system_dark_theme(app=None) -> bool:
@@ -593,12 +700,18 @@ def init_app_font(lang_code: Optional[str] = None) -> QFont:
     return app_font
 
 
-def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None):
+def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None, title_bar_mode=None):
     """
-    Applies application theme, custom accent color, custom toolbar icon set, and custom system tray icon set.
+    Applies application theme, custom accent color, custom toolbar icon set, custom system tray icon set, and title bar theme.
     """
-    global CURRENT_THEME
+    if not isinstance(app, QApplication) and app is not None and title_bar_mode is None:
+        title_bar_mode = app
+        app = None
+
+    global CURRENT_THEME, CURRENT_TITLE_BAR_MODE
     CURRENT_THEME = str(theme_name).strip()
+    if title_bar_mode is not None:
+        CURRENT_TITLE_BAR_MODE = normalize_titlebar_name(title_bar_mode)
 
     if app is None:
         app = QApplication.instance()
@@ -866,6 +979,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             w.update()
         except Exception:
             pass
+
+    # Apply Title bar theme
+    apply_titlebar_theme(CURRENT_TITLE_BAR_MODE, app=app)
 
     for top in app.topLevelWidgets():
         try:

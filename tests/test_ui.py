@@ -526,8 +526,9 @@ def test_options_appearance_comboboxes_scrollable(qapp):
     assert hasattr(dlg, "combo_theme")
     assert hasattr(dlg, "combo_accent")
     assert hasattr(dlg, "combo_icon_theme")
+    assert hasattr(dlg, "combo_titlebar")
 
-    for combo in (dlg.combo_theme, dlg.combo_accent, dlg.combo_icon_theme, dlg.combo_tray_icon):
+    for combo in (dlg.combo_theme, dlg.combo_accent, dlg.combo_icon_theme, dlg.combo_tray_icon, dlg.combo_titlebar):
         assert combo.maxVisibleItems() == 10
         assert "combobox-popup: 0" in combo.styleSheet()
         view = combo.view()
@@ -794,6 +795,76 @@ def test_stop_all_downloads_state(qapp, monkeypatch, tmp_path):
 
     win.is_quitting = True
     win.close()
+
+
+def test_options_titlebar_setting_and_persistence(qapp, monkeypatch, tmp_path):
+    """Verify Title bar dropdown options (Auto, Light, Dark), default value, persistence, and live preview."""
+    from core.services.theme_service import (
+        normalize_titlebar_name, apply_titlebar_theme, is_system_dark_theme
+    )
+
+    # 1. Test normalization
+    assert normalize_titlebar_name("Auto") == "Auto"
+    assert normalize_titlebar_name("auto") == "Auto"
+    assert normalize_titlebar_name("Auto (Default)") == "Auto"
+    assert normalize_titlebar_name("system") == "Auto"
+    assert normalize_titlebar_name("Light") == "Light"
+    assert normalize_titlebar_name("light") == "Light"
+    assert normalize_titlebar_name("system light") == "Light"
+    assert normalize_titlebar_name("Dark") == "Dark"
+    assert normalize_titlebar_name("dark") == "Dark"
+    assert normalize_titlebar_name("system dark") == "Dark"
+    assert normalize_titlebar_name("") == "Auto"
+    assert normalize_titlebar_name(None) == "Auto"
+
+    # 2. Test OptionsDialog UI defaults
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "combo_titlebar")
+    items = [dlg.combo_titlebar.itemText(i) for i in range(dlg.combo_titlebar.count())]
+    assert items == ["Auto", "Light", "Dark"]
+    assert dlg.combo_titlebar.currentText() == "Auto"
+    assert dlg.get_titlebar() == "Auto"
+    dlg.reject()
+
+    # 3. Test persistence via dummy MainWindow
+    dummy_win = MainWindow(start_ipc=False)
+    dummy_win.hide()
+    dummy_win.settings = {"theme": "BDM Auto (Default)", "title_bar": "Auto"}
+
+    dlg_settings = OptionsDialog(main_window=dummy_win)
+    assert dlg_settings.combo_titlebar.currentText() == "Auto"
+
+    # Switch to Dark and accept
+    dlg_settings.combo_titlebar.setCurrentText("Dark")
+    dlg_settings.save_and_accept()
+    assert dummy_win.settings.get("title_bar") == "Dark"
+
+    # Reopen dialog with updated settings
+    dlg_settings_reopened = OptionsDialog(main_window=dummy_win)
+    assert dlg_settings_reopened.combo_titlebar.currentText() == "Dark"
+    assert dlg_settings_reopened.get_titlebar() == "Dark"
+
+    # Switch to Light and accept
+    dlg_settings_reopened.combo_titlebar.setCurrentText("Light")
+    dlg_settings_reopened.save_and_accept()
+    assert dummy_win.settings.get("title_bar") == "Light"
+
+    dlg_settings_reopened.close()
+    dummy_win.is_quitting = True
+    dummy_win.close()
+
+    # 4. Test apply_titlebar_theme mode tracking
+    from core.services.theme_service import get_current_titlebar_mode
+
+    apply_titlebar_theme("Dark", app=qapp)
+    assert get_current_titlebar_mode() == "Dark"
+
+    apply_titlebar_theme("Light", app=qapp)
+    assert get_current_titlebar_mode() == "Light"
+
+    apply_titlebar_theme("Auto", app=qapp)
+    assert get_current_titlebar_mode() == "Auto"
+
 
 
 

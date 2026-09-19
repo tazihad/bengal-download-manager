@@ -115,6 +115,7 @@ from core.services.theme_service import (
     CATEGORY_EXTENSIONS,
     FREEDESKTOP_MAP,
     apply_app_theme,
+    apply_titlebar_theme,
     detect_accent,
     ensure_adaptive_icon_theme,
     format_timestamp_relative,
@@ -129,6 +130,7 @@ from core.services.theme_service import (
     normalize_accent_name,
     normalize_icon_theme_name,
     normalize_theme_name,
+    normalize_titlebar_name,
     normalize_tray_icon_name,
     parse_size_to_bytes,
     parse_time_to_sec,
@@ -2967,7 +2969,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
+    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None):
         if getattr(self, "_is_applying_theme", False):
             return
         self._is_applying_theme = True
@@ -2978,7 +2980,12 @@ class MainWindow(QMainWindow):
             self.settings["accent"] = accent_name
             self.settings["icon_theme"] = icon_theme_name
             self.settings["tray_icon"] = tray_icon_name
-            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
+            if title_bar_mode is not None:
+                self.settings["title_bar"] = title_bar_mode
+            apply_app_theme(
+                theme_name, accent_name, icon_theme_name, tray_icon_name,
+                title_bar_mode=self.settings.get("title_bar", "Auto")
+            )
             self.save_settings()
             self.refresh_theme_ui()
         finally:
@@ -3039,12 +3046,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, "queues_header") and self.queues_header:
             self.queues_header.setText(0, self.tr("Queues"))
 
-    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None):
+    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None):
         if getattr(self, "_is_applying_theme", False):
             return
         self._is_applying_theme = True
         try:
-            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name)
+            tb = title_bar_mode if title_bar_mode is not None else getattr(self, "settings", {}).get("title_bar", "Auto")
+            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode=tb)
             self.refresh_theme_ui()
         finally:
             self._is_applying_theme = False
@@ -3059,6 +3067,7 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
+        apply_titlebar_theme(getattr(self, "settings", {}).get("title_bar", "Auto"), window=self)
         if hasattr(self, "timestamp_timer") and not self.timestamp_timer.isActive():
             self.timestamp_timer.start(10000)
         if hasattr(self, "status_bar_timer") and not self.status_bar_timer.isActive():
@@ -3120,19 +3129,23 @@ class MainWindow(QMainWindow):
         if getattr(self, "_is_applying_theme", False):
             return
         current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
-        if str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system"):
+        current_titlebar = getattr(self, "settings", {}).get("title_bar", "Auto")
+        if (str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system") or
+            str(current_titlebar).lower() in ("auto", "auto (default)", "system")):
             self.apply_theme_setting(current_theme)
 
     def apply_theme_setting(self, theme_name):
         accent_name = getattr(self, "settings", {}).get("accent", "BDM (Default)")
         icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)")
         tray_icon_name = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
-        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name)
+        title_bar_mode = getattr(self, "settings", {}).get("title_bar", "Auto")
+        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode)
 
     def refresh_theme_ui(self):
         app = QApplication.instance()
         if app:
             self.setPalette(app.palette())
+        apply_titlebar_theme(getattr(self, "settings", {}).get("title_bar", "Auto"), window=self)
 
         # Refresh category tree style & icons
         if hasattr(self, "category_tree"):
@@ -3307,6 +3320,7 @@ class MainWindow(QMainWindow):
         settings["accent"] = normalize_accent_name(settings.get("accent"))
         settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
         settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
+        settings["title_bar"] = normalize_titlebar_name(settings.get("title_bar"))
         settings["language"] = normalize_language_code(settings.get("language", "system"))
         settings["table_style"] = settings.get("table_style", "classic")
         self.system_notifications = settings.get("system_notifications", False)
@@ -3321,7 +3335,8 @@ class MainWindow(QMainWindow):
             settings["theme"],
             settings["accent"],
             settings["icon_theme"],
-            settings["tray_icon"]
+            settings["tray_icon"],
+            title_bar_mode=settings["title_bar"]
         )
 
         if hasattr(self, "tray_icon") and self.tray_icon:
