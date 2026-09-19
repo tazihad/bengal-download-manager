@@ -55,8 +55,15 @@ from PyQt6.QtWidgets import (
     QSystemTrayIcon, QRubberBand, QToolTip
 )
 from PyQt6.QtGui import QAction, QActionGroup, QFont, QCloseEvent, QIcon, QColor, QPalette, QDesktopServices, QKeySequence, QPixmap, QImage, QShortcut, QKeyEvent, QCursor
-from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
+from PyQt6.QtCore import Qt, QByteArray, QFileInfo, QSize, QMimeDatabase, QUrl, QTimer, QThread, pyqtSignal, pyqtSlot, QObject, QEvent, QPoint, QRect, QItemSelectionModel, QItemSelection
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+
+try:
+    from PyQt6 import QtDBus
+    _HAS_QTDBUS = True
+except Exception:
+    _HAS_QTDBUS = False
+
 
 
 from core.workers import DownloadWorker, Aria2Worker
@@ -236,8 +243,21 @@ class MainWindow(QMainWindow):
             sh_inst = app_inst.styleHints()
             if hasattr(sh_inst, "colorSchemeChanged"):
                 sh_inst.colorSchemeChanged.connect(self.on_system_theme_changed)
-            if hasattr(app_inst, "paletteChanged"):
-                app_inst.paletteChanged.connect(self.on_system_theme_changed)
+
+        # On Linux / FreeDesktop, listen to XDG Desktop Portal SettingChanged D-Bus signal for real-time theme changes
+        try:
+            from PyQt6 import QtDBus
+            bus = QtDBus.QDBusConnection.sessionBus()
+            if bus.isConnected():
+                bus.connect(
+                    "org.freedesktop.portal.Desktop",
+                    "/org/freedesktop/portal/desktop",
+                    "org.freedesktop.portal.Settings",
+                    "SettingChanged",
+                    self._on_portal_setting_changed
+                )
+        except Exception:
+            pass
         
         # Auto-start local Aria2 daemon for accelerated downloading
         from core.aria2_daemon import get_aria2_daemon_manager
@@ -3087,11 +3107,20 @@ class MainWindow(QMainWindow):
             self.update_status_bar_speed()
             self.download_table.viewport().update()
 
+    if _HAS_QTDBUS:
+        @pyqtSlot(str, str, QtDBus.QDBusVariant)
+        def _on_portal_setting_changed(self, namespace: str, key: str, value):
+            if namespace == "org.freedesktop.appearance" and key == "color-scheme":
+                self.on_system_theme_changed()
+    else:
+        def _on_portal_setting_changed(self, namespace: str, key: str, value):
+            pass
+
     def on_system_theme_changed(self, *args):
         if getattr(self, "_is_applying_theme", False):
             return
         current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
-        if str(current_theme).lower() in ("bdm auto", "bdmauto", "automatic", "auto", "system"):
+        if str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system"):
             self.apply_theme_setting(current_theme)
 
     def apply_theme_setting(self, theme_name):

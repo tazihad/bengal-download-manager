@@ -448,6 +448,48 @@ CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
 
 
+def is_system_dark_theme(app=None) -> bool:
+    """
+    Detects whether the underlying desktop environment/system theme is dark.
+    First queries the XDG Desktop Portal on Linux via D-Bus for real-time accuracy,
+    then falls back to QStyleHints.colorScheme() and standardPalette().
+    """
+    try:
+        from PyQt6 import QtDBus
+        bus = QtDBus.QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QtDBus.QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.Settings",
+                "Read"
+            )
+            msg.setArguments(["org.freedesktop.appearance", "color-scheme"])
+            reply = bus.call(msg)
+            if reply.type() == QtDBus.QDBusMessage.MessageType.ReplyMessage and reply.arguments():
+                val = reply.arguments()[0]
+                if isinstance(val, QtDBus.QDBusVariant):
+                    val = val.variant()
+                # 1 = Prefer Dark, 0 = No preference / Light, 2 = Prefer Light
+                return int(val) == 1
+    except Exception:
+        pass
+
+    if app is None:
+        app = QApplication.instance()
+    if app:
+        sh = app.styleHints()
+        if hasattr(sh, "colorScheme"):
+            cs = sh.colorScheme()
+            if cs == Qt.ColorScheme.Dark:
+                return True
+            elif cs == Qt.ColorScheme.Light:
+                return False
+        sys_pal = app.style().standardPalette()
+        return sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
+    return False
+
+
 def is_dark_theme(app=None) -> bool:
     """Returns True if the current active theme is dark, False if light."""
     global CURRENT_THEME
@@ -456,6 +498,8 @@ def is_dark_theme(app=None) -> bool:
         return True
     if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white", "stellar light", "stellarlight"):
         return False
+    if t_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system"):
+        return is_system_dark_theme(app)
     if app is None:
         app = QApplication.instance()
     if app:
@@ -668,19 +712,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         
-        is_sys_dark = False
-        if hasattr(sh, "colorScheme"):
-            cs = sh.colorScheme()
-            if cs == Qt.ColorScheme.Dark:
-                is_sys_dark = True
-            elif cs == Qt.ColorScheme.Light:
-                is_sys_dark = False
-            else:
-                sys_pal = app.style().standardPalette()
-                is_sys_dark = sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
-        else:
-            sys_pal = app.style().standardPalette()
-            is_sys_dark = sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
+        is_sys_dark = is_system_dark_theme(app)
 
         if is_sys_dark:
             app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))

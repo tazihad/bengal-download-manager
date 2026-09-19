@@ -627,6 +627,32 @@ def test_theme_defaults_and_window_perimeter_borders(qapp):
     assert "QDialog {" in app_sheet
 
 
+def test_dynamic_system_theme_change_listener(qapp, monkeypatch):
+    """Verify is_system_dark_theme works and on_system_theme_changed dynamically updates BDM Auto."""
+    from core.services.theme_service import is_system_dark_theme, is_dark_theme, apply_app_theme
+    
+    # Verify is_system_dark_theme returns a bool
+    sys_dark = is_system_dark_theme(qapp)
+    assert isinstance(sys_dark, bool)
+
+    win = MainWindow(start_ipc=False)
+    win.settings = {"theme": "BDM Auto (Default)"}
+
+    # Simulate portal setting change signal
+    called = []
+    monkeypatch.setattr(win, "apply_theme_setting", lambda t: called.append(t))
+    win._on_portal_setting_changed("org.freedesktop.appearance", "color-scheme", None)
+    assert called == ["BDM Auto (Default)"]
+
+    # Verify other namespaces/keys are ignored
+    called.clear()
+    win._on_portal_setting_changed("org.gnome.desktop.interface", "font-name", None)
+    assert called == []
+
+    win.close()
+
+
+
 
 def test_clean_config_view_menu_and_status_bar_defaults(qapp, monkeypatch, tmp_path):
     """Verify that on clean install/config, Data usage summary is unchecked,
