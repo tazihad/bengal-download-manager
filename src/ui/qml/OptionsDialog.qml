@@ -19,8 +19,8 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboTheme
                 Kirigami.FormData.label: "Theme:"
-                model: ["System", "BDM Auto", "BDM Dark (Default)", "BDM Light", "Breeze Dark", "Breeze Light", "Catppuccin", "Dracula", "IDM Classic", "Kirigami Dark", "Kirigami Light", "Nord", "One Dark", "Solarized Dark", "Solarized Light", "Stellar Dark", "Stellar Light", "Ubuntu Dark", "Ubuntu Light"]
-                currentIndex: 2
+                model: ["BDM Auto (Default)", "System", "BDM Dark", "BDM Light", "Breeze Dark", "Breeze Light", "Catppuccin", "Dracula", "IDM Classic", "Kirigami Dark", "Kirigami Light", "Nord", "One Dark", "Solarized Dark", "Solarized Light", "Stellar Dark", "Stellar Light", "Ubuntu Dark", "Ubuntu Light"]
+                currentIndex: 0
                 Layout.fillWidth: true
             }
 

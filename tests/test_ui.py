@@ -526,8 +526,9 @@ def test_options_appearance_comboboxes_scrollable(qapp):
     assert hasattr(dlg, "combo_theme")
     assert hasattr(dlg, "combo_accent")
     assert hasattr(dlg, "combo_icon_theme")
+    assert hasattr(dlg, "combo_titlebar")
 
-    for combo in (dlg.combo_theme, dlg.combo_accent, dlg.combo_icon_theme, dlg.combo_tray_icon):
+    for combo in (dlg.combo_theme, dlg.combo_accent, dlg.combo_icon_theme, dlg.combo_tray_icon, dlg.combo_titlebar):
         assert combo.maxVisibleItems() == 10
         assert "combobox-popup: 0" in combo.styleSheet()
         view = combo.view()
@@ -607,6 +608,51 @@ def test_menu_outer_accent_border_and_clean_menubar(qapp):
     mb = win.menuBar()
     assert "border-bottom" not in (mb.styleSheet() or "")
     win.close()
+
+
+def test_theme_defaults_and_window_perimeter_borders(qapp):
+    """Verify BDM Auto is the default theme and window/dialog perimeter borders are applied."""
+    from core.services.theme_service import normalize_theme_name, apply_app_theme
+    
+    assert normalize_theme_name(None) == "BDM Auto (Default)"
+    assert normalize_theme_name("") == "BDM Auto (Default)"
+    assert normalize_theme_name("auto") == "BDM Auto (Default)"
+    assert normalize_theme_name("BDM Auto") == "BDM Auto (Default)"
+    assert normalize_theme_name("BDM Dark (Default)") == "BDM Dark"
+    assert normalize_theme_name("dark") == "BDM Dark"
+
+    apply_app_theme("BDM Auto (Default)")
+    app_sheet = qapp.styleSheet()
+    assert "QMainWindow#MainWindow {" in app_sheet
+    assert "border: 1px solid palette(mid);" in app_sheet
+    assert "QDialog {" in app_sheet
+
+
+def test_dynamic_system_theme_change_listener(qapp, monkeypatch):
+    """Verify is_system_dark_theme works and on_system_theme_changed dynamically updates BDM Auto."""
+    from core.services.theme_service import is_system_dark_theme, is_dark_theme, apply_app_theme
+    
+    # Verify is_system_dark_theme returns a bool
+    sys_dark = is_system_dark_theme(qapp)
+    assert isinstance(sys_dark, bool)
+
+    win = MainWindow(start_ipc=False)
+    win.settings = {"theme": "BDM Auto (Default)"}
+
+    # Simulate portal setting change signal
+    called = []
+    monkeypatch.setattr(win, "apply_theme_setting", lambda t: called.append(t))
+    win._on_portal_setting_changed("org.freedesktop.appearance", "color-scheme", None)
+    assert called == ["BDM Auto (Default)"]
+
+    # Verify other namespaces/keys are ignored
+    called.clear()
+    win._on_portal_setting_changed("org.gnome.desktop.interface", "font-name", None)
+    assert called == []
+
+    win.close()
+
+
 
 
 def test_clean_config_view_menu_and_status_bar_defaults(qapp, monkeypatch, tmp_path):
@@ -751,5 +797,219 @@ def test_stop_all_downloads_state(qapp, monkeypatch, tmp_path):
     win.close()
 
 
+def test_options_titlebar_setting_and_persistence(qapp, monkeypatch, tmp_path):
+    """Verify Title bar dropdown options (Auto, Light, Dark), default value, persistence, and live preview."""
+    from core.services.theme_service import (
+        normalize_titlebar_name, apply_titlebar_theme, is_system_dark_theme
+    )
 
+    # 1. Test normalization
+    assert normalize_titlebar_name("Automatic") == "Automatic"
+    assert normalize_titlebar_name("Auto") == "Automatic"
+    assert normalize_titlebar_name("auto") == "Automatic"
+    assert normalize_titlebar_name("Auto (Default)") == "Automatic"
+    assert normalize_titlebar_name("system") == "Automatic"
+    assert normalize_titlebar_name("Light") == "Light"
+    assert normalize_titlebar_name("light") == "Light"
+    assert normalize_titlebar_name("system light") == "Light"
+    assert normalize_titlebar_name("Dark") == "Dark"
+    assert normalize_titlebar_name("dark") == "Dark"
+    assert normalize_titlebar_name("system dark") == "Dark"
+    assert normalize_titlebar_name("") == "Automatic"
+    assert normalize_titlebar_name(None) == "Automatic"
+
+    # 2. Test OptionsDialog UI defaults
+    dlg = OptionsDialog()
+    assert hasattr(dlg, "combo_titlebar")
+    items = [dlg.combo_titlebar.itemText(i) for i in range(dlg.combo_titlebar.count())]
+    assert items == ["Automatic", "Light", "Dark"]
+    assert dlg.combo_titlebar.currentText() == "Automatic"
+    assert dlg.get_titlebar() == "Automatic"
+    dlg.reject()
+
+    # 3. Test persistence via dummy MainWindow
+    dummy_win = MainWindow(start_ipc=False)
+    dummy_win.hide()
+    dummy_win.settings = {"theme": "BDM Auto (Default)", "title_bar": "Automatic"}
+
+    dlg_settings = OptionsDialog(main_window=dummy_win)
+    assert dlg_settings.combo_titlebar.currentText() == "Automatic"
+
+    # Switch to Dark and accept
+    dlg_settings.combo_titlebar.setCurrentText("Dark")
+    dlg_settings.save_and_accept()
+    assert dummy_win.settings.get("title_bar") == "Dark"
+
+    # Reopen dialog with updated settings
+    dlg_settings_reopened = OptionsDialog(main_window=dummy_win)
+    assert dlg_settings_reopened.combo_titlebar.currentText() == "Dark"
+    assert dlg_settings_reopened.get_titlebar() == "Dark"
+
+    # Switch to Light and accept
+    dlg_settings_reopened.combo_titlebar.setCurrentText("Light")
+    dlg_settings_reopened.save_and_accept()
+    assert dummy_win.settings.get("title_bar") == "Light"
+
+    dlg_settings_reopened.close()
+    dummy_win.is_quitting = True
+    dummy_win.close()
+
+    # 4. Test apply_titlebar_theme mode tracking
+    from core.services.theme_service import get_current_titlebar_mode
+
+    apply_titlebar_theme("Dark", app=qapp)
+    assert get_current_titlebar_mode() == "Dark"
+
+    apply_titlebar_theme("Light", app=qapp)
+    assert get_current_titlebar_mode() == "Light"
+
+    apply_titlebar_theme("Automatic", app=qapp)
+    assert get_current_titlebar_mode() == "Automatic"
+
+    apply_titlebar_theme("Auto", app=qapp)
+    assert get_current_titlebar_mode() == "Automatic"
+
+
+def test_central_container_padding(qapp):
+    window = MainWindow(start_ipc=False)
+    window.hide()
+
+    assert hasattr(window, "central_container")
+    assert window.central_container is not None
+    assert window.centralWidget() == window.central_container
+
+    layout = window.central_container.layout()
+    assert layout is not None
+    margins = layout.contentsMargins()
+    assert margins.left() == 4
+    assert margins.right() == 4
+    assert margins.top() == 0
+    # Status bar shown by default -> bottom margin is 0
+    assert margins.bottom() == 0
+
+    assert hasattr(window, "splitter")
+    assert window.splitter is not None
+    assert window.splitter.count() == 2
+
+    # When status bar is unchecked/hidden, bottom margin must be 4px
+    window.toggle_status_bar(False)
+    margins = window.central_container.layout().contentsMargins()
+    assert margins.bottom() == 4
+    assert margins.left() == 4
+    assert margins.right() == 4
+
+    # When status bar is re-checked/shown, bottom margin must return to 0px
+    window.toggle_status_bar(True)
+    margins = window.central_container.layout().contentsMargins()
+    assert margins.bottom() == 0
+
+    window.close()
+
+
+def test_gnome_csd_titlebar_toggle(qapp, monkeypatch):
+    """Verify GNOME/GTK Libadwaita client-side decoration (CSD) attaches on Dark/Light/Automatic and detaches cleanly."""
+    from core.services.theme_service import apply_titlebar_theme, is_gnome_desktop
+    from ui.components.csd_titlebar import CsdTitleBar, detach_csd
+
+    monkeypatch.setenv("BDM_FORCE_CSD", "1")
+    assert is_gnome_desktop() is True
+
+    win = MainWindow(start_ipc=False)
+    win.hide()
+
+    try:
+        # 1. Dark mode -> CSD attached with Libadwaita dark styling
+        apply_titlebar_theme("Dark", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+        assert hasattr(win, "_csd_titlebar") and win._csd_titlebar is not None
+        assert isinstance(win._csd_titlebar, CsdTitleBar)
+        assert win._csd_titlebar._is_dark is True
+        assert win._csd_titlebar.height() == 46
+        assert win._csd_titlebar.btn_close.text() == "✕"
+        assert win._csd_titlebar.btn_min.text() == "–"
+        assert win._csd_titlebar.btn_max.text() == "□"
+
+        # 2. Light mode -> CSD stays attached, styled light
+        apply_titlebar_theme("Light", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+        assert win._csd_titlebar._is_dark is False
+
+        # 3. Automatic mode -> CSD stays attached on GNOME/GTK, follows system color scheme
+        apply_titlebar_theme("Automatic", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+        assert hasattr(win, "_csd_titlebar") and win._csd_titlebar is not None
+
+        # 4. Explicit detach -> system frame restored
+        detach_csd(win)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is False
+        assert getattr(win, "_csd_titlebar", None) is None
+    finally:
+        win.is_quitting = True
+        win.close()
+
+
+def test_dialog_csd_behavior(qapp, monkeypatch):
+    """Verify dialog CSD has close button, no minimize button, and 46px height."""
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout
+    from ui.components.csd_titlebar import attach_csd, detach_csd, CsdTitleBar
+
+    dlg = QDialog()
+    lay = QVBoxLayout(dlg)
+    lay.setContentsMargins(10, 10, 10, 10)
+
+    try:
+        attach_csd(dlg, is_dark=True)
+        assert hasattr(dlg, "_csd_titlebar") and dlg._csd_titlebar is not None
+        tb = dlg._csd_titlebar
+        assert isinstance(tb, CsdTitleBar)
+        assert tb.height() == 46
+        assert tb.btn_min is None
+        assert tb.btn_close is not None
+        assert tb.btn_close.text() == "✕"
+        assert tb._is_dark is True
+
+        # Style change to light
+        attach_csd(dlg, is_dark=False)
+        assert tb._is_dark is False
+
+        # Title change
+        dlg.setWindowTitle("Custom Dialog Title")
+        tb.update_title(dlg.windowTitle())
+        assert tb.title_lbl.text() == "Custom Dialog Title"
+
+        # Detach
+        detach_csd(dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is None
+    finally:
+        dlg.close()
+
+
+def test_gtk_desktops_detection(monkeypatch):
+    """Verify is_gnome_desktop detects all GNOME and GTK-based desktops properly."""
+    from core.services.theme_service import is_gnome_desktop
+
+    # GTK / GNOME environments
+    for env in ["GNOME", "ubuntu:GNOME", "Unity", "Pop:GNOME", "X-Cinnamon", "MATE", "XFCE", "Budgie:GNOME", "Pantheon", "cosmic"]:
+        monkeypatch.setenv("XDG_CURRENT_DESKTOP", env)
+        monkeypatch.delenv("BDM_FORCE_CSD", raising=False)
+        monkeypatch.delenv("BDM_DISABLE_CSD", raising=False)
+        assert is_gnome_desktop() is True, f"Failed for {env}"
+
+    # Non-GTK / KDE Plasma
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+    monkeypatch.setenv("GDMSESSION", "plasma")
+    monkeypatch.setenv("XDG_SESSION_DESKTOP", "plasma")
+    monkeypatch.setenv("DESKTOP_SESSION", "plasma")
+    assert is_gnome_desktop() is False
+
+    # Force disable override
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+    monkeypatch.setenv("BDM_DISABLE_CSD", "1")
+    assert is_gnome_desktop() is False
+
+    # Force enable override
+    monkeypatch.setenv("BDM_DISABLE_CSD", "0")
+    monkeypatch.setenv("BDM_FORCE_CSD", "1")
+    monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+    assert is_gnome_desktop() is True
 

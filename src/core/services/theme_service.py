@@ -17,13 +17,14 @@ from typing import Optional, Tuple, List
 
 from PyQt6.QtWidgets import QApplication, QStyle, QFileIconProvider
 from PyQt6.QtGui import QColor, QPalette, QIcon, QFont, QPixmap, QImage, QPainter
-from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale
+from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale, QEvent, QTimer, QByteArray, QObject
 
 from core.utils import get_data_dir
 
+import ctypes
+
 # Optional Windows API for accent extraction
 if platform.system() == "Windows":
-    import ctypes
     from ctypes import wintypes
 
 # Optional GIO/GSettings for GNOME
@@ -375,15 +376,15 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     return pal
 
 
-def normalize_theme_name(name, default="BDM Dark (Default)"):
+def normalize_theme_name(name, default="BDM Auto (Default)"):
     if not name:
         return default
     s = str(name).strip()
     s_lower = s.lower()
-    if s_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
-        return "BDM Dark (Default)"
     if s_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
-        return "BDM Auto"
+        return "BDM Auto (Default)"
+    if s_lower in ("bdm dark (default)", "bdm dark", "bdmdark", "dark"):
+        return "BDM Dark"
     if s_lower == "system":
         return "System"
     if s_lower in ("bdm light", "bdmlight", "light"):
@@ -443,9 +444,547 @@ def normalize_tray_icon_name(name, default="App Icon (Default)"):
     return s
 
 
-CURRENT_THEME = "BDM Dark (Default)"
+def normalize_titlebar_name(name, default="Automatic"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("auto", "auto (default)", "automatic", "system", "default"):
+        return "Automatic"
+    if s_lower in ("light", "system light", "system light title bar"):
+        return "Light"
+    if s_lower in ("dark", "system dark", "system dark title bar"):
+        return "Dark"
+    return default
+
+
+CURRENT_THEME = "BDM Auto (Default)"
 CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
+CURRENT_TITLE_BAR_MODE = "Automatic"
+
+
+def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
+    """
+    Returns (scheme_name, scheme_path_or_name)
+    """
+    if is_dark:
+        candidates = [
+            "/usr/share/color-schemes/BreezeDark.colors",
+            "/usr/local/share/color-schemes/BreezeDark.colors",
+            str(xdg_data_home() / "color-schemes" / "BreezeDark.colors"),
+            "BreezeDark"
+        ]
+        default_name = "BreezeDark"
+    else:
+        candidates = [
+            "/usr/share/color-schemes/BreezeLight.colors",
+            "/usr/share/color-schemes/BreezeClassic.colors",
+            "/usr/local/share/color-schemes/BreezeLight.colors",
+            str(xdg_data_home() / "color-schemes" / "BreezeLight.colors"),
+            "BreezeLight"
+        ]
+        default_name = "BreezeLight"
+
+    for c in candidates:
+        if c.startswith("/") and os.path.isfile(c):
+            return default_name, c
+    return default_name, default_name
+
+
+class _KdeWaylandPaletteManager:
+    _instance = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def __init__(self):
+        self.initialized = False
+        self.disp = None
+        self.mgr_proxy = None
+        self.palette_proxies = {}
+        self.wl_client = None
+
+    def initialize(self):
+        if self.initialized:
+            return bool(self.mgr_proxy)
+        if "PYTEST_CURRENT_TEST" in os.environ or not os.environ.get("WAYLAND_DISPLAY"):
+            return False
+        try:
+            import ctypes
+            import PyQt6.sip as sip
+            self.wl_client = ctypes.CDLL("libwayland-client.so.0")
+        except Exception:
+            return False
+
+        try:
+            import PyQt6
+            pyqt_dir = Path(PyQt6.__file__).parent
+            gui_lib_path = pyqt_dir / "Qt6" / "lib" / "libQt6Gui.so.6"
+            gui_lib = ctypes.CDLL(str(gui_lib_path)) if gui_lib_path.exists() else ctypes.CDLL("libQt6Gui.so.6")
+            get_pni = getattr(gui_lib, "_ZN15QGuiApplication23platformNativeInterfaceEv")
+            get_pni.restype = ctypes.c_void_p
+            pni = get_pni()
+            if not pni:
+                return False
+
+            wl_qt_path = pyqt_dir / "Qt6" / "lib" / "libQt6WaylandClient.so.6"
+            wl_qt_lib = ctypes.CDLL(str(wl_qt_path)) if wl_qt_path.exists() else ctypes.CDLL("libQt6WaylandClient.so.6")
+            res_fn = getattr(wl_qt_lib, "_ZN15QtWaylandClient23QWaylandNativeInterface28nativeResourceForIntegrationERK10QByteArray")
+            res_fn.restype = ctypes.c_void_p
+            res_fn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+            ba_disp = QByteArray(b"display")
+            self.disp = res_fn(pni, sip.unwrapinstance(ba_disp))
+            if not self.disp:
+                return False
+
+            reg_iface_addr = ctypes.addressof(ctypes.c_char.in_dll(self.wl_client, "wl_registry_interface"))
+            self.surf_iface_addr = ctypes.addressof(ctypes.c_char.in_dll(self.wl_client, "wl_surface_interface"))
+
+            class _wl_message(ctypes.Structure):
+                _fields_ = [("name", ctypes.c_char_p), ("signature", ctypes.c_char_p), ("types", ctypes.c_void_p)]
+
+            class _wl_interface(ctypes.Structure):
+                _fields_ = [
+                    ("name", ctypes.c_char_p), ("version", ctypes.c_int), ("method_count", ctypes.c_int),
+                    ("methods", ctypes.POINTER(_wl_message)), ("event_count", ctypes.c_int), ("events", ctypes.c_void_p),
+                ]
+
+            self.palette_iface = _wl_interface()
+            self.palette_iface.name = b"org_kde_kwin_server_decoration_palette"
+            self.palette_iface.version = 1
+            self.palette_iface.method_count = 2
+            palette_methods = (_wl_message * 2)(_wl_message(b"set_palette", b"s", None), _wl_message(b"release", b"", None))
+            self.palette_iface.methods = palette_methods
+
+            types_create = (ctypes.c_void_p * 2)(ctypes.addressof(self.palette_iface), self.surf_iface_addr)
+            self.manager_iface = _wl_interface()
+            self.manager_iface.name = b"org_kde_kwin_server_decoration_palette_manager"
+            self.manager_iface.version = 1
+            self.manager_iface.method_count = 1
+            manager_methods = (_wl_message * 1)(_wl_message(b"create", b"no", ctypes.cast(types_create, ctypes.c_void_p)))
+            self.manager_iface.methods = manager_methods
+
+            marshal_flags = self.wl_client.wl_proxy_marshal_flags
+            marshal_flags.restype = ctypes.c_void_p
+            marshal_flags.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+
+            registry = marshal_flags(self.disp, 1, reg_iface_addr, 1, 0, None)
+
+            GLOBAL_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32)
+            REMOVE_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32)
+
+            class _wl_registry_listener(ctypes.Structure):
+                _fields_ = [("global", GLOBAL_CB), ("global_remove", REMOVE_CB)]
+
+            palette_mgr_name = None
+            def on_global(data, reg, name, iface, version):
+                nonlocal palette_mgr_name
+                if iface == b"org_kde_kwin_server_decoration_palette_manager":
+                    palette_mgr_name = name
+
+            listener = _wl_registry_listener(GLOBAL_CB(on_global), REMOVE_CB(lambda d, r, n: None))
+            self.wl_client.wl_proxy_add_listener(registry, ctypes.byref(listener), None)
+            self.wl_client.wl_display_roundtrip(self.disp)
+
+            if palette_mgr_name is None:
+                self.initialized = True
+                return False
+
+            marshal_flags_bind = self.wl_client.wl_proxy_marshal_flags
+            marshal_flags_bind.restype = ctypes.c_void_p
+            marshal_flags_bind.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_void_p]
+
+            self.mgr_proxy = marshal_flags_bind(
+                registry, 0, ctypes.byref(self.manager_iface), 1, 0,
+                ctypes.c_uint32(palette_mgr_name),
+                self.manager_iface.name,
+                ctypes.c_uint32(1),
+                None
+            )
+            self.initialized = True
+            return True
+        except Exception:
+            self.initialized = True
+            return False
+
+    def set_palette(self, surfaces: list, scheme_path: str) -> bool:
+        if not self.initialize() or not self.mgr_proxy:
+            return False
+        try:
+            marshal_flags_create = self.wl_client.wl_proxy_marshal_flags
+            marshal_flags_create.restype = ctypes.c_void_p
+            marshal_flags_create.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_void_p]
+
+            marshal_flags_set = self.wl_client.wl_proxy_marshal_flags
+            marshal_flags_set.restype = ctypes.c_void_p
+            marshal_flags_set.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p]
+
+            for surf in surfaces:
+                if surf not in self.palette_proxies:
+                    p = marshal_flags_create(
+                        self.mgr_proxy, 0, ctypes.byref(self.palette_iface), 1, 0,
+                        None, surf
+                    )
+                    if p:
+                        self.palette_proxies[surf] = p
+                proxy = self.palette_proxies.get(surf)
+                if proxy:
+                    marshal_flags_set(proxy, 0, None, 1, 0, scheme_path.encode())
+
+            self.wl_client.wl_display_flush(self.disp)
+            return True
+        except Exception:
+            return False
+
+
+def _apply_in_process_gtk_theme(is_dark: bool, mode: str = "Auto") -> bool:
+    """Sets in-memory GTK prefer-dark-theme and per-process environment for the current process only.
+    This safely influences in-process titlebar renderers (such as libdecor-gtk
+    on Wayland) WITHOUT modifying any global user configurations, files on disk,
+    or desktop-wide GSettings.
+    """
+    # 1. Per-process environment variable (strictly scoped to this process)
+    try:
+        if mode == "Dark":
+            os.environ["GTK_THEME"] = "Adwaita:dark"
+        elif mode == "Light":
+            os.environ["GTK_THEME"] = "Adwaita:light"
+        else:
+            os.environ.pop("GTK_THEME", None)
+    except Exception:
+        pass
+
+    # 2. In-memory GtkSettings object (modifies process memory only)
+    try:
+        import ctypes
+        gtk = ctypes.CDLL("libgtk-3.so.0")
+        gobject = ctypes.CDLL("libgobject-2.0.so.0")
+        gtk.gtk_init_check(None, None)
+        gtk.gtk_settings_get_default.restype = ctypes.c_void_p
+        settings = gtk.gtk_settings_get_default()
+        if settings:
+            gobject.g_object_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+            val = ctypes.c_int(1 if is_dark else 0)
+            gobject.g_object_set(settings, b"gtk-application-prefer-dark-theme", val, None)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication, mode: str = "Auto") -> bool:
+    """
+    Communicates directly with KWin compositor via Wayland protocol:
+    org_kde_kwin_server_decoration_palette.set_palette(scheme)
+    to immediately change server-side window title bar decorations on KDE Plasma Wayland.
+    """
+    if "PYTEST_CURRENT_TEST" in os.environ or not os.environ.get("WAYLAND_DISPLAY"):
+        return False
+
+    surfaces = []
+    for w in windows:
+        if not w:
+            continue
+        if hasattr(w, "isVisible") and not w.isVisible():
+            continue
+        try:
+            wid = int(w.winId())
+            if wid > 0:
+                surfaces.append(wid)
+        except Exception:
+            continue
+
+    if not surfaces:
+        return False
+
+    if mode in ("Auto", "Automatic"):
+        scheme_path = ""
+    else:
+        _, scheme_path = _find_kde_color_scheme(is_dark)
+    return _KdeWaylandPaletteManager.get_instance().set_palette(surfaces, scheme_path)
+
+
+def is_gnome_desktop() -> bool:
+    """
+    Detects whether the running desktop environment is GNOME, GTK-based, Ubuntu, or derivative.
+    Matches GNOME, Ubuntu, Pop!_OS, Cinnamon, MATE, XFCE, Budgie, Pantheon, Cosmic, Deepin, LXDE.
+    """
+    if os.environ.get("BDM_FORCE_CSD") == "1":
+        return True
+    if os.environ.get("BDM_DISABLE_CSD") == "1":
+        return False
+    desktop = (
+        os.environ.get("XDG_CURRENT_DESKTOP", "") + ":" +
+        os.environ.get("GDMSESSION", "") + ":" +
+        os.environ.get("XDG_SESSION_DESKTOP", "") + ":" +
+        os.environ.get("DESKTOP_SESSION", "")
+    ).upper()
+    gtk_desktops = (
+        "GNOME", "UBUNTU", "UNITY", "POPOS", "POP", "PANTHEON",
+        "CINNAMON", "X-CINNAMON", "MATE", "XFCE", "X-XFCE",
+        "BUDGIE", "COSMIC", "DEEPIN", "DDE", "LXDE"
+    )
+    return any(d in desktop for d in gtk_desktops)
+
+
+is_gnome_or_gtk_desktop = is_gnome_desktop
+
+
+def _apply_gnome_csd_titlebar(mode: str, is_dark: bool, windows: list):
+    """
+    On GNOME and GTK-based distros, apply custom Libadwaita Client-Side Decorations (CSD).
+    Title bar theme options:
+      - 'Automatic': Follows system theme (Light/Dark) via XDG portal / D-Bus
+      - 'Light': Libadwaita light headerbar
+      - 'Dark': Libadwaita dark headerbar
+    """
+    try:
+        from ui.components.csd_titlebar import attach_csd
+        for w in windows:
+            if not w:
+                continue
+            attach_csd(w, is_dark=is_dark, mode=mode)
+    except Exception:
+        pass
+
+
+def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
+    """
+    Applies Title bar theme:
+      - 'Automatic': Follows system theme (system dark -> dark title bar, system light -> light title bar)
+      - 'Light': System light title bar
+      - 'Dark': System dark title bar
+    """
+    global CURRENT_TITLE_BAR_MODE
+    mode = normalize_titlebar_name(title_bar_mode)
+    CURRENT_TITLE_BAR_MODE = mode
+
+    if app is None:
+        app = QApplication.instance()
+    if not app:
+        return
+    init_titlebar_filter(app)
+
+    global _THEME_CHANGE_ACTIVE
+    _THEME_CHANGE_ACTIVE = True
+    QTimer.singleShot(250, _clear_theme_change_active)
+
+    if mode == "Dark":
+        is_dark = True
+    elif mode == "Light":
+        is_dark = False
+    else:  # "Automatic" -> follow system theme
+        is_dark = is_system_dark_theme(app)
+
+    # 1. Cross-platform Qt styleHints (Qt 6.5+ sets Wayland / libdecor / macOS / Windows titlebar scheme)
+    sh = app.styleHints()
+    if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+        if mode == "Dark":
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        elif mode == "Light":
+            sh.setColorScheme(Qt.ColorScheme.Light)
+        else:
+            sh.setColorScheme(getattr(Qt.ColorScheme, "Unknown", Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light))
+
+    all_windows = []
+    if window:
+        all_windows.append(window)
+    for w in app.topLevelWidgets():
+        if w and w.isWindow() and w not in all_windows:
+            all_windows.append(w)
+
+    scheme_name, scheme_path = _find_kde_color_scheme(is_dark)
+
+    # Dynamic Qt/KDE application and window properties
+    try:
+        app.setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
+        app.setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+    except Exception:
+        pass
+
+    for w in all_windows:
+        try:
+            w.setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
+            w.setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+            if hasattr(w, "windowHandle") and w.windowHandle():
+                w.windowHandle().setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
+                w.windowHandle().setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+        except Exception:
+            pass
+
+    # 2. Windows DWM immersive dark mode
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            dwm = ctypes.windll.dwmapi
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19
+            val = ctypes.c_int(1 if is_dark else 0)
+
+            hwnds = set()
+            for w in all_windows:
+                if hasattr(w, "winId"):
+                    try:
+                        hwnds.add(int(w.winId()))
+                    except Exception:
+                        pass
+            for hwnd in hwnds:
+                res = dwm.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(val), ctypes.sizeof(val))
+                if res != 0:
+                    dwm.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ctypes.byref(val), ctypes.sizeof(val))
+        except Exception:
+            pass
+
+    # 3. Linux X11 / XWayland _GTK_THEME_VARIANT and _KDE_NET_WM_COLOR_SCHEME
+    if sys.platform.startswith("linux"):
+        try:
+            variant = "dark" if is_dark else "light"
+            import shutil, subprocess
+            if shutil.which("xprop"):
+                hwnds = set()
+                for w in all_windows:
+                    if hasattr(w, "winId") and w.isVisible():
+                        try:
+                            hwnds.add(int(w.winId()))
+                        except Exception:
+                            pass
+                for wid in hwnds:
+                    try:
+                        subprocess.run(
+                            ["xprop", "-id", str(wid), "-f", "_GTK_THEME_VARIANT", "8s", "-set", "_GTK_THEME_VARIANT", variant],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
+                        )
+                        subprocess.run(
+                            ["xprop", "-id", str(wid), "-f", "_KDE_NET_WM_COLOR_SCHEME", "8s", "-set", "_KDE_NET_WM_COLOR_SCHEME", scheme_name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
+                        )
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # 3b. In-process GTK decoration preference (for libdecor-gtk on Wayland, zero system mutation)
+    if sys.platform.startswith("linux"):
+        _apply_in_process_gtk_theme(is_dark, mode)
+
+    # 4. Linux Wayland KDE KWin SSD Protocol
+    if sys.platform.startswith("linux"):
+        _apply_kde_wayland_titlebar(is_dark, all_windows, app, mode=mode)
+
+    # 5. Linux GNOME / GTK Client-Side Decoration (CSD)
+    if sys.platform.startswith("linux") and is_gnome_desktop():
+        _apply_gnome_csd_titlebar(mode, is_dark, all_windows)
+    else:
+        try:
+            from ui.components.csd_titlebar import detach_csd
+            for w in all_windows:
+                if w and getattr(w, "_csd_titlebar", None) is not None:
+                    detach_csd(w)
+        except Exception:
+            pass
+
+
+def get_current_titlebar_mode() -> str:
+    """Returns the current active title bar theme mode ('Automatic', 'Light', or 'Dark')."""
+    global CURRENT_TITLE_BAR_MODE
+    return CURRENT_TITLE_BAR_MODE
+
+
+class _TitleBarEventFilter(QObject):
+    """
+    Application-wide event filter to ensure that any top-level window or dialog
+    (e.g., Options, Media Downloader, Add URL, Progress dialogs) automatically receives
+    the active title bar theme decoration when shown.
+    """
+    def eventFilter(self, watched, event):
+        try:
+            if event.type() == QEvent.Type.Show:
+                if hasattr(watched, "isWindow") and watched.isWindow():
+                    apply_titlebar_theme(get_current_titlebar_mode(), window=watched)
+        except Exception:
+            pass
+        return super().eventFilter(watched, event)
+
+
+_GLOBAL_TITLEBAR_FILTER = None
+
+
+def init_titlebar_filter(app: Optional[QApplication] = None):
+    """
+    Installs the global title bar event filter on the QApplication instance once.
+    """
+    global _GLOBAL_TITLEBAR_FILTER
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return
+    if app is None:
+        app = QApplication.instance()
+    if not app or _GLOBAL_TITLEBAR_FILTER is not None:
+        return
+    _GLOBAL_TITLEBAR_FILTER = _TitleBarEventFilter(app)
+    app.installEventFilter(_GLOBAL_TITLEBAR_FILTER)
+
+
+_THEME_CHANGE_ACTIVE = False
+
+
+def is_theme_change_active() -> bool:
+    """Returns True if an internal programmatic theme or title bar change is currently executing."""
+    global _THEME_CHANGE_ACTIVE
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return False
+    return _THEME_CHANGE_ACTIVE
+
+
+def _clear_theme_change_active():
+    global _THEME_CHANGE_ACTIVE
+    _THEME_CHANGE_ACTIVE = False
+
+
+def is_system_dark_theme(app=None) -> bool:
+    """
+    Detects whether the underlying desktop environment/system theme is dark.
+    First queries the XDG Desktop Portal on Linux via D-Bus for real-time accuracy,
+    then falls back to QStyleHints.colorScheme() and standardPalette().
+    """
+    try:
+        from PyQt6 import QtDBus
+        bus = QtDBus.QDBusConnection.sessionBus()
+        if bus.isConnected():
+            msg = QtDBus.QDBusMessage.createMethodCall(
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.Settings",
+                "Read"
+            )
+            msg.setArguments(["org.freedesktop.appearance", "color-scheme"])
+            reply = bus.call(msg)
+            if reply.type() == QtDBus.QDBusMessage.MessageType.ReplyMessage and reply.arguments():
+                val = reply.arguments()[0]
+                if isinstance(val, QtDBus.QDBusVariant):
+                    val = val.variant()
+                # 1 = Prefer Dark, 0 = No preference / Light, 2 = Prefer Light
+                return int(val) == 1
+    except Exception:
+        pass
+
+    if app is None:
+        app = QApplication.instance()
+    if app:
+        sh = app.styleHints()
+        if hasattr(sh, "colorScheme"):
+            cs = sh.colorScheme()
+            if cs == Qt.ColorScheme.Dark:
+                return True
+            elif cs == Qt.ColorScheme.Light:
+                return False
+        sys_pal = app.style().standardPalette()
+        return sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
+    return False
 
 
 def is_dark_theme(app=None) -> bool:
@@ -456,6 +995,8 @@ def is_dark_theme(app=None) -> bool:
         return True
     if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white", "stellar light", "stellarlight"):
         return False
+    if t_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system"):
+        return is_system_dark_theme(app)
     if app is None:
         app = QApplication.instance()
     if app:
@@ -549,17 +1090,27 @@ def init_app_font(lang_code: Optional[str] = None) -> QFont:
     return app_font
 
 
-def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None):
+def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None, title_bar_mode=None):
     """
-    Applies application theme, custom accent color, custom toolbar icon set, and custom system tray icon set.
+    Applies application theme, custom accent color, custom toolbar icon set, custom system tray icon set, and title bar theme.
     """
-    global CURRENT_THEME
+    if not isinstance(app, QApplication) and app is not None and title_bar_mode is None:
+        title_bar_mode = app
+        app = None
+
+    global CURRENT_THEME, CURRENT_TITLE_BAR_MODE
     CURRENT_THEME = str(theme_name).strip()
+    if title_bar_mode is not None:
+        CURRENT_TITLE_BAR_MODE = normalize_titlebar_name(title_bar_mode)
 
     if app is None:
         app = QApplication.instance()
     if not app:
         return
+
+    global _THEME_CHANGE_ACTIVE
+    _THEME_CHANGE_ACTIVE = True
+    QTimer.singleShot(250, _clear_theme_change_active)
 
     sh = app.styleHints()
     theme_lower = str(theme_name).strip().lower()
@@ -660,32 +1211,20 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
             p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))
             app.setPalette(p)
-    elif theme_lower in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto"):
+    elif theme_lower in ("bdm dark", "bdmdark", "dark"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
+    else:  # BDM Auto (Default) / Default Fallback
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         
-        is_sys_dark = False
-        if hasattr(sh, "colorScheme"):
-            cs = sh.colorScheme()
-            if cs == Qt.ColorScheme.Dark:
-                is_sys_dark = True
-            elif cs == Qt.ColorScheme.Light:
-                is_sys_dark = False
-            else:
-                sys_pal = app.style().standardPalette()
-                is_sys_dark = sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
-        else:
-            sys_pal = app.style().standardPalette()
-            is_sys_dark = sys_pal.color(QPalette.ColorRole.Window).value() < 128 or sys_pal.color(QPalette.ColorRole.WindowText).value() > 128
+        is_sys_dark = is_system_dark_theme(app)
 
         if is_sys_dark:
             app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
         else:
             app.setPalette(_build_palette("#eff0f1", "#232629", "#ffffff", "#f8f9fa", "#eef0f2", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
-    else:  # BDM Dark (Default) / Default
-        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
-            sh.setColorScheme(Qt.ColorScheme.Dark)
-        app.setPalette(_build_palette("#202326", "#eff0f1", "#141618", "#1c1e20", "#2a2e32", "#3daee9", "#3daee9", "#ffffff", accent=accent_name))
 
     # Icon theme handling
     global CURRENT_ICON_THEME, CURRENT_TRAY_ICON
@@ -715,6 +1254,12 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         ensure_adaptive_icon_theme(app)
 
     app.setStyleSheet("""
+            QMainWindow#MainWindow {
+                border: 1px solid palette(mid);
+            }
+            QDialog {
+                border: 1px solid palette(mid);
+            }
             QMenuBar {
                 background-color: palette(window);
                 color: palette(window-text);
@@ -828,6 +1373,9 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             w.update()
         except Exception:
             pass
+
+    # Apply Title bar theme
+    apply_titlebar_theme(CURRENT_TITLE_BAR_MODE, app=app)
 
     for top in app.topLevelWidgets():
         try:

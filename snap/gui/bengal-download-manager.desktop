@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Bengal Download Manager
+Comment=Fast multi-threaded download manager powered by Aria2
+Exec=bengal-download-manager %u
+Icon=icon.png
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+Keywords=download;manager;aria2;multithread;
+StartupWMClass=bengal-download-manager_bengal-download-manager

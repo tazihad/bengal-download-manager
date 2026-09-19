@@ -302,7 +302,7 @@ class OptionsDialog(QDialog):
         if view_theme:
             view_theme.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         theme_options = [
-            "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
+            "BDM Auto (Default)", "System", "BDM Dark", "BDM Light",
             "Breeze Dark", "Breeze Light", "Catppuccin",
             "Dracula", "IDM Classic", "Kirigami Dark", 
             "Kirigami Light", "Material You Dark", "Material You Light",
@@ -356,6 +356,18 @@ class OptionsDialog(QDialog):
         ]
         self.combo_tray_icon.addItems(tray_icon_options)
 
+        lbl_titlebar = QLabel("Title bar:")
+        lbl_titlebar.setToolTip("Select title bar theme: follow system theme, system light, or system dark")
+        self.combo_titlebar = QComboBox()
+        self.combo_titlebar.setToolTip("Select title bar theme: Automatic (follow system theme), Light, or Dark")
+        self.combo_titlebar.setMaxVisibleItems(10)
+        self.combo_titlebar.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_titlebar = self.combo_titlebar.view()
+        if view_titlebar:
+            view_titlebar.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        titlebar_options = ["Automatic", "Light", "Dark"]
+        self.combo_titlebar.addItems(titlebar_options)
+
         grid_theme.addWidget(lbl_theme, 0, 0)
         grid_theme.addWidget(self.combo_theme, 0, 1)
         grid_theme.addWidget(lbl_accent, 0, 2)
@@ -366,25 +378,34 @@ class OptionsDialog(QDialog):
         grid_theme.addWidget(lbl_tray_icon, 1, 2)
         grid_theme.addWidget(self.combo_tray_icon, 1, 3)
 
+        grid_theme.addWidget(lbl_titlebar, 2, 0)
+        grid_theme.addWidget(self.combo_titlebar, 2, 1)
+
         grp_theme.setLayout(grid_theme)
 
-        current_theme = "BDM Dark (Default)"
+        current_theme = "BDM Auto (Default)"
         current_accent = "BDM (Default)"
         current_icon_theme = "BDM Auto (Default)"
         current_tray_icon = "App Icon (Default)"
+        current_titlebar = "Automatic"
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
-            current_theme = self.main_win.settings.get("theme", "BDM Dark (Default)")
+            current_theme = self.main_win.settings.get("theme", "BDM Auto (Default)")
             current_accent = self.main_win.settings.get("accent", "BDM (Default)")
             current_icon_theme = self.main_win.settings.get("icon_theme", "BDM (Default)")
             current_tray_icon = self.main_win.settings.get("tray_icon", "App Icon (Default)")
-
+            current_titlebar = self.main_win.settings.get("title_bar", "Automatic")
 
         try:
-            from main import normalize_theme_name, normalize_accent_name, normalize_icon_theme_name, normalize_tray_icon_name
+            from core.services.theme_service import (
+                normalize_theme_name, normalize_accent_name,
+                normalize_icon_theme_name, normalize_tray_icon_name,
+                normalize_titlebar_name
+            )
             current_theme = normalize_theme_name(current_theme)
             current_accent = normalize_accent_name(current_accent)
             current_icon_theme = normalize_icon_theme_name(current_icon_theme)
             current_tray_icon = normalize_tray_icon_name(current_tray_icon)
+            current_titlebar = normalize_titlebar_name(current_titlebar)
         except Exception:
             pass
 
@@ -392,9 +413,10 @@ class OptionsDialog(QDialog):
         self.initial_accent = current_accent
         self.initial_icon_theme = current_icon_theme
         self.initial_tray_icon = current_tray_icon
+        self.initial_titlebar = current_titlebar
 
         idx_t = self.combo_theme.findText(current_theme)
-        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Dark (Default)")
+        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Auto (Default)")
         if idx_t != -1: self.combo_theme.setCurrentIndex(idx_t)
 
         idx_a = self.combo_accent.findText(current_accent)
@@ -409,11 +431,16 @@ class OptionsDialog(QDialog):
         if idx_tr == -1: idx_tr = self.combo_tray_icon.findText("App Icon (Default)")
         if idx_tr != -1: self.combo_tray_icon.setCurrentIndex(idx_tr)
 
+        idx_tb = self.combo_titlebar.findText(current_titlebar)
+        if idx_tb == -1: idx_tb = self.combo_titlebar.findText("Automatic")
+        if idx_tb != -1: self.combo_titlebar.setCurrentIndex(idx_tb)
+
         # Connect live preview signals
         self.combo_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_accent.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_icon_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_tray_icon.currentTextChanged.connect(self.on_appearance_preview)
+        self.combo_titlebar.currentTextChanged.connect(self.on_appearance_preview)
 
         layout.addWidget(grp_theme)
 
@@ -1226,6 +1253,11 @@ class OptionsDialog(QDialog):
         self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
         vbox_browser.addWidget(self.chk_auto_start_media)
 
+        self.chk_auto_update_engine = QCheckBox("Auto-check and update media engine on startup")
+        self.chk_auto_update_engine.setToolTip("Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch")
+        self.chk_auto_update_engine.setChecked(bool(media_defaults.get("auto_update_engine_startup", True)))
+        vbox_browser.addWidget(self.chk_auto_update_engine)
+
         row_media_q = QHBoxLayout()
         row_media_q.addWidget(QLabel("Preselected Quality Target:"))
         self.cmb_media_quality = QComboBox()
@@ -1602,24 +1634,28 @@ class OptionsDialog(QDialog):
             line_edit.setText(path)
 
     def on_appearance_preview(self, text=None):
-        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
         a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         tr = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+        tb = self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
-                preview_fn(t, a, i, tr)
+                preview_fn(t, a, i, tr, tb)
 
     def reject(self):
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
-                t = getattr(self, 'initial_theme', 'BDM Dark (Default)')
+                t = getattr(self, 'initial_theme', 'BDM Auto (Default)')
                 a = getattr(self, 'initial_accent', 'BDM (Default)')
                 i = getattr(self, 'initial_icon_theme', 'BDM Auto')
                 tr = getattr(self, 'initial_tray_icon', 'App Icon (Default)')
-                preview_fn(t, a, i, tr)
+                tb = getattr(self, 'initial_titlebar', 'Automatic')
+                preview_fn(t, a, i, tr, tb)
+            setattr(self.main_win, "_is_previewing", False)
+        self._cleanup_proxy_worker()
         super().reject()
 
     def save_and_accept(self):
@@ -1629,6 +1665,8 @@ class OptionsDialog(QDialog):
         media_defaults = self.config_data.get("media_downloader_defaults", {})
         if hasattr(self, "chk_auto_start_media"):
             media_defaults["auto_start_media"] = self.chk_auto_start_media.isChecked()
+        if hasattr(self, "chk_auto_update_engine"):
+            media_defaults["auto_update_engine_startup"] = self.chk_auto_update_engine.isChecked()
         if hasattr(self, "cmb_media_quality"):
             media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
         if hasattr(self, "cmb_opt_cookies_mode"):
@@ -1652,10 +1690,11 @@ class OptionsDialog(QDialog):
         )
 
         new_scale = self.combo_scale.currentText()
-        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
         new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+        new_titlebar = self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
         new_lang_display = self.combo_language.currentText() if hasattr(self, 'combo_language') else "System Default"
         new_lang_code = get_language_code(new_lang_display)
 
@@ -1686,6 +1725,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["accent"] = new_accent
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
+                self.main_win.settings["title_bar"] = new_titlebar
                 self.main_win.settings["language"] = new_lang_code
                 self.main_win.settings["system_notifications"] = is_notif
                 self.main_win.settings["silent_download"] = silent_dl
@@ -1701,7 +1741,7 @@ class OptionsDialog(QDialog):
 
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
-                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon)
+                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon, new_titlebar)
             else:
                 save_fn = getattr(self.main_win, "save_settings", None)
                 if callable(save_fn):
@@ -1746,10 +1786,6 @@ class OptionsDialog(QDialog):
         self._cleanup_proxy_worker()
         super().closeEvent(event)
 
-    def reject(self):
-        self._cleanup_proxy_worker()
-        super().reject()
-
     def accept(self):
         self._cleanup_proxy_worker()
         super().accept()
@@ -1759,7 +1795,7 @@ class OptionsDialog(QDialog):
         return get_language_code(self.combo_language.currentText()) if hasattr(self, 'combo_language') else "system"
 
     def get_theme(self):
-        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
 
     def get_accent(self):
         return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
@@ -1769,6 +1805,9 @@ class OptionsDialog(QDialog):
 
     def get_tray_icon(self):
         return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+
+    def get_titlebar(self):
+        return self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
 
     def get_silent_download(self) -> bool:
         return self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False

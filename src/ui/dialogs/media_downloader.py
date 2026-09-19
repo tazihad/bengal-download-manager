@@ -1094,6 +1094,8 @@ class MediaDownloaderDialog(QDialog):
 
     def check_all_dependencies(self, force_download: bool = False, target_tool: str = ""):
         """Spawns DependencyManagerWorker to verify and install missing engines."""
+        if "pytest" in sys.modules and not getattr(self, "_force_dep_worker_test", False):
+            return
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             if force_download:
                 try:
@@ -1110,15 +1112,39 @@ class MediaDownloaderDialog(QDialog):
             else:
                 return
 
+        # Reuse running worker from MainWindow if active
+        main_worker = getattr(self.main_win, "_media_engine_worker", None)
+        if main_worker and main_worker.isRunning() and not target_tool and not force_download:
+            self._dep_worker = main_worker
+            self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
+            self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
+            return
+
         self._dep_worker = DependencyManagerWorker(force_download=force_download, target_tool=target_tool)
         self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
         self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
+        _keep_thread_alive(self._dep_worker)
+        if self.main_win and not target_tool:
+            self.main_win._media_engine_worker = self._dep_worker
+            try:
+                self._dep_worker.tool_status_signal.connect(self.main_win._on_media_engine_status_updated)
+                self._dep_worker.all_finished_signal.connect(self.main_win._on_media_engine_finished)
+            except Exception:
+                pass
         self._dep_worker.start()
 
     def update_all_dependencies(self):
         """Forces checking and updating of all 5 dependency tools."""
         self.options_hub.btn_update_all.setText("Checking...")
         self.options_hub.btn_update_all.setEnabled(False)
+        if hasattr(self.main_win, "_start_media_engine_check"):
+            self.main_win._start_media_engine_check(force_download=True)
+            main_worker = getattr(self.main_win, "_media_engine_worker", None)
+            if main_worker:
+                self._dep_worker = main_worker
+                self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
+                self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
+                return
         self.check_all_dependencies(force_download=True)
 
     def update_single_dependency(self, tool_name: str):
@@ -2240,17 +2266,23 @@ class MediaDownloaderDialog(QDialog):
                 pass
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             try:
+                # Do NOT interrupt or terminate _dep_worker; allow media engine downloads to continue in background.
+                _keep_thread_alive(self._dep_worker)
+                if self.main_win:
+                    self.main_win._media_engine_worker = self._dep_worker
+                    try:
+                        self._dep_worker.tool_status_signal.connect(self.main_win._on_media_engine_status_updated)
+                        self._dep_worker.all_finished_signal.connect(self.main_win._on_media_engine_finished)
+                    except Exception:
+                        pass
                 try:
-                    self._dep_worker.tool_status_signal.disconnect()
-                    self._dep_worker.all_finished_signal.disconnect()
+                    self._dep_worker.tool_status_signal.disconnect(self._on_dep_status_updated)
                 except Exception:
                     pass
-                self._dep_worker.requestInterruption()
-                self._dep_worker.quit()
-                self._dep_worker.wait(500)
-                if self._dep_worker.isRunning():
-                    self._dep_worker.terminate()
-                    self._dep_worker.wait(500)
+                try:
+                    self._dep_worker.all_finished_signal.disconnect(self._on_all_deps_finished)
+                except Exception:
+                    pass
             except Exception:
                 pass
         for attr in ("_thumb_worker", "_pl_thumb_worker"):

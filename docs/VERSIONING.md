@@ -9,6 +9,7 @@ This document defines the authoritative versioning architecture, release lifecyc
 Bengal Download Manager targets multiple distribution channels:
 * **Canonical Snap Store**: Snap package built via Snapcraft (`snap/snapcraft.yaml`).
 * **Flatpak / Flathub**: Flatpak bundle and AppStream catalog metadata (`flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml`).
+* **Python Packaging (PEP 517/518/621)**: Package manifest and dynamic versioning (`pyproject.toml`).
 * **In-App Runtime**: Help -> About Dialog, CLI `--version`, and IPC daemon (`src/core/version.py`).
 * *(Note: Browser extension in `extension/manifest.json` is versioned independently, e.g. `0.6`).*
 

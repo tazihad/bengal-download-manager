@@ -14,8 +14,8 @@ Bengal Download Manager requires **Python 3.10+** and uses [`uv`](https://github
 git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
 
-# Install project dependencies
-uv pip install -r requirements.txt
+# Install project in editable mode with dev dependencies via pyproject.toml
+uv pip install -e ".[dev]"
 ```
 
 ### Running in Development Mode

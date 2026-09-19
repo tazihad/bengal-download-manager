@@ -46,6 +46,7 @@ from core.services.theme_service import (
     CATEGORY_EXTENSIONS,
     FREEDESKTOP_MAP,
     apply_app_theme,
+    apply_titlebar_theme,
     detect_accent,
     ensure_adaptive_icon_theme,
     format_timestamp_relative,
@@ -61,6 +62,7 @@ from core.services.theme_service import (
     normalize_accent_name,
     normalize_icon_theme_name,
     normalize_theme_name,
+    normalize_titlebar_name,
     normalize_tray_icon_name,
     parse_size_to_bytes,
     parse_time_to_sec,
@@ -152,11 +154,15 @@ def main():
         threading.excepthook = thread_exception_hook
     qInstallMessageHandler(qt_message_handler)
 
+    from core.desktop import get_desktop_file_name, ensure_desktop_integration
+    ensure_desktop_integration()
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
-    app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
+    app.setApplicationDisplayName("Bengal Download Manager")
+    app.setDesktopFileName(get_desktop_file_name())
     app.setQuitOnLastWindowClosed(False)
 
     # --- SINGLE INSTANCE ENFORCEMENT ---
@@ -165,10 +171,11 @@ def main():
             print("Bengal Download Manager is already running. Primary instance brought to focus.")
             sys.exit(0)
 
-    saved_theme = "BDM Dark (Default)"
+    saved_theme = "BDM Auto (Default)"
     saved_accent = "BDM (Default)"
     saved_icon_theme = "BDM Auto (Default)"
     saved_tray_icon = "App Icon (Default)"
+    saved_title_bar = "Automatic"
     saved_language = "system"
     try:
         if os.path.exists(cfg_path):
@@ -178,11 +185,12 @@ def main():
                 saved_accent = normalize_accent_name(s_data.get("accent"))
                 saved_icon_theme = normalize_icon_theme_name(s_data.get("icon_theme"))
                 saved_tray_icon = normalize_tray_icon_name(s_data.get("tray_icon"))
+                saved_title_bar = normalize_titlebar_name(s_data.get("title_bar"))
                 saved_language = s_data.get("language", "system")
     except Exception:
         pass
 
-    apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app)
+    apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app=app, title_bar_mode=saved_title_bar)
     from core.services.language_service import apply_language
     apply_language(app, saved_language)
     app.setFont(init_app_font())
