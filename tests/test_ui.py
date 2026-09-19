@@ -804,35 +804,36 @@ def test_options_titlebar_setting_and_persistence(qapp, monkeypatch, tmp_path):
     )
 
     # 1. Test normalization
-    assert normalize_titlebar_name("Auto") == "Auto"
-    assert normalize_titlebar_name("auto") == "Auto"
-    assert normalize_titlebar_name("Auto (Default)") == "Auto"
-    assert normalize_titlebar_name("system") == "Auto"
+    assert normalize_titlebar_name("Automatic") == "Automatic"
+    assert normalize_titlebar_name("Auto") == "Automatic"
+    assert normalize_titlebar_name("auto") == "Automatic"
+    assert normalize_titlebar_name("Auto (Default)") == "Automatic"
+    assert normalize_titlebar_name("system") == "Automatic"
     assert normalize_titlebar_name("Light") == "Light"
     assert normalize_titlebar_name("light") == "Light"
     assert normalize_titlebar_name("system light") == "Light"
     assert normalize_titlebar_name("Dark") == "Dark"
     assert normalize_titlebar_name("dark") == "Dark"
     assert normalize_titlebar_name("system dark") == "Dark"
-    assert normalize_titlebar_name("") == "Auto"
-    assert normalize_titlebar_name(None) == "Auto"
+    assert normalize_titlebar_name("") == "Automatic"
+    assert normalize_titlebar_name(None) == "Automatic"
 
     # 2. Test OptionsDialog UI defaults
     dlg = OptionsDialog()
     assert hasattr(dlg, "combo_titlebar")
     items = [dlg.combo_titlebar.itemText(i) for i in range(dlg.combo_titlebar.count())]
-    assert items == ["Auto", "Light", "Dark"]
-    assert dlg.combo_titlebar.currentText() == "Auto"
-    assert dlg.get_titlebar() == "Auto"
+    assert items == ["Automatic", "Light", "Dark"]
+    assert dlg.combo_titlebar.currentText() == "Automatic"
+    assert dlg.get_titlebar() == "Automatic"
     dlg.reject()
 
     # 3. Test persistence via dummy MainWindow
     dummy_win = MainWindow(start_ipc=False)
     dummy_win.hide()
-    dummy_win.settings = {"theme": "BDM Auto (Default)", "title_bar": "Auto"}
+    dummy_win.settings = {"theme": "BDM Auto (Default)", "title_bar": "Automatic"}
 
     dlg_settings = OptionsDialog(main_window=dummy_win)
-    assert dlg_settings.combo_titlebar.currentText() == "Auto"
+    assert dlg_settings.combo_titlebar.currentText() == "Automatic"
 
     # Switch to Dark and accept
     dlg_settings.combo_titlebar.setCurrentText("Dark")
@@ -862,8 +863,11 @@ def test_options_titlebar_setting_and_persistence(qapp, monkeypatch, tmp_path):
     apply_titlebar_theme("Light", app=qapp)
     assert get_current_titlebar_mode() == "Light"
 
+    apply_titlebar_theme("Automatic", app=qapp)
+    assert get_current_titlebar_mode() == "Automatic"
+
     apply_titlebar_theme("Auto", app=qapp)
-    assert get_current_titlebar_mode() == "Auto"
+    assert get_current_titlebar_mode() == "Automatic"
 
 
 def test_central_container_padding(qapp):
@@ -902,7 +906,34 @@ def test_central_container_padding(qapp):
     window.close()
 
 
+def test_gnome_csd_titlebar_toggle(qapp, monkeypatch):
+    """Verify GNOME client-side decoration (CSD) attaches on Dark/Light and detaches on Automatic."""
+    from core.services.theme_service import apply_titlebar_theme, is_gnome_desktop
+    from ui.components.csd_titlebar import CsdTitleBar
 
+    monkeypatch.setenv("BDM_FORCE_CSD", "1")
+    assert is_gnome_desktop() is True
 
+    win = MainWindow(start_ipc=False)
+    win.hide()
 
+    try:
+        # 1. Dark mode -> CSD attached
+        apply_titlebar_theme("Dark", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+        assert hasattr(win, "_csd_titlebar") and win._csd_titlebar is not None
+        assert isinstance(win._csd_titlebar, CsdTitleBar)
+        assert win._csd_titlebar._is_dark is True
 
+        # 2. Light mode -> CSD stays attached, styled light
+        apply_titlebar_theme("Light", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+        assert win._csd_titlebar._is_dark is False
+
+        # 3. Automatic -> CSD detached, system default frame restored
+        apply_titlebar_theme("Automatic", window=win, app=qapp)
+        assert bool(win.windowFlags() & Qt.WindowType.FramelessWindowHint) is False
+        assert getattr(win, "_csd_titlebar", None) is None
+    finally:
+        win.is_quitting = True
+        win.close()

@@ -175,7 +175,7 @@ def main():
     saved_accent = "BDM (Default)"
     saved_icon_theme = "BDM Auto (Default)"
     saved_tray_icon = "App Icon (Default)"
-    saved_title_bar = "Auto"
+    saved_title_bar = "Automatic"
     saved_language = "system"
     try:
         if os.path.exists(cfg_path):

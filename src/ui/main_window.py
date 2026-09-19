@@ -3171,7 +3171,7 @@ class MainWindow(QMainWindow):
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
-                "title_bar": getattr(self, "settings", {}).get("title_bar", "Auto"),
+                "title_bar": getattr(self, "settings", {}).get("title_bar", "Automatic"),
                 "language": getattr(self, "settings", {}).get("language", "system"),
                 "table_style": getattr(self, "table_style", "classic"),
                 "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
@@ -3218,7 +3218,7 @@ class MainWindow(QMainWindow):
                 self.settings["title_bar"] = title_bar_mode
             apply_app_theme(
                 theme_name, accent_name, icon_theme_name, tray_icon_name,
-                title_bar_mode=self.settings.get("title_bar", "Auto")
+                title_bar_mode=self.settings.get("title_bar", "Automatic")
             )
             self.save_settings()
             self.refresh_theme_ui()
@@ -3286,7 +3286,7 @@ class MainWindow(QMainWindow):
             return
         self._is_applying_theme = True
         try:
-            tb = title_bar_mode if title_bar_mode is not None else getattr(self, "settings", {}).get("title_bar", "Auto")
+            tb = title_bar_mode if title_bar_mode is not None else getattr(self, "settings", {}).get("title_bar", "Automatic")
             apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode=tb)
             self.refresh_theme_ui()
         finally:
@@ -3375,16 +3375,16 @@ class MainWindow(QMainWindow):
                     if top and top.isWindow() and top.isVisible() and type(top).__name__ == "OptionsDialog":
                         return
         current_theme = getattr(self, "settings", {}).get("theme", "BDM Auto (Default)")
-        current_titlebar = getattr(self, "settings", {}).get("title_bar", "Auto")
+        current_titlebar = getattr(self, "settings", {}).get("title_bar", "Automatic")
         if (str(current_theme).lower() in ("bdm auto (default)", "bdm auto", "bdmauto", "automatic", "auto", "system") or
-            str(current_titlebar).lower() in ("auto", "auto (default)", "system")):
+            str(current_titlebar).lower() in ("auto", "auto (default)", "automatic", "system")):
             self.apply_theme_setting(current_theme)
 
     def apply_theme_setting(self, theme_name):
         accent_name = getattr(self, "settings", {}).get("accent", "BDM (Default)")
         icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)")
         tray_icon_name = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
-        title_bar_mode = getattr(self, "settings", {}).get("title_bar", "Auto")
+        title_bar_mode = getattr(self, "settings", {}).get("title_bar", "Automatic")
         self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode)
 
     def refresh_theme_ui(self):
@@ -3538,7 +3538,7 @@ class MainWindow(QMainWindow):
             "accent": "BDM (Default)",
             "icon_theme": "BDM Auto (Default)",
             "tray_icon": "App Icon (Default)",
-            "title_bar": "Auto",
+            "title_bar": "Automatic",
             "language": "system"
         }
         config_dir = get_config_dir()

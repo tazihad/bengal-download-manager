@@ -444,24 +444,24 @@ def normalize_tray_icon_name(name, default="App Icon (Default)"):
     return s
 
 
-def normalize_titlebar_name(name, default="Auto"):
+def normalize_titlebar_name(name, default="Automatic"):
     if not name:
         return default
     s = str(name).strip()
     s_lower = s.lower()
-    if s_lower in ("auto", "auto (default)", "automatic", "system"):
-        return "Auto"
+    if s_lower in ("auto", "auto (default)", "automatic", "system", "default"):
+        return "Automatic"
     if s_lower in ("light", "system light", "system light title bar"):
         return "Light"
     if s_lower in ("dark", "system dark", "system dark title bar"):
         return "Dark"
-    return "Auto"
+    return default
 
 
 CURRENT_THEME = "BDM Auto (Default)"
 CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
-CURRENT_TITLE_BAR_MODE = "Auto"
+CURRENT_TITLE_BAR_MODE = "Automatic"
 
 
 def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
@@ -702,17 +702,51 @@ def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication,
     if not surfaces:
         return False
 
-    if mode == "Auto":
+    if mode in ("Auto", "Automatic"):
         scheme_path = ""
     else:
         _, scheme_path = _find_kde_color_scheme(is_dark)
     return _KdeWaylandPaletteManager.get_instance().set_palette(surfaces, scheme_path)
 
 
-def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
+def is_gnome_desktop() -> bool:
+    """Detects whether the running desktop environment is GNOME, Ubuntu, or derivative."""
+    if os.environ.get("BDM_FORCE_CSD") == "1":
+        return True
+    if os.environ.get("BDM_DISABLE_CSD") == "1":
+        return False
+    desktop = (
+        os.environ.get("XDG_CURRENT_DESKTOP", "") + ":" +
+        os.environ.get("GDMSESSION", "") + ":" +
+        os.environ.get("XDG_SESSION_DESKTOP", "")
+    ).upper()
+    return any(d in desktop for d in ("GNOME", "UBUNTU", "UNITY", "POPOS", "PANTHEON"))
+
+
+def _apply_gnome_csd_titlebar(mode: str, is_dark: bool, windows: list):
+    """
+    On GNOME (Wayland & X11), system window decorations cannot be arbitrarily recolored
+    per-app. When Light or Dark is selected, custom Client-Side Decorations (CSD)
+    provide the requested titlebar theme. When Automatic is selected, system default
+    decorations are used.
+    """
+    try:
+        from ui.components.csd_titlebar import attach_csd, detach_csd
+        for w in windows:
+            if not w:
+                continue
+            if mode in ("Light", "Dark"):
+                attach_csd(w, is_dark=is_dark)
+            else:  # "Automatic"
+                detach_csd(w)
+    except Exception:
+        pass
+
+
+def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
     """
     Applies Title bar theme:
-      - 'Auto': Follows system theme (system dark -> dark title bar, system light -> light title bar)
+      - 'Automatic': Follows system theme (system dark -> dark title bar, system light -> light title bar)
       - 'Light': System light title bar
       - 'Dark': System dark title bar
     """
@@ -734,7 +768,7 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
         is_dark = True
     elif mode == "Light":
         is_dark = False
-    else:  # "Auto" -> follow system theme
+    else:  # "Automatic" -> follow system theme
         is_dark = is_system_dark_theme(app)
 
     # 1. Cross-platform Qt styleHints (Qt 6.5+ sets Wayland / libdecor / macOS / Windows titlebar scheme)
@@ -832,9 +866,15 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
     if sys.platform.startswith("linux"):
         _apply_kde_wayland_titlebar(is_dark, all_windows, app, mode=mode)
 
+    # 5. Linux GNOME Client-Side Decoration (CSD)
+    if sys.platform.startswith("linux") and is_gnome_desktop():
+        _apply_gnome_csd_titlebar(mode, is_dark, all_windows)
+    else:
+        _apply_gnome_csd_titlebar("Automatic", is_dark, all_windows)
+
 
 def get_current_titlebar_mode() -> str:
-    """Returns the current active title bar theme mode ('Auto', 'Light', or 'Dark')."""
+    """Returns the current active title bar theme mode ('Automatic', 'Light', or 'Dark')."""
     global CURRENT_TITLE_BAR_MODE
     return CURRENT_TITLE_BAR_MODE
 
