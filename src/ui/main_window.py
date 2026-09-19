@@ -2940,6 +2940,7 @@ class MainWindow(QMainWindow):
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
+                "title_bar": getattr(self, "settings", {}).get("title_bar", "Auto"),
                 "language": getattr(self, "settings", {}).get("language", "system"),
                 "table_style": getattr(self, "table_style", "classic"),
                 "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
@@ -3286,6 +3287,7 @@ class MainWindow(QMainWindow):
             "accent": "BDM (Default)",
             "icon_theme": "BDM Auto (Default)",
             "tray_icon": "App Icon (Default)",
+            "title_bar": "Auto",
             "language": "system"
         }
         config_dir = get_config_dir()
@@ -3376,6 +3378,7 @@ class MainWindow(QMainWindow):
 
         show_data_usage = settings.get("show_data_usage", False)
         self.toggle_data_usage(show_data_usage, save=False)
+        self.settings = settings
         return settings
 
     def set_table_style(self, style_name: str, initial=False):

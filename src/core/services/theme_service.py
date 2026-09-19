@@ -21,9 +21,10 @@ from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale, QEvent, QTimer, 
 
 from core.utils import get_data_dir
 
+import ctypes
+
 # Optional Windows API for accent extraction
 if platform.system() == "Windows":
-    import ctypes
     from ctypes import wintypes
 
 # Optional GIO/GSettings for GNOME
@@ -641,7 +642,7 @@ class _KdeWaylandPaletteManager:
             return False
 
 
-def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication) -> bool:
+def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication, mode: str = "Auto") -> bool:
     """
     Communicates directly with KWin compositor via Wayland protocol:
     org_kde_kwin_server_decoration_palette.set_palette(scheme)
@@ -666,7 +667,10 @@ def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication)
     if not surfaces:
         return False
 
-    _, scheme_path = _find_kde_color_scheme(is_dark)
+    if mode == "Auto":
+        scheme_path = ""
+    else:
+        _, scheme_path = _find_kde_color_scheme(is_dark)
     return _KdeWaylandPaletteManager.get_instance().set_palette(surfaces, scheme_path)
 
 
@@ -782,7 +786,7 @@ def apply_titlebar_theme(title_bar_mode="Auto", window=None, app=None):
 
     # 4. Linux Wayland KDE KWin SSD Protocol
     if sys.platform.startswith("linux"):
-        _apply_kde_wayland_titlebar(is_dark, all_windows, app)
+        _apply_kde_wayland_titlebar(is_dark, all_windows, app, mode=mode)
 
 
 def get_current_titlebar_mode() -> str:
