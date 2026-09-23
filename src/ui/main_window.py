@@ -4401,15 +4401,20 @@ class MainWindow(QMainWindow):
             auto_start = bool(media_defaults.get("auto_start_media", False))
             target_preset = selected_quality or media_defaults.get("auto_media_quality_preset", "Best Quality (Video + Audio merged)")
 
-            # If cookies.txt in option is configured and exists, use it;
-            # otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
+            # Cookie priority: browser extension cookies take precedence (freshest, session-bound).
+            # Fall back to the user-configured cookies.txt only when the extension sends nothing.
             opt_cookies_path = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
-            if opt_cookies_path and os.path.exists(opt_cookies_path):
+            if cookies:
+                # Extension sent cookies — use them; ignore the options file
+                effective_cookies_file = None
+                effective_cookies = cookies
+            elif opt_cookies_path and os.path.exists(opt_cookies_path):
+                # No extension cookies — fall back to the configured cookies.txt
                 effective_cookies_file = opt_cookies_path
                 effective_cookies = None
             else:
                 effective_cookies_file = None
-                effective_cookies = cookies
+                effective_cookies = None
 
             if is_media_flag:
                 # Direct download from media popup selecting resolution, skipping analysis
@@ -6236,7 +6241,7 @@ class MainWindow(QMainWindow):
         self._grabber_dlg.raise_()
         self._grabber_dlg.activateWindow()
 
-    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None):
+    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None, merge_output_format="mkv"):
         from core.media_downloader import YtDlpDownloadWorker
 
         if is_debug_mode():
@@ -6527,7 +6532,8 @@ class MainWindow(QMainWindow):
             user_agent=user_agent,
             cookies=cookies,
             total_bytes=total_size_bytes,
-            temp_dir=temp_dir
+            temp_dir=temp_dir,
+            merge_output_format=merge_output_format
         )
         if total_size_bytes > 0:
             worker.total_bytes = total_size_bytes

@@ -130,7 +130,7 @@ class YtDlpDownloadWorker(QThread):
     init_segments_signal = pyqtSignal(int)
     segment_update_signal = pyqtSignal(int, int, int, float, str)
 
-    def __init__(self, url: str, download_id: int = 0, save_dir: str = "", filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None, **kwargs):
+    def __init__(self, url: str, download_id: int = 0, save_dir: str = "", filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None, merge_output_format: str = "mkv", **kwargs):
         super().__init__()
         self.url = url
         self.download_id = kwargs.get("row_index", download_id)
@@ -170,6 +170,10 @@ class YtDlpDownloadWorker(QThread):
         self.current_bytes = 0
         self.target_path = os.path.join(self.save_dir, self.filename)
         self.speed_limit_bytes = 0
+        # Normalize: only "mp4" and "webm" are supported MP4Box-friendly containers;
+        # fall back to "mkv" for anything else so ffmpeg merge always succeeds.
+        _fmt = (merge_output_format or "mkv").strip().lower()
+        self.merge_output_format = _fmt if _fmt in ("mp4", "webm", "mkv") else "mkv"
 
         try:
             from core.utils import load_extension_config
@@ -537,20 +541,25 @@ class YtDlpDownloadWorker(QThread):
             if self.is_audio_only:
                 base_cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
             else:
-                base_cmd.extend(["--merge-output-format", "mkv"])
+                base_cmd.extend(["--merge-output-format", self.merge_output_format])
 
             if self.max_connections > 1:
                 base_cmd.extend(["--concurrent-fragments", str(self.max_connections)])
             if getattr(self, "speed_limit_bytes", 0) > 0:
                 base_cmd.extend(["--limit-rate", str(self.speed_limit_bytes)])
 
-            # Resolve cookies: if cookies.txt in option/worker is configured and exists, use it.
-            # Otherwise (if cookies.txt in option is empty), use the browser-sent cookies.
-            effective_cookies_file = self.cookies_file
-            if not effective_cookies_file:
-                opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
-                if opt_cpath and os.path.exists(opt_cpath):
-                    effective_cookies_file = opt_cpath
+            # Cookie priority: browser extension cookies take precedence (freshest, session-bound).
+            # Only fall back to the explicit cookies_file or the options cookies.txt when the
+            # extension sent nothing (self.cookies is empty/None).
+            extension_cookies = getattr(self, "cookies", None)
+            effective_cookies_file = None
+            if not extension_cookies:
+                # No extension cookies — try explicit cookies_file, then options path
+                effective_cookies_file = self.cookies_file
+                if not effective_cookies_file:
+                    opt_cpath = cfg.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
+                    if opt_cpath and os.path.exists(opt_cpath):
+                        effective_cookies_file = opt_cpath
 
             md = sys.modules.get("core.media_downloader")
             env_fn = getattr(md, "get_clean_env", get_clean_env) if md else get_clean_env
@@ -558,9 +567,9 @@ class YtDlpDownloadWorker(QThread):
             clean_env = env_fn(bin_dir)
             temp_cookies_file = None
             has_cookies = bool(
-                (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
+                extension_cookies
+                or (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
                 or (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
-                or getattr(self, "cookies", None)
             )
             attempts = [1, 2] if has_cookies else [1]
 
@@ -570,16 +579,19 @@ class YtDlpDownloadWorker(QThread):
 
                 cmd = list(base_cmd)
                 if attempt == 1 and has_cookies:
-                    if effective_cookies_file and os.path.exists(str(effective_cookies_file)):
-                        cmd.extend(["--cookies", str(effective_cookies_file)])
-                    elif self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
-                        cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
-                    elif getattr(self, "cookies", None):
-                        temp_cookies_file = create_temp_netscape_cookie_file(self.cookies, self.url)
+                    if extension_cookies:
+                        # Highest priority: fresh cookies sent directly from the browser extension
+                        temp_cookies_file = create_temp_netscape_cookie_file(extension_cookies, self.url)
                         if temp_cookies_file and os.path.exists(temp_cookies_file):
                             cmd.extend(["--cookies", temp_cookies_file])
                         else:
-                            cmd.extend(["--add-header", f"Cookie:{self.cookies}"])
+                            cmd.extend(["--add-header", f"Cookie:{extension_cookies}"])
+                    elif effective_cookies_file and os.path.exists(str(effective_cookies_file)):
+                        # Fallback: user-configured cookies.txt (options) or explicit cookies_file
+                        cmd.extend(["--cookies", str(effective_cookies_file)])
+                    elif self.cookies_browser and self.cookies_browser.lower() not in ("none", ""):
+                        # Last resort: extract cookies from a locally installed browser profile
+                        cmd.extend(["--cookies-from-browser", self.cookies_browser.lower()])
 
                 cmd.append(self.url)
 

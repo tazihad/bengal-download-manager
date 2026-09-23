@@ -1840,11 +1840,12 @@ class MediaDownloaderDialog(QDialog):
             config["media_downloader_defaults"] = defaults
             save_category_config(config)
 
-    def _get_single_video_format_spec(self) -> tuple[str, bool]:
+    def _get_single_video_format_spec(self) -> tuple[str, bool, str]:
         """
-        Returns tuple (format_spec, is_audio_only).
+        Returns tuple (format_spec, is_audio_only, output_container).
         If Manual Selection is checked, uses selected format ID from table.
         Otherwise builds format_spec using quality preset, video format filter, audio format filter, and FPS filter.
+        output_container is 'mp4', 'webm', or 'mkv' (default).
         """
         if self.chk_manual_selection.isChecked():
             sel_rows = self.tbl_formats.selectionModel().selectedRows()
@@ -1854,11 +1855,11 @@ class MediaDownloaderDialog(QDialog):
                 if row_idx < len(formats):
                     fmt = formats[row_idx]
                     if fmt.get("is_video") and not fmt.get("is_audio"):
-                        return (f"{fmt['format_id']}+bestaudio/best", False)
+                        return (f"{fmt['format_id']}+bestaudio/best", False, "mkv")
                     elif fmt.get("is_audio") and not fmt.get("is_video"):
-                        return (fmt["format_id"], True)
+                        return (fmt["format_id"], True, "mkv")
                     else:
-                        return (fmt["format_id"], False)
+                        return (fmt["format_id"], False, "mkv")
 
         preset_idx = self.cmb_quality_preset.currentIndex()
         v_key = self.cmb_video_format.currentData() or "any"
@@ -1867,7 +1868,7 @@ class MediaDownloaderDialog(QDialog):
 
         # Audio-only preset
         if preset_idx == 7:
-            return ("bestaudio/best", True)
+            return ("bestaudio/best", True, "mkv")
 
         height_limit = None
         if preset_idx == 1: height_limit = 2160     # 4K
@@ -1881,6 +1882,15 @@ class MediaDownloaderDialog(QDialog):
         if v_key == "h264": vfilter = "[vcodec^=avc1]"
         elif v_key == "webm": vfilter = "[vcodec^=vp9]"
         elif v_key == "av1": vfilter = "[vcodec^=av01]"
+
+        # Determine output container based on chosen codec/format
+        # h264 → mp4 (native container); webm → webm; av1 / any → mkv (safest merge container)
+        if v_key == "h264":
+            output_container = "mp4"
+        elif v_key == "webm":
+            output_container = "webm"
+        else:
+            output_container = "mkv"
 
         fps_filter = f"[fps<={fps_target}]" if fps_target and fps_target > 0 else ""
 
@@ -1902,7 +1912,7 @@ class MediaDownloaderDialog(QDialog):
         else:
             format_spec = f"{v_spec}+bestaudio[ext=m4a]/{v_spec}+bestaudio/{fallback_v}+bestaudio[ext=m4a]/{fallback_v}+bestaudio/best"
 
-        return (format_spec, False)
+        return (format_spec, False, output_container)
 
     def _get_playlist_format_spec(self) -> tuple[str, bool]:
         """Returns format spec for playlist items based on global playlist quality dropdown."""
@@ -1958,10 +1968,17 @@ class MediaDownloaderDialog(QDialog):
                     video_id = m.group(1) if m else ""
                 title = f"video_{video_id}" if video_id else "video"
 
-            format_spec, is_audio_only = self._get_single_video_format_spec()
+            format_spec, is_audio_only, output_container = self._get_single_video_format_spec()
 
             from core.utils import sanitize_media_filename
-            ext = ".opus" if is_audio_only else ".mkv"
+            if is_audio_only:
+                ext = ".opus"
+            elif output_container == "mp4":
+                ext = ".mp4"
+            elif output_container == "webm":
+                ext = ".webm"
+            else:
+                ext = ".mkv"
 
             preset_idx = self.cmb_quality_preset.currentIndex()
             target_height = None
@@ -2127,7 +2144,8 @@ class MediaDownloaderDialog(QDialog):
                         referrer=getattr(self, "_referrer", None),
                         user_agent=getattr(self, "_user_agent", None),
                         show_file_info=True,
-                        cookies=getattr(self, "_cookies", None)
+                        cookies=getattr(self, "_cookies", None),
+                        merge_output_format=output_container
                     )
                 except TypeError:
                     try:
@@ -2141,7 +2159,8 @@ class MediaDownloaderDialog(QDialog):
                             total_size_bytes=total_size_bytes,
                             referrer=getattr(self, "_referrer", None),
                             user_agent=getattr(self, "_user_agent", None),
-                            show_file_info=True
+                            show_file_info=True,
+                            merge_output_format=output_container
                         )
                     except TypeError:
                         mw.start_media_download(
