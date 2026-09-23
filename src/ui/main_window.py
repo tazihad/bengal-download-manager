@@ -369,7 +369,14 @@ class MainWindow(QMainWindow):
             self.update_tray_action()
             return
 
-        # 1. Hide tray icon immediately to prevent ghost tray icons in taskbars
+        # 1. Hide the window and tray icon immediately — user sees instant exit
+        #    before any blocking background cleanup (IPC stop, SingleInstance, workers)
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
+
         if hasattr(self, "tray_icon") and self.tray_icon:
             try:
                 self.tray_icon.hide()
@@ -2434,7 +2441,9 @@ class MainWindow(QMainWindow):
                         referrer=item_name.data(Qt.ItemDataRole.UserRole + 15),
                         user_agent=item_name.data(Qt.ItemDataRole.UserRole + 16),
                         cookies=raw_cookies,
-                        temp_dir=temp_dir
+                        temp_dir=temp_dir,
+                        merge_output_format=item_name.data(Qt.ItemDataRole.UserRole + 19),
+                        audio_format=item_name.data(Qt.ItemDataRole.UserRole + 20)
                     )
                     progress_dialog = DownloadProgressDialog(worker, None)
                     progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
@@ -4426,15 +4435,41 @@ class MainWindow(QMainWindow):
                 m_h = re.search(r"(\d{3,4})", selected_quality)
                 height = int(m_h.group(1)) if m_h else None
 
+                # Resolve user-configured output formats from Options > Media
+                _vc_display = media_defaults.get("video_container", "Auto (Best / Native) (Default)")
+                _video_container = _vc_display.split()[0].lower()
+                _af_display = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
+                _audio_format = _af_display.split()[0].lower()
+
                 if is_audio:
                     format_spec = "bestaudio/best"
-                    ext = ".mp3" if "mp3" in selected_quality.lower() else ".opus"
+                    ext = "." + (_audio_format if _audio_format not in ("auto", "best") else "opus")
                 elif height:
-                    format_spec = f"bestvideo[height<={height}]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
-                    ext = ".mkv"
+                    if _video_container == "webm":
+                        format_spec = f"bestvideo[height<={height}][ext=webm]+bestaudio[ext=webm]/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        ext = ".webm"
+                    elif _video_container == "mp4":
+                        format_spec = f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        ext = ".mp4"
+                    elif _video_container == "mkv":
+                        format_spec = f"bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        ext = ".mkv"
+                    else:
+                        format_spec = f"bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        ext = ".mp4"
                 else:
-                    format_spec = "bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
-                    ext = ".mkv"
+                    if _video_container == "webm":
+                        format_spec = "bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo+bestaudio/best"
+                        ext = ".webm"
+                    elif _video_container == "mp4":
+                        format_spec = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+                        ext = ".mp4"
+                    elif _video_container == "mkv":
+                        format_spec = "bestvideo+bestaudio/best"
+                        ext = ".mkv"
+                    else:
+                        format_spec = "bestvideo+bestaudio/best"
+                        ext = ".mp4"
 
                 # Construct appropriate filename
                 from core.utils import sanitize_media_filename
@@ -4589,7 +4624,9 @@ class MainWindow(QMainWindow):
                     referrer=referrer,
                     user_agent=user_agent,
                     show_file_info=not auto_start,
-                    cookies=effective_cookies
+                    cookies=effective_cookies,
+                    merge_output_format=_video_container,
+                    audio_format=_audio_format
                 )
                 return
             else:
@@ -5133,7 +5170,9 @@ class MainWindow(QMainWindow):
                 user_agent=user_agent or item_ref.data(Qt.ItemDataRole.UserRole + 16),
                 cookies=raw_cookies,
                 total_bytes=est_bytes,
-                temp_dir=temp_dir
+                temp_dir=temp_dir,
+                merge_output_format=item_ref.data(Qt.ItemDataRole.UserRole + 19),
+                audio_format=item_ref.data(Qt.ItemDataRole.UserRole + 20)
             )
             if est_bytes > 0:
                 worker.total_bytes = est_bytes
@@ -5460,6 +5499,11 @@ class MainWindow(QMainWindow):
             pct_str = f"{pct_val:.2f}%"
         elif prev_pct_str and "%" in str(prev_pct_str):
             pct_str = str(prev_pct_str)
+
+        # 0. Worker reports active converting / processing state
+        if worker_status.startswith("Converting") or worker_status.startswith("Processing"):
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            return worker_status, worker_status, "100.00%", True
 
         # 1. User Intent: Complete
         if user_state == "Complete" or worker_status == "Complete" or (tot_bytes > 0 and comp_bytes >= tot_bytes):
@@ -6241,7 +6285,7 @@ class MainWindow(QMainWindow):
         self._grabber_dlg.raise_()
         self._grabber_dlg.activateWindow()
 
-    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None, merge_output_format="mkv"):
+    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None, merge_output_format=None, audio_format=None):
         from core.media_downloader import YtDlpDownloadWorker
 
         if is_debug_mode():
@@ -6251,6 +6295,14 @@ class MainWindow(QMainWindow):
         config = load_category_config()
         categories = config.get("categories", {})
         media_defaults = config.get("media_downloader_defaults", {})
+
+        explicit_format = merge_output_format is not None and merge_output_format not in ("auto", "best")
+        if merge_output_format is None:
+            _vc = media_defaults.get("video_container", "Auto (Best / Native) (Default)")
+            merge_output_format = _vc.split()[0].lower()
+        if audio_format is None:
+            _af = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
+            audio_format = _af.split()[0].lower()
 
         # If cookies.txt in option is set and exists, use it.
         # If cookies.txt in option is empty, use the browser-sent cookies.
@@ -6274,6 +6326,16 @@ class MainWindow(QMainWindow):
 
         from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes, is_generic_media_title
         base_name, ext = os.path.splitext(filename)
+        if is_audio_only:
+            if audio_format and audio_format not in ("auto", "best"):
+                ext = "." + audio_format
+            elif not ext or ext.lower() in ('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.ts'):
+                ext = ".opus"
+        else:
+            if merge_output_format and merge_output_format not in ("auto", "best"):
+                ext = "." + merge_output_format
+            elif not ext:
+                ext = ".mp4"
         is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
         is_tiktok = bool((url and "tiktok.com" in url.lower()) or (referrer and "tiktok.com" in referrer.lower()))
         is_instagram = bool((url and "instagram.com" in url.lower()) or (referrer and "instagram.com" in referrer.lower()))
@@ -6437,6 +6499,8 @@ class MainWindow(QMainWindow):
             item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
             item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
             item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+            item_name.setData(Qt.ItemDataRole.UserRole + 19, merge_output_format)
+            item_name.setData(Qt.ItemDataRole.UserRole + 20, audio_format)
             item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
             item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
             item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
@@ -6488,6 +6552,8 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
         item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
         item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+        item_name.setData(Qt.ItemDataRole.UserRole + 19, merge_output_format)
+        item_name.setData(Qt.ItemDataRole.UserRole + 20, audio_format)
         item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
         item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
         item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
@@ -6533,7 +6599,8 @@ class MainWindow(QMainWindow):
             cookies=cookies,
             total_bytes=total_size_bytes,
             temp_dir=temp_dir,
-            merge_output_format=merge_output_format
+            merge_output_format=merge_output_format,
+            audio_format=audio_format
         )
         if total_size_bytes > 0:
             worker.total_bytes = total_size_bytes
@@ -6628,7 +6695,9 @@ class MainWindow(QMainWindow):
                 user_agent=user_agent,
                 cookies=cookies,
                 total_bytes=file_info.get("size_bytes", 0),
-                temp_dir=temp_dir
+                temp_dir=temp_dir,
+                merge_output_format=item_ref.data(Qt.ItemDataRole.UserRole + 19),
+                audio_format=item_ref.data(Qt.ItemDataRole.UserRole + 20)
             )
             if file_info.get("size_bytes"):
                 worker.total_bytes = file_info["size_bytes"]
@@ -6819,7 +6888,9 @@ class MainWindow(QMainWindow):
                             user_agent=item_ref.data(Qt.ItemDataRole.UserRole + 16),
                             cookies=raw_cookies,
                             total_bytes=est_bytes,
-                            temp_dir=temp_dir
+                            temp_dir=temp_dir,
+                            merge_output_format=item_ref.data(Qt.ItemDataRole.UserRole + 19),
+                            audio_format=item_ref.data(Qt.ItemDataRole.UserRole + 20)
                         )
                         if est_bytes > 0:
                             worker.total_bytes = est_bytes

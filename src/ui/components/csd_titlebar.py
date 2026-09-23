@@ -11,10 +11,10 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
-    QMainWindow, QDialog, QApplication
+    QMainWindow, QDialog, QApplication, QStyleOption, QStyle
 )
 from PyQt6.QtCore import Qt, QEvent, QObject, QPoint
-from PyQt6.QtGui import QMouseEvent, QCursor
+from PyQt6.QtGui import QMouseEvent, QCursor, QPainter
 
 # Official Libadwaita color tokens
 ADW_COLORS = {
@@ -88,25 +88,26 @@ class CsdResizeFilter(QObject):
         self._margin = 6
 
     def eventFilter(self, watched, event):
-        if watched != self._window:
+        win = getattr(self, "_window", None)
+        if not win or watched != win:
             return super().eventFilter(watched, event)
 
         etype = event.type()
 
         # Keep titlebar synchronized with window title and state
         if etype == QEvent.Type.WindowStateChange:
-            tb = getattr(self._window, "_csd_titlebar", None)
+            tb = getattr(win, "_csd_titlebar", None)
             if tb and hasattr(tb, "_update_maximize_state"):
                 tb._update_maximize_state()
         elif etype == QEvent.Type.WindowTitleChange:
-            tb = getattr(self._window, "_csd_titlebar", None)
+            tb = getattr(win, "_csd_titlebar", None)
             if tb and hasattr(tb, "update_title"):
-                tb.update_title(self._window.windowTitle())
+                tb.update_title(win.windowTitle())
 
-        if not (self._window.windowFlags() & Qt.WindowType.FramelessWindowHint):
+        if not (win.windowFlags() & Qt.WindowType.FramelessWindowHint):
             return super().eventFilter(watched, event)
 
-        if self._window.isMaximized() or self._window.isFullScreen():
+        if win.isMaximized() or win.isFullScreen():
             return super().eventFilter(watched, event)
 
         if etype == QEvent.Type.MouseMove:
@@ -115,21 +116,21 @@ class CsdResizeFilter(QObject):
             if edges:
                 self._update_cursor(edges)
             else:
-                self._window.unsetCursor()
+                win.unsetCursor()
 
         elif etype == QEvent.Type.MouseButtonPress:
             if event.button() == Qt.MouseButton.LeftButton:
                 pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
                 edges = self._get_edges(pos)
                 if edges:
-                    wh = self._window.windowHandle()
+                    wh = win.windowHandle()
                     if wh and hasattr(wh, "startSystemResize"):
                         wh.startSystemResize(edges)
                         event.accept()
                         return True
 
         elif etype == QEvent.Type.Leave:
-            self._window.unsetCursor()
+            win.unsetCursor()
 
         return super().eventFilter(watched, event)
 
@@ -183,6 +184,8 @@ class CsdTitleBar(QWidget):
     """
     def __init__(self, window: QWidget, is_dark: bool = False, is_dialog: bool = False):
         super().__init__(window)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
         self._window = window
         self._is_dialog = is_dialog
         self._is_dark = is_dark
@@ -201,33 +204,32 @@ class CsdTitleBar(QWidget):
         font.setBold(True)
         self.title_lbl.setFont(font)
 
-        # Window Controls
-        has_max_hint = bool(self._window.windowFlags() & Qt.WindowType.WindowMaximizeButtonHint) if self._window else True
+        # Window Controls: minimize, maximize/restore, and close buttons on all windows
+        self.btn_min = QPushButton("–", self)
+        self.btn_min.setObjectName("CsdBtnMin")
+        self.btn_min.setToolTip("Minimize")
+        self.btn_min.clicked.connect(self._window.showMinimized)
 
-        if not is_dialog:
-            self.btn_min = QPushButton("–", self)
-            self.btn_min.setToolTip("Minimize")
-            self.btn_min.clicked.connect(self._window.showMinimized)
-
-            self.btn_max = QPushButton("□", self)
-            self.btn_max.setToolTip("Maximize")
-            self.btn_max.clicked.connect(self._toggle_maximize)
-        elif has_max_hint:
-            self.btn_min = None
-            self.btn_max = QPushButton("□", self)
-            self.btn_max.setToolTip("Maximize")
-            self.btn_max.clicked.connect(self._toggle_maximize)
-        else:
-            self.btn_min = None
-            self.btn_max = None
+        self.btn_max = QPushButton("□", self)
+        self.btn_max.setObjectName("CsdBtnMax")
+        self.btn_max.setToolTip("Maximize")
+        self.btn_max.clicked.connect(self._toggle_maximize)
 
         self.btn_close = QPushButton("✕", self)
+        self.btn_close.setObjectName("CsdBtnClose")
         self.btn_close.setToolTip("Close")
         self.btn_close.clicked.connect(self._window.close)
 
         # Layout header items following XDG / GNOME button placement
         self.setup_header_layout()
         self.apply_style(is_dark)
+
+    def paintEvent(self, event):
+        opt = QStyleOption()
+        opt.initFrom(self)
+        p = QPainter(self)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, p, self)
+        super().paintEvent(event)
 
     def setup_header_layout(self):
         """Arranges window controls following the XDG / GNOME button layout standard."""
@@ -330,7 +332,7 @@ class CsdTitleBar(QWidget):
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
-        if not self._is_dialog and event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self._toggle_maximize()
             event.accept()
             return
@@ -340,6 +342,12 @@ class CsdTitleBar(QWidget):
 def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
     """Attaches Libadwaita Client-Side Decoration (CSD) to a window (QMainWindow or QDialog)."""
     if not window or not window.isWindow():
+        return
+
+    # Strictly reject non-dialog/non-main widgets (e.g. QComboBox popups, QMenu, ToolTips)
+    if not isinstance(window, (QMainWindow, QDialog)):
+        return
+    if window.windowType() not in (Qt.WindowType.Window, Qt.WindowType.Dialog):
         return
 
     # Check if CSD is already attached

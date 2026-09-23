@@ -15,7 +15,7 @@ import platform
 from pathlib import Path
 from typing import Optional, Tuple, List
 
-from PyQt6.QtWidgets import QApplication, QStyle, QFileIconProvider
+from PyQt6.QtWidgets import QApplication, QStyle, QFileIconProvider, QMainWindow, QDialog
 from PyQt6.QtGui import QColor, QPalette, QIcon, QFont, QPixmap, QImage, QPainter
 from PyQt6.QtCore import Qt, QFileInfo, QMimeDatabase, QLocale, QEvent, QTimer, QByteArray, QObject
 
@@ -792,10 +792,10 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
             sh.setColorScheme(getattr(Qt.ColorScheme, "Unknown", Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light))
 
     all_windows = []
-    if window:
+    if window and isinstance(window, (QMainWindow, QDialog)) and window.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog):
         all_windows.append(window)
     for w in app.topLevelWidgets():
-        if w and w.isWindow() and w not in all_windows:
+        if w and w.isWindow() and isinstance(w, (QMainWindow, QDialog)) and w.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog) and w not in all_windows:
             all_windows.append(w)
 
     scheme_name, scheme_path = _find_kde_color_scheme(is_dark)
@@ -905,7 +905,8 @@ class _TitleBarEventFilter(QObject):
         try:
             if event.type() == QEvent.Type.Show:
                 if hasattr(watched, "isWindow") and watched.isWindow():
-                    apply_titlebar_theme(get_current_titlebar_mode(), window=watched)
+                    if isinstance(watched, (QMainWindow, QDialog)) and watched.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog):
+                        apply_titlebar_theme(get_current_titlebar_mode(), window=watched)
         except Exception:
             pass
         return super().eventFilter(watched, event)

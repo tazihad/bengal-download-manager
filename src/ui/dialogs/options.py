@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
-    QApplication, QStackedWidget, QSizePolicy
+    QApplication, QStackedWidget, QSizePolicy, QScrollArea
 )
 from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -281,7 +281,13 @@ class OptionsDialog(QDialog):
         return getattr(self, "_main_window", None) or self.parent()
 
     def setup_general_tab(self):
-        layout = QVBoxLayout(self.general_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
         
@@ -514,13 +520,26 @@ class OptionsDialog(QDialog):
         grid_ui.addWidget(self.combo_scale, 0, 1)
         grid_ui.addWidget(lbl_language, 0, 2)
         grid_ui.addWidget(self.combo_language, 0, 3)
+        grid_ui.setColumnStretch(4, 1)
 
         grp_ui.setLayout(grid_ui)
         layout.addWidget(grp_ui)
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.general_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_downloads_tab(self):
-        layout = QVBoxLayout(self.downloads_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
@@ -649,10 +668,23 @@ class OptionsDialog(QDialog):
 
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.downloads_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_startup_tab(self):
-        layout = QVBoxLayout(self.startup_tab)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(20)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Startup and Integration
         grp_startup = QGroupBox("Startup and Integration")
@@ -674,7 +706,11 @@ class OptionsDialog(QDialog):
         
         grp_startup.setLayout(vbox_startup)
         layout.addWidget(grp_startup)
-        layout.addStretch()
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.startup_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
 
 
     def refresh_engine_status(self):
@@ -716,7 +752,13 @@ class OptionsDialog(QDialog):
         threading.Thread(target=check, daemon=True).start()
 
     def setup_saveto_tab(self):
-        layout = QVBoxLayout(self.saveto_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
         
@@ -798,6 +840,12 @@ class OptionsDialog(QDialog):
         grp_temp.setLayout(temp_layout)
         layout.addWidget(grp_temp)
         layout.addStretch()
+
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.saveto_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
         self.on_category_changed(self.combo_cat.currentText())
 
     def on_proxy_toggle(self, checked):
@@ -807,7 +855,13 @@ class OptionsDialog(QDialog):
             self.refresh_engine_status()
 
     def setup_proxy_tab(self):
-        layout = QVBoxLayout(self.proxy_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
         
@@ -1040,8 +1094,20 @@ class OptionsDialog(QDialog):
         if self.rb_manual.isChecked() and self.txt_host.text().strip():
             QTimer.singleShot(200, self.trigger_proxy_detection)
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.proxy_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_extension_tab(self):
-        layout = QVBoxLayout(self.extension_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
         
@@ -1128,8 +1194,20 @@ class OptionsDialog(QDialog):
 
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.extension_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_aria2_tab(self):
-        layout = QVBoxLayout(self.aria2_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
@@ -1235,8 +1313,20 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_ipc)
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.aria2_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_media_tab(self):
-        layout = QVBoxLayout(self.media_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
@@ -1258,9 +1348,15 @@ class OptionsDialog(QDialog):
         self.chk_auto_update_engine.setChecked(bool(media_defaults.get("auto_update_engine_startup", True)))
         vbox_browser.addWidget(self.chk_auto_update_engine)
 
-        row_media_q = QHBoxLayout()
-        row_media_q.addWidget(QLabel("Preselected Quality Target:"))
+        grid_media = QGridLayout()
+        grid_media.setContentsMargins(0, 6, 0, 0)
+        grid_media.setSpacing(10)
+
+        lbl_q = QLabel("Quality preset:")
+        lbl_q.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality = QComboBox()
+        self.cmb_media_quality.setFixedHeight(28)
+        self.cmb_media_quality.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality.addItems([
             "Best Quality (Video + Audio merged)",
@@ -1278,9 +1374,65 @@ class OptionsDialog(QDialog):
             self.cmb_media_quality.setCurrentIndex(idx_q)
         else:
             self.cmb_media_quality.setCurrentIndex(3)  # 1080p Full HD
-        
-        row_media_q.addWidget(self.cmb_media_quality, stretch=1)
-        vbox_browser.addLayout(row_media_q)
+
+        grid_media.addWidget(lbl_q, 0, 0)
+        grid_media.addWidget(self.cmb_media_quality, 0, 1)
+
+        # Video Container format
+        lbl_v = QLabel("Video format:")
+        lbl_v.setToolTip(
+            "Output container format for downloaded videos.\n"
+            "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
+            "• MKV: Universal container, supports all codecs.\n"
+            "• MP4 / WebM: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_video_container = QComboBox()
+        self.cmb_video_container.setFixedHeight(28)
+        self.cmb_video_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_video_container.setToolTip(
+            "Output container format for downloaded videos.\n"
+            "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
+            "• MKV: Universal container, supports all codecs.\n"
+            "• MP4 / WebM: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_video_container.addItems([
+            "Auto (Best / Native) (Default)", "MKV", "MP4", "WebM"
+        ])
+        saved_vc = media_defaults.get("video_container", "Auto (Best / Native) (Default)")
+        idx_vc = self.cmb_video_container.findText(saved_vc)
+        self.cmb_video_container.setCurrentIndex(idx_vc if idx_vc != -1 else 0)
+
+        grid_media.addWidget(lbl_v, 1, 0)
+        grid_media.addWidget(self.cmb_video_container, 1, 1)
+
+        # Audio Format
+        lbl_a = QLabel("Audio format:")
+        lbl_a.setToolTip(
+            "Output format for audio-only downloads.\n"
+            "• Auto: Downloads the site's native audio stream (fastest).\n"
+            "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_audio_format = QComboBox()
+        self.cmb_audio_format.setFixedHeight(28)
+        self.cmb_audio_format.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_audio_format.setToolTip(
+            "Output format for audio-only downloads.\n"
+            "• Auto: Downloads the site's native audio stream (fastest).\n"
+            "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_audio_format.addItems([
+            "Auto (Best / Native) (Default)", "Opus", "MP3", "AAC", "FLAC", "M4A", "OGG", "WAV"
+        ])
+        saved_af = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
+        idx_af = self.cmb_audio_format.findText(saved_af)
+        self.cmb_audio_format.setCurrentIndex(idx_af if idx_af != -1 else 0)
+
+        grid_media.addWidget(lbl_a, 2, 0)
+        grid_media.addWidget(self.cmb_audio_format, 2, 1)
+
+        grid_media.setColumnStretch(1, 1)
+
+        vbox_browser.addLayout(grid_media)
         layout.addWidget(grp_browser)
 
         # 2. Authentication and Cookie Vault Defaults
@@ -1294,27 +1446,15 @@ class OptionsDialog(QDialog):
         lbl_cookie.setToolTip("Select cookie authentication strategy for media sites")
         row_cookies_config.addWidget(lbl_cookie)
         self.cmb_opt_cookies_mode = QComboBox()
-        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file, browser auto-extract, or none)")
+        self.cmb_opt_cookies_mode.setFixedHeight(28)
+        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file or none)")
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
-            "Browser Auto-Extraction",
             "None (Anonymous / Public)"
         ])
         saved_cmode = media_defaults.get("cookies_mode_idx", 0)
-        self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 2))
+        self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 1))
         row_cookies_config.addWidget(self.cmb_opt_cookies_mode, stretch=1)
-
-        self.lbl_opt_cookies_browser = QLabel("Browser:")
-        self.lbl_opt_cookies_browser.setToolTip("Select installed web browser to extract cookies from")
-        row_cookies_config.addWidget(self.lbl_opt_cookies_browser)
-        self.cmb_opt_cookies_browser = QComboBox()
-        self.cmb_opt_cookies_browser.setToolTip("Select web browser to automatically extract authenticated cookies")
-        self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
-        saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
-        idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
-        if idx_cb != -1:
-            self.cmb_opt_cookies_browser.setCurrentIndex(idx_cb)
-        row_cookies_config.addWidget(self.cmb_opt_cookies_browser, stretch=1)
         vbox_cookies.addLayout(row_cookies_config)
 
         # Full-width cookies path input with Browse / Clear buttons below
@@ -1345,6 +1485,17 @@ class OptionsDialog(QDialog):
         row_cbuttons.addWidget(self.btn_opt_clear_c)
 
         vbox_cookies.addLayout(row_cbuttons)
+
+        lbl_cookies_help = QLabel(
+            '<i>Authenticated cookies bypass bot verification ("Sign in to confirm you\'re not a bot"), '
+            'rate limits, and unlock premium/member-only streams. '
+            'Learn how to export and configure cookies in the '
+            '<a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: #3498db; text-decoration: underline;">How to Use Cookies Guide on GitHub</a>.</i>'
+        )
+        lbl_cookies_help.setOpenExternalLinks(True)
+        lbl_cookies_help.setWordWrap(True)
+        lbl_cookies_help.setStyleSheet("color: gray; font-size: 11px;")
+        vbox_cookies.addWidget(lbl_cookies_help)
 
         self.cmb_opt_cookies_mode.currentIndexChanged.connect(self._update_opt_cookies_ui)
         self._update_opt_cookies_ui()
@@ -1377,16 +1528,16 @@ class OptionsDialog(QDialog):
 
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.media_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def _update_opt_cookies_ui(self):
         mode_idx = self.cmb_opt_cookies_mode.currentIndex() if hasattr(self, "cmb_opt_cookies_mode") else 0
-        # 0 = Netscape File, 1 = Browser Auto-Extraction, 2 = None
+        # 0 = Netscape File, 1 = None
         is_file_mode = (mode_idx == 0)
-        is_browser_mode = (mode_idx == 1)
-
-        if hasattr(self, "lbl_opt_cookies_browser"):
-            self.lbl_opt_cookies_browser.setEnabled(is_browser_mode)
-        if hasattr(self, "cmb_opt_cookies_browser"):
-            self.cmb_opt_cookies_browser.setEnabled(is_browser_mode)
 
         if hasattr(self, "lbl_opt_cookies_path"):
             self.lbl_opt_cookies_path.setEnabled(is_file_mode)
@@ -1645,6 +1796,11 @@ class OptionsDialog(QDialog):
                 preview_fn(t, a, i, tr, tb)
 
     def reject(self):
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
@@ -1669,12 +1825,12 @@ class OptionsDialog(QDialog):
             media_defaults["auto_update_engine_startup"] = self.chk_auto_update_engine.isChecked()
         if hasattr(self, "cmb_media_quality"):
             media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
+        if hasattr(self, "cmb_video_container"):
+            media_defaults["video_container"] = self.cmb_video_container.currentText()
+        if hasattr(self, "cmb_audio_format"):
+            media_defaults["audio_format"] = self.cmb_audio_format.currentText()
         if hasattr(self, "cmb_opt_cookies_mode"):
             media_defaults["cookies_mode_idx"] = self.cmb_opt_cookies_mode.currentIndex()
-        if hasattr(self, "cmb_opt_cookies_browser"):
-            b_name = self.cmb_opt_cookies_browser.currentText()
-            media_defaults["cookies_browser"] = b_name
-            self.config_data["media_downloader_cookies_browser"] = b_name
         if hasattr(self, "txt_opt_cookies_path"):
             c_path = self.txt_opt_cookies_path.text().strip()
             media_defaults["cookies_path"] = c_path
@@ -1783,10 +1939,20 @@ class OptionsDialog(QDialog):
             self._proxy_worker = None
 
     def closeEvent(self, event):
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
         self._cleanup_proxy_worker()
         super().closeEvent(event)
 
     def accept(self):
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
         self._cleanup_proxy_worker()
         super().accept()
 

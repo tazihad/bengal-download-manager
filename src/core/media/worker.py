@@ -130,7 +130,7 @@ class YtDlpDownloadWorker(QThread):
     init_segments_signal = pyqtSignal(int)
     segment_update_signal = pyqtSignal(int, int, int, float, str)
 
-    def __init__(self, url: str, download_id: int = 0, save_dir: str = "", filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None, merge_output_format: str = "mkv", **kwargs):
+    def __init__(self, url: str, download_id: int = 0, save_dir: str = "", filename: str = None, format_spec: str = "bestvideo+bestaudio/best", is_audio_only: bool = False, cookies_browser: str = None, cookies_file: str = None, referrer: str = None, user_agent: str = None, cookies: str = None, total_bytes: int = 0, temp_dir: str = None, merge_output_format: str = None, audio_format: str = None, **kwargs):
         super().__init__()
         self.url = url
         self.download_id = kwargs.get("row_index", download_id)
@@ -170,10 +170,29 @@ class YtDlpDownloadWorker(QThread):
         self.current_bytes = 0
         self.target_path = os.path.join(self.save_dir, self.filename)
         self.speed_limit_bytes = 0
-        # Normalize: only "mp4" and "webm" are supported MP4Box-friendly containers;
-        # fall back to "mkv" for anything else so ffmpeg merge always succeeds.
-        _fmt = (merge_output_format or "mkv").strip().lower()
-        self.merge_output_format = _fmt if _fmt in ("mp4", "webm", "mkv") else "mkv"
+
+        # Load video container and audio format from config when not explicitly provided
+        if merge_output_format is None or audio_format is None:
+            try:
+                from core.config import load_category_config as _load_cfg2
+                _md_cfg = sys.modules.get("core.media_downloader")
+                _cfg_fn2 = getattr(_md_cfg, "load_category_config", _load_cfg2) if _md_cfg else _load_cfg2
+                _media_cfg = _cfg_fn2().get("media_downloader_defaults", {})
+                if merge_output_format is None:
+                    _vc = _media_cfg.get("video_container", "Auto (Best / Native) (Default)")
+                    merge_output_format = _vc.split()[0].lower()
+                if audio_format is None:
+                    _af = _media_cfg.get("audio_format", "Auto (Best / Native) (Default)")
+                    audio_format = _af.split()[0].lower()
+            except Exception:
+                pass
+
+        _fmt = (merge_output_format or "auto").strip().lower()
+        self.merge_output_format = _fmt if _fmt in ("mp4", "webm", "mkv", "auto") else "auto"
+
+        _VALID_AUDIO_FMTS = ("opus", "mp3", "aac", "flac", "m4a", "ogg", "wav", "vorbis", "alac", "best", "auto")
+        _afmt = (audio_format or "auto").strip().lower()
+        self.audio_format = _afmt if _afmt in _VALID_AUDIO_FMTS else "auto"
 
         try:
             from core.utils import load_extension_config
@@ -505,8 +524,6 @@ class YtDlpDownloadWorker(QThread):
                 "--verbose" if is_debug else "--no-warnings",
                 "--progress-delta", "0.1",
                 "--remote-components", "ejs:github",
-                "--embed-thumbnail",
-                "--convert-thumbnails", "png",
                 "--restrict-filenames",
                 "--paths", f"home:{self.save_dir}",
                 "--paths", f"temp:{self.temp_dir}",
@@ -516,6 +533,38 @@ class YtDlpDownloadWorker(QThread):
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
+
+            # Selective thumbnail embedding: only enable for containers supported by yt-dlp/ffmpeg
+            # Supported: mp3, mkv/mka, ogg/opus/flac, m4a/mp4/m4v/mov
+            # Unsupported: webm, wav, avi, flv, ts
+            SUPPORTED_THUMB_CONTAINERS = {"mp3", "mkv", "mka", "ogg", "opus", "flac", "m4a", "mp4", "m4v", "mov"}
+            supports_thumbnail = False
+            if self.is_audio_only:
+                afmt = (self.audio_format or "auto").lower().strip()
+                if afmt in ("mp3", "m4a", "flac", "ogg", "opus", "mka"):
+                    supports_thumbnail = True
+                elif afmt in ("wav",):
+                    supports_thumbnail = False
+                elif self.filename and any(self.filename.lower().endswith("." + ext) for ext in SUPPORTED_THUMB_CONTAINERS):
+                    supports_thumbnail = True
+            else:
+                vfmt = (self.merge_output_format or "auto").lower().strip()
+                if vfmt in ("mp4", "mkv", "mov", "m4v"):
+                    supports_thumbnail = True
+                elif vfmt in ("webm", "avi", "flv", "ts"):
+                    supports_thumbnail = False
+                else:
+                    fmt_lower = (self.format_spec or "").lower()
+                    fn_lower = (self.filename or "").lower()
+                    if "[ext=webm]" in fmt_lower or fn_lower.endswith(".webm"):
+                        supports_thumbnail = False
+                    elif "[ext=mp4]" in fmt_lower or fn_lower.endswith(".mp4") or fn_lower.endswith(".mkv"):
+                        supports_thumbnail = True
+                    else:
+                        supports_thumbnail = False
+
+            if supports_thumbnail:
+                base_cmd.extend(["--embed-thumbnail", "--convert-thumbnails", "png"])
 
             ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
             if ffmpeg_bin:
@@ -539,9 +588,13 @@ class YtDlpDownloadWorker(QThread):
             base_cmd.extend(["--add-header", "Accept-Language:en-US,en;q=0.9"])
 
             if self.is_audio_only:
-                base_cmd.extend(["-x", "--audio-format", "opus", "--audio-quality", "0"])
+                if self.audio_format and self.audio_format not in ("auto", "best"):
+                    base_cmd.extend(["-x", "--audio-format", self.audio_format, "--audio-quality", "0"])
+                else:
+                    base_cmd.extend(["-x"])
             else:
-                base_cmd.extend(["--merge-output-format", self.merge_output_format])
+                if self.merge_output_format and self.merge_output_format not in ("auto", "best"):
+                    base_cmd.extend(["--merge-output-format", self.merge_output_format])
 
             if self.max_connections > 1:
                 base_cmd.extend(["--concurrent-fragments", str(self.max_connections)])
@@ -859,7 +912,7 @@ class YtDlpDownloadWorker(QThread):
                         candidates_temp = []
                         for fname in os.listdir(self.temp_dir):
                             fext = os.path.splitext(fname)[1].lower()
-                            if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"):
+                            if fext not in (".mp4", ".mkv", ".webm", ".mp3", ".opus", ".m4a", ".aac", ".flac", ".ogg", ".wav", ".flv", ".avi"):
                                 continue
                             fpath = os.path.join(self.temp_dir, fname)
                             if os.path.isfile(fpath):
@@ -886,7 +939,7 @@ class YtDlpDownloadWorker(QThread):
                         except Exception as e:
                             logger.error("[YtDlpDownload] Failed to move completed file from cache to save_dir: %s", e)
 
-                    if final_path:
+                    if final_path and os.path.exists(final_path):
                         self.target_path = final_path
                         self.filename = os.path.basename(final_path)
 

@@ -1884,13 +1884,19 @@ class MediaDownloaderDialog(QDialog):
         elif v_key == "av1": vfilter = "[vcodec^=av01]"
 
         # Determine output container based on chosen codec/format
-        # h264 → mp4 (native container); webm → webm; av1 / any → mkv (safest merge container)
+        # h264 → mp4; webm → webm; otherwise fallback to user preference in Options > Media
         if v_key == "h264":
             output_container = "mp4"
         elif v_key == "webm":
             output_container = "webm"
         else:
-            output_container = "mkv"
+            try:
+                from core.config import load_category_config as _lcfg
+                _mdefaults = _lcfg().get("media_downloader_defaults", {})
+                _vc_cfg = _mdefaults.get("video_container", "MKV (default)")
+                output_container = _vc_cfg.split()[0].lower()
+            except Exception:
+                output_container = "mkv"
 
         fps_filter = f"[fps<={fps_target}]" if fps_target and fps_target > 0 else ""
 
@@ -1972,13 +1978,15 @@ class MediaDownloaderDialog(QDialog):
 
             from core.utils import sanitize_media_filename
             if is_audio_only:
-                ext = ".opus"
-            elif output_container == "mp4":
-                ext = ".mp4"
-            elif output_container == "webm":
-                ext = ".webm"
+                try:
+                    from core.config import load_category_config as _lcfg
+                    _mdefaults = _lcfg().get("media_downloader_defaults", {})
+                    _af_cfg = _mdefaults.get("audio_format", "Opus (default)")
+                    ext = "." + _af_cfg.split()[0].lower()
+                except Exception:
+                    ext = ".opus"
             else:
-                ext = ".mkv"
+                ext = f".{output_container}"
 
             preset_idx = self.cmb_quality_preset.currentIndex()
             target_height = None

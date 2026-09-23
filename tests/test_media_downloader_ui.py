@@ -305,7 +305,7 @@ def test_facebook_media_popup_filename(qapp):
         assert mock_start.called
         kwargs_fb = mock_start.call_args.kwargs
         filename_fb = kwargs_fb.get("filename")
-        assert filename_fb == "10214828192847192.mkv"
+        assert filename_fb in ("10214828192847192.mp4", "10214828192847192.mkv")
 
     mw.close()
 

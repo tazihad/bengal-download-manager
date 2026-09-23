@@ -963,7 +963,10 @@ def test_dialog_csd_behavior(qapp, monkeypatch):
         tb = dlg._csd_titlebar
         assert isinstance(tb, CsdTitleBar)
         assert tb.height() == 46
-        assert tb.btn_min is None
+        assert tb.btn_min is not None
+        assert tb.btn_min.text() == "–"
+        assert tb.btn_max is not None
+        assert tb.btn_max.text() == "□"
         assert tb.btn_close is not None
         assert tb.btn_close.text() == "✕"
         assert tb._is_dark is True
