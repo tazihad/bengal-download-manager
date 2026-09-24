@@ -37,3 +37,14 @@ def test_media_extractor_helpers():
     assert determine_media_container_ext([{"ext": "mp4"}, {"ext": "webm"}]) == ".mkv"
     assert determine_media_container_ext([{"ext": "mp4"}, {"ext": "m4a"}]) == ".mp4"
     assert determine_media_container_ext([{"ext": "webm"}, {"ext": "webm"}]) == ".webm"
+
+
+def test_themed_tray_icon():
+    """Verify system tray icon resolution succeeds without NameError or crash."""
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(["-platform", "offscreen"])
+    from core.services.theme_service import get_themed_tray_icon
+    for opt in [None, "App Icon (Default)", "Monochrome Light", "Monochrome Dark", "Automatic"]:
+        icon = get_themed_tray_icon(opt)
+        assert icon is not None
+        assert not icon.isNull()
