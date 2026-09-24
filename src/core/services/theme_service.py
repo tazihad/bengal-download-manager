@@ -650,28 +650,26 @@ def _apply_in_process_gtk_theme(is_dark: bool, mode: str = "Auto") -> bool:
     """
     # 1. Per-process environment variable (strictly scoped to this process)
     try:
-        if mode == "Dark":
+        if is_dark:
             os.environ["GTK_THEME"] = "Adwaita:dark"
-        elif mode == "Light":
-            os.environ["GTK_THEME"] = "Adwaita:light"
         else:
-            os.environ.pop("GTK_THEME", None)
+            os.environ["GTK_THEME"] = "Adwaita:light"
     except Exception:
         pass
 
-    # 2. In-memory GtkSettings object (modifies process memory only)
+    # 2. In-memory GtkSettings object (modifies process memory only for GTK3)
     try:
         import ctypes
         gtk = ctypes.CDLL("libgtk-3.so.0")
         gobject = ctypes.CDLL("libgobject-2.0.so.0")
-        gtk.gtk_init_check(None, None)
-        gtk.gtk_settings_get_default.restype = ctypes.c_void_p
-        settings = gtk.gtk_settings_get_default()
-        if settings:
-            gobject.g_object_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-            val = ctypes.c_int(1 if is_dark else 0)
-            gobject.g_object_set(settings, b"gtk-application-prefer-dark-theme", val, None)
-            return True
+        if gtk.gtk_init_check(None, None):
+            gtk.gtk_settings_get_default.restype = ctypes.c_void_p
+            settings = gtk.gtk_settings_get_default()
+            if settings:
+                gobject.g_object_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+                val = ctypes.c_int(1 if is_dark else 0)
+                gobject.g_object_set(settings, b"gtk-application-prefer-dark-theme", val, None)
+                return True
     except Exception:
         pass
     return False
@@ -787,12 +785,7 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
     # 1. Cross-platform Qt styleHints (Qt 6.5+ sets Wayland / libdecor / macOS / Windows titlebar scheme)
     sh = app.styleHints()
     if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
-        if mode == "Dark":
-            sh.setColorScheme(Qt.ColorScheme.Dark)
-        elif mode == "Light":
-            sh.setColorScheme(Qt.ColorScheme.Light)
-        else:
-            sh.setColorScheme(getattr(Qt.ColorScheme, "Unknown", Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light))
+        sh.setColorScheme(Qt.ColorScheme.Dark if is_dark else Qt.ColorScheme.Light)
 
     all_windows = []
     if window and isinstance(window, (QMainWindow, QDialog)) and window.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog):
@@ -909,7 +902,15 @@ class _TitleBarEventFilter(QObject):
             if event.type() == QEvent.Type.Show:
                 if hasattr(watched, "isWindow") and watched.isWindow():
                     if isinstance(watched, (QMainWindow, QDialog)) and watched.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog):
-                        apply_titlebar_theme(get_current_titlebar_mode(), window=watched)
+                        mode = get_current_titlebar_mode()
+                        if mode in ("Light", "Dark"):
+                            apply_titlebar_theme(mode, window=watched)
+                        else:
+                            # Automatic mode: Window inherits app-level styleHints & GTK_THEME automatically.
+                            # Ensure no leftover custom CSD is attached.
+                            if getattr(watched, "_csd_titlebar", None) is not None:
+                                from ui.components.csd_titlebar import detach_csd
+                                detach_csd(watched)
         except Exception:
             pass
         return super().eventFilter(watched, event)

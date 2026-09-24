@@ -264,7 +264,7 @@ class BatchDownloadDialog(QDialog):
         self.main_window = main_window
         self.is_import = is_import
 
-        title = self.tr("Import Links to Bengal Download Manager") if is_import else self.tr("Batch Download Review")
+        title = self.tr("Import Links") if is_import else self.tr("Batch Download Review")
         self.setWindowTitle(title)
         self.setWindowIcon(get_themed_icon("add_url"))
         self.setMinimumSize(860, 520)

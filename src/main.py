@@ -161,7 +161,6 @@ def main():
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
-    app.setApplicationDisplayName("Bengal Download Manager")
     app.setDesktopFileName(get_desktop_file_name())
     app.setQuitOnLastWindowClosed(False)
 

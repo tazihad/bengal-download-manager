@@ -94,3 +94,30 @@ def test_attach_csd_options_and_batch_dialogs(qapp):
     assert batch.layout().indexOf(batch._csd_titlebar) == 0
     m_batch = batch.layout().contentsMargins()
     assert (m_batch.left(), m_batch.top(), m_batch.right(), m_batch.bottom()) == (0, 0, 0, 0)
+
+
+def test_download_progress_title_formatting(qapp):
+    """Verify progress dialog formats long filenames with clean middle elision."""
+    class DummyWorker:
+        def __init__(self, fn):
+            self.filename = fn
+            self.url = "http://example.com/" + fn
+
+    from ui.dialogs.progress import DownloadProgressDialog
+
+    # Short filename
+    w1 = DummyWorker("sample.mp4")
+    dlg1 = DownloadProgressDialog.__new__(DownloadProgressDialog)
+    dlg1.worker = w1
+    assert dlg1._format_window_title() == "sample.mp4"
+    assert dlg1._format_window_title("45%") == "45% - sample.mp4"
+
+    # Very long filename
+    w2 = DummyWorker("videoplayback_1080p_60fps_hdr_audio_ultra_high_quality.mp4")
+    dlg2 = DownloadProgressDialog.__new__(DownloadProgressDialog)
+    dlg2.worker = w2
+    formatted = dlg2._format_window_title("75%")
+    assert len(formatted) <= 45
+    assert formatted.startswith("75% - videoplayback_1080p_")
+    assert formatted.endswith(".mp4")
+    assert "..." in formatted
