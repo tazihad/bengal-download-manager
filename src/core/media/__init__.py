@@ -13,6 +13,9 @@ from core.media.dependencies import (
     get_local_tool_path,
     get_tool_path,
     get_tool_version,
+    get_ytdlp_channel,
+    set_ytdlp_channel,
+    get_tool_url,
     DependencyManagerWorker,
     YtDlpManager,
 )
@@ -27,6 +30,12 @@ from core.media.extractor import (
 from core.media.worker import (
     create_temp_netscape_cookie_file,
     YtDlpDownloadWorker,
+)
+from core.media.pot_provider import (
+    check_pot_provider_status,
+    is_pot_provider_available,
+    get_pot_extractor_args,
+    DEFAULT_POT_PROVIDER_URL,
 )
 import re
 
@@ -63,6 +72,9 @@ __all__ = [
     "get_local_tool_path",
     "get_tool_path",
     "get_tool_version",
+    "get_ytdlp_channel",
+    "set_ytdlp_channel",
+    "get_tool_url",
     "DependencyManagerWorker",
     "YtDlpManager",
     "MediaExtractorWorker",
@@ -74,4 +86,8 @@ __all__ = [
     "create_temp_netscape_cookie_file",
     "YtDlpDownloadWorker",
     "parse_size_str_to_bytes",
+    "check_pot_provider_status",
+    "is_pot_provider_available",
+    "get_pot_extractor_args",
+    "DEFAULT_POT_PROVIDER_URL",
 ]

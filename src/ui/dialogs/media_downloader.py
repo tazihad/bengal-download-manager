@@ -337,6 +337,33 @@ class EngineRowWidget(QFrame):
         self.lbl_name.setFont(font_name)
         name_row.addWidget(self.lbl_name)
 
+        if self.tool_name == "yt-dlp":
+            from core.media.dependencies import get_ytdlp_channel
+            self.cmb_channel = QComboBox()
+            self.cmb_channel.setFixedHeight(20)
+            self.cmb_channel.addItems(["Stable", "Nightly"])
+            self.cmb_channel.setToolTip("yt-dlp update channel (Stable or Nightly build)")
+            self.cmb_channel.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.cmb_channel.setStyleSheet("""
+                QComboBox {
+                    font-size: 9.5px;
+                    font-weight: 600;
+                    padding: 1px 4px 1px 6px;
+                    border: 1px solid palette(mid);
+                    border-radius: 3px;
+                    background-color: palette(base);
+                    color: palette(text);
+                }
+                QComboBox::drop-down {
+                    border: none;
+                    width: 12px;
+                }
+            """)
+            curr_ch = get_ytdlp_channel()
+            self.cmb_channel.setCurrentText("Nightly" if curr_ch == "nightly" else "Stable")
+            self.cmb_channel.currentTextChanged.connect(self._on_channel_changed)
+            name_row.addWidget(self.cmb_channel)
+
         self.lbl_dot = QLabel("●")
         self.lbl_dot.setStyleSheet("color: #888888; font-size: 8px;")
         name_row.addWidget(self.lbl_dot)
@@ -463,6 +490,12 @@ class EngineRowWidget(QFrame):
             self.btn_refresh.setEnabled(True)
             self.progress_bar.setVisible(False)
             self.lbl_progress_meta.setVisible(False)
+
+    def _on_channel_changed(self, text: str):
+        from core.media.dependencies import set_ytdlp_channel
+        set_ytdlp_channel(text.strip().lower())
+        if callable(self.on_update_clicked):
+            self.on_update_clicked(self.tool_name)
 
 
 class MediaDownloaderOptionsHub(QFrame):

@@ -534,7 +534,9 @@ class YtDlpDownloadWorker(QThread):
                 "-o", output_tmpl
             ]
             from core.media.extractor import get_js_runtime_args
+            from core.media.pot_provider import get_pot_extractor_args
             base_cmd.extend(get_js_runtime_args())
+            base_cmd.extend(get_pot_extractor_args(cfg))
 
             # Selective thumbnail embedding: only enable for containers supported by yt-dlp/ffmpeg
             # Supported: mp3, mkv/mka, ogg/opus/flac, m4a/mp4/m4v/mov
@@ -620,6 +622,8 @@ class YtDlpDownloadWorker(QThread):
             env_fn = getattr(md, "get_clean_env", get_clean_env) if md else get_clean_env
             subp = getattr(md, "subprocess", subprocess) if md else subprocess
             clean_env = env_fn(bin_dir)
+            from core.media.pot_provider import get_pot_env
+            clean_env.update(get_pot_env())
             temp_cookies_file = None
             has_cookies = bool(
                 extension_cookies

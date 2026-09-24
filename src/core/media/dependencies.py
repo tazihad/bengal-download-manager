@@ -103,6 +103,50 @@ DEPENDENCY_TOOLS = {
 }
 
 
+def get_ytdlp_channel() -> str:
+    """Returns the current yt-dlp update channel ('stable' or 'nightly'). Defaults to 'stable'."""
+    try:
+        from core.config import load_category_config
+        cfg = load_category_config()
+        ch = (cfg.get("media_downloader_defaults", {}).get("ytdlp_channel") or "stable").strip().lower()
+        return "nightly" if ch == "nightly" else "stable"
+    except Exception:
+        return "stable"
+
+
+def set_ytdlp_channel(channel: str):
+    """Saves the yt-dlp update channel ('stable' or 'nightly')."""
+    try:
+        from core.config import load_category_config, save_category_config
+        cfg = load_category_config()
+        if "media_downloader_defaults" not in cfg:
+            cfg["media_downloader_defaults"] = {}
+        ch = "nightly" if (channel or "").strip().lower() == "nightly" else "stable"
+        cfg["media_downloader_defaults"]["ytdlp_channel"] = ch
+        save_category_config(cfg)
+    except Exception as e:
+        logger.warning("[dependencies] Failed to save ytdlp_channel: %s", e)
+
+
+def get_tool_url(tool_name: str, channel: Optional[str] = None) -> str:
+    """Returns the download URL for the specified tool, dynamically resolving yt-dlp update channel."""
+    if tool_name == "yt-dlp":
+        ch = channel or get_ytdlp_channel()
+        if ch == "nightly":
+            return (
+                "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux_aarch64"
+                if IS_ARM else
+                "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp_linux"
+            )
+        else:
+            return (
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64"
+                if IS_ARM else
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+            )
+    return DEPENDENCY_TOOLS.get(tool_name, {}).get("url", "")
+
+
 def get_local_tool_path(tool_name: str) -> str:
     """Returns local executable path in XDG data BIN_DIR if it exists and is executable, else empty string."""
     if tool_name not in DEPENDENCY_TOOLS:
@@ -289,7 +333,7 @@ class DependencyManagerWorker(QThread):
             # Fixed release URL pinned in configuration
             return False, local_ver
 
-        url = DEPENDENCY_TOOLS[tool_name]["url"]
+        url = get_tool_url(tool_name)
 
         class _NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -348,7 +392,7 @@ class DependencyManagerWorker(QThread):
     def _download_and_install_tool(self, tool_name: str) -> bool:
         import ssl
         tool_info = DEPENDENCY_TOOLS[tool_name]
-        url = tool_info["url"]
+        url = get_tool_url(tool_name)
         tool_type = tool_info["type"]
         binary_name = tool_info["binary_name"]
 
@@ -501,7 +545,7 @@ class YtDlpManager:
         tmp_path = YT_DLP_BIN.with_suffix(".tmp")
         try:
             import ssl
-            req = urllib.request.Request(DEPENDENCY_TOOLS["yt-dlp"]["url"], headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
+            req = urllib.request.Request(get_tool_url("yt-dlp"), headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
             resp = None
             for use_unverified in (False, True):
                 try:

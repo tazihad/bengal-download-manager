@@ -22,6 +22,7 @@ from core.media.dependencies import (
     YtDlpManager,
     get_tool_path,
 )
+from core.media.pot_provider import get_pot_extractor_args
 
 logger = logging.getLogger("bengal.media.extractor")
 
@@ -87,6 +88,8 @@ class MediaExtractorWorker(QThread):
 
             bin_dir = str(BIN_DIR)
             clean_env = env_fn(bin_dir)
+            from core.media.pot_provider import get_pot_env
+            clean_env.update(get_pot_env())
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
 
             try:
@@ -110,6 +113,7 @@ class MediaExtractorWorker(QThread):
                 "--extractor-args", f"youtube:player_client={yt_client}",
             ]
             cmd.extend(get_js_runtime_args())
+            cmd.extend(get_pot_extractor_args(cfg))
 
             ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
             if ffmpeg_bin:
@@ -205,6 +209,7 @@ class MediaExtractorWorker(QThread):
                         "--add-header", "Accept-Language:en-US,en;q=0.9",
                     ]
                     clean_cmd.extend(get_js_runtime_args())
+                    clean_cmd.extend(get_pot_extractor_args(cfg))
                     if ffmpeg_bin:
                         clean_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
                     elif os.path.exists(bin_dir):
@@ -382,13 +387,14 @@ class MediaExtractorWorker(QThread):
 
 
 def get_js_runtime_args() -> list[str]:
-    """Return --js-runtimes argument for yt-dlp if node, deno, or bun is available."""
+    """Return --js-runtimes argument for yt-dlp if deno, node, or bun is available."""
+    from core.media.pot_provider import get_deno_executable_path
+    deno_bin = get_deno_executable_path()
+    if deno_bin:
+        return ["--js-runtimes", f"deno:{deno_bin}"]
     node_bin = shutil.which("node")
     if node_bin:
         return ["--js-runtimes", f"node:{node_bin}"]
-    deno_bin = shutil.which("deno")
-    if deno_bin:
-        return ["--js-runtimes", f"deno:{deno_bin}"]
     bun_bin = shutil.which("bun")
     if bun_bin:
         return ["--js-runtimes", f"bun:{bun_bin}"]
@@ -746,6 +752,8 @@ def probe_media_sizes(
         yt_dlp_bin = YtDlpManager.ensure_binary()
         bin_dir = str(BIN_DIR)
         clean_env = get_clean_env(bin_dir)
+        from core.media.pot_provider import get_pot_env
+        clean_env.update(get_pot_env())
         is_debug = is_debug_mode() or logger.isEnabledFor(logging.DEBUG)
 
         try:
@@ -775,6 +783,7 @@ def probe_media_sizes(
             "--extractor-args", f"youtube:player_client={yt_client}",
         ]
         cmd.extend(get_js_runtime_args())
+        cmd.extend(get_pot_extractor_args(cfg))
 
         ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
         if ffmpeg_bin:
@@ -837,6 +846,7 @@ def probe_media_sizes(
                         "--cookies-from-browser", browser_candidate,
                     ]
                     retry_cmd.extend(get_js_runtime_args())
+                    retry_cmd.extend(get_pot_extractor_args(cfg))
                     if ffmpeg_bin:
                         retry_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
                     elif os.path.exists(bin_dir):
@@ -1003,6 +1013,8 @@ class MediaInfoFetcherWorker(QThread):
             yt_dlp_bin = YtDlpManager.ensure_binary()
             bin_dir = str(BIN_DIR)
             clean_env = get_clean_env(bin_dir)
+            from core.media.pot_provider import get_pot_env
+            clean_env.update(get_pot_env())
             is_debug = "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or logger.isEnabledFor(logging.DEBUG)
 
             try:
@@ -1010,6 +1022,8 @@ class MediaInfoFetcherWorker(QThread):
                 media_defaults = cfg.get("media_downloader_defaults", {})
                 yt_client = media_defaults.get("youtube_player_client", "default") or "default"
             except Exception:
+                cfg = {}
+                media_defaults = {}
                 yt_client = "default"
 
             yt_client = (yt_client or "default").strip() or "default"
@@ -1023,6 +1037,7 @@ class MediaInfoFetcherWorker(QThread):
                 "--extractor-args", f"youtube:player_client={yt_client}",
             ]
             cmd.extend(get_js_runtime_args())
+            cmd.extend(get_pot_extractor_args(cfg))
 
             ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
             if ffmpeg_bin:
@@ -1083,6 +1098,7 @@ class MediaInfoFetcherWorker(QThread):
                             "--cookies-from-browser", browser_candidate,
                         ]
                         retry_cmd.extend(get_js_runtime_args())
+                        retry_cmd.extend(get_pot_extractor_args(cfg))
                         if ffmpeg_bin:
                             retry_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
                         elif os.path.exists(bin_dir):

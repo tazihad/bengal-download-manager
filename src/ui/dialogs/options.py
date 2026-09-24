@@ -1557,6 +1557,38 @@ class OptionsDialog(QDialog):
         vbox_extractor.addLayout(row_client)
         layout.addWidget(grp_extractor)
 
+        # 4. YouTube Proof of Origin (PO Token) Settings
+        grp_pot = QGroupBox("YouTube Proof of Origin (PO Token) Auto-Solver")
+        vbox_pot = QVBoxLayout(grp_pot)
+        vbox_pot.setContentsMargins(10, 15, 10, 15)
+        vbox_pot.setSpacing(10)
+
+        self.chk_opt_pot_enabled = QCheckBox("Enable YouTube Proof of Origin (PO Token) auto-solver")
+        self.chk_opt_pot_enabled.setToolTip("Automatically solves YouTube BotGuard challenges and Proof-of-Origin tokens via Deno/Node.js engine and bgutil")
+        saved_pot_enabled = media_defaults.get("youtube_pot_enabled", True)
+        self.chk_opt_pot_enabled.setChecked(bool(saved_pot_enabled))
+        vbox_pot.addWidget(self.chk_opt_pot_enabled)
+
+        self.lbl_opt_pot_status = QLabel("")
+        self.lbl_opt_pot_status.setWordWrap(True)
+        self.lbl_opt_pot_status.setStyleSheet("font-size: 11px;")
+        vbox_pot.addWidget(self.lbl_opt_pot_status)
+
+        lbl_pot_help = QLabel(
+            '<i>Proof of Origin (PO) tokens bypass YouTube "Sign in to confirm you\'re not a bot" challenges and streaming throttling. '
+            'Bengal DM automatically uses the <b>Deno</b> engine (available in Options > Media Downloader Tools) or Node.js to solve tokens locally without manual configuration. '
+            'Learn more in the <a href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide" style="color: #3498db; text-decoration: underline;">yt-dlp PO Token Guide</a>.</i>'
+        )
+        lbl_pot_help.setOpenExternalLinks(True)
+        lbl_pot_help.setWordWrap(True)
+        lbl_pot_help.setStyleSheet("color: gray; font-size: 11px;")
+        vbox_pot.addWidget(lbl_pot_help)
+
+        self.chk_opt_pot_enabled.toggled.connect(self._update_opt_pot_ui)
+        self._update_opt_pot_ui()
+
+        layout.addWidget(grp_pot)
+
         layout.addStretch()
 
         _scroll_area.setWidget(_content)
@@ -1593,6 +1625,30 @@ class OptionsDialog(QDialog):
             )
         if file_path:
             self.txt_opt_cookies_path.setText(file_path)
+
+    def _update_opt_pot_ui(self):
+        if not hasattr(self, "chk_opt_pot_enabled") or not hasattr(self, "lbl_opt_pot_status"):
+            return
+
+        if not self.chk_opt_pot_enabled.isChecked():
+            self.lbl_opt_pot_status.setText("⚪ PO Token Auto-Solver disabled (yt-dlp will run with --extractor-args youtube:fetch_pot=never)")
+            self.lbl_opt_pot_status.setStyleSheet("color: gray; font-size: 11px;")
+            return
+
+        from core.media.pot_provider import get_deno_executable_path, is_pot_provider_available, DEFAULT_POT_PROVIDER_URL
+        deno_path = get_deno_executable_path()
+        if deno_path:
+            self.lbl_opt_pot_status.setText(f"🟢 Active: Deno Engine ({deno_path}) ready for automatic PO token generation.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+        elif shutil.which("node"):
+            self.lbl_opt_pot_status.setText(f"🟢 Active: System Node.js ({shutil.which('node')}) ready for automatic PO token generation.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+        elif is_pot_provider_available(DEFAULT_POT_PROVIDER_URL, timeout=0.2):
+            self.lbl_opt_pot_status.setText(f"🟢 Active: Local bgutil POT Daemon ({DEFAULT_POT_PROVIDER_URL}) detected.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+        else:
+            self.lbl_opt_pot_status.setText("🟡 Deno is not installed yet. Install Deno via 'Options > Media Downloader Tools' (or install Node.js) for full PO token support.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #f39c12; font-size: 11px;")
 
     def on_toggle_show_token(self, checked):
         """Toggles the echo mode of the token field."""
@@ -1870,6 +1926,8 @@ class OptionsDialog(QDialog):
             self.config_data["media_downloader_cookies_path"] = c_path
         if hasattr(self, "txt_opt_youtube_client"):
             media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "default"
+        if hasattr(self, "chk_opt_pot_enabled"):
+            media_defaults["youtube_pot_enabled"] = self.chk_opt_pot_enabled.isChecked()
         self.config_data["media_downloader_defaults"] = media_defaults
 
         save_category_config(self.config_data)
