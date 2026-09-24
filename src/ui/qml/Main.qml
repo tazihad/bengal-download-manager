@@ -6,7 +6,7 @@ import org.kde.kirigami as Kirigami
 Kirigami.ApplicationWindow {
     id: root
     title: "Bengal Download Manager"
-    icon: "io.github.tazihad.bengal-download-manager"
+    icon: "bd.com.zihad.BengalDownloadManager"
     width: 960
     height: 640
     visible: true

@@ -71,7 +71,7 @@ To run directly:
 
 ## 4. Flatpak Packaging (Flathub / KDE Platform 6.11)
 
-The Flatpak manifest is maintained in [`flatpak/io.github.tazihad.bengal-download-manager.yml`](file:///mnt/data/dev/bengal-download-manager/flatpak/io.github.tazihad.bengal-download-manager.yml) using the `org.kde.Platform` 6.11 runtime.
+The Flatpak manifest is maintained in [`flatpak/bd.com.zihad.BengalDownloadManager.yml`](file:///mnt/data/dev/bengal-download-manager/flatpak/bd.com.zihad.BengalDownloadManager.yml) using the `org.kde.Platform` 6.11 runtime.
 
 ### Local Flatpak Build Script
 Run the automated packaging helper:
@@ -85,10 +85,10 @@ bash scripts/build_flatpak.sh
 flatpak install flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
 
 # 2. Build and export Flatpak bundle
-flatpak-builder --user --install --force-clean build-flatpak flatpak/io.github.tazihad.bengal-download-manager.yml
+flatpak-builder --user --install --force-clean build-flatpak flatpak/bd.com.zihad.BengalDownloadManager.yml
 
 # 3. Launch installed Flatpak package
-flatpak run io.github.tazihad.bengal-download-manager
+flatpak run bd.com.zihad.BengalDownloadManager
 ```
 
 ---

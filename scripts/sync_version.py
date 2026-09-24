@@ -22,7 +22,7 @@ import sys
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
 SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yaml")
-METAINFO_FILE = os.path.join(ROOT_DIR, "flatpak", "io.github.tazihad.bengal-download-manager.metainfo.xml")
+METAINFO_FILE = os.path.join(ROOT_DIR, "flatpak", "bd.com.zihad.BengalDownloadManager.metainfo.xml")
 PYPROJECT_FILE = os.path.join(ROOT_DIR, "pyproject.toml")
 VERSION_PY_FILE = os.path.join(ROOT_DIR, "src", "core", "version.py")
 

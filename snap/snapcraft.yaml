@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-version: '0.2.53'
+version: '0.2.54-alpha.1'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -83,18 +83,18 @@ parts:
 
       # 2. Install desktop entry & AppStream metadata
       install -D -m 644 snap/gui/bengal-download-manager.desktop "$CRAFT_PART_INSTALL/usr/share/applications/bengal-download-manager.desktop"
-      install -D -m 644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml "$CRAFT_PART_INSTALL/usr/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml"
+      install -D -m 644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml "$CRAFT_PART_INSTALL/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml"
 
       # 3. Install hicolor icons
       for s in 16 32 64 128 256 512; do
         if [ -f "assets/icons/${s}x${s}.png" ]; then
           install -D -m 644 "assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
-          install -D -m 644 "assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/io.github.tazihad.bengal-download-manager.png"
+          install -D -m 644 "assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
         fi
       done
       if [ -f assets/logo.svg ]; then
         install -D -m 644 assets/logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg"
-        install -D -m 644 assets/logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg"
+        install -D -m 644 assets/logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg"
       fi
 
       # 4. Install launcher wrapper

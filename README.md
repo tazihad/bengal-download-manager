@@ -90,7 +90,7 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 | :--- | :--- | :--- |
 | **Snap Store** | `x86_64`, `arm64` | `sudo snap install bengal-download-manager` / [Snapcraft](https://snapcraft.io/bengal-download-manager) |
 | **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
-| **Flatpak** | `x86_64`, `aarch64` | `flatpak install io.github.tazihad.bengal-download-manager.flatpak` |
+| **Flatpak** | `x86_64`, `aarch64` | `flatpak install bd.com.zihad.BengalDownloadManager.flatpak` |
 | **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 
 #### AppImage Quick Start

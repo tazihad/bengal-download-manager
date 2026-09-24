@@ -21,7 +21,7 @@ runs:
     - name: Build Flatpak Bundle
       shell: bash
       run: |
-        APP_ID="io.github.tazihad.bengal-download-manager"
+        APP_ID="bd.com.zihad.BengalDownloadManager"
         BUILD_DIR="flatpak_app_dir"
         ARCH="${{ inputs.arch }}"
 

@@ -66,9 +66,9 @@ def get_desktop_file_name() -> str:
     """
     Resolves the canonical desktop file name matching the environment.
     - Snap: snapd namespaces desktop entries as ${SNAP_INSTANCE_NAME}_${SNAP_APP_NAME}.desktop.
-    - Flatpak: uses FLATPAK_ID (io.github.tazihad.bengal-download-manager).
+    - Flatpak: uses FLATPAK_ID (bd.com.zihad.BengalDownloadManager).
     - Host/Unpackaged: discovers installed desktop entries in XDG_DATA_DIRS
-      or defaults to 'io.github.tazihad.bengal-download-manager'.
+      or defaults to 'bd.com.zihad.BengalDownloadManager'.
     """
     if os.environ.get("SNAP"):
         snap_instance = os.environ.get("SNAP_INSTANCE_NAME") or os.environ.get("SNAP_NAME", "bengal-download-manager")
@@ -80,7 +80,7 @@ def get_desktop_file_name() -> str:
 
     # If running unpackaged on host, check if an existing desktop entry is installed
     candidate_ids = [
-        "io.github.tazihad.bengal-download-manager",
+        "bd.com.zihad.BengalDownloadManager",
         "bengal-download-manager",
         "bengal-download-manager_bengal-download-manager",
     ]
@@ -93,7 +93,7 @@ def get_desktop_file_name() -> str:
             if os.path.exists(os.path.join(sdir, f"{cid}.desktop")):
                 return cid
 
-    return "io.github.tazihad.bengal-download-manager"
+    return "bd.com.zihad.BengalDownloadManager"
 
 
 def ensure_desktop_integration() -> None:
@@ -117,7 +117,7 @@ def ensure_desktop_integration() -> None:
         import shutil
         home = os.path.expanduser("~")
         apps_dir = os.path.join(home, ".local", "share", "applications")
-        desktop_file = os.path.join(apps_dir, "io.github.tazihad.bengal-download-manager.desktop")
+        desktop_file = os.path.join(apps_dir, "bd.com.zihad.BengalDownloadManager.desktop")
 
         _meipass = getattr(sys, "_MEIPASS", None)
         _argv0_src = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else None
@@ -141,14 +141,14 @@ def ensure_desktop_integration() -> None:
         for size in [16, 32, 48, 64, 128, 256, 512]:
             src_png = os.path.join(assets_dir, "icons", f"{size}x{size}.png")
             dst_dir = os.path.join(icons_base, f"{size}x{size}", "apps")
-            dst_png = os.path.join(dst_dir, "io.github.tazihad.bengal-download-manager.png")
+            dst_png = os.path.join(dst_dir, "bd.com.zihad.BengalDownloadManager.png")
             if os.path.exists(src_png) and not os.path.exists(dst_png):
                 os.makedirs(dst_dir, exist_ok=True)
                 shutil.copy2(src_png, dst_png)
 
         src_svg = os.path.join(assets_dir, "logo.svg")
         dst_svg_dir = os.path.join(icons_base, "scalable", "apps")
-        dst_svg = os.path.join(dst_svg_dir, "io.github.tazihad.bengal-download-manager.svg")
+        dst_svg = os.path.join(dst_svg_dir, "bd.com.zihad.BengalDownloadManager.svg")
         if os.path.exists(src_svg) and not os.path.exists(dst_svg):
             os.makedirs(dst_svg_dir, exist_ok=True)
             shutil.copy2(src_svg, dst_svg)
@@ -169,8 +169,8 @@ def ensure_desktop_integration() -> None:
                 with open(desktop_file, "r", encoding="utf-8") as f:
                     content_existing = f.read()
                 if (
-                    "StartupWMClass=io.github.tazihad.bengal-download-manager" not in content_existing
-                    or "Icon=io.github.tazihad.bengal-download-manager" not in content_existing
+                    "StartupWMClass=bd.com.zihad.BengalDownloadManager" not in content_existing
+                    or "Icon=bd.com.zihad.BengalDownloadManager" not in content_existing
                     or f"Exec={exec_cmd}" not in content_existing
                 ):
                     need_write = True
@@ -184,13 +184,13 @@ Name=Bengal Download Manager
 GenericName=Download Manager
 Comment=Fast multi-threaded download manager powered by Aria2 and PyQt6
 Exec={exec_cmd}
-Icon=io.github.tazihad.bengal-download-manager
+Icon=bd.com.zihad.BengalDownloadManager
 Terminal=false
 Type=Application
 Categories=Network;FileTransfer;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 Keywords=download;manager;aria2;multithread;
-StartupWMClass=io.github.tazihad.bengal-download-manager
+StartupWMClass=bd.com.zihad.BengalDownloadManager
 """
             with open(desktop_file, "w", encoding="utf-8") as f:
                 f.write(content)

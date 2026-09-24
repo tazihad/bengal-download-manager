@@ -48,7 +48,7 @@ fi
 
 # 3. Essential brand icons, logo, tray icons, and desktop entry
 # (Notice: promotional posters, screenshots, and website SVG badges are intentionally omitted)
-for f in logo.svg logo.png bengal-download-manager.png io.github.tazihad.bengal-download-manager.png \
+for f in logo.svg logo.png bengal-download-manager.png bd.com.zihad.BengalDownloadManager.png \
          tray_monochrome_dark.png tray_monochrome_dark.svg \
          tray_monochrome_light.png tray_monochrome_light.svg \
          bengal-download-manager.desktop; do

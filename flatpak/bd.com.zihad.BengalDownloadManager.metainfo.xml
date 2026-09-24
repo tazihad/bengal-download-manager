@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.tazihad.bengal-download-manager</id>
+  <id>bd.com.zihad.BengalDownloadManager</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
 
-  <developer id="io.github.tazihad">
+  <developer id="bd.com.zihad">
     <name>tazihad</name>
   </developer>
 
@@ -21,7 +21,7 @@
   </description>
 
   <releases>
-    <release version="0.2.53" date="2026-09-24"/>
+    <release version="0.2.54" date="2026-09-24"/>
   </releases>
 
   <provides>
@@ -32,9 +32,9 @@
   <url type="bugtracker">https://github.com/tazihad/bengal-download-manager/issues</url>
   <url type="help">https://github.com/tazihad/bengal-download-manager/issues</url>
 
-  <launchable type="desktop-id">io.github.tazihad.bengal-download-manager.desktop</launchable>
+  <launchable type="desktop-id">bd.com.zihad.BengalDownloadManager.desktop</launchable>
 
-  <icon type="stock">io.github.tazihad.bengal-download-manager</icon>
+  <icon type="stock">bd.com.zihad.BengalDownloadManager</icon>
 
   <categories>
     <category>Network</category>

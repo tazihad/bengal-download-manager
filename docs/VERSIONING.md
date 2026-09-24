@@ -8,7 +8,7 @@ This document defines the authoritative versioning architecture, release lifecyc
 
 Bengal Download Manager targets multiple distribution channels:
 * **Canonical Snap Store**: Snap package built via Snapcraft (`snap/snapcraft.yaml`).
-* **Flatpak / Flathub**: Flatpak bundle and AppStream catalog metadata (`flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml`).
+* **Flatpak / Flathub**: Flatpak bundle and AppStream catalog metadata (`flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml`).
 * **Python Packaging (PEP 517/518/621)**: Package manifest and dynamic versioning (`pyproject.toml`).
 * **In-App Runtime**: Help -> About Dialog, CLI `--version`, and IPC daemon (`src/core/version.py`).
 * *(Note: Browser extension in `extension/manifest.json` is versioned independently, e.g. `0.6`).*
@@ -119,7 +119,7 @@ git commit -am "chore: graduate version to stable release"
 |---|---|
 | **GitHub Releases** | Triggered only when a release tag (e.g. `v0.2.45`) is pushed or manually dispatched via `workflow_dispatch`. Merging PRs or pushing to branches never triggers a release. |
 | **Snap Store (snapcraft.io)** | Snapcraft.io's build service reads `version` from `snap/snapcraft.yaml` upon release tag push or build dispatch. |
-| **Flatpak / Flathub** | Uses the updated `<release version="..." .../>` in `io.github.tazihad.bengal-download-manager.metainfo.xml`. |
+| **Flatpak / Flathub** | Uses the updated `<release version="..." .../>` in `bd.com.zihad.BengalDownloadManager.metainfo.xml`. |
 | **In-App (Help -> About)** | Automatically displays version from `VERSION` and `SNAP_VERSION`. |
 
 ---
