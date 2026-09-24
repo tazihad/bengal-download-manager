@@ -51,7 +51,7 @@ fi
 for f in logo.svg logo.png bengal-download-manager.png bd.com.zihad.BengalDownloadManager.png \
          tray_monochrome_dark.png tray_monochrome_dark.svg \
          tray_monochrome_light.png tray_monochrome_light.svg \
-         bengal-download-manager.desktop; do
+         bd.com.zihad.BengalDownloadManager.desktop; do
     if [ -f "$SRC_ASSETS/$f" ]; then
         cp "$SRC_ASSETS/$f" "$TARGET_DIR/"
     fi
