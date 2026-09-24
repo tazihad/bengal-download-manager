@@ -19,7 +19,7 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboTheme
                 Kirigami.FormData.label: "Theme:"
-                model: ["BDM Auto (Default)", "System", "BDM Dark", "BDM Light", "Breeze Dark", "Breeze Light", "Catppuccin", "Dracula", "IDM Classic", "Kirigami Dark", "Kirigami Light", "Nord", "One Dark", "Solarized Dark", "Solarized Light", "Stellar Dark", "Stellar Light", "Ubuntu Dark", "Ubuntu Light"]
+                model: ["BDM Auto (Default)", "System", "BDM Dark", "BDM Light", "Breeze Dark", "Breeze Light", "Catppuccin", "Dracula", "IDM Classic", "Kirigami Dark", "Kirigami Light", "Nord", "One Dark", "Solarized Dark", "Solarized Light", "Stellar Dark", "Stellar Light", "TMOG Dark", "Ubuntu Dark", "Ubuntu Light"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }
@@ -27,7 +27,7 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboAccent
                 Kirigami.FormData.label: "Accent Color:"
-                model: ["System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", "Crimson Red", "Dracula Purple", "Emerald Green", "Nord Frost", "Stellar Blue", "Ubuntu Orange", "Windows Blue"]
+                model: ["System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", "Crimson Red", "Dracula Purple", "Emerald Green", "Nord Frost", "Stellar Blue", "TMOG Cyan", "Ubuntu Orange", "Windows Blue"]
                 currentIndex: 1
                 Layout.fillWidth: true
             }
@@ -35,7 +35,7 @@ Kirigami.Dialog {
             Controls.ComboBox {
                 id: comboIconTheme
                 Kirigami.FormData.label: "Icons:"
-                model: ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Stellar", "Ubuntu"]
+                model: ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Stellar", "TMOG Neon", "Ubuntu"]
                 currentIndex: 0
                 Layout.fillWidth: true
             }

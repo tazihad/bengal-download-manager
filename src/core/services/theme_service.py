@@ -299,7 +299,9 @@ ACCENT_COLORS = {
     "Obsidian Purple": "#dab9ff",
     "Material Cobalt": "#a8c7fa",
     "Material Violet": "#d0bcff",
-    "Stellar Blue": "#4488dd"
+    "Stellar Blue": "#4488dd",
+    "TMOG Cyan": "#00e5ff",
+    "Cyber Cyan": "#00e5ff",
 }
 
 
@@ -398,6 +400,8 @@ def normalize_theme_name(name, default="BDM Auto (Default)"):
         return "Stellar Dark"
     if s_lower in ("stellar light", "stellarlight"):
         return "Stellar Light"
+    if s_lower in ("tmog dark", "tmog", "tmogdark", "cyberpunk tmog", "cyber tmog", "cyber"):
+        return "TMOG Dark"
     return s
 
 
@@ -414,6 +418,8 @@ def normalize_accent_name(name, default="BDM (Default)"):
         return "Twilight"
     if s_lower in ("stellar", "stellar blue", "stellarblue"):
         return "Stellar Blue"
+    if s_lower in ("tmog", "tmog cyan", "tmogcyan", "cyber cyan", "cybercyan", "electric cyan"):
+        return "TMOG Cyan"
     return s
 
 
@@ -432,6 +438,8 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "Yaru"
     elif s_lower in ("stellar", "stellar icons", "stellaricons"):
         return "Stellar"
+    elif s_lower in ("tmog neon", "tmog", "tmogneon", "cyber neon", "cyberneon", "cyber"):
+        return "TMOG Neon"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -999,7 +1007,7 @@ def is_dark_theme(app=None) -> bool:
     """Returns True if the current active theme is dark, False if light."""
     global CURRENT_THEME
     t_lower = str(CURRENT_THEME).strip().lower() if 'CURRENT_THEME' in globals() and CURRENT_THEME else ""
-    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark", "stellar dark", "stellardark"):
+    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark", "stellar dark", "stellardark", "tmog dark", "tmog", "tmogdark", "cyberpunk tmog", "cyber tmog", "cyber"):
         return True
     if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white", "stellar light", "stellarlight"):
         return False
@@ -1199,6 +1207,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
         app.setPalette(_build_palette("#f0f0f0", "#1a1a1a", "#ffffff", "#f7f7f7", "#e8e8e8", "#4488dd", "#4488dd", "#ffffff", accent=accent_name))
+    elif theme_lower in ("tmog dark", "tmog", "tmogdark", "cyberpunk tmog", "cyber tmog", "cyber"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#0c1017", "#eaf2fd", "#080c12", "#111722", "#151d2a", "#00e5ff", "#00b4d8", "#000000", accent=accent_name))
     elif theme_lower in ("bdm light", "bdmlight", "light"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
@@ -1246,7 +1258,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru", "stellar", "stellar icons", "stellaricons"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru", "stellar", "stellar icons", "stellaricons", "tmog neon", "tmog", "tmogneon", "cyber neon", "cyberneon", "cyber"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -1472,6 +1484,10 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
     if icon_theme_lower in ("stellar", "stellar icons", "stellaricons"):
         from ui.icons import get_stellar_icon
         return get_stellar_icon(name)
+
+    if icon_theme_lower in ("tmog neon", "tmog", "tmogneon", "cyber neon", "cyberneon", "cyber"):
+        from ui.icons import get_tmog_icon
+        return get_tmog_icon(name)
 
     if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
