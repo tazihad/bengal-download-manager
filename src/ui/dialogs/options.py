@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import threading
 from PyQt6.QtWidgets import (
