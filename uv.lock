@@ -36,10 +36,6 @@ dev = [
     { name = "pyinstaller" },
     { name = "pytest" },
     { name = "pytest-qt" },
-]
-
-[package.dev-dependencies]
-dev = [
     { name = "pytest-xdist" },
 ]
 
@@ -50,12 +46,10 @@ requires-dist = [
     { name = "pyqt6", specifier = ">=6.8.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-qt", marker = "extra == 'dev'", specifier = ">=4.5.0" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8.0" },
     { name = "python-socks", extras = ["asyncio"], specifier = ">=3.1.0" },
 ]
 provides-extras = ["build", "dev"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest-xdist", specifier = ">=3.8.0" }]
 
 [[package]]
 name = "colorama"
