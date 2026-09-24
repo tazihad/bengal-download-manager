@@ -263,15 +263,13 @@ class CsdTitleBar(QWidget):
     def apply_style(self, is_dark: bool):
         self._is_dark = is_dark
         c = ADW_COLORS["dark" if is_dark else "light"]
-        is_max = self._window.isMaximized() if self._window else False
-        top_radius = 0 if is_max else 12
 
         self.setStyleSheet(f"""
             QWidget#CsdTitleBar {{
                 background-color: {c['headerbar_bg']};
                 border-bottom: 1px solid {c['headerbar_border']};
-                border-top-left-radius: {top_radius}px;
-                border-top-right-radius: {top_radius}px;
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
             }}
         """)
 
@@ -376,12 +374,34 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
         window.menuBar = lambda: menubar
     else:
         lay = window.layout()
-        if lay and hasattr(lay, "insertWidget"):
+        if lay is not None:
+            content_widget = QWidget(window)
+            content_widget.setObjectName("CsdDialogContent")
+            content_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            content_widget.setStyleSheet("QWidget#CsdDialogContent { background-color: palette(window); border-radius: 0px; }")
+            content_lay = QVBoxLayout(content_widget)
             m = lay.contentsMargins()
-            if m.top() > 0:
-                window._csd_orig_margins = (m.left(), m.top(), m.right(), m.bottom())
-                lay.setContentsMargins(m.left(), 0, m.right(), m.bottom())
-            lay.insertWidget(0, titlebar)
+            orig_spacing = lay.spacing()
+            window._csd_orig_margins = (m.left(), m.top(), m.right(), m.bottom())
+            window._csd_orig_spacing = orig_spacing
+            window._csd_content_widget = content_widget
+
+            content_lay.setContentsMargins(m.left(), m.top(), m.right(), m.bottom())
+            content_lay.setSpacing(orig_spacing)
+
+            while lay.count() > 0:
+                item = lay.takeAt(0)
+                if item.widget():
+                    content_lay.addWidget(item.widget())
+                elif item.layout():
+                    content_lay.addLayout(item.layout())
+                elif item.spacerItem():
+                    content_lay.addItem(item)
+
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(0)
+            lay.addWidget(titlebar)
+            lay.addWidget(content_widget, 1)
 
     resize_filter = CsdResizeFilter(window)
     window._csd_resize_filter = resize_filter
@@ -390,11 +410,14 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
     if not bool(window.windowFlags() & Qt.WindowType.FramelessWindowHint):
         is_vis = window.isVisible()
         is_max = window.isMaximized()
+        geo = window.geometry()
         window.setWindowFlags(window.windowFlags() | Qt.WindowType.FramelessWindowHint)
         if is_vis:
-            window.show()
+            window.setGeometry(geo)
             if is_max:
                 window.showMaximized()
+            else:
+                window.show()
 
 
 def detach_csd(window: QWidget):
@@ -424,13 +447,39 @@ def detach_csd(window: QWidget):
                 container.setParent(None)
             window._csd_container = None
         else:
-            titlebar.setParent(None)
-            if hasattr(window, "_csd_orig_margins"):
-                l, t, r, b = window._csd_orig_margins
-                lay = window.layout()
-                if lay:
+            content_widget = getattr(window, "_csd_content_widget", None)
+            lay = window.layout()
+            if content_widget is not None and lay is not None:
+                c_lay = content_widget.layout()
+                titlebar.setParent(None)
+                content_widget.setParent(None)
+
+                if c_lay is not None:
+                    while c_lay.count() > 0:
+                        item = c_lay.takeAt(0)
+                        if item.widget():
+                            lay.addWidget(item.widget())
+                        elif item.layout():
+                            lay.addLayout(item.layout())
+                        elif item.spacerItem():
+                            lay.addItem(item)
+
+                if hasattr(window, "_csd_orig_margins"):
+                    l, t, r, b = window._csd_orig_margins
                     lay.setContentsMargins(l, t, r, b)
-                del window._csd_orig_margins
+                    del window._csd_orig_margins
+                if hasattr(window, "_csd_orig_spacing"):
+                    lay.setSpacing(window._csd_orig_spacing)
+                    del window._csd_orig_spacing
+                if hasattr(window, "_csd_content_widget"):
+                    del window._csd_content_widget
+            else:
+                titlebar.setParent(None)
+                if hasattr(window, "_csd_orig_margins"):
+                    l, t, r, b = window._csd_orig_margins
+                    if lay:
+                        lay.setContentsMargins(l, t, r, b)
+                    del window._csd_orig_margins
         window._csd_titlebar = None
 
     resize_filter = getattr(window, "_csd_resize_filter", None)
@@ -440,9 +489,12 @@ def detach_csd(window: QWidget):
 
     is_vis = window.isVisible()
     is_max = window.isMaximized()
+    geo = window.geometry()
     window.setWindowFlags(window.windowFlags() & ~Qt.WindowType.FramelessWindowHint)
     if is_vis:
-        window.show()
+        window.setGeometry(geo)
         if is_max:
             window.showMaximized()
+        else:
+            window.show()
 

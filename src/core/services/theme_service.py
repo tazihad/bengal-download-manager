@@ -739,16 +739,19 @@ def _apply_gnome_csd_titlebar(mode: str, is_dark: bool, windows: list):
     """
     On GNOME and GTK-based distros, apply custom Libadwaita Client-Side Decorations (CSD).
     Title bar theme options:
-      - 'Automatic': Follows system theme (Light/Dark) via XDG portal / D-Bus
-      - 'Light': Libadwaita light headerbar
-      - 'Dark': Libadwaita dark headerbar
+      - 'Automatic': Uses default system native title bar (CSD detached)
+      - 'Light': Custom Libadwaita light headerbar
+      - 'Dark': Custom Libadwaita dark headerbar
     """
     try:
-        from ui.components.csd_titlebar import attach_csd
+        from ui.components.csd_titlebar import attach_csd, detach_csd
         for w in windows:
             if not w:
                 continue
-            attach_csd(w, is_dark=is_dark, mode=mode)
+            if mode in ("Light", "Dark"):
+                attach_csd(w, is_dark=is_dark, mode=mode)
+            else:
+                detach_csd(w)
     except Exception:
         pass
 
@@ -756,9 +759,9 @@ def _apply_gnome_csd_titlebar(mode: str, is_dark: bool, windows: list):
 def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
     """
     Applies Title bar theme:
-      - 'Automatic': Follows system theme (system dark -> dark title bar, system light -> light title bar)
-      - 'Light': System light title bar
-      - 'Dark': System dark title bar
+      - 'Automatic': Follows system theme with native system title bar
+      - 'Light': System light title bar (or custom CSD on GNOME)
+      - 'Dark': System dark title bar (or custom CSD on GNOME)
     """
     global CURRENT_TITLE_BAR_MODE
     mode = normalize_titlebar_name(title_bar_mode)
@@ -876,8 +879,8 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
     if sys.platform.startswith("linux"):
         _apply_kde_wayland_titlebar(is_dark, all_windows, app, mode=mode)
 
-    # 5. Linux GNOME / GTK Client-Side Decoration (CSD)
-    if sys.platform.startswith("linux") and is_gnome_desktop():
+    # 5. Linux GNOME / GTK Client-Side Decoration (CSD) - only for custom Light/Dark, Automatic uses system default titlebar
+    if sys.platform.startswith("linux") and is_gnome_desktop() and mode in ("Light", "Dark"):
         _apply_gnome_csd_titlebar(mode, is_dark, all_windows)
     else:
         try:
