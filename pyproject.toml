@@ -75,10 +75,15 @@ where = ["src"]
 "" = "src"
 
 [tool.pytest.ini_options]
-addopts = "-q --disable-warnings --tb=short"
+addopts = "-n auto -q --disable-warnings --tb=short"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-xdist>=3.8.0",
 ]

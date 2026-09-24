@@ -202,6 +202,7 @@ class MainWindow(QMainWindow):
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
+        self.active_media_fetchers = []
         self.load_data()
         
         # FEATURE: Timer for periodic timestamp updates (Run every 10 seconds)
@@ -4333,9 +4334,11 @@ class MainWindow(QMainWindow):
                 custom_title = j.get("title", "")
                 size_bytes = int(j.get("sizeBytes") or j.get("size_bytes", 0) or 0)
                 size_str = j.get("sizeStr") or j.get("size_str", "")
+                req_ext = j.get("ext") or ""
                 is_json = True
             except Exception:
                 is_json = False
+                req_ext = ""
 
         if not is_json:
             parts = str(data).split("|")
@@ -4435,41 +4438,63 @@ class MainWindow(QMainWindow):
                 m_h = re.search(r"(\d{3,4})", selected_quality)
                 height = int(m_h.group(1)) if m_h else None
 
-                # Resolve user-configured output formats from Options > Media
+                # Resolve user-configured output formats and codec preferences from Options > Media
                 _vc_display = media_defaults.get("video_container", "Auto (Best / Native) (Default)")
                 _video_container = _vc_display.split()[0].lower()
                 _af_display = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
                 _audio_format = _af_display.split()[0].lower()
+                _codec_display = media_defaults.get("video_codec", "Auto (Default)").lower()
+                _vcodec_filter = ""
+                if "av1" in _codec_display:
+                    _vcodec_filter = "[vcodec^=av01]"
+                elif "h264" in _codec_display or "avc" in _codec_display:
+                    _vcodec_filter = "[vcodec^=avc1]"
+                elif "vp9" in _codec_display:
+                    _vcodec_filter = "[vcodec^=vp9]"
 
+                is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
                 if is_audio:
                     format_spec = "bestaudio/best"
-                    ext = "." + (_audio_format if _audio_format not in ("auto", "best") else "opus")
+                    if req_ext:
+                        ext = req_ext if req_ext.startswith(".") else ("." + req_ext)
+                    else:
+                        ext = "." + (_audio_format if _audio_format not in ("auto", "best") else "opus")
                 elif height:
                     if _video_container == "webm":
-                        format_spec = f"bestvideo[height<={height}][ext=webm]+bestaudio[ext=webm]/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        format_spec = f"bestvideo[height<={height}]{_vcodec_filter}[ext=webm]+bestaudio[ext=webm]/bestvideo[height<={height}][ext=webm]+bestaudio/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
                         ext = ".webm"
                     elif _video_container == "mp4":
-                        format_spec = f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        format_spec = f"bestvideo[height<={height}]{_vcodec_filter}[ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}][ext=mp4]+bestaudio/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
                         ext = ".mp4"
                     elif _video_container == "mkv":
-                        format_spec = f"bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        format_spec = f"bestvideo[height<={height}]{_vcodec_filter}+bestaudio/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
                         ext = ".mkv"
                     else:
-                        format_spec = f"bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
-                        ext = ".mp4"
+                        format_spec = f"bestvideo[height<={height}]{_vcodec_filter}+bestaudio/bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best" if _vcodec_filter else f"bestvideo[height<={height}]+bestaudio/bestvideo+bestaudio/best"
+                        if req_ext:
+                            ext = req_ext if req_ext.startswith(".") else ("." + req_ext)
+                        elif is_youtube:
+                            ext = ".mkv"
+                        else:
+                            ext = ".mp4"
                 else:
                     if _video_container == "webm":
-                        format_spec = "bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo+bestaudio/best"
+                        format_spec = f"bestvideo{_vcodec_filter}[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio/bestvideo+bestaudio/best"
                         ext = ".webm"
                     elif _video_container == "mp4":
-                        format_spec = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+                        format_spec = f"bestvideo{_vcodec_filter}[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio/bestvideo+bestaudio/best"
                         ext = ".mp4"
                     elif _video_container == "mkv":
-                        format_spec = "bestvideo+bestaudio/best"
+                        format_spec = f"bestvideo{_vcodec_filter}+bestaudio/bestvideo+bestaudio/best" if _vcodec_filter else "bestvideo+bestaudio/best"
                         ext = ".mkv"
                     else:
-                        format_spec = "bestvideo+bestaudio/best"
-                        ext = ".mp4"
+                        format_spec = f"bestvideo{_vcodec_filter}+bestaudio/bestvideo+bestaudio/best" if _vcodec_filter else "bestvideo+bestaudio/best"
+                        if req_ext:
+                            ext = req_ext if req_ext.startswith(".") else ("." + req_ext)
+                        elif is_youtube:
+                            ext = ".mkv"
+                        else:
+                            ext = ".mp4"
 
                 # Construct appropriate filename
                 from core.utils import sanitize_media_filename
@@ -4614,6 +4639,16 @@ class MainWindow(QMainWindow):
                         full_title = clean_title
                 filename = sanitize_media_filename(full_title, ext=ext)
 
+                from core.utils import format_bytes
+                size_is_approximate = bool(size_str and str(size_str).startswith("~"))
+                init_size_str = None
+                if size_str and str(size_str).strip() not in ("Calculating...", "Probing...", "Size unavailable"):
+                    init_size_str = str(size_str).strip()
+                elif size_bytes > 0:
+                    init_size_str = (("~" if size_is_approximate else "") + format_bytes(size_bytes))
+                else:
+                    init_size_str = "Calculating..."
+
                 self.start_media_download(
                     url=url,
                     filename=filename,
@@ -4621,6 +4656,8 @@ class MainWindow(QMainWindow):
                     is_audio_only=is_audio,
                     cookies_file=effective_cookies_file,
                     total_size_bytes=size_bytes,
+                    size_str=init_size_str,
+                    size_is_approximate=size_is_approximate,
                     referrer=referrer,
                     user_agent=user_agent,
                     show_file_info=not auto_start,
@@ -4628,6 +4665,32 @@ class MainWindow(QMainWindow):
                     merge_output_format=_video_container,
                     audio_format=_audio_format
                 )
+
+                if size_bytes == 0:
+                    from core.media import MediaInfoFetcherWorker
+                    fetcher = MediaInfoFetcherWorker(
+                        url=url,
+                        selected_quality=selected_quality,
+                        height=height,
+                        is_audio=is_audio,
+                        video_container=_video_container,
+                        audio_format=_audio_format,
+                        video_codec=_codec_display,
+                        cookies_file=effective_cookies_file,
+                        referrer=referrer,
+                        user_agent=user_agent,
+                        cookies=effective_cookies,
+                        custom_title=full_title,
+                        format_spec=format_spec,
+                        initial_ext=ext,
+                        fallback_size_bytes=size_bytes,
+                        is_special_case=is_special_case,
+                    )
+                    self.active_media_fetchers.append(fetcher)
+                    fetcher.finished_signal.connect(
+                        lambda media_info, f=fetcher: self._handle_media_fetch_complete(media_info, f)
+                    )
+                    fetcher.start()
                 return
             else:
                 # Send link from context menu or raw URL: open media downloader and analyze
@@ -4886,6 +4949,83 @@ class MainWindow(QMainWindow):
             
         # Trigger existing popup dialog!
         self.on_file_info_fetched(file_info)
+
+    def _handle_media_fetch_complete(self, media_info, fetcher=None):
+        """Callback when MediaInfoFetcherWorker finishes resolving accurate media size and title."""
+        if fetcher and fetcher in getattr(self, "active_media_fetchers", []):
+            try:
+                self.active_media_fetchers.remove(fetcher)
+            except ValueError:
+                pass
+
+        if not media_info or not media_info.get("url"):
+            return
+
+        url = media_info["url"]
+        size_str = media_info.get("size_str")
+        size_bytes = media_info.get("size_bytes", 0)
+        filename = media_info.get("filename")
+        format_spec = media_info.get("format_spec")
+        cookies_file = media_info.get("cookies_file")
+        cookies_browser = media_info.get("cookies_browser")
+        cookies = media_info.get("cookies")
+
+        updated_dialog = False
+        # 1. Update any active DownloadFileInfoDialog for this URL
+        for dialog in list(getattr(self, "active_file_info_dialogs", {}).values()):
+            if hasattr(dialog, "file_info") and isinstance(dialog.file_info, dict):
+                if dialog.file_info.get("url") == url:
+                    if hasattr(dialog, "update_file_info"):
+                        dialog.update_file_info(size_str=size_str, size_bytes=size_bytes, filename=filename)
+                    updated_dialog = True
+
+        # 2. Update table row if download was already added/queued
+        updated_table = False
+        from core.utils import parse_size_to_bytes
+        for r in range(self.download_table.rowCount()):
+            it = self.download_table.item(r, 0)
+            if it and it.data(Qt.ItemDataRole.UserRole) == url:
+                if size_str:
+                    self._set_sortable_item(r, 1, size_str, parse_size_to_bytes)
+                if format_spec:
+                    it.setData(Qt.ItemDataRole.UserRole + 6, format_spec)
+                if cookies_browser:
+                    it.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
+                if cookies_file:
+                    it.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+                if cookies:
+                    it.setData(Qt.ItemDataRole.UserRole + 5, cookies)
+                    it.setData(Qt.ItemDataRole.UserRole + 17, cookies)
+
+                row_key = self._get_item_key(it)
+                if hasattr(self, "workers") and row_key in self.workers:
+                    worker = self.workers[row_key]
+                    if hasattr(worker, "total_bytes") and size_bytes > 0:
+                        worker.total_bytes = size_bytes
+                updated_table = True
+
+        if updated_table:
+            self.save_data()
+
+        # 3. If neither dialog nor table row was present, start media download
+        if not updated_dialog and not updated_table:
+            self.start_media_download(
+                url=url,
+                filename=filename or "media.mp4",
+                format_spec=format_spec or "bestvideo+bestaudio/best",
+                is_audio_only=media_info.get("is_audio_only", False),
+                cookies_file=cookies_file,
+                cookies_browser=cookies_browser,
+                total_size_bytes=size_bytes,
+                size_str=size_str,
+                size_is_approximate=media_info.get("size_is_approximate", False),
+                referrer=media_info.get("referrer"),
+                user_agent=media_info.get("user_agent"),
+                show_file_info=True,
+                cookies=cookies,
+                merge_output_format=media_info.get("video_container"),
+                audio_format=media_info.get("audio_format"),
+            )
 
     def on_file_info_fetched(self, file_info):
         silent = getattr(self, "settings", {}).get("silent_download", False)
@@ -6285,12 +6425,30 @@ class MainWindow(QMainWindow):
         self._grabber_dlg.raise_()
         self._grabber_dlg.activateWindow()
 
-    def start_media_download(self, url, filename="media.mp4", format_spec="bestvideo+bestaudio/best", is_audio_only=False, custom_save_dir=None, cookies_browser=None, cookies_file=None, total_size_bytes=0, referrer=None, user_agent=None, show_file_info=False, cookies=None, merge_output_format=None, audio_format=None):
+    def start_media_download(
+        self,
+        url,
+        filename="media.mp4",
+        format_spec="bestvideo+bestaudio/best",
+        is_audio_only=False,
+        custom_save_dir=None,
+        cookies_browser=None,
+        cookies_file=None,
+        total_size_bytes=0,
+        referrer=None,
+        user_agent=None,
+        show_file_info=False,
+        cookies=None,
+        merge_output_format=None,
+        audio_format=None,
+        size_str=None,
+        size_is_approximate=False,
+    ):
         from core.media_downloader import YtDlpDownloadWorker
 
         if is_debug_mode():
-            logger.debug("[MainWindow] start_media_download called: url=%s, filename=%s, format_spec=%s, is_audio=%s, total_size=%s",
-                         url, filename, format_spec, is_audio_only, total_size_bytes)
+            logger.debug("[MainWindow] start_media_download called: url=%s, filename=%s, format_spec=%s, is_audio=%s, total_size=%s, size_str=%s",
+                         url, filename, format_spec, is_audio_only, total_size_bytes, size_str)
 
         config = load_category_config()
         categories = config.get("categories", {})
@@ -6434,11 +6592,13 @@ class MainWindow(QMainWindow):
             show_file_info = False
 
         if show_file_info:
-            # Deduplicate: if a popup dialog for this URL is ALREADY open, bring it to front
+            # Deduplicate: if a popup dialog for this URL is ALREADY open, update it and bring it to front
             for dialog in getattr(self, 'active_file_info_dialogs', {}).values():
                 if hasattr(dialog, 'file_info') and isinstance(dialog.file_info, dict):
                     existing_d_url = dialog.file_info.get("url")
                     if existing_d_url == url:
+                        if hasattr(dialog, "update_file_info"):
+                            dialog.update_file_info(size_str=size_str, size_bytes=total_size_bytes, filename=filename)
                         dialog.show()
                         dialog.raise_()
                         dialog.activateWindow()
@@ -6454,12 +6614,17 @@ class MainWindow(QMainWindow):
                     if sp:
                         existing_paths.add(os.path.normpath(sp))
 
-            size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Unknown"
+            if not size_str:
+                if total_size_bytes > 0:
+                    size_str = (("~" if size_is_approximate else "") + format_bytes(total_size_bytes))
+                else:
+                    size_str = "Size unavailable"
             file_info = {
                 "url": url,
                 "filename": filename,
                 "size_str": size_str,
                 "size_bytes": total_size_bytes,
+                "size_is_approximate": size_is_approximate,
                 "user_agent": user_agent,
                 "cookies": cookies_file or cookies_browser or cookies,
                 "referer": referrer or url,
@@ -6558,7 +6723,12 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
         item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
 
-        init_size_str = format_bytes(total_size_bytes) if total_size_bytes > 0 else "Calculating..."
+        if size_str:
+            init_size_str = size_str
+        elif total_size_bytes > 0:
+            init_size_str = (("~" if size_is_approximate else "") + format_bytes(total_size_bytes))
+        else:
+            init_size_str = "Calculating..."
         self.download_table.setItem(row, 0, item_name)
         self._set_sortable_item(row, 1, init_size_str, parse_size_to_bytes)
         self._set_status_text(row, "Downloading...")

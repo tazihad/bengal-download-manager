@@ -80,8 +80,8 @@ def create_temp_netscape_cookie_file(cookie_str: str, url: str = "") -> str:
 
     # Non-essential bloat and tracking cookies on Google/YouTube that exceed 8KB request header limit
     YT_IGNORE_COOKIES = {
-        "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "SOCS", "OTZ",
-        "CONSENT", "_ga", "_gid", "wide", "1P_JAR", "ANID", "NID"
+        "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "OTZ",
+        "_ga", "_gid", "1P_JAR"
     }
 
     lines = ["# Netscape HTTP Cookie File", "# https://curl.haxx.se/rfc/cookie_spec.html", ""]
@@ -533,6 +533,8 @@ class YtDlpDownloadWorker(QThread):
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
+            from core.media.extractor import get_js_runtime_args
+            base_cmd.extend(get_js_runtime_args())
 
             # Selective thumbnail embedding: only enable for containers supported by yt-dlp/ffmpeg
             # Supported: mp3, mkv/mka, ogg/opus/flac, m4a/mp4/m4v/mov

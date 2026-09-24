@@ -1450,7 +1450,23 @@ class MediaDownloaderDialog(QDialog):
             ("AV1 Codec", "av1", has_av1),
         ]
 
-        curr_v_data = self.cmb_video_format.currentData() or "any"
+        curr_v_data = self.cmb_video_format.currentData()
+        if not curr_v_data or curr_v_data == "any":
+            try:
+                from core.config import load_category_config
+                cfg = load_category_config()
+                pref_codec = cfg.get("media_downloader_defaults", {}).get("video_codec", "Auto (Default)").lower()
+                if "av1" in pref_codec and has_av1:
+                    curr_v_data = "av1"
+                elif ("h264" in pref_codec or "avc" in pref_codec) and has_h264:
+                    curr_v_data = "h264"
+                elif "vp9" in pref_codec and has_webm_vp9:
+                    curr_v_data = "webm"
+                else:
+                    curr_v_data = curr_v_data or "any"
+            except Exception:
+                curr_v_data = "any"
+
         self.cmb_video_format.blockSignals(True)
         self.cmb_video_format.clear()
         v_model = self.cmb_video_format.model()

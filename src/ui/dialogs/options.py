@@ -1366,10 +1366,12 @@ class OptionsDialog(QDialog):
             "720p HD",
             "480p SD",
             "360p Low Quality",
-            "Audio Only (MP3)"
+            "Audio Only"
         ])
         saved_q = media_defaults.get("auto_media_quality_preset", "1080p Full HD")
         idx_q = self.cmb_media_quality.findText(saved_q)
+        if idx_q == -1 and "audio" in saved_q.lower():
+            idx_q = self.cmb_media_quality.findText("Audio Only")
         if idx_q != -1:
             self.cmb_media_quality.setCurrentIndex(idx_q)
         else:
@@ -1377,6 +1379,35 @@ class OptionsDialog(QDialog):
 
         grid_media.addWidget(lbl_q, 0, 0)
         grid_media.addWidget(self.cmb_media_quality, 0, 1)
+
+        # Video Codec
+        lbl_codec = QLabel("Video codec:")
+        lbl_codec.setToolTip(
+            "Preferred video codec stream from YouTube and video platforms.\n"
+            "• Auto (Default): Downloads the best available codec stream.\n"
+            "• AV1: Next-generation high-efficiency video codec (av01).\n"
+            "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
+            "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
+        )
+        self.cmb_video_codec = QComboBox()
+        self.cmb_video_codec.setFixedHeight(28)
+        self.cmb_video_codec.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_video_codec.setToolTip(
+            "Preferred video codec stream from YouTube and video platforms.\n"
+            "• Auto (Default): Downloads the best available codec stream.\n"
+            "• AV1: Next-generation high-efficiency video codec (av01).\n"
+            "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
+            "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
+        )
+        self.cmb_video_codec.addItems([
+            "Auto (Default)", "AV1", "H.264 / AVC", "VP9"
+        ])
+        saved_codec = media_defaults.get("video_codec", "Auto (Default)")
+        idx_codec = self.cmb_video_codec.findText(saved_codec)
+        self.cmb_video_codec.setCurrentIndex(idx_codec if idx_codec != -1 else 0)
+
+        grid_media.addWidget(lbl_codec, 1, 0)
+        grid_media.addWidget(self.cmb_video_codec, 1, 1)
 
         # Video Container format
         lbl_v = QLabel("Video format:")
@@ -1402,8 +1433,8 @@ class OptionsDialog(QDialog):
         idx_vc = self.cmb_video_container.findText(saved_vc)
         self.cmb_video_container.setCurrentIndex(idx_vc if idx_vc != -1 else 0)
 
-        grid_media.addWidget(lbl_v, 1, 0)
-        grid_media.addWidget(self.cmb_video_container, 1, 1)
+        grid_media.addWidget(lbl_v, 2, 0)
+        grid_media.addWidget(self.cmb_video_container, 2, 1)
 
         # Audio Format
         lbl_a = QLabel("Audio format:")
@@ -1427,8 +1458,8 @@ class OptionsDialog(QDialog):
         idx_af = self.cmb_audio_format.findText(saved_af)
         self.cmb_audio_format.setCurrentIndex(idx_af if idx_af != -1 else 0)
 
-        grid_media.addWidget(lbl_a, 2, 0)
-        grid_media.addWidget(self.cmb_audio_format, 2, 1)
+        grid_media.addWidget(lbl_a, 3, 0)
+        grid_media.addWidget(self.cmb_audio_format, 3, 1)
 
         grid_media.setColumnStretch(1, 1)
 
@@ -1825,6 +1856,8 @@ class OptionsDialog(QDialog):
             media_defaults["auto_update_engine_startup"] = self.chk_auto_update_engine.isChecked()
         if hasattr(self, "cmb_media_quality"):
             media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
+        if hasattr(self, "cmb_video_codec"):
+            media_defaults["video_codec"] = self.cmb_video_codec.currentText()
         if hasattr(self, "cmb_video_container"):
             media_defaults["video_container"] = self.cmb_video_container.currentText()
         if hasattr(self, "cmb_audio_format"):
