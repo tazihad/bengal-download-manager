@@ -9,9 +9,11 @@ from ui.dialogs.options import OptionsDialog
 
 def test_delete_dialog_defaults(qapp):
     """Verify default behavior is unchecked when setting is false/unset."""
-    dialog = DeleteDialog(count=1, is_completed=False)
-    assert dialog.should_delete_from_disk() is False
-    dialog.close()
+    from unittest.mock import patch
+    with patch("core.config.load_category_config", return_value={}):
+        dialog = DeleteDialog(count=1, is_completed=False)
+        assert dialog.should_delete_from_disk() is False
+        dialog.close()
 
 
 def test_delete_dialog_explicit_default(qapp):

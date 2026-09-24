@@ -526,7 +526,7 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_ui)
 
         # 3. Confirmation Dialogs / Deletion Settings
-        grp_confirm = QGroupBox("Deletion & Confirmations")
+        grp_confirm = QGroupBox("Deletion and Confirmations")
         lyt_confirm = QVBoxLayout()
         lyt_confirm.setContentsMargins(10, 8, 10, 8)
         lyt_confirm.setSpacing(8)
