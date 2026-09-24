@@ -48,9 +48,9 @@
   * `AddUrlDialog.qml` & `OptionsDialog.qml`: Kirigami Dialog overlays.
 * **`src/ui/dialogs/`**: PyQt6 QWidget dialog windows (`progress.py`, `complete.py`, `file_info.py`, `options.py`, `properties.py`).
 * **`flatpak/`**:
-  * `io.github.tazihad.bengal-download-manager.yml`: Flatpak manifest for `org.kde.Platform` 6.11.
-  * `io.github.tazihad.bengal-download-manager.desktop`: XDG desktop launcher entry.
-  * `io.github.tazihad.bengal-download-manager.metainfo.xml`: AppStream component metadata.
+  * `bd.com.zihad.BengalDownloadManager.yml`: Flatpak manifest for `org.kde.Platform` 6.11.
+  * `bd.com.zihad.BengalDownloadManager.desktop`: XDG desktop launcher entry.
+  * `bd.com.zihad.BengalDownloadManager.metainfo.xml`: AppStream component metadata.
 * **`extension/`**: Manifest V3 browser extension for Chrome and Firefox.
 * **`tests/`**: Automated test suite (`test_utils.py`, `test_workers.py`, `test_bridge.py`, `test_ui.py`).
 

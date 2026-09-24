@@ -6268,7 +6268,7 @@ class MainWindow(QMainWindow):
                             title="Download Complete",
                             message=body,
                             app_name="Bengal Download Manager",
-                            icon_name="io.github.tazihad.bengal-download-manager",
+                            icon_name="bd.com.zihad.BengalDownloadManager",
                             file_path=save_path,
                             tray_icon=getattr(self, "tray_icon", None)
                         )
@@ -6965,7 +6965,7 @@ class MainWindow(QMainWindow):
                                 title="Download Complete",
                                 message=body,
                                 app_name="Bengal Download Manager",
-                                icon_name="io.github.tazihad.bengal-download-manager",
+                                icon_name="bd.com.zihad.BengalDownloadManager",
                                 file_path=path,
                                 tray_icon=getattr(self, "tray_icon", None)
                             )

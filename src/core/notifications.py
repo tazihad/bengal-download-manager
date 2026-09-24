@@ -9,7 +9,7 @@ def _is_running_in_flatpak() -> bool:
     """Returns True if running inside a Flatpak container sandbox."""
     return os.path.exists("/.flatpak-info")
 
-def _send_portal_notification(title: str, message: str, icon_name: str, app_id: str = "io.github.tazihad.bengal-download-manager") -> bool:
+def _send_portal_notification(title: str, message: str, icon_name: str, app_id: str = "bd.com.zihad.BengalDownloadManager") -> bool:
     """Sends notification via XDG Desktop Portal (org.freedesktop.portal.Notification)."""
     try:
         from PyQt6.QtDBus import QDBusConnection, QDBusInterface
@@ -58,7 +58,7 @@ def send_system_notification(
     title: str,
     message: str,
     app_name: str = "Bengal Download Manager",
-    icon_name: str = "io.github.tazihad.bengal-download-manager",
+    icon_name: str = "bd.com.zihad.BengalDownloadManager",
     file_path: Optional[str] = None,
     tray_icon = None
 ) -> None:
@@ -68,7 +68,7 @@ def send_system_notification(
     """
     def _worker():
         # 1. Try XDG Desktop Portal (First choice for Flatpak & Modern Desktops)
-        if _send_portal_notification(title, message, icon_name, "io.github.tazihad.bengal-download-manager"):
+        if _send_portal_notification(title, message, icon_name, "bd.com.zihad.BengalDownloadManager"):
             return
         
         # 2. Try QSystemTrayIcon if available

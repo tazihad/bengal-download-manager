@@ -1651,7 +1651,7 @@ def choose_portal_open_file_path(title="Select File", folder=""):
 
 def get_autostart_filepath():
     autostart_dir = os.path.expanduser("~/.config/autostart")
-    return os.path.join(autostart_dir, "io.github.tazihad.bengal-download-manager.desktop")
+    return os.path.join(autostart_dir, "bd.com.zihad.BengalDownloadManager.desktop")
 
 
 def is_autostart_enabled():
@@ -1669,7 +1669,7 @@ def get_executable_command(start_minimized=False):
 
     # 2. Check if running inside Flatpak
     if os.path.exists("/.flatpak-info") or os.environ.get("FLATPAK_ID"):
-        flatpak_id = os.environ.get("FLATPAK_ID", "io.github.tazihad.bengal-download-manager")
+        flatpak_id = os.environ.get("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
         return f'flatpak run {flatpak_id}{min_flag}'
 
     # 3. Check if running inside Snap
@@ -1695,9 +1695,9 @@ Type=Application
 Name=Bengal Download Manager
 Comment=High-performance multi-threaded download manager
 Exec={exec_cmd}
-Icon=io.github.tazihad.bengal-download-manager
+Icon=bd.com.zihad.BengalDownloadManager
 Terminal=false
-StartupWMClass=io.github.tazihad.bengal-download-manager
+StartupWMClass=bd.com.zihad.BengalDownloadManager
 Categories=Network;FileTransfer;
 X-GNOME-Autostart-enabled=true
 """

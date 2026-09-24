@@ -48,11 +48,13 @@ fi
 
 # 3. Essential brand icons, logo, tray icons, and desktop entry
 # (Notice: promotional posters, screenshots, and website SVG badges are intentionally omitted)
-for f in logo.svg logo.png bengal-download-manager.png io.github.tazihad.bengal-download-manager.png \
+for f in logo.svg logo.png bengal-download-manager.png bd.com.zihad.BengalDownloadManager.png \
+         icons/tray/tray_monochrome_dark.png icons/tray/tray_monochrome_dark.svg \
+         icons/tray/tray_monochrome_light.png icons/tray/tray_monochrome_light.svg \
          tray_monochrome_dark.png tray_monochrome_dark.svg \
          tray_monochrome_light.png tray_monochrome_light.svg \
-         bengal-download-manager.desktop; do
+         bd.com.zihad.BengalDownloadManager.desktop; do
     if [ -f "$SRC_ASSETS/$f" ]; then
-        cp "$SRC_ASSETS/$f" "$TARGET_DIR/"
+        cp "$SRC_ASSETS/$f" "$TARGET_DIR/$(basename "$f")"
     fi
 done

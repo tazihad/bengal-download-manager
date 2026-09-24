@@ -2,11 +2,11 @@
 Name=Bengal Download Manager
 Comment=Fast multi-threaded download manager powered by Aria2
 Exec=bengal-download-manager %u
-Icon=io.github.tazihad.bengal-download-manager
+Icon=bd.com.zihad.BengalDownloadManager
 Terminal=false
 Type=Application
 Categories=Network;FileTransfer;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 Keywords=download;manager;aria2;multithread;
-StartupWMClass=io.github.tazihad.bengal-download-manager
+StartupWMClass=bd.com.zihad.BengalDownloadManager
 

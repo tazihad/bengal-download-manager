@@ -87,15 +87,15 @@ The top toolbar displays high-contrast vector icons with hover glow effects and 
 
 | Button | Label | Shortcut | Tooltip | What It Does |
 | :--- | :--- | :--- | :--- | :--- |
-| ![Add URL](assets/icons/add_url.png) | **Add URL** | `Ctrl+N` | *Add a new download URL address (Ctrl+N)* | Displays the address entry dialog to begin a new download. |
-| ![Resume](assets/icons/resume.png) | **Resume** | — | *Resume downloading selected file(s)* | Resumes network transfer for all highlighted paused or queued items. |
-| ![Stop](assets/icons/stop.png) | **Stop/Pause** | — | *Pause or stop selected download(s)* | Halts active TCP socket transfer for highlighted downloading items. |
-| ![Stop All](assets/icons/stop_all.png) | **Stop All** | — | *Pause or stop all currently active downloads* | Instantly stops all running download workers across all queues. |
-| ![Delete](assets/icons/delete.png) | **Delete** | `Delete` | *Delete selected download(s) from the list (Delete key)* | Opens the deletion confirmation dialog for highlighted rows. |
-| ![Clear Completed](assets/icons/clear_completed.png) | **Clear Completed** | — | *Remove completed downloads from the list* | Purges all finished rows from the UI table. Files on disk are kept. |
-| ![Scheduler](assets/icons/scheduler.png) | **Scheduler** | — | *Manage download queues and scheduling* | Opens the queue scheduler window to define execution times and batch queues. |
-| ![Options](assets/icons/options.png) | **Options** | — | *Configure download manager options, connection limits, and engine settings* | Launches the central settings window. |
-| ![Media Downloader](assets/icons/media_downloader.png) | **Media Downloader** | `Ctrl+M` | *Parse and download video or audio streams and playlists from media sites* | Opens the standalone yt-dlp media downloader window. |
+| ![Add URL](assets/icons/stellar/add_url.svg) | **Add URL** | `Ctrl+N` | *Add a new download URL address (Ctrl+N)* | Displays the address entry dialog to begin a new download. |
+| ![Resume](assets/icons/stellar/resume.svg) | **Resume** | — | *Resume downloading selected file(s)* | Resumes network transfer for all highlighted paused or queued items. |
+| ![Stop](assets/icons/stellar/stop.svg) | **Stop/Pause** | — | *Pause or stop selected download(s)* | Halts active TCP socket transfer for highlighted downloading items. |
+| ![Stop All](assets/icons/stellar/stop_all.svg) | **Stop All** | — | *Pause or stop all currently active downloads* | Instantly stops all running download workers across all queues. |
+| ![Delete](assets/icons/stellar/delete.svg) | **Delete** | `Delete` | *Delete selected download(s) from the list (Delete key)* | Opens the deletion confirmation dialog for highlighted rows. |
+| ![Clear Completed](assets/icons/stellar/clear_completed.svg) | **Clear Completed** | — | *Remove completed downloads from the list* | Purges all finished rows from the UI table. Files on disk are kept. |
+| ![Scheduler](assets/icons/stellar/scheduler.svg) | **Scheduler** | — | *Manage download queues and scheduling* | Opens the queue scheduler window to define execution times and batch queues. |
+| ![Options](assets/icons/stellar/options.svg) | **Options** | — | *Configure download manager options, connection limits, and engine settings* | Launches the central settings window. |
+| ![Media Downloader](assets/icons/stellar/media_downloader.svg) | **Media Downloader** | `Ctrl+M` | *Parse and download video or audio streams and playlists from media sites* | Opens the standalone yt-dlp media downloader window. |
 
 ---
 

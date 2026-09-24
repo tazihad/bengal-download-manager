@@ -1358,9 +1358,9 @@ def get_app_icon() -> QIcon:
 
         # 2. Snap — $SNAP hicolor icons (installed by snapcraft override-build)
         *([
-            os.path.join(_snap, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
-            os.path.join(_snap, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
-            os.path.join(_snap, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+            os.path.join(_snap, "usr", "share", "icons", "hicolor", "scalable", "apps", "bd.com.zihad.BengalDownloadManager.svg"),
+            os.path.join(_snap, "usr", "share", "icons", "hicolor", "512x512", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(_snap, "usr", "share", "icons", "hicolor", "256x256", "apps", "bd.com.zihad.BengalDownloadManager.png"),
         ] if _snap else []),
 
         # 3. Snap — $SNAP_APP_ROOT bundled assets (exported by bengal-wrapper.sh)
@@ -1372,29 +1372,29 @@ def get_app_icon() -> QIcon:
         ] if _snap_root else []),
 
         # 4. Flatpak — /app hicolor (fixed path per Flatpak spec)
-        "/app/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
-        "/app/share/icons/hicolor/512x512/apps/io.github.tazihad.bengal-download-manager.png",
-        "/app/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
-        "/app/share/icons/hicolor/128x128/apps/io.github.tazihad.bengal-download-manager.png",
+        "/app/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
+        "/app/share/icons/hicolor/512x512/apps/bd.com.zihad.BengalDownloadManager.png",
+        "/app/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
+        "/app/share/icons/hicolor/128x128/apps/bd.com.zihad.BengalDownloadManager.png",
 
         # 5. AppImage — $APPDIR hicolor
         *([
-            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "scalable", "apps", "io.github.tazihad.bengal-download-manager.svg"),
-            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "512x512", "apps", "io.github.tazihad.bengal-download-manager.png"),
-            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "io.github.tazihad.bengal-download-manager.png"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "scalable", "apps", "bd.com.zihad.BengalDownloadManager.svg"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "512x512", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bd.com.zihad.BengalDownloadManager.png"),
             os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
-            os.path.join(_appdir, "io.github.tazihad.bengal-download-manager.png"),
+            os.path.join(_appdir, "bd.com.zihad.BengalDownloadManager.png"),
         ] if _appdir else []),
 
         # 6. Standard system hicolor (deb / rpm / manual install)
-        "/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
-        "/usr/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
-        "/usr/local/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg",
-        "/usr/local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png",
+        "/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
+        "/usr/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
+        "/usr/local/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
+        "/usr/local/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
 
         # 7. User XDG local icons
-        os.path.expanduser("~/.local/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg"),
-        os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/io.github.tazihad.bengal-download-manager.png"),
+        os.path.expanduser("~/.local/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg"),
+        os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png"),
 
         # 8. sys.argv[0]-relative fallback (runtime-stable; works for snap, dev, any install layout)
         *([
@@ -1425,7 +1425,7 @@ def get_app_icon() -> QIcon:
                 return icon
 
     # Theme icon fallbacks
-    for theme_name in ["io.github.tazihad.bengal-download-manager", "bengal-download-manager"]:
+    for theme_name in ["bd.com.zihad.BengalDownloadManager", "bengal-download-manager"]:
         icon = QIcon.fromTheme(theme_name)
         if not icon.isNull():
             return icon
@@ -1514,8 +1514,19 @@ def get_themed_tray_icon(tray_option=None) -> QIcon:
         tray_option = CURRENT_TRAY_ICON if CURRENT_TRAY_ICON else "App Icon (Default)"
 
     opt_lower = str(tray_option).strip().lower()
-    light_path = _resolve_tray_asset("tray_monochrome_light.svg") or _resolve_tray_asset("tray_monochrome_light.png")
-    dark_path = _resolve_tray_asset("tray_monochrome_dark.svg") or _resolve_tray_asset("tray_monochrome_dark.png")
+
+    light_path = (
+        _resolve_tray_asset("icons/tray/tray_monochrome_light.svg")
+        or _resolve_tray_asset("icons/tray/tray_monochrome_light.png")
+        or _resolve_tray_asset("tray_monochrome_light.svg")
+        or _resolve_tray_asset("tray_monochrome_light.png")
+    )
+    dark_path = (
+        _resolve_tray_asset("icons/tray/tray_monochrome_dark.svg")
+        or _resolve_tray_asset("icons/tray/tray_monochrome_dark.png")
+        or _resolve_tray_asset("tray_monochrome_dark.svg")
+        or _resolve_tray_asset("tray_monochrome_dark.png")
+    )
 
     if opt_lower in ("app icon (default)", "app icon", "app_icon", "bdm app icon"):
         icon = get_app_icon()

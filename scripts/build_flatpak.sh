@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-APP_ID="io.github.tazihad.bengal-download-manager"
+APP_ID="bd.com.zihad.BengalDownloadManager"
 BUILD_DIR="flatpak_app_dir"
 
 DO_RUN=0
