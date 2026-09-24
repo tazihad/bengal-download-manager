@@ -503,220 +503,18 @@ def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
     return default_name, default_name
 
 
-class _KdeWaylandPaletteManager:
-    _instance = None
-
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
-    def __init__(self):
-        self.initialized = False
-        self.disp = None
-        self.mgr_proxy = None
-        self.palette_proxies = {}
-        self.wl_client = None
-
-    def initialize(self):
-        if self.initialized:
-            return bool(self.mgr_proxy)
-        if "PYTEST_CURRENT_TEST" in os.environ or not os.environ.get("WAYLAND_DISPLAY"):
-            return False
-        try:
-            import ctypes
-            import PyQt6.sip as sip
-            self.wl_client = ctypes.CDLL("libwayland-client.so.0")
-        except Exception:
-            return False
-
-        try:
-            import PyQt6
-            pyqt_dir = Path(PyQt6.__file__).parent
-            gui_lib_path = pyqt_dir / "Qt6" / "lib" / "libQt6Gui.so.6"
-            gui_lib = ctypes.CDLL(str(gui_lib_path)) if gui_lib_path.exists() else ctypes.CDLL("libQt6Gui.so.6")
-            get_pni = getattr(gui_lib, "_ZN15QGuiApplication23platformNativeInterfaceEv")
-            get_pni.restype = ctypes.c_void_p
-            pni = get_pni()
-            if not pni:
-                return False
-
-            wl_qt_path = pyqt_dir / "Qt6" / "lib" / "libQt6WaylandClient.so.6"
-            wl_qt_lib = ctypes.CDLL(str(wl_qt_path)) if wl_qt_path.exists() else ctypes.CDLL("libQt6WaylandClient.so.6")
-            res_fn = getattr(wl_qt_lib, "_ZN15QtWaylandClient23QWaylandNativeInterface28nativeResourceForIntegrationERK10QByteArray")
-            res_fn.restype = ctypes.c_void_p
-            res_fn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-
-            ba_disp = QByteArray(b"display")
-            self.disp = res_fn(pni, sip.unwrapinstance(ba_disp))
-            if not self.disp:
-                return False
-
-            reg_iface_addr = ctypes.addressof(ctypes.c_char.in_dll(self.wl_client, "wl_registry_interface"))
-            self.surf_iface_addr = ctypes.addressof(ctypes.c_char.in_dll(self.wl_client, "wl_surface_interface"))
-
-            class _wl_message(ctypes.Structure):
-                _fields_ = [("name", ctypes.c_char_p), ("signature", ctypes.c_char_p), ("types", ctypes.c_void_p)]
-
-            class _wl_interface(ctypes.Structure):
-                _fields_ = [
-                    ("name", ctypes.c_char_p), ("version", ctypes.c_int), ("method_count", ctypes.c_int),
-                    ("methods", ctypes.POINTER(_wl_message)), ("event_count", ctypes.c_int), ("events", ctypes.c_void_p),
-                ]
-
-            self.palette_iface = _wl_interface()
-            self.palette_iface.name = b"org_kde_kwin_server_decoration_palette"
-            self.palette_iface.version = 1
-            self.palette_iface.method_count = 2
-            palette_methods = (_wl_message * 2)(_wl_message(b"set_palette", b"s", None), _wl_message(b"release", b"", None))
-            self.palette_iface.methods = palette_methods
-
-            types_create = (ctypes.c_void_p * 2)(ctypes.addressof(self.palette_iface), self.surf_iface_addr)
-            self.manager_iface = _wl_interface()
-            self.manager_iface.name = b"org_kde_kwin_server_decoration_palette_manager"
-            self.manager_iface.version = 1
-            self.manager_iface.method_count = 1
-            manager_methods = (_wl_message * 1)(_wl_message(b"create", b"no", ctypes.cast(types_create, ctypes.c_void_p)))
-            self.manager_iface.methods = manager_methods
-
-            marshal_flags = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags.restype = ctypes.c_void_p
-            marshal_flags.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
-
-            registry = marshal_flags(self.disp, 1, reg_iface_addr, 1, 0, None)
-
-            GLOBAL_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32)
-            REMOVE_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32)
-
-            class _wl_registry_listener(ctypes.Structure):
-                _fields_ = [("global", GLOBAL_CB), ("global_remove", REMOVE_CB)]
-
-            palette_mgr_name = None
-            def on_global(data, reg, name, iface, version):
-                nonlocal palette_mgr_name
-                if iface == b"org_kde_kwin_server_decoration_palette_manager":
-                    palette_mgr_name = name
-
-            listener = _wl_registry_listener(GLOBAL_CB(on_global), REMOVE_CB(lambda d, r, n: None))
-            self.wl_client.wl_proxy_add_listener(registry, ctypes.byref(listener), None)
-            self.wl_client.wl_display_roundtrip(self.disp)
-
-            if palette_mgr_name is None:
-                self.initialized = True
-                return False
-
-            marshal_flags_bind = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags_bind.restype = ctypes.c_void_p
-            marshal_flags_bind.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_void_p]
-
-            self.mgr_proxy = marshal_flags_bind(
-                registry, 0, ctypes.byref(self.manager_iface), 1, 0,
-                ctypes.c_uint32(palette_mgr_name),
-                self.manager_iface.name,
-                ctypes.c_uint32(1),
-                None
-            )
-            self.initialized = True
-            return True
-        except Exception:
-            self.initialized = True
-            return False
-
-    def set_palette(self, surfaces: list, scheme_path: str) -> bool:
-        if not self.initialize() or not self.mgr_proxy:
-            return False
-        try:
-            marshal_flags_create = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags_create.restype = ctypes.c_void_p
-            marshal_flags_create.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_void_p]
-
-            marshal_flags_set = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags_set.restype = ctypes.c_void_p
-            marshal_flags_set.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p]
-
-            for surf in surfaces:
-                if surf not in self.palette_proxies:
-                    p = marshal_flags_create(
-                        self.mgr_proxy, 0, ctypes.byref(self.palette_iface), 1, 0,
-                        None, surf
-                    )
-                    if p:
-                        self.palette_proxies[surf] = p
-                proxy = self.palette_proxies.get(surf)
-                if proxy:
-                    marshal_flags_set(proxy, 0, None, 1, 0, scheme_path.encode())
-
-            self.wl_client.wl_display_flush(self.disp)
-            return True
-        except Exception:
-            return False
-
-
 def _apply_in_process_gtk_theme(is_dark: bool, mode: str = "Auto") -> bool:
-    """Sets in-memory GTK prefer-dark-theme and per-process environment for the current process only.
-    This safely influences in-process titlebar renderers (such as libdecor-gtk
-    on Wayland) WITHOUT modifying any global user configurations, files on disk,
-    or desktop-wide GSettings.
-    """
-    # 1. Per-process environment variable (strictly scoped to this process)
+    """Sets in-process environment variable for Wayland libdecor GTK plugin without mutating global settings."""
     try:
-        if is_dark:
+        if mode in ("Auto", "Automatic"):
+            os.environ.pop("GTK_THEME", None)
+        elif is_dark:
             os.environ["GTK_THEME"] = "Adwaita:dark"
         else:
             os.environ["GTK_THEME"] = "Adwaita:light"
+        return True
     except Exception:
-        pass
-
-    # 2. In-memory GtkSettings object (modifies process memory only for GTK3)
-    try:
-        import ctypes
-        gtk = ctypes.CDLL("libgtk-3.so.0")
-        gobject = ctypes.CDLL("libgobject-2.0.so.0")
-        if gtk.gtk_init_check(None, None):
-            gtk.gtk_settings_get_default.restype = ctypes.c_void_p
-            settings = gtk.gtk_settings_get_default()
-            if settings:
-                gobject.g_object_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-                val = ctypes.c_int(1 if is_dark else 0)
-                gobject.g_object_set(settings, b"gtk-application-prefer-dark-theme", val, None)
-                return True
-    except Exception:
-        pass
-    return False
-
-
-def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication, mode: str = "Auto") -> bool:
-    """
-    Communicates directly with KWin compositor via Wayland protocol:
-    org_kde_kwin_server_decoration_palette.set_palette(scheme)
-    to immediately change server-side window title bar decorations on KDE Plasma Wayland.
-    """
-    if "PYTEST_CURRENT_TEST" in os.environ or not os.environ.get("WAYLAND_DISPLAY"):
         return False
-
-    surfaces = []
-    for w in windows:
-        if not w:
-            continue
-        if hasattr(w, "isVisible") and not w.isVisible():
-            continue
-        try:
-            wid = int(w.winId())
-            if wid > 0:
-                surfaces.append(wid)
-        except Exception:
-            continue
-
-    if not surfaces:
-        return False
-
-    if mode in ("Auto", "Automatic"):
-        scheme_path = ""
-    else:
-        _, scheme_path = _find_kde_color_scheme(is_dark)
-    return _KdeWaylandPaletteManager.get_instance().set_palette(surfaces, scheme_path)
-
 
 def is_gnome_desktop() -> bool:
     """
@@ -878,10 +676,6 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
     # 3b. In-process GTK decoration preference (for libdecor-gtk on Wayland, zero system mutation)
     if sys.platform.startswith("linux"):
         _apply_in_process_gtk_theme(is_dark, mode)
-
-    # 4. Linux Wayland KDE KWin SSD Protocol
-    if sys.platform.startswith("linux"):
-        _apply_kde_wayland_titlebar(is_dark, all_windows, app, mode=mode)
 
     # 5. Linux GNOME / GTK Client-Side Decoration (CSD) - only for custom Light/Dark, Automatic uses system default titlebar
     if sys.platform.startswith("linux") and is_gnome_desktop() and mode in ("Light", "Dark"):
