@@ -44,16 +44,16 @@ class FileDragButton(QPushButton):
             QPushButton {
                 font-size: 11px;
                 font-weight: 600;
-                padding: 4px 10px;
-                border: 1px dashed palette(highlight);
+                padding: 4px 12px;
+                border: 1px solid palette(mid);
                 border-radius: 6px;
-                background-color: palette(base);
-                color: palette(highlight);
+                background-color: palette(button);
+                color: palette(button-text);
             }
             QPushButton:hover {
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
-                border-style: solid;
+                border-color: palette(highlight);
             }
             QPushButton:pressed {
                 background-color: palette(mid);

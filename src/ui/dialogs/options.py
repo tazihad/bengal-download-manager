@@ -524,6 +524,29 @@ class OptionsDialog(QDialog):
 
         grp_ui.setLayout(grid_ui)
         layout.addWidget(grp_ui)
+
+        # 3. Confirmation Dialogs / Deletion Settings
+        grp_confirm = QGroupBox("Deletion & Confirmations")
+        lyt_confirm = QVBoxLayout()
+        lyt_confirm.setContentsMargins(10, 8, 10, 8)
+        lyt_confirm.setSpacing(8)
+
+        self.chk_precheck_delete_files = QCheckBox("Pre-check \"Also delete files from disk (permanently)\" in delete dialog")
+        self.chk_precheck_delete_files.setToolTip(
+            "When deleting downloads, automatically check the option to permanently remove downloaded files from disk."
+        )
+
+        precheck_delete = False
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            precheck_delete = self.main_win.settings.get("precheck_delete_files_from_disk", False)
+        elif "precheck_delete_files_from_disk" in self.config_data:
+            precheck_delete = self.config_data.get("precheck_delete_files_from_disk", False)
+
+        self.chk_precheck_delete_files.setChecked(bool(precheck_delete))
+        lyt_confirm.addWidget(self.chk_precheck_delete_files)
+        grp_confirm.setLayout(lyt_confirm)
+        layout.addWidget(grp_confirm)
+
         layout.addStretch()
 
         _scroll_area.setWidget(_content)
@@ -1930,6 +1953,9 @@ class OptionsDialog(QDialog):
             media_defaults["youtube_pot_enabled"] = self.chk_opt_pot_enabled.isChecked()
         self.config_data["media_downloader_defaults"] = media_defaults
 
+        precheck_delete = self.chk_precheck_delete_files.isChecked() if hasattr(self, "chk_precheck_delete_files") else False
+        self.config_data["precheck_delete_files_from_disk"] = precheck_delete
+
         save_category_config(self.config_data)
         
         from core.services.language_service import (
@@ -1953,6 +1979,7 @@ class OptionsDialog(QDialog):
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
+            setattr(self.main_win, "precheck_delete_files_from_disk", precheck_delete)
             
             silent_dl = self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
             show_start = self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
@@ -1980,6 +2007,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["show_progress_dialog"] = show_prog
                 self.main_win.settings["show_complete_dialog"] = show_comp
                 self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+                self.main_win.settings["precheck_delete_files_from_disk"] = precheck_delete
 
             if lang_changed:
                 apply_language(QApplication.instance(), new_lang_code)
@@ -2082,3 +2110,6 @@ class OptionsDialog(QDialog):
 
     def get_show_queue_complete_dialog(self) -> bool:
         return self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
+
+    def get_precheck_delete_files_from_disk(self) -> bool:
+        return self.chk_precheck_delete_files.isChecked() if hasattr(self, "chk_precheck_delete_files") else False

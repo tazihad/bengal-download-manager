@@ -3593,6 +3593,8 @@ class MainWindow(QMainWindow):
         settings["show_progress_dialog"] = settings.get("show_progress_dialog", True)
         settings["show_complete_dialog"] = settings.get("show_complete_dialog", True)
         settings["show_queue_complete_dialog"] = settings.get("show_queue_complete_dialog", False)
+        settings["precheck_delete_files_from_disk"] = settings.get("precheck_delete_files_from_disk", False)
+        self.precheck_delete_files_from_disk = settings["precheck_delete_files_from_disk"]
 
         apply_app_theme(
             settings["theme"],
