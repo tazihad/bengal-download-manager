@@ -24,6 +24,12 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     if sys._MEIPASS not in sys.path:
         sys.path.insert(0, sys._MEIPASS)
 
+# Prevent host GIO modules from loading against bundled GLib in frozen/AppImage environments
+# (prevents libgvfs / symbol mismatch undefined symbol: g_variant_builder_init_static and subsequent segfaults)
+if getattr(sys, 'frozen', False) or os.environ.get("APPIMAGE") or os.environ.get("APPDIR"):
+    os.environ["GIO_MODULE_DIR"] = "/dev/null"
+    os.environ.pop("GIO_EXTRA_MODULES", None)
+
 from PyQt6.QtWidgets import QApplication, QStyle
 from PyQt6.QtCore import Qt, QTimer, qInstallMessageHandler, QtMsgType
 

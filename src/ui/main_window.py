@@ -37,6 +37,9 @@ if platform.system() == "Windows":
     from ctypes import wintypes
 
 try:
+    if getattr(sys, 'frozen', False) or os.environ.get("APPIMAGE") or os.environ.get("APPDIR"):
+        os.environ["GIO_MODULE_DIR"] = "/dev/null"
+        os.environ.pop("GIO_EXTRA_MODULES", None)
     from gi.repository import Gio  # type: ignore
     _HAS_GIO = True
 except Exception:

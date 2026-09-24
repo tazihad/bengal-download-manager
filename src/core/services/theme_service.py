@@ -30,6 +30,9 @@ if platform.system() == "Windows":
 # Optional GIO/GSettings for GNOME
 _HAS_GIO = False
 try:
+    if getattr(sys, 'frozen', False) or os.environ.get("APPIMAGE") or os.environ.get("APPDIR"):
+        os.environ["GIO_MODULE_DIR"] = "/dev/null"
+        os.environ.pop("GIO_EXTRA_MODULES", None)
     import gi
     gi.require_version('Gio', '2.0')
     from gi.repository import Gio
