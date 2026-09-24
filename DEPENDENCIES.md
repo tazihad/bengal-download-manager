@@ -30,11 +30,12 @@ sudo pacman -S python python-pip aria2 qt6-base
 
 ## 2. Python Dependencies
 
-These are listed in `requirements.txt` and should be installed in a virtual environment.
+These are declared in `pyproject.toml` and should be installed in a virtual environment.
 
 | Package | Purpose |
 |---------|---------|
 | `PyQt6` | The GUI framework used for the IDM-style interface. |
+| `python-socks[asyncio]` | Local SOCKS4/SOCKS5 proxy adapter bridge for Aria2. |
 | `pyinstaller` | Used to bundle the application into a standalone executable. |
 | `pytest` | Framework for running automated tests. |
 | `pytest-qt` | Plugin for testing Qt applications. |
@@ -44,9 +45,8 @@ These are listed in `requirements.txt` and should be installed in a virtual envi
 # Create virtual environment with uv
 uv venv
 
-# Install project dependencies
-uv pip install -r requirements.txt
-uv pip install -r requirements-dev.txt  # For development/testing
+# Install project dependencies with development/testing extras
+uv pip install -e ".[dev]"
 ```
 
 ---

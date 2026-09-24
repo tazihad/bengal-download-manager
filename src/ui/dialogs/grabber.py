@@ -67,7 +67,7 @@ class GrabberDialog(QDialog):
         self._url_to_row: Dict[str, int] = {}
         self._url_to_size_item: Dict[str, QTableWidgetItem] = {}
 
-        self.setWindowTitle(self.tr("Site Grabber — Bengal Download Manager"))
+        self.setWindowTitle(self.tr("Site Grabber"))
         self.resize(980, 620)
         self.setMinimumSize(820, 520)
 

@@ -1,11 +1,12 @@
 import os
+import shutil
 import subprocess
 import threading
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
-    QApplication, QStackedWidget, QSizePolicy
+    QApplication, QStackedWidget, QSizePolicy, QScrollArea
 )
 from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -281,7 +282,13 @@ class OptionsDialog(QDialog):
         return getattr(self, "_main_window", None) or self.parent()
 
     def setup_general_tab(self):
-        layout = QVBoxLayout(self.general_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
         
@@ -302,14 +309,14 @@ class OptionsDialog(QDialog):
         if view_theme:
             view_theme.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         theme_options = [
-            "System", "BDM Auto", "BDM Dark (Default)", "BDM Light",
+            "BDM Auto (Default)", "System", "BDM Dark", "BDM Light",
             "Breeze Dark", "Breeze Light", "Catppuccin",
             "Dracula", "IDM Classic", "Kirigami Dark", 
             "Kirigami Light", "Material You Dark", "Material You Light",
             "Nord", "Obsidian Flow", "One Dark", 
             "Solarized Dark", "Solarized Light", 
             "Stellar Dark", "Stellar Light",
-            "Twilight", "Ubuntu Dark", "Ubuntu Light"
+            "TMOG Dark", "Twilight", "Ubuntu Dark", "Ubuntu Light"
         ]
         self.combo_theme.addItems(theme_options)
 
@@ -326,7 +333,7 @@ class OptionsDialog(QDialog):
             "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
             "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
-            "Obsidian Purple", "Stellar Blue", "Twilight", "Ubuntu Orange", "Windows Blue"
+            "Obsidian Purple", "Stellar Blue", "TMOG Cyan", "Twilight", "Ubuntu Orange", "Windows Blue"
         ]
         self.combo_accent.addItems(accent_options)
 
@@ -339,7 +346,7 @@ class OptionsDialog(QDialog):
         view_icons = self.combo_icon_theme.view()
         if view_icons:
             view_icons.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Stellar", "Yaru"]
+        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Stellar", "TMOG Neon", "Yaru"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
@@ -356,6 +363,18 @@ class OptionsDialog(QDialog):
         ]
         self.combo_tray_icon.addItems(tray_icon_options)
 
+        lbl_titlebar = QLabel("Title bar:")
+        lbl_titlebar.setToolTip("Select title bar theme: follow system theme, system light, or system dark")
+        self.combo_titlebar = QComboBox()
+        self.combo_titlebar.setToolTip("Select title bar theme: Automatic (follow system theme), Light, or Dark")
+        self.combo_titlebar.setMaxVisibleItems(10)
+        self.combo_titlebar.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_titlebar = self.combo_titlebar.view()
+        if view_titlebar:
+            view_titlebar.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        titlebar_options = ["Automatic", "Light", "Dark"]
+        self.combo_titlebar.addItems(titlebar_options)
+
         grid_theme.addWidget(lbl_theme, 0, 0)
         grid_theme.addWidget(self.combo_theme, 0, 1)
         grid_theme.addWidget(lbl_accent, 0, 2)
@@ -366,25 +385,34 @@ class OptionsDialog(QDialog):
         grid_theme.addWidget(lbl_tray_icon, 1, 2)
         grid_theme.addWidget(self.combo_tray_icon, 1, 3)
 
+        grid_theme.addWidget(lbl_titlebar, 2, 0)
+        grid_theme.addWidget(self.combo_titlebar, 2, 1)
+
         grp_theme.setLayout(grid_theme)
 
-        current_theme = "BDM Dark (Default)"
+        current_theme = "BDM Auto (Default)"
         current_accent = "BDM (Default)"
         current_icon_theme = "BDM Auto (Default)"
         current_tray_icon = "App Icon (Default)"
+        current_titlebar = "Automatic"
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
-            current_theme = self.main_win.settings.get("theme", "BDM Dark (Default)")
+            current_theme = self.main_win.settings.get("theme", "BDM Auto (Default)")
             current_accent = self.main_win.settings.get("accent", "BDM (Default)")
             current_icon_theme = self.main_win.settings.get("icon_theme", "BDM (Default)")
             current_tray_icon = self.main_win.settings.get("tray_icon", "App Icon (Default)")
-
+            current_titlebar = self.main_win.settings.get("title_bar", "Automatic")
 
         try:
-            from main import normalize_theme_name, normalize_accent_name, normalize_icon_theme_name, normalize_tray_icon_name
+            from core.services.theme_service import (
+                normalize_theme_name, normalize_accent_name,
+                normalize_icon_theme_name, normalize_tray_icon_name,
+                normalize_titlebar_name
+            )
             current_theme = normalize_theme_name(current_theme)
             current_accent = normalize_accent_name(current_accent)
             current_icon_theme = normalize_icon_theme_name(current_icon_theme)
             current_tray_icon = normalize_tray_icon_name(current_tray_icon)
+            current_titlebar = normalize_titlebar_name(current_titlebar)
         except Exception:
             pass
 
@@ -392,9 +420,10 @@ class OptionsDialog(QDialog):
         self.initial_accent = current_accent
         self.initial_icon_theme = current_icon_theme
         self.initial_tray_icon = current_tray_icon
+        self.initial_titlebar = current_titlebar
 
         idx_t = self.combo_theme.findText(current_theme)
-        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Dark (Default)")
+        if idx_t == -1: idx_t = self.combo_theme.findText("BDM Auto (Default)")
         if idx_t != -1: self.combo_theme.setCurrentIndex(idx_t)
 
         idx_a = self.combo_accent.findText(current_accent)
@@ -409,11 +438,16 @@ class OptionsDialog(QDialog):
         if idx_tr == -1: idx_tr = self.combo_tray_icon.findText("App Icon (Default)")
         if idx_tr != -1: self.combo_tray_icon.setCurrentIndex(idx_tr)
 
+        idx_tb = self.combo_titlebar.findText(current_titlebar)
+        if idx_tb == -1: idx_tb = self.combo_titlebar.findText("Automatic")
+        if idx_tb != -1: self.combo_titlebar.setCurrentIndex(idx_tb)
+
         # Connect live preview signals
         self.combo_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_accent.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_icon_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_tray_icon.currentTextChanged.connect(self.on_appearance_preview)
+        self.combo_titlebar.currentTextChanged.connect(self.on_appearance_preview)
 
         layout.addWidget(grp_theme)
 
@@ -487,13 +521,49 @@ class OptionsDialog(QDialog):
         grid_ui.addWidget(self.combo_scale, 0, 1)
         grid_ui.addWidget(lbl_language, 0, 2)
         grid_ui.addWidget(self.combo_language, 0, 3)
+        grid_ui.setColumnStretch(4, 1)
 
         grp_ui.setLayout(grid_ui)
         layout.addWidget(grp_ui)
+
+        # 3. Confirmation Dialogs / Deletion Settings
+        grp_confirm = QGroupBox("Deletion and Confirmations")
+        lyt_confirm = QVBoxLayout()
+        lyt_confirm.setContentsMargins(10, 8, 10, 8)
+        lyt_confirm.setSpacing(8)
+
+        self.chk_precheck_delete_files = QCheckBox("Pre-check \"Also delete files from disk (permanently)\" in delete dialog")
+        self.chk_precheck_delete_files.setToolTip(
+            "When deleting downloads, automatically check the option to permanently remove downloaded files from disk."
+        )
+
+        precheck_delete = False
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            precheck_delete = self.main_win.settings.get("precheck_delete_files_from_disk", False)
+        elif "precheck_delete_files_from_disk" in self.config_data:
+            precheck_delete = self.config_data.get("precheck_delete_files_from_disk", False)
+
+        self.chk_precheck_delete_files.setChecked(bool(precheck_delete))
+        lyt_confirm.addWidget(self.chk_precheck_delete_files)
+        grp_confirm.setLayout(lyt_confirm)
+        layout.addWidget(grp_confirm)
+
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.general_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_downloads_tab(self):
-        layout = QVBoxLayout(self.downloads_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
 
@@ -622,10 +692,23 @@ class OptionsDialog(QDialog):
 
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.downloads_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_startup_tab(self):
-        layout = QVBoxLayout(self.startup_tab)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(20)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Startup and Integration
         grp_startup = QGroupBox("Startup and Integration")
@@ -647,7 +730,11 @@ class OptionsDialog(QDialog):
         
         grp_startup.setLayout(vbox_startup)
         layout.addWidget(grp_startup)
-        layout.addStretch()
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.startup_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
 
 
     def refresh_engine_status(self):
@@ -689,7 +776,13 @@ class OptionsDialog(QDialog):
         threading.Thread(target=check, daemon=True).start()
 
     def setup_saveto_tab(self):
-        layout = QVBoxLayout(self.saveto_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
         
@@ -771,6 +864,12 @@ class OptionsDialog(QDialog):
         grp_temp.setLayout(temp_layout)
         layout.addWidget(grp_temp)
         layout.addStretch()
+
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.saveto_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
         self.on_category_changed(self.combo_cat.currentText())
 
     def on_proxy_toggle(self, checked):
@@ -780,7 +879,13 @@ class OptionsDialog(QDialog):
             self.refresh_engine_status()
 
     def setup_proxy_tab(self):
-        layout = QVBoxLayout(self.proxy_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
         
@@ -1013,8 +1118,20 @@ class OptionsDialog(QDialog):
         if self.rb_manual.isChecked() and self.txt_host.text().strip():
             QTimer.singleShot(200, self.trigger_proxy_detection)
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.proxy_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_extension_tab(self):
-        layout = QVBoxLayout(self.extension_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
         
@@ -1101,8 +1218,20 @@ class OptionsDialog(QDialog):
 
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.extension_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_aria2_tab(self):
-        layout = QVBoxLayout(self.aria2_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
@@ -1208,8 +1337,20 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_ipc)
         layout.addStretch()
 
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.aria2_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
+
     def setup_media_tab(self):
-        layout = QVBoxLayout(self.media_tab)
+        _scroll_area = QScrollArea()
+        _scroll_area.setWidgetResizable(True)
+        _scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        _scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        _scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        _content = QWidget()
+        layout = QVBoxLayout(_content)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
@@ -1226,9 +1367,20 @@ class OptionsDialog(QDialog):
         self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
         vbox_browser.addWidget(self.chk_auto_start_media)
 
-        row_media_q = QHBoxLayout()
-        row_media_q.addWidget(QLabel("Preselected Quality Target:"))
+        self.chk_auto_update_engine = QCheckBox("Auto-check and update media engine on startup")
+        self.chk_auto_update_engine.setToolTip("Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch")
+        self.chk_auto_update_engine.setChecked(bool(media_defaults.get("auto_update_engine_startup", True)))
+        vbox_browser.addWidget(self.chk_auto_update_engine)
+
+        grid_media = QGridLayout()
+        grid_media.setContentsMargins(0, 6, 0, 0)
+        grid_media.setSpacing(10)
+
+        lbl_q = QLabel("Quality preset:")
+        lbl_q.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality = QComboBox()
+        self.cmb_media_quality.setFixedHeight(28)
+        self.cmb_media_quality.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality.addItems([
             "Best Quality (Video + Audio merged)",
@@ -1238,17 +1390,104 @@ class OptionsDialog(QDialog):
             "720p HD",
             "480p SD",
             "360p Low Quality",
-            "Audio Only (MP3)"
+            "Audio Only"
         ])
         saved_q = media_defaults.get("auto_media_quality_preset", "1080p Full HD")
         idx_q = self.cmb_media_quality.findText(saved_q)
+        if idx_q == -1 and "audio" in saved_q.lower():
+            idx_q = self.cmb_media_quality.findText("Audio Only")
         if idx_q != -1:
             self.cmb_media_quality.setCurrentIndex(idx_q)
         else:
             self.cmb_media_quality.setCurrentIndex(3)  # 1080p Full HD
-        
-        row_media_q.addWidget(self.cmb_media_quality, stretch=1)
-        vbox_browser.addLayout(row_media_q)
+
+        grid_media.addWidget(lbl_q, 0, 0)
+        grid_media.addWidget(self.cmb_media_quality, 0, 1)
+
+        # Video Codec
+        lbl_codec = QLabel("Video codec:")
+        lbl_codec.setToolTip(
+            "Preferred video codec stream from YouTube and video platforms.\n"
+            "• Auto (Default): Downloads the best available codec stream.\n"
+            "• AV1: Next-generation high-efficiency video codec (av01).\n"
+            "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
+            "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
+        )
+        self.cmb_video_codec = QComboBox()
+        self.cmb_video_codec.setFixedHeight(28)
+        self.cmb_video_codec.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_video_codec.setToolTip(
+            "Preferred video codec stream from YouTube and video platforms.\n"
+            "• Auto (Default): Downloads the best available codec stream.\n"
+            "• AV1: Next-generation high-efficiency video codec (av01).\n"
+            "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
+            "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
+        )
+        self.cmb_video_codec.addItems([
+            "Auto (Default)", "AV1", "H.264 / AVC", "VP9"
+        ])
+        saved_codec = media_defaults.get("video_codec", "Auto (Default)")
+        idx_codec = self.cmb_video_codec.findText(saved_codec)
+        self.cmb_video_codec.setCurrentIndex(idx_codec if idx_codec != -1 else 0)
+
+        grid_media.addWidget(lbl_codec, 1, 0)
+        grid_media.addWidget(self.cmb_video_codec, 1, 1)
+
+        # Video Container format
+        lbl_v = QLabel("Video format:")
+        lbl_v.setToolTip(
+            "Output container format for downloaded videos.\n"
+            "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
+            "• MKV: Universal container, supports all codecs.\n"
+            "• MP4 / WebM: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_video_container = QComboBox()
+        self.cmb_video_container.setFixedHeight(28)
+        self.cmb_video_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_video_container.setToolTip(
+            "Output container format for downloaded videos.\n"
+            "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
+            "• MKV: Universal container, supports all codecs.\n"
+            "• MP4 / WebM: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_video_container.addItems([
+            "Auto (Best / Native) (Default)", "MKV", "MP4", "WebM"
+        ])
+        saved_vc = media_defaults.get("video_container", "Auto (Best / Native) (Default)")
+        idx_vc = self.cmb_video_container.findText(saved_vc)
+        self.cmb_video_container.setCurrentIndex(idx_vc if idx_vc != -1 else 0)
+
+        grid_media.addWidget(lbl_v, 2, 0)
+        grid_media.addWidget(self.cmb_video_container, 2, 1)
+
+        # Audio Format
+        lbl_a = QLabel("Audio format:")
+        lbl_a.setToolTip(
+            "Output format for audio-only downloads.\n"
+            "• Auto: Downloads the site's native audio stream (fastest).\n"
+            "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_audio_format = QComboBox()
+        self.cmb_audio_format.setFixedHeight(28)
+        self.cmb_audio_format.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_audio_format.setToolTip(
+            "Output format for audio-only downloads.\n"
+            "• Auto: Downloads the site's native audio stream (fastest).\n"
+            "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
+        )
+        self.cmb_audio_format.addItems([
+            "Auto (Best / Native) (Default)", "Opus", "MP3", "AAC", "FLAC", "M4A", "OGG", "WAV"
+        ])
+        saved_af = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
+        idx_af = self.cmb_audio_format.findText(saved_af)
+        self.cmb_audio_format.setCurrentIndex(idx_af if idx_af != -1 else 0)
+
+        grid_media.addWidget(lbl_a, 3, 0)
+        grid_media.addWidget(self.cmb_audio_format, 3, 1)
+
+        grid_media.setColumnStretch(1, 1)
+
+        vbox_browser.addLayout(grid_media)
         layout.addWidget(grp_browser)
 
         # 2. Authentication and Cookie Vault Defaults
@@ -1262,27 +1501,15 @@ class OptionsDialog(QDialog):
         lbl_cookie.setToolTip("Select cookie authentication strategy for media sites")
         row_cookies_config.addWidget(lbl_cookie)
         self.cmb_opt_cookies_mode = QComboBox()
-        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file, browser auto-extract, or none)")
+        self.cmb_opt_cookies_mode.setFixedHeight(28)
+        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file or none)")
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
-            "Browser Auto-Extraction",
             "None (Anonymous / Public)"
         ])
         saved_cmode = media_defaults.get("cookies_mode_idx", 0)
-        self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 2))
+        self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 1))
         row_cookies_config.addWidget(self.cmb_opt_cookies_mode, stretch=1)
-
-        self.lbl_opt_cookies_browser = QLabel("Browser:")
-        self.lbl_opt_cookies_browser.setToolTip("Select installed web browser to extract cookies from")
-        row_cookies_config.addWidget(self.lbl_opt_cookies_browser)
-        self.cmb_opt_cookies_browser = QComboBox()
-        self.cmb_opt_cookies_browser.setToolTip("Select web browser to automatically extract authenticated cookies")
-        self.cmb_opt_cookies_browser.addItems(["Chrome", "Firefox", "Brave", "Edge", "Chromium", "Vivaldi", "Opera"])
-        saved_cbrowser = self.config_data.get("media_downloader_cookies_browser", media_defaults.get("cookies_browser", "Chrome"))
-        idx_cb = self.cmb_opt_cookies_browser.findText(saved_cbrowser, Qt.MatchFlag.MatchFixedString)
-        if idx_cb != -1:
-            self.cmb_opt_cookies_browser.setCurrentIndex(idx_cb)
-        row_cookies_config.addWidget(self.cmb_opt_cookies_browser, stretch=1)
         vbox_cookies.addLayout(row_cookies_config)
 
         # Full-width cookies path input with Browse / Clear buttons below
@@ -1314,6 +1541,17 @@ class OptionsDialog(QDialog):
 
         vbox_cookies.addLayout(row_cbuttons)
 
+        lbl_cookies_help = QLabel(
+            '<i>Authenticated cookies bypass bot verification ("Sign in to confirm you\'re not a bot"), '
+            'rate limits, and unlock premium/member-only streams. '
+            'Learn how to export and configure cookies in the '
+            '<a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: #3498db; text-decoration: underline;">How to Use Cookies Guide on GitHub</a>.</i>'
+        )
+        lbl_cookies_help.setOpenExternalLinks(True)
+        lbl_cookies_help.setWordWrap(True)
+        lbl_cookies_help.setStyleSheet("color: gray; font-size: 11px;")
+        vbox_cookies.addWidget(lbl_cookies_help)
+
         self.cmb_opt_cookies_mode.currentIndexChanged.connect(self._update_opt_cookies_ui)
         self._update_opt_cookies_ui()
 
@@ -1343,18 +1581,50 @@ class OptionsDialog(QDialog):
         vbox_extractor.addLayout(row_client)
         layout.addWidget(grp_extractor)
 
+        # 4. YouTube Proof of Origin (PO Token) Settings
+        grp_pot = QGroupBox("YouTube Proof of Origin (PO Token) Auto-Solver")
+        vbox_pot = QVBoxLayout(grp_pot)
+        vbox_pot.setContentsMargins(10, 15, 10, 15)
+        vbox_pot.setSpacing(10)
+
+        self.chk_opt_pot_enabled = QCheckBox("Enable YouTube Proof of Origin (PO Token) auto-solver")
+        self.chk_opt_pot_enabled.setToolTip("Automatically solves YouTube BotGuard challenges and Proof-of-Origin tokens via Deno/Node.js engine and bgutil")
+        saved_pot_enabled = media_defaults.get("youtube_pot_enabled", True)
+        self.chk_opt_pot_enabled.setChecked(bool(saved_pot_enabled))
+        vbox_pot.addWidget(self.chk_opt_pot_enabled)
+
+        self.lbl_opt_pot_status = QLabel("")
+        self.lbl_opt_pot_status.setWordWrap(True)
+        self.lbl_opt_pot_status.setStyleSheet("font-size: 11px;")
+        vbox_pot.addWidget(self.lbl_opt_pot_status)
+
+        lbl_pot_help = QLabel(
+            '<i>Proof of Origin (PO) tokens bypass YouTube "Sign in to confirm you\'re not a bot" challenges and streaming throttling. '
+            'Bengal DM automatically uses the <b>Deno</b> engine (available in Options > Media Downloader Tools) or Node.js to solve tokens locally without manual configuration. '
+            'Learn more in the <a href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide" style="color: #3498db; text-decoration: underline;">yt-dlp PO Token Guide</a>.</i>'
+        )
+        lbl_pot_help.setOpenExternalLinks(True)
+        lbl_pot_help.setWordWrap(True)
+        lbl_pot_help.setStyleSheet("color: gray; font-size: 11px;")
+        vbox_pot.addWidget(lbl_pot_help)
+
+        self.chk_opt_pot_enabled.toggled.connect(self._update_opt_pot_ui)
+        self._update_opt_pot_ui()
+
+        layout.addWidget(grp_pot)
+
         layout.addStretch()
+
+        _scroll_area.setWidget(_content)
+        _tab_lyt = QVBoxLayout(self.media_tab)
+        _tab_lyt.setContentsMargins(0, 0, 0, 0)
+        _tab_lyt.setSpacing(0)
+        _tab_lyt.addWidget(_scroll_area)
 
     def _update_opt_cookies_ui(self):
         mode_idx = self.cmb_opt_cookies_mode.currentIndex() if hasattr(self, "cmb_opt_cookies_mode") else 0
-        # 0 = Netscape File, 1 = Browser Auto-Extraction, 2 = None
+        # 0 = Netscape File, 1 = None
         is_file_mode = (mode_idx == 0)
-        is_browser_mode = (mode_idx == 1)
-
-        if hasattr(self, "lbl_opt_cookies_browser"):
-            self.lbl_opt_cookies_browser.setEnabled(is_browser_mode)
-        if hasattr(self, "cmb_opt_cookies_browser"):
-            self.cmb_opt_cookies_browser.setEnabled(is_browser_mode)
 
         if hasattr(self, "lbl_opt_cookies_path"):
             self.lbl_opt_cookies_path.setEnabled(is_file_mode)
@@ -1379,6 +1649,30 @@ class OptionsDialog(QDialog):
             )
         if file_path:
             self.txt_opt_cookies_path.setText(file_path)
+
+    def _update_opt_pot_ui(self):
+        if not hasattr(self, "chk_opt_pot_enabled") or not hasattr(self, "lbl_opt_pot_status"):
+            return
+
+        if not self.chk_opt_pot_enabled.isChecked():
+            self.lbl_opt_pot_status.setText("⚪ PO Token Auto-Solver disabled (yt-dlp will run with --extractor-args youtube:fetch_pot=never)")
+            self.lbl_opt_pot_status.setStyleSheet("color: gray; font-size: 11px;")
+            return
+
+        from core.media.pot_provider import get_deno_executable_path, is_pot_provider_available, DEFAULT_POT_PROVIDER_URL
+        deno_path = get_deno_executable_path()
+        if deno_path:
+            self.lbl_opt_pot_status.setText(f"🟢 Active: Deno Engine ({deno_path}) ready for automatic PO token generation.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+        elif shutil.which("node"):
+            self.lbl_opt_pot_status.setText(f"🟢 Active: System Node.js ({shutil.which('node')}) ready for automatic PO token generation.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+        elif is_pot_provider_available(DEFAULT_POT_PROVIDER_URL, timeout=0.2):
+            self.lbl_opt_pot_status.setText(f"🟢 Active: Local bgutil POT Daemon ({DEFAULT_POT_PROVIDER_URL}) detected.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+        else:
+            self.lbl_opt_pot_status.setText("🟡 Deno is not installed yet. Install Deno via 'Options > Media Downloader Tools' (or install Node.js) for full PO token support.")
+            self.lbl_opt_pot_status.setStyleSheet("color: #f39c12; font-size: 11px;")
 
     def on_toggle_show_token(self, checked):
         """Toggles the echo mode of the token field."""
@@ -1602,24 +1896,33 @@ class OptionsDialog(QDialog):
             line_edit.setText(path)
 
     def on_appearance_preview(self, text=None):
-        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        t = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
         a = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         tr = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+        tb = self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
-                preview_fn(t, a, i, tr)
+                preview_fn(t, a, i, tr, tb)
 
     def reject(self):
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
-                t = getattr(self, 'initial_theme', 'BDM Dark (Default)')
+                t = getattr(self, 'initial_theme', 'BDM Auto (Default)')
                 a = getattr(self, 'initial_accent', 'BDM (Default)')
                 i = getattr(self, 'initial_icon_theme', 'BDM Auto')
                 tr = getattr(self, 'initial_tray_icon', 'App Icon (Default)')
-                preview_fn(t, a, i, tr)
+                tb = getattr(self, 'initial_titlebar', 'Automatic')
+                preview_fn(t, a, i, tr, tb)
+            setattr(self.main_win, "_is_previewing", False)
+        self._cleanup_proxy_worker()
         super().reject()
 
     def save_and_accept(self):
@@ -1629,21 +1932,30 @@ class OptionsDialog(QDialog):
         media_defaults = self.config_data.get("media_downloader_defaults", {})
         if hasattr(self, "chk_auto_start_media"):
             media_defaults["auto_start_media"] = self.chk_auto_start_media.isChecked()
+        if hasattr(self, "chk_auto_update_engine"):
+            media_defaults["auto_update_engine_startup"] = self.chk_auto_update_engine.isChecked()
         if hasattr(self, "cmb_media_quality"):
             media_defaults["auto_media_quality_preset"] = self.cmb_media_quality.currentText()
+        if hasattr(self, "cmb_video_codec"):
+            media_defaults["video_codec"] = self.cmb_video_codec.currentText()
+        if hasattr(self, "cmb_video_container"):
+            media_defaults["video_container"] = self.cmb_video_container.currentText()
+        if hasattr(self, "cmb_audio_format"):
+            media_defaults["audio_format"] = self.cmb_audio_format.currentText()
         if hasattr(self, "cmb_opt_cookies_mode"):
             media_defaults["cookies_mode_idx"] = self.cmb_opt_cookies_mode.currentIndex()
-        if hasattr(self, "cmb_opt_cookies_browser"):
-            b_name = self.cmb_opt_cookies_browser.currentText()
-            media_defaults["cookies_browser"] = b_name
-            self.config_data["media_downloader_cookies_browser"] = b_name
         if hasattr(self, "txt_opt_cookies_path"):
             c_path = self.txt_opt_cookies_path.text().strip()
             media_defaults["cookies_path"] = c_path
             self.config_data["media_downloader_cookies_path"] = c_path
         if hasattr(self, "txt_opt_youtube_client"):
             media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "default"
+        if hasattr(self, "chk_opt_pot_enabled"):
+            media_defaults["youtube_pot_enabled"] = self.chk_opt_pot_enabled.isChecked()
         self.config_data["media_downloader_defaults"] = media_defaults
+
+        precheck_delete = self.chk_precheck_delete_files.isChecked() if hasattr(self, "chk_precheck_delete_files") else False
+        self.config_data["precheck_delete_files_from_disk"] = precheck_delete
 
         save_category_config(self.config_data)
         
@@ -1652,10 +1964,11 @@ class OptionsDialog(QDialog):
         )
 
         new_scale = self.combo_scale.currentText()
-        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        new_theme = self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
         new_accent = self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
         new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+        new_titlebar = self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
         new_lang_display = self.combo_language.currentText() if hasattr(self, 'combo_language') else "System Default"
         new_lang_code = get_language_code(new_lang_display)
 
@@ -1667,6 +1980,7 @@ class OptionsDialog(QDialog):
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
+            setattr(self.main_win, "precheck_delete_files_from_disk", precheck_delete)
             
             silent_dl = self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
             show_start = self.chk_show_start_dialog.isChecked() if hasattr(self, "chk_show_start_dialog") else True
@@ -1686,6 +2000,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["accent"] = new_accent
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
+                self.main_win.settings["title_bar"] = new_titlebar
                 self.main_win.settings["language"] = new_lang_code
                 self.main_win.settings["system_notifications"] = is_notif
                 self.main_win.settings["silent_download"] = silent_dl
@@ -1693,6 +2008,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["show_progress_dialog"] = show_prog
                 self.main_win.settings["show_complete_dialog"] = show_comp
                 self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+                self.main_win.settings["precheck_delete_files_from_disk"] = precheck_delete
 
             if lang_changed:
                 apply_language(QApplication.instance(), new_lang_code)
@@ -1701,7 +2017,7 @@ class OptionsDialog(QDialog):
 
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
-                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon)
+                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon, new_titlebar)
             else:
                 save_fn = getattr(self.main_win, "save_settings", None)
                 if callable(save_fn):
@@ -1743,14 +2059,20 @@ class OptionsDialog(QDialog):
             self._proxy_worker = None
 
     def closeEvent(self, event):
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
         self._cleanup_proxy_worker()
         super().closeEvent(event)
 
-    def reject(self):
-        self._cleanup_proxy_worker()
-        super().reject()
-
     def accept(self):
+        self.hide()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
         self._cleanup_proxy_worker()
         super().accept()
 
@@ -1759,7 +2081,7 @@ class OptionsDialog(QDialog):
         return get_language_code(self.combo_language.currentText()) if hasattr(self, 'combo_language') else "system"
 
     def get_theme(self):
-        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Dark (Default)"
+        return self.combo_theme.currentText() if hasattr(self, 'combo_theme') else "BDM Auto (Default)"
 
     def get_accent(self):
         return self.combo_accent.currentText() if hasattr(self, 'combo_accent') else "BDM (Default)"
@@ -1769,6 +2091,9 @@ class OptionsDialog(QDialog):
 
     def get_tray_icon(self):
         return self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
+
+    def get_titlebar(self):
+        return self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
 
     def get_silent_download(self) -> bool:
         return self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False
@@ -1786,3 +2111,6 @@ class OptionsDialog(QDialog):
 
     def get_show_queue_complete_dialog(self) -> bool:
         return self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
+
+    def get_precheck_delete_files_from_disk(self) -> bool:
+        return self.chk_precheck_delete_files.isChecked() if hasattr(self, "chk_precheck_delete_files") else False

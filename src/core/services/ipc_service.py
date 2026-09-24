@@ -12,6 +12,7 @@ import logging
 import threading
 import time
 import getpass
+import socketserver
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
@@ -115,6 +116,45 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"status": "batch_received"}')
                 return
 
+        # Check for media sizes / probe requests (used exclusively by browser extension media popup)
+        if clean_path in ("/media-sizes", "/probe-media", "/media-info"):
+            url = payload.get("url", "") if isinstance(payload, dict) else ""
+            if not url:
+                self.send_response(400)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"success": false, "error": "Missing URL"}')
+                return
+
+            try:
+                from core.media import probe_media_sizes
+                res = probe_media_sizes(
+                    url=url,
+                    heights=payload.get("heights"),
+                    referrer=payload.get("referrer"),
+                    user_agent=payload.get("userAgent"),
+                    cookies=payload.get("cookies"),
+                    cookies_file=payload.get("cookiesFile"),
+                    cookies_browser=payload.get("cookiesBrowser"),
+                    video_container=payload.get("videoContainer", "auto"),
+                    audio_format=payload.get("audioFormat", "auto"),
+                )
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(res).encode('utf-8'))
+            except Exception as e:
+                if is_debug_mode():
+                    logger.warning("[IPC] Failed to probe media sizes: %s", e)
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+            return
+
         # Guard: Only explicit user download submissions on root '/' or '/download' should trigger downloads
         if clean_path not in ("", "/download"):
             # Background sniffing or status notification (e.g. /media, /tab-update)
@@ -189,8 +229,9 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             logger.debug("[IPC HTTP] %s - %s", self.client_address[0], format % args)
 
 
-class ReusableHTTPServer(HTTPServer):
+class ReusableHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
+    daemon_threads = True
 
 
 class TcpListenerThread(QThread):

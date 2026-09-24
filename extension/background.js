@@ -490,8 +490,8 @@ function sanitizeMediaCookies(cookieStr, targetUrl) {
   if (!isYt) return cookieStr;
 
   const YT_IGNORE = new Set([
-    "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "SOCS", "OTZ",
-    "CONSENT", "_ga", "_gid", "wide", "1P_JAR", "ANID", "NID"
+    "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "OTZ",
+    "_ga", "_gid", "1P_JAR"
   ]);
 
   return cookieStr
@@ -1654,7 +1654,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           quality: request.quality || "",
           isMedia: true,
           sizeBytes: request.sizeBytes || 0,
-          sizeStr: request.sizeStr || ""
+          sizeStr: request.sizeStr || "",
+          ext: request.ext || ""
         });
         sendResponse({ success, resolvedUrl: cleanUrl });
         return;
@@ -1756,6 +1757,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     const streams = tabId ? (tabMediaStreams.get(tabId) || []) : [];
     sendResponse({ streams });
+    return true;
+  }
+
+  if (request.action === "get_media_sizes") {
+    (async () => {
+      const isOnline = await isBengalDMOnline();
+      if (!isOnline) {
+        sendResponse({ success: false, offline: true });
+        return;
+      }
+
+      const ipcPort = cachedIpcPort || 56900;
+      const cookieString = await getCookiesForUrl(request.url, sender && sender.tab ? sender.tab.cookieStoreId : undefined);
+
+      const payload = {
+        url: request.url,
+        referrer: request.referrer || ((sender && sender.tab) ? sender.tab.url : ""),
+        userAgent: navigator.userAgent,
+        cookies: sanitizeMediaCookies(cookieString, request.url),
+        heights: request.heights || [2160, 1440, 1080, 720, 480, 360, 240, 144],
+        videoContainer: "auto",
+        audioFormat: "auto"
+      };
+
+      try {
+        let response = await fetch(`http://127.0.0.1:${ipcPort}/media-sizes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          response = await fetch(`http://localhost:${ipcPort}/media-sizes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+        if (response.ok) {
+          const data = await response.json();
+          sendResponse(data);
+          return;
+        }
+      } catch (e) {
+        console.warn("[Bengal DM] get_media_sizes request failed:", e);
+      }
+      sendResponse({ success: false, error: "Fetch failed" });
+    })();
     return true;
   }
 });

@@ -337,6 +337,33 @@ class EngineRowWidget(QFrame):
         self.lbl_name.setFont(font_name)
         name_row.addWidget(self.lbl_name)
 
+        if self.tool_name == "yt-dlp":
+            from core.media.dependencies import get_ytdlp_channel
+            self.cmb_channel = QComboBox()
+            self.cmb_channel.setFixedHeight(20)
+            self.cmb_channel.addItems(["Stable", "Nightly"])
+            self.cmb_channel.setToolTip("yt-dlp update channel (Stable or Nightly build)")
+            self.cmb_channel.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.cmb_channel.setStyleSheet("""
+                QComboBox {
+                    font-size: 9.5px;
+                    font-weight: 600;
+                    padding: 1px 4px 1px 6px;
+                    border: 1px solid palette(mid);
+                    border-radius: 3px;
+                    background-color: palette(base);
+                    color: palette(text);
+                }
+                QComboBox::drop-down {
+                    border: none;
+                    width: 12px;
+                }
+            """)
+            curr_ch = get_ytdlp_channel()
+            self.cmb_channel.setCurrentText("Nightly" if curr_ch == "nightly" else "Stable")
+            self.cmb_channel.currentTextChanged.connect(self._on_channel_changed)
+            name_row.addWidget(self.cmb_channel)
+
         self.lbl_dot = QLabel("●")
         self.lbl_dot.setStyleSheet("color: #888888; font-size: 8px;")
         name_row.addWidget(self.lbl_dot)
@@ -463,6 +490,12 @@ class EngineRowWidget(QFrame):
             self.btn_refresh.setEnabled(True)
             self.progress_bar.setVisible(False)
             self.lbl_progress_meta.setVisible(False)
+
+    def _on_channel_changed(self, text: str):
+        from core.media.dependencies import set_ytdlp_channel
+        set_ytdlp_channel(text.strip().lower())
+        if callable(self.on_update_clicked):
+            self.on_update_clicked(self.tool_name)
 
 
 class MediaDownloaderOptionsHub(QFrame):
@@ -1094,6 +1127,8 @@ class MediaDownloaderDialog(QDialog):
 
     def check_all_dependencies(self, force_download: bool = False, target_tool: str = ""):
         """Spawns DependencyManagerWorker to verify and install missing engines."""
+        if "pytest" in sys.modules and not getattr(self, "_force_dep_worker_test", False):
+            return
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             if force_download:
                 try:
@@ -1110,15 +1145,39 @@ class MediaDownloaderDialog(QDialog):
             else:
                 return
 
+        # Reuse running worker from MainWindow if active
+        main_worker = getattr(self.main_win, "_media_engine_worker", None)
+        if main_worker and main_worker.isRunning() and not target_tool and not force_download:
+            self._dep_worker = main_worker
+            self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
+            self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
+            return
+
         self._dep_worker = DependencyManagerWorker(force_download=force_download, target_tool=target_tool)
         self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
         self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
+        _keep_thread_alive(self._dep_worker)
+        if self.main_win and not target_tool:
+            self.main_win._media_engine_worker = self._dep_worker
+            try:
+                self._dep_worker.tool_status_signal.connect(self.main_win._on_media_engine_status_updated)
+                self._dep_worker.all_finished_signal.connect(self.main_win._on_media_engine_finished)
+            except Exception:
+                pass
         self._dep_worker.start()
 
     def update_all_dependencies(self):
         """Forces checking and updating of all 5 dependency tools."""
         self.options_hub.btn_update_all.setText("Checking...")
         self.options_hub.btn_update_all.setEnabled(False)
+        if hasattr(self.main_win, "_start_media_engine_check"):
+            self.main_win._start_media_engine_check(force_download=True)
+            main_worker = getattr(self.main_win, "_media_engine_worker", None)
+            if main_worker:
+                self._dep_worker = main_worker
+                self._dep_worker.tool_status_signal.connect(self._on_dep_status_updated)
+                self._dep_worker.all_finished_signal.connect(self._on_all_deps_finished)
+                return
         self.check_all_dependencies(force_download=True)
 
     def update_single_dependency(self, tool_name: str):
@@ -1424,7 +1483,23 @@ class MediaDownloaderDialog(QDialog):
             ("AV1 Codec", "av1", has_av1),
         ]
 
-        curr_v_data = self.cmb_video_format.currentData() or "any"
+        curr_v_data = self.cmb_video_format.currentData()
+        if not curr_v_data or curr_v_data == "any":
+            try:
+                from core.config import load_category_config
+                cfg = load_category_config()
+                pref_codec = cfg.get("media_downloader_defaults", {}).get("video_codec", "Auto (Default)").lower()
+                if "av1" in pref_codec and has_av1:
+                    curr_v_data = "av1"
+                elif ("h264" in pref_codec or "avc" in pref_codec) and has_h264:
+                    curr_v_data = "h264"
+                elif "vp9" in pref_codec and has_webm_vp9:
+                    curr_v_data = "webm"
+                else:
+                    curr_v_data = curr_v_data or "any"
+            except Exception:
+                curr_v_data = "any"
+
         self.cmb_video_format.blockSignals(True)
         self.cmb_video_format.clear()
         v_model = self.cmb_video_format.model()
@@ -1814,11 +1889,12 @@ class MediaDownloaderDialog(QDialog):
             config["media_downloader_defaults"] = defaults
             save_category_config(config)
 
-    def _get_single_video_format_spec(self) -> tuple[str, bool]:
+    def _get_single_video_format_spec(self) -> tuple[str, bool, str]:
         """
-        Returns tuple (format_spec, is_audio_only).
+        Returns tuple (format_spec, is_audio_only, output_container).
         If Manual Selection is checked, uses selected format ID from table.
         Otherwise builds format_spec using quality preset, video format filter, audio format filter, and FPS filter.
+        output_container is 'mp4', 'webm', or 'mkv' (default).
         """
         if self.chk_manual_selection.isChecked():
             sel_rows = self.tbl_formats.selectionModel().selectedRows()
@@ -1828,11 +1904,11 @@ class MediaDownloaderDialog(QDialog):
                 if row_idx < len(formats):
                     fmt = formats[row_idx]
                     if fmt.get("is_video") and not fmt.get("is_audio"):
-                        return (f"{fmt['format_id']}+bestaudio/best", False)
+                        return (f"{fmt['format_id']}+bestaudio/best", False, "mkv")
                     elif fmt.get("is_audio") and not fmt.get("is_video"):
-                        return (fmt["format_id"], True)
+                        return (fmt["format_id"], True, "mkv")
                     else:
-                        return (fmt["format_id"], False)
+                        return (fmt["format_id"], False, "mkv")
 
         preset_idx = self.cmb_quality_preset.currentIndex()
         v_key = self.cmb_video_format.currentData() or "any"
@@ -1841,7 +1917,7 @@ class MediaDownloaderDialog(QDialog):
 
         # Audio-only preset
         if preset_idx == 7:
-            return ("bestaudio/best", True)
+            return ("bestaudio/best", True, "mkv")
 
         height_limit = None
         if preset_idx == 1: height_limit = 2160     # 4K
@@ -1855,6 +1931,21 @@ class MediaDownloaderDialog(QDialog):
         if v_key == "h264": vfilter = "[vcodec^=avc1]"
         elif v_key == "webm": vfilter = "[vcodec^=vp9]"
         elif v_key == "av1": vfilter = "[vcodec^=av01]"
+
+        # Determine output container based on chosen codec/format
+        # h264 → mp4; webm → webm; otherwise fallback to user preference in Options > Media
+        if v_key == "h264":
+            output_container = "mp4"
+        elif v_key == "webm":
+            output_container = "webm"
+        else:
+            try:
+                from core.config import load_category_config as _lcfg
+                _mdefaults = _lcfg().get("media_downloader_defaults", {})
+                _vc_cfg = _mdefaults.get("video_container", "MKV (default)")
+                output_container = _vc_cfg.split()[0].lower()
+            except Exception:
+                output_container = "mkv"
 
         fps_filter = f"[fps<={fps_target}]" if fps_target and fps_target > 0 else ""
 
@@ -1876,7 +1967,7 @@ class MediaDownloaderDialog(QDialog):
         else:
             format_spec = f"{v_spec}+bestaudio[ext=m4a]/{v_spec}+bestaudio/{fallback_v}+bestaudio[ext=m4a]/{fallback_v}+bestaudio/best"
 
-        return (format_spec, False)
+        return (format_spec, False, output_container)
 
     def _get_playlist_format_spec(self) -> tuple[str, bool]:
         """Returns format spec for playlist items based on global playlist quality dropdown."""
@@ -1932,10 +2023,19 @@ class MediaDownloaderDialog(QDialog):
                     video_id = m.group(1) if m else ""
                 title = f"video_{video_id}" if video_id else "video"
 
-            format_spec, is_audio_only = self._get_single_video_format_spec()
+            format_spec, is_audio_only, output_container = self._get_single_video_format_spec()
 
             from core.utils import sanitize_media_filename
-            ext = ".opus" if is_audio_only else ".mkv"
+            if is_audio_only:
+                try:
+                    from core.config import load_category_config as _lcfg
+                    _mdefaults = _lcfg().get("media_downloader_defaults", {})
+                    _af_cfg = _mdefaults.get("audio_format", "Opus (default)")
+                    ext = "." + _af_cfg.split()[0].lower()
+                except Exception:
+                    ext = ".opus"
+            else:
+                ext = f".{output_container}"
 
             preset_idx = self.cmb_quality_preset.currentIndex()
             target_height = None
@@ -2101,7 +2201,8 @@ class MediaDownloaderDialog(QDialog):
                         referrer=getattr(self, "_referrer", None),
                         user_agent=getattr(self, "_user_agent", None),
                         show_file_info=True,
-                        cookies=getattr(self, "_cookies", None)
+                        cookies=getattr(self, "_cookies", None),
+                        merge_output_format=output_container
                     )
                 except TypeError:
                     try:
@@ -2115,7 +2216,8 @@ class MediaDownloaderDialog(QDialog):
                             total_size_bytes=total_size_bytes,
                             referrer=getattr(self, "_referrer", None),
                             user_agent=getattr(self, "_user_agent", None),
-                            show_file_info=True
+                            show_file_info=True,
+                            merge_output_format=output_container
                         )
                     except TypeError:
                         mw.start_media_download(
@@ -2240,17 +2342,23 @@ class MediaDownloaderDialog(QDialog):
                 pass
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():
             try:
+                # Do NOT interrupt or terminate _dep_worker; allow media engine downloads to continue in background.
+                _keep_thread_alive(self._dep_worker)
+                if self.main_win:
+                    self.main_win._media_engine_worker = self._dep_worker
+                    try:
+                        self._dep_worker.tool_status_signal.connect(self.main_win._on_media_engine_status_updated)
+                        self._dep_worker.all_finished_signal.connect(self.main_win._on_media_engine_finished)
+                    except Exception:
+                        pass
                 try:
-                    self._dep_worker.tool_status_signal.disconnect()
-                    self._dep_worker.all_finished_signal.disconnect()
+                    self._dep_worker.tool_status_signal.disconnect(self._on_dep_status_updated)
                 except Exception:
                     pass
-                self._dep_worker.requestInterruption()
-                self._dep_worker.quit()
-                self._dep_worker.wait(500)
-                if self._dep_worker.isRunning():
-                    self._dep_worker.terminate()
-                    self._dep_worker.wait(500)
+                try:
+                    self._dep_worker.all_finished_signal.disconnect(self._on_all_deps_finished)
+                except Exception:
+                    pass
             except Exception:
                 pass
         for attr in ("_thumb_worker", "_pl_thumb_worker"):

@@ -39,7 +39,7 @@ def parse_size_to_bytes(text: str) -> float:
     try:
         if not text or text == "...":
             return 0.0
-        s = str(text).strip().upper()
+        s = str(text).strip().lstrip("~").strip().upper()
         units = {
             "KIB": 1024, "KB": 1024, "K": 1024,
             "MIB": 1024**2, "MB": 1024**2, "M": 1024**2,

@@ -535,6 +535,9 @@
     } catch (e) {}
     fetchTabInfo();
     fetchSniffedMedia();
+    if (activeVideo) {
+      fetchMediaSizesFromApp(activeVideo);
+    }
   }
 
   // 2. Create Shadow DOM Container on document.documentElement
@@ -1863,14 +1866,11 @@
   }
 
   function estimateFileSize(durationSec, bitrateKbps, isAudio) {
-    if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return "~ MB";
-    const bytes = durationSec * bitrateKbps * 125;
-    return formatFileSize(bytes, true);
+    return "";
   }
 
   function estimateFileSizeBytes(durationSec, bitrateKbps) {
-    if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return 0;
-    return Math.round(durationSec * (bitrateKbps || 2500) * 125);
+    return 0;
   }
 
   function findMatchingFileSizeBytes(streamUrl, video) {
@@ -1895,8 +1895,114 @@
     return 0;
   }
 
+  // Media sizes cache & state for floating media popup
+  const appMediaSizesCache = new Map(); // targetUrl -> { success, title, duration, sizes }
+  const appMediaSizesInFlight = new Set(); // targetUrl
+
+  function getMediaTargetUrl(video) {
+    if (!video) return "";
+    const pageUrl = getMediaPageUrl(video);
+    if (pageUrl) return pageUrl;
+    if (cachedTabInfo && cachedTabInfo.url && isCanonicalMediaPage(cachedTabInfo.url)) {
+      return cachedTabInfo.url;
+    }
+    if (isCanonicalMediaPage(window.location.href)) {
+      return window.location.href;
+    }
+    if (video.tagName !== 'IFRAME' && video.currentSrc && video.currentSrc.startsWith('http')) {
+      return video.currentSrc;
+    }
+    if (video.tagName !== 'IFRAME' && video.src && video.src.startsWith('http')) {
+      return video.src;
+    }
+    return window.location.href;
+  }
+
+  function fetchMediaSizesFromApp(video) {
+    if (!video || !isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
+    const targetUrl = getMediaTargetUrl(video);
+    if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) return;
+
+    if (appMediaSizesCache.has(targetUrl) || appMediaSizesInFlight.has(targetUrl)) {
+      return;
+    }
+
+    appMediaSizesInFlight.add(targetUrl);
+
+    chrome.runtime.sendMessage({
+      action: "get_media_sizes",
+      url: targetUrl,
+      referrer: (cachedTabInfo && cachedTabInfo.url) || window.location.href
+    }, (res) => {
+      appMediaSizesInFlight.delete(targetUrl);
+      if (res && res.success && res.sizes) {
+        appMediaSizesCache.set(targetUrl, res);
+        if (res.url) appMediaSizesCache.set(res.url, res);
+        appMediaSizesCache.set(window.location.href, res);
+        // If app returned a specific title and current video title is generic, update UI
+        if (res.title && titleEl && (!titleEl.textContent || isGenericTitle(titleEl.textContent))) {
+          titleEl.textContent = res.title;
+          titleEl.title = res.title;
+        }
+        if (activeVideo && isDropdownOpen) {
+          populateDropdown();
+        }
+      }
+    });
+  }
+
+  function findAppSizeEntry(sizes, height) {
+    if (!sizes || !height) return null;
+    if (sizes[String(height)]) return sizes[String(height)];
+    for (const k of Object.keys(sizes)) {
+      const numK = parseInt(k, 10);
+      if (!isNaN(numK) && Math.abs(numK - height) <= 60) {
+        return sizes[k];
+      }
+    }
+    return null;
+  }
+
+  function enrichWithAppSizes(tiers, video) {
+    if (!tiers || !Array.isArray(tiers) || tiers.length === 0) return tiers;
+    const targetUrl = getMediaTargetUrl(video);
+    const appData = appMediaSizesCache.get(targetUrl) ||
+                    appMediaSizesCache.get(window.location.href) ||
+                    (video && (appMediaSizesCache.get(video.currentSrc) || appMediaSizesCache.get(video.src)));
+    if (!appData || !appData.sizes) return tiers;
+
+    const sizes = appData.sizes;
+
+    tiers.forEach((tier) => {
+      if (tier.isAudio) {
+        const audioEntry = sizes["audio"];
+        if (audioEntry && audioEntry.sizeBytes > 0) {
+          tier.sizeBytes = audioEntry.sizeBytes;
+          tier.size = audioEntry.sizeStr || formatFileSize(audioEntry.sizeBytes, audioEntry.isApproximate);
+          tier.sizeIsApproximate = Boolean(audioEntry.isApproximate);
+          if (audioEntry.ext) tier.ext = audioEntry.ext;
+        }
+      } else if (tier.height) {
+        const resEntry = findAppSizeEntry(sizes, tier.height);
+        if (resEntry && resEntry.sizeBytes > 0) {
+          tier.sizeBytes = resEntry.sizeBytes;
+          tier.size = resEntry.sizeStr || formatFileSize(resEntry.sizeBytes, resEntry.isApproximate);
+          tier.sizeIsApproximate = Boolean(resEntry.isApproximate);
+          if (resEntry.ext) tier.ext = resEntry.ext;
+        }
+      }
+    });
+
+    return tiers;
+  }
+
   // 9. Supported Resolutions Filtering (Preserves existing site logic + special Facebook IDM case)
   function getSupportedResolutions(video) {
+    const rawTiers = getRawSupportedResolutions(video);
+    return enrichWithAppSizes(rawTiers, video);
+  }
+
+  function getRawSupportedResolutions(video) {
     const isYouTube = window.location.hostname.includes('youtube.com');
     const isFacebook = window.location.hostname.includes('facebook.com') || window.location.hostname.includes('fb.watch') || window.location.hostname.includes('fb.com');
     const duration = (platformMediaInfo && platformMediaInfo.duration) ||
@@ -1927,23 +2033,23 @@
           seenQualities.add(item.quality);
           result.push({
             ...item,
-            sizeBytes: estimateFileSizeBytes(duration, item.bitrate),
-            size: estimateFileSize(duration, item.bitrate, false)
+            sizeBytes: 0,
+            size: ""
           });
         }
       }
 
       // Append Audio Only Option
       result.push({
-        quality: 'Audio Only (MP3)',
-        badge: 'MP3',
+        quality: 'Audio Only',
+        badge: 'AUDIO',
         label: 'Audio Only',
         height: 0,
         bitrate: 192,
         cls: 'audio',
         isAudio: true,
-        sizeBytes: estimateFileSizeBytes(duration, 192),
-        size: estimateFileSize(duration, 192, true)
+        sizeBytes: 0,
+        size: ""
       });
 
       if (result.length > 1) {
@@ -1978,20 +2084,20 @@
             bitrate: vh >= 1080 ? 5000 : 2500,
             cls: resCls,
             streamUrl: streamCandidate.url,
-            sizeBytes: hasExactFile ? exactFileBytes : estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
-            size: hasExactFile ? formatFileSize(exactFileBytes, false) : estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
+            sizeBytes: hasExactFile ? exactFileBytes : 0,
+            size: hasExactFile ? formatFileSize(exactFileBytes, false) : ""
           },
           {
-            quality: 'Audio Only (MP3)',
-            badge: 'MP3',
+            quality: 'Audio Only',
+            badge: 'AUDIO',
             label: 'Audio Only',
             height: 0,
             bitrate: 192,
             cls: 'audio',
             isAudio: true,
             streamUrl: streamCandidate.url,
-            sizeBytes: estimateFileSizeBytes(duration, 192),
-            size: estimateFileSize(duration, 192, true)
+            sizeBytes: 0,
+            size: ""
           }
         ];
       }
@@ -2030,8 +2136,8 @@
             seenQualities.add(tier.quality);
             const item = {
               ...tier,
-              sizeBytes: estimateFileSizeBytes(duration, tier.bitrate),
-              size: estimateFileSize(duration, tier.bitrate, false)
+              sizeBytes: 0,
+              size: ""
             };
             if (tier.height >= 720 && platformMediaInfo.hdUrl) item.streamUrl = platformMediaInfo.hdUrl;
             else if (platformMediaInfo.sdUrl) item.streamUrl = platformMediaInfo.sdUrl;
@@ -2046,15 +2152,15 @@
         }
         if (result.length > 0) {
           result.push({
-            quality: 'Audio Only (MP3)',
-            badge: 'MP3',
+            quality: 'Audio Only',
+            badge: 'AUDIO',
             label: 'Audio Only',
             height: 0,
             bitrate: 192,
             cls: 'audio',
             isAudio: true,
-            sizeBytes: estimateFileSizeBytes(duration, 192),
-            size: estimateFileSize(duration, 192, true)
+            sizeBytes: 0,
+            size: ""
           });
           return result;
         }
@@ -2074,8 +2180,8 @@
           const hasExact = exactFbBytes > 0 && t.height === vh;
           return {
             ...t,
-            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
-            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+            sizeBytes: hasExact ? exactFbBytes : 0,
+            size: hasExact ? formatFileSize(exactFbBytes, false) : ""
           };
         });
 
@@ -2084,22 +2190,22 @@
           const hasExact = exactFbBytes > 0 && t.height === vh;
           return {
             ...t,
-            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
-            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+            sizeBytes: hasExact ? exactFbBytes : 0,
+            size: hasExact ? formatFileSize(exactFbBytes, false) : ""
           };
         });
       }
 
       filtered.push({
-        quality: 'Audio Only (MP3)',
-        badge: 'MP3',
+        quality: 'Audio Only',
+        badge: 'AUDIO',
         label: 'Audio Only',
         height: 0,
         bitrate: 192,
         cls: 'audio',
         isAudio: true,
-        sizeBytes: estimateFileSizeBytes(duration, 192),
-        size: estimateFileSize(duration, 192, true)
+        sizeBytes: 0,
+        size: ""
       });
       return filtered;
     }
@@ -2127,8 +2233,8 @@
         const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
         return {
           ...t,
-          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
-          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          sizeBytes: hasExact ? exactVideoBytes : 0,
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : ""
         };
       });
 
@@ -2138,23 +2244,23 @@
         const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
         return {
           ...t,
-          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
-          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          sizeBytes: hasExact ? exactVideoBytes : 0,
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : ""
         };
       });
     }
 
     // Add Audio Option
     filtered.push({
-      quality: 'Audio Only (MP3)',
-      badge: 'MP3',
+      quality: 'Audio Only',
+      badge: 'AUDIO',
       label: 'Audio Only',
       height: 0,
       bitrate: 192,
       cls: 'audio',
       isAudio: true,
-      sizeBytes: estimateFileSizeBytes(duration, 192),
-      size: estimateFileSize(duration, 192, true)
+      sizeBytes: 0,
+      size: ""
     });
 
     return filtered;
@@ -2275,7 +2381,8 @@
         filename: title,
         quality: tier.quality,
         sizeBytes: tier.sizeBytes || 0,
-        sizeStr: tier.size || ""
+        sizeStr: tier.size || "",
+        ext: tier.ext || ""
       }, (response) => {
         setTimeout(() => {
           closeDropdown();
@@ -2527,6 +2634,7 @@
     }
 
     requestMediaInfo();
+    fetchMediaSizesFromApp(activeVideo);
     populateDropdown();
   }
 

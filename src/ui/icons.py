@@ -1278,4 +1278,450 @@ def get_stellar_icon(name: str, size: int = 24) -> QIcon:
     return get_monochrome_icon(name, size=size)
 
 
+def draw_tmog_icon_path(painter: QPainter, name: str, size: int):
+    """
+    Renders high-tech, cyber-styled neon vector icons inspired by TMOG (Task Manager) telemetry UI.
+    Features vibrant electric cyan, emerald green, amber, crimson, and cyber violet glowing geometry.
+    """
+    s = float(size)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+    c_cyan = QColor("#00e5ff")      # Electric Neon Cyan
+    c_emerald = QColor("#00e676")   # Neon Emerald Green
+    c_amber = QColor("#ffb703")     # Neon Amber / Gold
+    c_crimson = QColor("#ff4d6d")   # Neon Crimson / Coral
+    c_violet = QColor("#c084fc")    # Cyber Violet / Purple
+    c_blue = QColor("#38bdf8")      # Sky / Sapphire Blue
+    c_white = QColor("#f0f6fc")
+
+    pen_w = max(1.5, s * 0.075)
+
+    if name in ("add_url", "add"):
+        # Hexagonal cyber node + center plus
+        cx, cy, r = s * 0.50, s * 0.50, s * 0.38
+        poly = QPainterPath()
+        for i in range(6):
+            angle = math.radians(60 * i - 30)
+            x = cx + r * math.cos(angle)
+            y = cy + r * math.sin(angle)
+            if i == 0: poly.moveTo(x, y)
+            else: poly.lineTo(x, y)
+        poly.closeSubpath()
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawPath(poly)
+
+        # Center Plus
+        painter.setPen(QPen(c_white, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        arm = s * 0.16
+        painter.drawLine(QPointF(cx - arm, cy), QPointF(cx + arm, cy))
+        painter.drawLine(QPointF(cx, cy - arm), QPointF(cx, cy + arm))
+
+    elif name == "resume":
+        # Neon Emerald Play Chevron + Velocity Ticks
+        path = QPainterPath()
+        path.moveTo(s * 0.34, s * 0.24)
+        path.lineTo(s * 0.74, s * 0.50)
+        path.lineTo(s * 0.34, s * 0.76)
+        path.closeSubpath()
+        painter.setPen(QPen(c_emerald, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(0, 230, 118, 35))
+        painter.drawPath(path)
+
+        # Velocity tick on left
+        painter.setPen(QPen(c_emerald, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.22, s * 0.36), QPointF(s * 0.22, s * 0.64))
+
+    elif name in ("stop", "pause"):
+        # Neon Amber Dual Cyber Pillars
+        painter.setPen(QPen(c_amber, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(255, 183, 3, 40))
+        r1 = QRectF(s * 0.28, s * 0.24, s * 0.16, s * 0.52)
+        r2 = QRectF(s * 0.56, s * 0.24, s * 0.16, s * 0.52)
+        painter.drawRoundedRect(r1, s * 0.05, s * 0.05)
+        painter.drawRoundedRect(r2, s * 0.05, s * 0.05)
+
+    elif name in ("stop_all", "stop_all_queues"):
+        # Neon Crimson Nested Cyber Stop Blocks
+        painter.setPen(QPen(c_crimson, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        r_outer = QRectF(s * 0.22, s * 0.22, s * 0.56, s * 0.56)
+        painter.drawRoundedRect(r_outer, s * 0.08, s * 0.08)
+
+        painter.setBrush(c_crimson)
+        painter.setPen(Qt.PenStyle.NoPen)
+        r_inner = QRectF(s * 0.38, s * 0.38, s * 0.24, s * 0.24)
+        painter.drawRoundedRect(r_inner, s * 0.04, s * 0.04)
+
+    elif name in ("delete", "trash"):
+        # Neon Crimson Angular Laser Trash Enclosure
+        painter.setPen(QPen(c_crimson, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        # Top Laser Beam & Handle
+        painter.drawLine(QPointF(s * 0.20, s * 0.28), QPointF(s * 0.80, s * 0.28))
+        handle = QPainterPath()
+        handle.moveTo(s * 0.40, s * 0.28)
+        handle.lineTo(s * 0.40, s * 0.20)
+        handle.lineTo(s * 0.60, s * 0.20)
+        handle.lineTo(s * 0.60, s * 0.28)
+        painter.drawPath(handle)
+        # Tapered Body
+        body = QPainterPath()
+        body.moveTo(s * 0.26, s * 0.28)
+        body.lineTo(s * 0.32, s * 0.80)
+        body.lineTo(s * 0.68, s * 0.80)
+        body.lineTo(s * 0.74, s * 0.28)
+        painter.drawPath(body)
+        # Interior laser sensor beams
+        painter.setPen(QPen(c_crimson, pen_w * 0.75, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.42, s * 0.38), QPointF(s * 0.44, s * 0.70))
+        painter.drawLine(QPointF(s * 0.58, s * 0.38), QPointF(s * 0.56, s * 0.70))
+
+    elif name in ("clear", "clear_completed"):
+        # Circular Target + Neon Emerald Checkmark
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(0, 229, 255, 20))
+        painter.drawEllipse(QRectF(s * 0.16, s * 0.16, s * 0.68, s * 0.68))
+
+        chk = QPainterPath()
+        chk.moveTo(s * 0.32, s * 0.50)
+        chk.lineTo(s * 0.45, s * 0.63)
+        chk.lineTo(s * 0.68, s * 0.37)
+        painter.setPen(QPen(c_emerald, pen_w * 1.15, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawPath(chk)
+
+    elif name in ("options", "settings", "configure"):
+        # Precision 8-tooth Mechanical Cyber Gear
+        cx, cy = s * 0.50, s * 0.50
+        r_out, r_in = s * 0.37, s * 0.26
+        gear = QPainterPath()
+        teeth = 8
+        for i in range(teeth * 2):
+            angle = math.radians(i * (360.0 / (teeth * 2)))
+            r = r_out if i % 2 == 0 else r_in
+            x = cx + r * math.cos(angle)
+            y = cy + r * math.sin(angle)
+            if i == 0: gear.moveTo(x, y)
+            else: gear.lineTo(x, y)
+        gear.closeSubpath()
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(0, 229, 255, 25))
+        painter.drawPath(gear)
+
+        # Center hub
+        painter.setPen(QPen(c_white, pen_w * 0.8, Qt.PenStyle.SolidLine))
+        painter.drawEllipse(QRectF(cx - s * 0.11, cy - s * 0.11, s * 0.22, s * 0.22))
+
+    elif name in ("media_downloader", "media"):
+        # Cyber Widescreen Monitor + Play Waveform
+        rect = QRectF(s * 0.16, s * 0.20, s * 0.68, s * 0.46)
+        painter.setPen(QPen(c_blue, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(56, 189, 248, 25))
+        painter.drawRoundedRect(rect, s * 0.06, s * 0.06)
+
+        # Stand
+        painter.drawLine(QPointF(s * 0.50, s * 0.66), QPointF(s * 0.50, s * 0.78))
+        painter.drawLine(QPointF(s * 0.35, s * 0.78), QPointF(s * 0.65, s * 0.78))
+
+        # Center Play Notch
+        vp = QPainterPath()
+        vp.moveTo(s * 0.44, s * 0.33)
+        vp.lineTo(s * 0.60, s * 0.43)
+        vp.lineTo(s * 0.44, s * 0.53)
+        vp.closeSubpath()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_cyan)
+        painter.drawPath(vp)
+
+    elif name in ("scheduler", "clock"):
+        # Telemetry Clock Dial + Cyan / Amber Hands
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(0, 229, 255, 20))
+        painter.drawEllipse(QRectF(s * 0.18, s * 0.18, s * 0.64, s * 0.64))
+
+        # Hands
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.50, s * 0.50), QPointF(s * 0.50, s * 0.32))
+        painter.setPen(QPen(c_amber, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.50, s * 0.50), QPointF(s * 0.65, s * 0.50))
+
+        # Center dot
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_white)
+        painter.drawEllipse(QRectF(s * 0.46, s * 0.46, s * 0.08, s * 0.08))
+
+    elif name in ("grabber", "site_grabber"):
+        # Wireframe Global Sphere with Radar Grid
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(0, 229, 255, 15))
+        painter.drawEllipse(QRectF(s * 0.18, s * 0.18, s * 0.64, s * 0.64))
+
+        # Latitude & Longitude
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawEllipse(QRectF(s * 0.32, s * 0.18, s * 0.36, s * 0.64))
+        painter.drawLine(QPointF(s * 0.18, s * 0.50), QPointF(s * 0.82, s * 0.50))
+
+        # Radar node in upper quadrant
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_amber)
+        painter.drawEllipse(QRectF(s * 0.58, s * 0.30, s * 0.08, s * 0.08))
+
+    elif name in ("open_folder", "folder"):
+        # Cyber Folder with Upward Data Arrow
+        f = QPainterPath()
+        f.moveTo(s * 0.18, s * 0.28)
+        f.lineTo(s * 0.42, s * 0.28)
+        f.lineTo(s * 0.48, s * 0.36)
+        f.lineTo(s * 0.82, s * 0.36)
+        f.lineTo(s * 0.82, s * 0.74)
+        f.lineTo(s * 0.18, s * 0.74)
+        f.closeSubpath()
+        painter.setPen(QPen(c_blue, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(56, 189, 248, 25))
+        painter.drawPath(f)
+
+        # Bottom cyber status line
+        painter.setPen(QPen(c_cyan, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.26, s * 0.58), QPointF(s * 0.74, s * 0.58))
+
+    elif name in ("all_downloads", "all"):
+        # Multi-layer Storage Rack + Neon Downward Download Arrow
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        # Server drive base
+        tray = QPainterPath()
+        tray.moveTo(s * 0.18, s * 0.58)
+        tray.lineTo(s * 0.18, s * 0.76)
+        tray.lineTo(s * 0.82, s * 0.76)
+        tray.lineTo(s * 0.82, s * 0.58)
+        tray.lineTo(s * 0.66, s * 0.58)
+        tray.lineTo(s * 0.58, s * 0.66)
+        tray.lineTo(s * 0.42, s * 0.66)
+        tray.lineTo(s * 0.34, s * 0.58)
+        tray.closeSubpath()
+        painter.setBrush(QColor(0, 229, 255, 20))
+        painter.drawPath(tray)
+
+        # Downward neon data arrow
+        arr = QPainterPath()
+        arr.moveTo(s * 0.50, s * 0.20)
+        arr.lineTo(s * 0.50, s * 0.50)
+        painter.setPen(QPen(c_emerald, pen_w * 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawPath(arr)
+        arr_head = QPainterPath()
+        arr_head.moveTo(s * 0.38, s * 0.40)
+        arr_head.lineTo(s * 0.50, s * 0.52)
+        arr_head.lineTo(s * 0.62, s * 0.40)
+        painter.setPen(QPen(c_emerald, pen_w * 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.drawPath(arr_head)
+
+    elif name in ("compressed", "zip", "rar", "tar"):
+        # TMOG Style RAM / Memory DIMM Chip Package
+        painter.setPen(QPen(c_violet, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(192, 132, 252, 25))
+        r_mod = QRectF(s * 0.20, s * 0.28, s * 0.60, s * 0.44)
+        painter.drawRoundedRect(r_mod, s * 0.05, s * 0.05)
+
+        # Memory chip block rectangles
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_violet)
+        painter.drawRoundedRect(QRectF(s * 0.26, s * 0.34, s * 0.12, s * 0.20), 2, 2)
+        painter.drawRoundedRect(QRectF(s * 0.44, s * 0.34, s * 0.12, s * 0.20), 2, 2)
+        painter.drawRoundedRect(QRectF(s * 0.62, s * 0.34, s * 0.12, s * 0.20), 2, 2)
+
+        # Bottom gold pin contacts
+        painter.setPen(QPen(c_amber, pen_w * 0.7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
+        for px in [0.28, 0.36, 0.44, 0.56, 0.64, 0.72]:
+            painter.drawLine(QPointF(s * px, s * 0.72), QPointF(s * px, s * 0.77))
+
+    elif name in ("documents", "doc", "pdf", "txt"):
+        # High-tech Data Sheet with Fold & Code Pulses
+        doc = QPainterPath()
+        doc.moveTo(s * 0.24, s * 0.20)
+        doc.lineTo(s * 0.58, s * 0.20)
+        doc.lineTo(s * 0.76, s * 0.38)
+        doc.lineTo(s * 0.76, s * 0.80)
+        doc.lineTo(s * 0.24, s * 0.80)
+        doc.closeSubpath()
+        painter.setPen(QPen(c_blue, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(56, 189, 248, 20))
+        painter.drawPath(doc)
+
+        # Corner Fold
+        fold = QPainterPath()
+        fold.moveTo(s * 0.58, s * 0.20)
+        fold.lineTo(s * 0.58, s * 0.38)
+        fold.lineTo(s * 0.76, s * 0.38)
+        painter.setBrush(QColor(56, 189, 248, 40))
+        painter.drawPath(fold)
+
+        # Glowing telemetry code lines
+        painter.setPen(QPen(c_cyan, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.34, s * 0.48), QPointF(s * 0.64, s * 0.48))
+        painter.drawLine(QPointF(s * 0.34, s * 0.58), QPointF(s * 0.56, s * 0.58))
+        painter.drawLine(QPointF(s * 0.34, s * 0.68), QPointF(s * 0.66, s * 0.68))
+
+    elif name in ("music", "audio", "mp3"):
+        # TMOG Style Real-Time Performance Audio Equalizer Waveform
+        painter.setPen(QPen(c_amber, pen_w * 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        # 4 dynamic equalizer bars
+        bars = [(0.26, 0.45, 0.75), (0.42, 0.25, 0.75), (0.58, 0.38, 0.75), (0.74, 0.20, 0.75)]
+        for x_pct, y_top, y_bot in bars:
+            painter.drawLine(QPointF(s * x_pct, s * y_top), QPointF(s * x_pct, s * y_bot))
+        # Top glowing peak indicator dots
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_white)
+        for x_pct, y_top, _ in bars:
+            painter.drawEllipse(QRectF(s * (x_pct - 0.04), s * (y_top - 0.08), s * 0.08, s * 0.08))
+
+    elif name in ("programs", "system", "exe", "msi", "appimage", "flatpak"):
+        # TMOG Style Microprocessor CPU Die with Radiating Contact Pins
+        cx, cy, side = s * 0.50, s * 0.50, s * 0.38
+        r_die = QRectF(cx - side / 2, cy - side / 2, side, side)
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(0, 229, 255, 30))
+        painter.drawRoundedRect(r_die, s * 0.04, s * 0.04)
+
+        # Radiating pins (2 per side = 8 pins)
+        painter.setPen(QPen(c_cyan, pen_w * 0.75, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
+        for p in [-0.09, 0.09]:
+            # Top & Bottom
+            painter.drawLine(QPointF(cx + s * p, cy - side / 2), QPointF(cx + s * p, cy - side / 2 - s * 0.10))
+            painter.drawLine(QPointF(cx + s * p, cy + side / 2), QPointF(cx + s * p, cy + side / 2 + s * 0.10))
+            # Left & Right
+            painter.drawLine(QPointF(cx - side / 2, cy + s * p), QPointF(cx - side / 2 - s * 0.10, cy + s * p))
+            painter.drawLine(QPointF(cx + side / 2, cy + s * p), QPointF(cx + side / 2 + s * 0.10, cy + s * p))
+
+        # Core silicon circuit emblem inside
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_white)
+        painter.drawRoundedRect(QRectF(cx - s * 0.07, cy - s * 0.07, s * 0.14, s * 0.14), 2, 2)
+
+    elif name in ("video", "mp4", "mkv", "webm"):
+        # Cyber 16:9 Cinema Box + Emerald Play
+        v = QRectF(s * 0.16, s * 0.24, s * 0.68, s * 0.52)
+        painter.setPen(QPen(c_blue, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(QColor(56, 189, 248, 20))
+        painter.drawRoundedRect(v, s * 0.06, s * 0.06)
+
+        # Sprocket lines top and bottom
+        painter.setPen(QPen(c_blue, pen_w * 0.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.16, s * 0.32), QPointF(s * 0.84, s * 0.32))
+        painter.drawLine(QPointF(s * 0.16, s * 0.68), QPointF(s * 0.84, s * 0.68))
+
+        # Play Triangle
+        vp = QPainterPath()
+        vp.moveTo(s * 0.44, s * 0.40)
+        vp.lineTo(s * 0.60, s * 0.50)
+        vp.lineTo(s * 0.44, s * 0.60)
+        vp.closeSubpath()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c_emerald)
+        painter.drawPath(vp)
+
+    elif name == "unfinished":
+        # Rotating Cyber Telemetry Arrows
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawArc(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60), 30 * 16, 120 * 16)
+        painter.drawArc(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60), 210 * 16, 120 * 16)
+
+        # Arrowheads
+        a1 = QPainterPath()
+        a1.moveTo(s * 0.64, s * 0.22)
+        a1.lineTo(s * 0.74, s * 0.28)
+        a1.lineTo(s * 0.64, s * 0.34)
+        painter.drawPath(a1)
+
+        a2 = QPainterPath()
+        a2.moveTo(s * 0.36, s * 0.78)
+        a2.lineTo(s * 0.26, s * 0.72)
+        a2.lineTo(s * 0.36, s * 0.66)
+        painter.drawPath(a2)
+
+    elif name == "finished":
+        # Neon Emerald Check Badge
+        painter.setPen(QPen(c_emerald, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(0, 230, 118, 25))
+        painter.drawEllipse(QRectF(s * 0.18, s * 0.18, s * 0.64, s * 0.64))
+
+        chk = QPainterPath()
+        chk.moveTo(s * 0.34, s * 0.50)
+        chk.lineTo(s * 0.46, s * 0.62)
+        chk.lineTo(s * 0.66, s * 0.38)
+        painter.setPen(QPen(c_white, pen_w * 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawPath(chk)
+
+    elif name in ("show_hide", "window"):
+        # Dual Overlapping Cyber Window Viewports
+        w1 = QRectF(s * 0.18, s * 0.28, s * 0.48, s * 0.48)
+        w2 = QRectF(s * 0.34, s * 0.20, s * 0.48, s * 0.48)
+        painter.setPen(QPen(c_blue, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(56, 189, 248, 15))
+        painter.drawRoundedRect(w2, s * 0.05, s * 0.05)
+
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(QColor(0, 229, 255, 30))
+        painter.drawRoundedRect(w1, s * 0.05, s * 0.05)
+
+    elif name in ("exit", "quit"):
+        # Neon Crimson Power Circle Arc + Switch
+        painter.setPen(QPen(c_crimson, pen_w * 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawArc(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60), 45 * 16, 270 * 16)
+        painter.drawLine(QPointF(s * 0.50, s * 0.16), QPointF(s * 0.50, s * 0.48))
+
+    elif name in ("tray", "app_icon"):
+        # TMOG Real-Time Pulse Waveform
+        wave = QPainterPath()
+        wave.moveTo(s * 0.12, s * 0.52)
+        wave.lineTo(s * 0.28, s * 0.52)
+        wave.lineTo(s * 0.38, s * 0.24)
+        wave.lineTo(s * 0.50, s * 0.78)
+        wave.lineTo(s * 0.62, s * 0.36)
+        wave.lineTo(s * 0.72, s * 0.52)
+        wave.lineTo(s * 0.88, s * 0.52)
+        painter.setPen(QPen(c_cyan, pen_w * 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawPath(wave)
+
+    else:
+        # Generic Cyber Pulse Bullet
+        painter.setPen(QPen(c_cyan, pen_w, Qt.PenStyle.SolidLine))
+        painter.setBrush(c_cyan)
+        painter.drawEllipse(QRectF(s * 0.38, s * 0.38, s * 0.24, s * 0.24))
+
+
+def get_tmog_icon(name: str, size: int = 24) -> QIcon:
+    """
+    Renders a crisp, high-DPI TMOG Neon cyber vector icon for Bengal Download Manager.
+    Includes active glowing states and automatic faded disabled states.
+    """
+    pixmap = QPixmap(size * 2, size * 2)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    draw_tmog_icon_path(painter, name, size * 2)
+    painter.end()
+
+    disabled_pixmap = QPixmap(pixmap.size())
+    disabled_pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(disabled_pixmap)
+    p.setOpacity(0.30)
+    p.drawPixmap(0, 0, pixmap)
+    p.end()
+
+    icon = QIcon()
+    icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.On)
+    icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.On)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.On)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
+    return icon
+
+
 
