@@ -448,6 +448,17 @@ def get_format_size_bytes(fmt: dict) -> int:
         return 0
 
 
+def get_effective_resolution(fmt: dict) -> int:
+    """Returns the effective video resolution standard (e.g. 1080 for 1920x1080 landscape or 1080x1920 portrait)."""
+    if not isinstance(fmt, dict):
+        return 0
+    h = int(fmt.get("height") or 0)
+    w = int(fmt.get("width") or 0)
+    if h > 0 and w > 0:
+        return min(h, w)
+    return h or w or 0
+
+
 def determine_media_container_ext(
     selected_fmts: list[dict],
     video_container: str = "auto",
@@ -581,9 +592,12 @@ def get_selected_download_size(
     if video_only:
         v_pool = video_only
         if height:
-            h_filtered = [f for f in v_pool if int(f.get("height") or 0) <= height]
+            h_filtered = [f for f in v_pool if get_effective_resolution(f) <= height]
             if h_filtered:
                 v_pool = h_filtered
+            else:
+                lowest_res = min(get_effective_resolution(f) for f in v_pool)
+                v_pool = [f for f in v_pool if get_effective_resolution(f) == lowest_res]
 
         if pref_codec not in ("auto", "any", ""):
             if "av1" in pref_codec:
@@ -609,7 +623,7 @@ def get_selected_download_size(
         best_video = max(
             v_pool,
             key=lambda f: (
-                int(f.get("height") or 0),
+                get_effective_resolution(f),
                 _get_vcodec_score(f.get("vcodec")),
                 float(f.get("vbr") or 0) or float(f.get("tbr") or 0),
                 get_format_size_bytes(f),
@@ -668,13 +682,16 @@ def get_selected_download_size(
     if combined:
         c_pool = combined
         if height:
-            h_filtered = [f for f in c_pool if int(f.get("height") or 0) <= height]
+            h_filtered = [f for f in c_pool if get_effective_resolution(f) <= height]
             if h_filtered:
                 c_pool = h_filtered
+            else:
+                lowest_res = min(get_effective_resolution(f) for f in c_pool)
+                c_pool = [f for f in c_pool if get_effective_resolution(f) == lowest_res]
         best_combined = max(
             c_pool,
             key=lambda f: (
-                int(f.get("height") or 0),
+                get_effective_resolution(f),
                 float(f.get("tbr") or 0),
                 get_format_size_bytes(f),
             )
@@ -856,8 +873,8 @@ def probe_media_sizes(
 
         test_heights = set(heights or [2160, 1440, 1080, 720, 480, 360, 240, 144])
         for fmt in data.get("formats", []):
-            h = fmt.get("height")
-            if h and isinstance(h, (int, float)) and h > 0:
+            h = get_effective_resolution(fmt)
+            if h and h > 0:
                 test_heights.add(int(h))
 
         sorted_heights = sorted(list(test_heights), reverse=True)
@@ -1126,6 +1143,12 @@ class MediaInfoFetcherWorker(QThread):
             filename = sanitize_media_filename(final_title, ext=resolved_ext)
             size_str = (("~" if is_approx else "") + format_bytes(size_bytes)) if size_bytes > 0 else "Size unavailable"
 
+            resolved_format_spec = self.format_spec
+            if sel_fmts:
+                fids = [f.get("format_id") for f in sel_fmts if f.get("format_id")]
+                if fids:
+                    resolved_format_spec = "+".join(fids)
+
             self.finished_signal.emit({
                 "url": self.url,
                 "filename": filename,
@@ -1133,7 +1156,7 @@ class MediaInfoFetcherWorker(QThread):
                 "size_bytes": size_bytes,
                 "size_str": size_str,
                 "size_is_approximate": is_approx,
-                "format_spec": self.format_spec,
+                "format_spec": resolved_format_spec,
                 "is_audio_only": self.is_audio,
                 "video_container": self.video_container,
                 "audio_format": self.audio_format,
