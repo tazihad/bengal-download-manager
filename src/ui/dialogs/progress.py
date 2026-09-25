@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
-from core.utils import show_in_folder, load_extension_config
+from core.utils import show_in_folder, load_extension_config, wrap_url_tooltip
 from core.memory_guard import MemoryGuard
 
 class DownloadProgressDialog(QDialog):
@@ -82,7 +82,7 @@ class DownloadProgressDialog(QDialog):
 
         # Use a label with elided text for the URL
         self.lbl_url = QLabel()
-        self.lbl_url.setToolTip(url_text)
+        self.lbl_url.setToolTip(wrap_url_tooltip(url_text))
         self.lbl_url.setStyleSheet("font-size: 8.5pt; color: #cccccc; padding-bottom: 4px;")
         self.lbl_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         

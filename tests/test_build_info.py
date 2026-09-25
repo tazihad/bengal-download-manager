@@ -106,14 +106,14 @@ def test_verified_source_info_snap():
         is_verified, url, note = get_verified_source_info("0.2.56-alpha.3")
         assert is_verified is True
         assert url == f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.56-alpha.3"
-        assert "GitHub" in note
+        assert "Checksums (SHA-256) matched" in note
 
     # GitHub snap via BDM_SNAP_SOURCE override
     with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/current", "SNAP_NAME": "bengal-download-manager", "BDM_SNAP_SOURCE": "github"}, clear=True):
         is_verified, url, note = get_verified_source_info("0.2.56-alpha.3")
         assert is_verified is True
         assert url == f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.56-alpha.3"
-        assert "GitHub" in note
+        assert "Checksums (SHA-256) matched" in note
 
     # 3. Unverified / third-party snap
     with patch.dict(os.environ, {"SNAP": "/snap/other-dm", "SNAP_NAME": "other-dm"}, clear=True):
@@ -196,7 +196,7 @@ def test_about_dialog_formatting(qtbot):
         _, text = mock_about.call_args[0][1], mock_about.call_args[0][2]
         assert "(Tar Build)" in text
         assert "✔ Verified Source" in text
-        assert "title='Verified using SHA-256 release checksum'" in text
+        assert "title='Checksums (SHA-256) matched'" in text
         assert "/releases/tag/v" in text
 
     window.close()
@@ -214,5 +214,36 @@ def test_help_menu_homepage_url(qtbot):
         assert mock_open.called
         opened_url = mock_open.call_args[0][0].toString()
         assert opened_url == "https://zihad.com.bd/bengal-download-manager"
+
+    window.close()
+
+
+def test_about_verified_source_hover_tooltip(qtbot):
+    from PyQt6.QtWidgets import QLabel, QMessageBox, QToolTip
+    from PyQt6.QtCore import Qt
+    from ui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    with patch.object(sys, "frozen", True, create=True), \
+         patch.dict(os.environ, {}, clear=True):
+        def fake_about(parent, title, text):
+            box = QMessageBox(parent)
+            box.setTextFormat(Qt.TextFormat.RichText)
+            box.setText(text)
+            box.show()
+            found = False
+            for lbl in box.findChildren(QLabel):
+                if "Verified Source" in lbl.text():
+                    found = True
+                    assert lbl.hasMouseTracking()
+                    lbl.linkHovered.emit("https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.56-alpha.5")
+                    assert "Checksums (SHA-256) matched" in QToolTip.text()
+            assert found
+            box.close()
+
+        with patch.object(QMessageBox, "about", side_effect=fake_about):
+            window.show_about()
 
     window.close()

@@ -2148,4 +2148,46 @@ def determine_next_release_tag(
     return tag, version
 
 
+def wrap_url_tooltip(url: str, max_line_len: int = 80) -> str:
+    """
+    Wraps long URLs for display in tooltips so they do not exceed screen width.
+    Breaks preferentially after natural URL delimiters (&, ?, /, =, ;) when
+    approaching max_line_len, or hard breaks at max_line_len if no delimiter exists.
+    """
+    if not url:
+        return ""
+    if len(url) <= max_line_len:
+        return url
+
+    delimiters = {'?', '&', '/', '=', ';', '#'}
+    lines = []
+    current_line = []
+    current_len = 0
+    min_break_len = max(40, max_line_len - 25)
+
+    for i, c in enumerate(url):
+        current_line.append(c)
+        current_len += 1
+
+        if c in delimiters and current_len >= min_break_len:
+            # Avoid breaking inside the protocol scheme (e.g. http://)
+            if c == '/' and i >= 1 and url[i - 1] == '/' and i >= 2 and url[i - 2] == ':':
+                continue
+            if c == '/' and i + 1 < len(url) and url[i + 1] == '/':
+                continue
+            lines.append("".join(current_line))
+            current_line = []
+            current_len = 0
+        elif current_len >= max_line_len:
+            lines.append("".join(current_line))
+            current_line = []
+            current_len = 0
+
+    if current_line:
+        lines.append("".join(current_line))
+
+    return "\n".join(lines)
+
+
+
 

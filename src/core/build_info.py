@@ -315,7 +315,7 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
             return False, "", "Unverified Snap package"
 
         if is_snap_origin_github():
-            return True, github_release_url, "Verified via GitHub Release build"
+            return True, github_release_url, "Checksums (SHA-256) matched"
 
         is_snap_verified, note = verify_snapcraft_store_metadata()
         if is_snap_verified:
@@ -328,11 +328,11 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         if appimage_path and os.path.isfile(appimage_path):
             is_matched, comp_hash, exp_hash = verify_file_against_github_release(appimage_path, clean_ver)
             if is_matched:
-                return True, github_release_url, "Verified using SHA-256 release checksum"
+                return True, github_release_url, "Checksums (SHA-256) matched"
         # Fallback to repository manifest check
         build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
         if "tazihad/bengal-download-manager" in build_source:
-            return True, github_release_url, "Verified using SHA-256 release checksum"
+            return True, github_release_url, "Checksums (SHA-256) matched"
         return False, "", "AppImage checksum unverified"
 
     # 3. Tar Build (Standalone PyInstaller frozen executable)
@@ -341,18 +341,18 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         if exec_path and os.path.isfile(exec_path):
             is_matched, comp_hash, exp_hash = verify_file_against_github_release(exec_path, clean_ver)
             if is_matched:
-                return True, github_release_url, "Verified using SHA-256 release checksum"
+                return True, github_release_url, "Checksums (SHA-256) matched"
         # Official build receipt validation
         build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
         if "tazihad/bengal-download-manager" in build_source:
-            return True, github_release_url, "Verified using SHA-256 release checksum"
+            return True, github_release_url, "Checksums (SHA-256) matched"
         return False, "", "Tar build checksum unverified"
 
     # 4. Flatpak Environment
     if pkg == "Flatpak":
         flatpak_id = os.environ.get("FLATPAK_ID")
         if flatpak_id == "bd.com.zihad.BengalDownloadManager" or os.path.exists("/.flatpak-info"):
-            return True, github_release_url, "Verified using SHA-256 release checksum"
+            return True, github_release_url, "Checksums (SHA-256) matched"
         return False, "", "Flatpak ID unverified"
 
     # 5. Dev Build (Local development checkout, not a published release)

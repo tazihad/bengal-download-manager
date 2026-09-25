@@ -48,3 +48,34 @@ def test_themed_tray_icon():
         icon = get_themed_tray_icon(opt)
         assert icon is not None
         assert not icon.isNull()
+
+
+def test_wrap_url_tooltip():
+    """Verify wrap_url_tooltip wraps long URLs and leaves short URLs untouched."""
+    from core.utils import wrap_url_tooltip
+
+    # 1. Empty or None
+    assert wrap_url_tooltip("") == ""
+    assert wrap_url_tooltip(None) == ""
+
+    # 2. Short URL
+    short_url = "https://example.com/test.zip"
+    assert wrap_url_tooltip(short_url) == short_url
+
+    # 3. Long URL with query parameters
+    long_url = (
+        "https://downloads.example.org/path/to/archive/release/v1.0.0/bigfile.iso"
+        "?token=abcdef1234567890&session=xyz987654321&auth=yes&expires=999999999"
+    )
+    wrapped = wrap_url_tooltip(long_url, max_line_len=80)
+    assert "\n" in wrapped
+    for line in wrapped.splitlines():
+        assert len(line) <= 80
+
+    # 4. Long URL without delimiters (hard wrap)
+    long_opaque_url = "https://example.com/" + "a" * 200
+    wrapped_opaque = wrap_url_tooltip(long_opaque_url, max_line_len=80)
+    assert "\n" in wrapped_opaque
+    for line in wrapped_opaque.splitlines():
+        assert len(line) <= 80
+
