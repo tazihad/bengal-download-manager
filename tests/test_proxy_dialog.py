@@ -22,6 +22,8 @@ def test_proxy_tab_widgets_and_wrapping(qapp):
     from core.services.proxy_service import ProxyDetectionResult
 
     dlg = OptionsDialog(initial_tab=7)
+    dlg._proxy_debounce_timer.stop()
+    dlg._cleanup_proxy_worker()
     dlg.show()
     qapp.processEvents()
 
@@ -68,3 +70,41 @@ def test_proxy_tab_widgets_and_wrapping(qapp):
     assert content.width() <= viewport.width()
 
     dlg.close()
+
+
+def test_proxy_button_vertical_position_stability(qapp):
+    from ui.dialogs.options import OptionsDialog
+    from core.services.proxy_service import ProxyDetectionResult
+
+    dlg = OptionsDialog(initial_tab=7)
+    dlg._proxy_debounce_timer.stop()
+    dlg.show()
+    qapp.processEvents()
+
+    # 1. Waiting / typing state
+    dlg.txt_host.setText("127.0.0.1")
+    dlg._schedule_proxy_detection()
+    qapp.processEvents()
+    y_waiting = dlg.btn_test_proxy.y()
+    h_waiting = dlg.proxy_status_frame.height()
+
+    # 2. Connection failed state
+    fail_result = ProxyDetectionResult(is_working=False, error_message="Cannot connect to proxy server (Connection refused)")
+    dlg._on_proxy_detection_finished(fail_result)
+    qapp.processEvents()
+    y_failed = dlg.btn_test_proxy.y()
+    h_failed = dlg.proxy_status_frame.height()
+
+    # 3. Proxy working state
+    work_result = ProxyDetectionResult(is_working=True, flag_emoji="🌐", ip="1.2.3.4", country="Bangladesh")
+    dlg._on_proxy_detection_finished(work_result)
+    qapp.processEvents()
+    y_working = dlg.btn_test_proxy.y()
+    h_working = dlg.proxy_status_frame.height()
+
+    # Verify frame height and button position do not shift up and down
+    assert h_waiting == h_failed == h_working == 72
+    assert y_waiting == y_failed == y_working
+
+    dlg.close()
+

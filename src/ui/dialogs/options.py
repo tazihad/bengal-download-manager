@@ -997,23 +997,23 @@ class OptionsDialog(QDialog):
         # Status section for auto-detecting proxy connectivity, IP, and country flag
         self.proxy_status_frame = QFrame()
         self.proxy_status_frame.setObjectName("proxy_status_frame")
+        self.proxy_status_frame.setFixedHeight(72)
         self.proxy_status_frame.setStyleSheet("""
             QFrame#proxy_status_frame {
                 background-color: palette(alternate-base);
                 border: 1px solid palette(mid);
                 border-radius: 6px;
-                padding: 6px 10px;
                 margin-top: 6px;
             }
         """)
         status_hlayout = QHBoxLayout(self.proxy_status_frame)
-        status_hlayout.setContentsMargins(8, 6, 8, 6)
+        status_hlayout.setContentsMargins(10, 6, 10, 6)
         status_hlayout.setSpacing(10)
 
         self.lbl_proxy_flag = QLabel("🌐")
         self.lbl_proxy_flag.setStyleSheet("font-size: 22px;")
         self.lbl_proxy_flag.setToolTip("Country flag")
-        status_hlayout.addWidget(self.lbl_proxy_flag)
+        status_hlayout.addWidget(self.lbl_proxy_flag, 0, Qt.AlignmentFlag.AlignVCenter)
 
         status_text_layout = QVBoxLayout()
         status_text_layout.setContentsMargins(0, 0, 0, 0)
@@ -1039,17 +1039,17 @@ class OptionsDialog(QDialog):
 
         self.btn_test_proxy = QPushButton("Test Proxy")
         self.btn_test_proxy.setFixedHeight(32)
+        self.btn_test_proxy.setFixedWidth(95)
         self.btn_test_proxy.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_test_proxy.setStyleSheet("""
             QPushButton {
-                padding: 4px 16px;
-                min-width: 95px;
+                padding: 4px 12px;
                 font-weight: 500;
             }
         """)
         self.btn_test_proxy.setToolTip("Verify connection and detect external IP and country using this proxy")
         self.btn_test_proxy.clicked.connect(lambda: self.trigger_proxy_detection(force=True))
-        status_hlayout.addWidget(self.btn_test_proxy)
+        status_hlayout.addWidget(self.btn_test_proxy, 0, Qt.AlignmentFlag.AlignVCenter)
 
         manual_layout.addWidget(self.proxy_status_frame)
 
@@ -1120,7 +1120,10 @@ class OptionsDialog(QDialog):
         
         self.update_proxy_ui()
         if self.rb_manual.isChecked() and self.txt_host.text().strip():
-            QTimer.singleShot(200, self.trigger_proxy_detection)
+            self._initial_proxy_timer = QTimer(self)
+            self._initial_proxy_timer.setSingleShot(True)
+            self._initial_proxy_timer.timeout.connect(self.trigger_proxy_detection)
+            self._initial_proxy_timer.start(200)
 
         _scroll_area.setWidget(_content)
         _tab_lyt = QVBoxLayout(self.proxy_tab)
@@ -2065,6 +2068,8 @@ class OptionsDialog(QDialog):
         self.accept()
 
     def _cleanup_proxy_worker(self):
+        if hasattr(self, "_initial_proxy_timer") and self._initial_proxy_timer.isActive():
+            self._initial_proxy_timer.stop()
         if hasattr(self, "_proxy_debounce_timer") and self._proxy_debounce_timer.isActive():
             self._proxy_debounce_timer.stop()
         worker = getattr(self, "_proxy_worker", None)
