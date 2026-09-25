@@ -1663,6 +1663,7 @@ def get_autostart_filepath():
     # If running inside Snap, synchronize with the active snap.yaml declaration if present
     snap_dir = os.environ.get("SNAP")
     if snap_dir:
+        filename = f"{os.environ.get('SNAP_NAME', 'bengal-download-manager')}.desktop"
         meta_yaml = os.path.join(snap_dir, "meta", "snap.yaml")
         if os.path.exists(meta_yaml):
             try:
