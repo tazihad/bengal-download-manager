@@ -238,7 +238,10 @@ def test_about_verified_source_hover_tooltip(qtbot):
                 if "Verified Source" in lbl.text():
                     found = True
                     assert lbl.hasMouseTracking()
-                    lbl.linkHovered.emit("https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.56-alpha.5")
+                    from core.version import VERSION
+                    clean_ver = VERSION.lstrip("v")
+                    expected_url = f"{OFFICIAL_GITHUB_REPO}/releases/tag/v{clean_ver}"
+                    lbl.linkHovered.emit(expected_url)
                     assert "Checksums (SHA-256) matched" in QToolTip.text()
             assert found
             box.close()
