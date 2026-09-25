@@ -1455,6 +1455,11 @@ class MainWindow(QMainWindow):
     def update_status_bar_aria2(self):
         if not hasattr(self, "status_aria2_label"):
             return
+        try:
+            if sip.isdeleted(self.status_aria2_label):
+                return
+        except Exception:
+            return
         from core.aria2_daemon import get_aria2_daemon_manager
         mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
         is_running = mgr.is_running()
@@ -7101,70 +7106,8 @@ class MainWindow(QMainWindow):
 
 
     def show_about(self):
-        from core.version import VERSION
-        from core.build_info import get_package_type, get_verified_source_info
-        pkg_type = get_package_type()
-        is_verified, source_url, verification_note = get_verified_source_info(VERSION)
-        verified_badge = (
-            f" &nbsp;<a href='{source_url}' title='{verification_note}' style='color: #2ecc71; text-decoration: none; font-weight: bold;'>✔ Verified Source</a>"
-            if is_verified
-            else ""
-        )
-
-        class AboutTooltipFilter(QObject):
-            def __init__(self, note, expected_link):
-                super().__init__()
-                self.note = note
-                self.expected_link = expected_link
-
-            def eventFilter(self, obj, event):
-                if event.type() == QEvent.Type.Show and isinstance(obj, QMessageBox):
-                    for lbl in obj.findChildren(QLabel):
-                        if "Verified Source" in lbl.text():
-                            lbl.setMouseTracking(True)
-                            def _on_hover(link, label=lbl, text=self.note, expected=self.expected_link):
-                                if link and (link == expected or not expected):
-                                    QToolTip.showText(QCursor.pos(), text, label)
-                                elif not link:
-                                    QToolTip.hideText()
-                            lbl.linkHovered.connect(_on_hover)
-                return super().eventFilter(obj, event)
-
-        hover_filter = AboutTooltipFilter(verification_note, source_url) if is_verified else None
-        if hover_filter:
-            app = QApplication.instance()
-            if app:
-                app.installEventFilter(hover_filter)
-
-        try:
-            QMessageBox.about(
-                self,
-                "About Bengal Download Manager",
-                f"""
-                <h2>Bengal Download Manager</h2>
-
-                <p>
-                Lightweight open-source download manager built with PyQt6 and Aria2
-                featuring multi-threaded downloading.
-                </p>
-
-                <p>
-                <b>Version:</b> {VERSION} ({pkg_type}){verified_badge}<br>
-                <b>License:</b> MIT License<br>
-                © 2026 <a>tazihad</a> <a href='https://zihad.com.bd/bengal-download-manager'>https://zihad.com.bd/bengal-download-manager</a><br>
-                Contact: <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a>
-                </p>
-
-                <p>
-                <b>Project Site:</b><br>
-                <a href='https://github.com/tazihad/bengal-download-manager'>https://github.com/tazihad/bengal-download-manager</a>
-                </p>
-                """
-            )
-        finally:
-            if hover_filter:
-                app = QApplication.instance()
-                if app:
-                    app.removeEventFilter(hover_filter)
+        from ui.dialogs.about import AboutDialog
+        dlg = AboutDialog(self)
+        dlg.exec()
 
 

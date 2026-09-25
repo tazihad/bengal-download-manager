@@ -178,14 +178,14 @@ def verify_file_against_github_release(filepath: str, version: str) -> tuple[boo
     return False, computed, None
 
 
-def verify_snapcraft_store_metadata(timeout: float = 0.0) -> tuple[bool, str]:
+def verify_snapcraft_store_metadata_status(timeout: float = 3.0) -> tuple[str, str]:
     """
     Verify whether the current installation is an authentic Canonical Snapcraft / Launchpad build:
       1. Confinement verification ($SNAP and $SNAP_NAME == "bengal-download-manager")
       2. Snap metadata assertion ($SNAP/meta/snap.yaml)
-      3. Remote store verification against Canonical Snapcraft API (optional/cached)
+      3. Remote store verification against Canonical Snapcraft API
     Returns:
-        (is_verified: bool, detail_message: str)
+        (status: str, detail_message: str) where status is 'verified', 'no_network', or 'unverified'
     """
     snap_name = os.environ.get("SNAP_NAME")
     snap_dir = os.environ.get("SNAP", "")
@@ -203,15 +203,11 @@ def verify_snapcraft_store_metadata(timeout: float = 0.0) -> tuple[bool, str]:
                 pass
 
     if snap_name != "bengal-download-manager":
-        return False, "Unverified Snap package name"
+        return "unverified", "Unverified Snap package name"
 
-    # Confinement and package name validation passed.
-    # On Canonical Snapcraft Store, the snap name 'bengal-download-manager' is reserved
-    # and cryptographically signed by Canonical upon installation.
-    if timeout <= 0.0:
-        return True, "Verified Canonical Snapcraft store package (Launchpad build)"
-
-    # Online store verification against Canonical Snapcraft API if explicit timeout > 0
+    # Online store verification against Canonical Snapcraft API
+    import urllib.error
+    import socket
     try:
         req = urllib.request.Request(
             OFFICIAL_SNAPCRAFT_API_URL,
@@ -226,12 +222,19 @@ def verify_snapcraft_store_metadata(timeout: float = 0.0) -> tuple[bool, str]:
                 snap_info = data.get("snap", {})
                 publisher = snap_info.get("publisher", {})
                 if publisher.get("username") == "tazihad":
-                    return True, "Verified Canonical Snapcraft store package (Launchpad build)"
-    except Exception:
-        # Offline or connection timed out: local squashfs confinement check passed
-        pass
+                    return "verified", "Verified via Canonical Snap Store (Launchpad build)"
+                return "unverified", "Snap publisher mismatch"
+            return "unverified", f"Snap store returned HTTP {resp.status}"
+    except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError):
+        return "no_network", "No network connection to verify Snapcraft store"
+    except Exception as e:
+        return "unverified", f"Verification error: {e}"
 
-    return True, "Verified Canonical Snapcraft store package (Launchpad build)"
+
+def verify_snapcraft_store_metadata(timeout: float = 3.0) -> tuple[bool, str]:
+    """Backward compatible wrapper returning (is_verified: bool, detail_message: str)."""
+    status, note = verify_snapcraft_store_metadata_status(timeout=timeout)
+    return (status == "verified", note)
 
 def is_snap_origin_github() -> bool:
     """
@@ -301,16 +304,12 @@ def is_snap_origin_github() -> bool:
     return False
 
 
-def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, str]:
+def verify_source_status(version: Optional[str] = None, timeout: float = 3.0) -> tuple[str, str, str]:
     """
-    Comprehensive source and authenticity verification.
-    Verifies against:
-      - Canonical Snapcraft (Launchpad build) or GitHub Releases for Snap packages
-      - GitHub Release SHA-256 checksums for AppImage & Tar builds
-      - Official GitHub repository remote for Dev builds
-
-    Returns:
-        (is_verified: bool, source_url: str, verification_note: str)
+    Comprehensive source and authenticity verification returning granular status:
+      - status: 'verified', 'no_network', or 'unverified'
+      - source_url: URL to release or store
+      - verification_note: Detail message for tooltips or logs
     """
     pkg = get_package_type()
     if not version:
@@ -333,14 +332,16 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         getattr(sys, "frozen", False),
     )
     if cache_key in _CACHED_SOURCE_INFO:
-        return _CACHED_SOURCE_INFO[cache_key]
+        is_ver, s_url, note = _CACHED_SOURCE_INFO[cache_key]
+        cached_status = "verified" if is_ver else ("no_network" if "no network" in note.lower() else "unverified")
+        return cached_status, s_url, note
 
     clean_ver = version.lstrip("v")
     github_release_url = f"{OFFICIAL_GITHUB_REPO}/releases/tag/v{clean_ver}"
 
-    def _cache_and_return(res: tuple[bool, str, str]) -> tuple[bool, str, str]:
-        _CACHED_SOURCE_INFO[cache_key] = res
-        return res
+    def _cache_and_return(status: str, url: str, note: str) -> tuple[str, str, str]:
+        _CACHED_SOURCE_INFO[cache_key] = (status == "verified", url, note)
+        return status, url, note
 
     # 1. Snap Environment (Built via Launchpad / Snapcraft or GitHub Actions)
     if pkg == "Snap":
@@ -359,15 +360,17 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
                     pass
 
         if snap_name != "bengal-download-manager":
-            return _cache_and_return((False, "", "Unverified Snap package"))
+            return _cache_and_return("unverified", "", "Unverified Snap package")
 
         if is_snap_origin_github():
-            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
+            return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
 
-        is_snap_verified, note = verify_snapcraft_store_metadata()
-        if is_snap_verified:
-            return _cache_and_return((True, OFFICIAL_SNAP_URL, "Verified via Canonical Snap Store (Launchpad build)"))
-        return _cache_and_return((False, "", "Unverified Snap package"))
+        snap_status, note = verify_snapcraft_store_metadata_status(timeout=timeout)
+        if snap_status == "verified":
+            return _cache_and_return("verified", OFFICIAL_SNAP_URL, note)
+        if snap_status == "no_network":
+            return _cache_and_return("no_network", "", note)
+        return _cache_and_return("unverified", "", note)
 
     # 2. AppImage Environment
     if pkg == "AppImage":
@@ -375,12 +378,14 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         if appimage_path and os.path.isfile(appimage_path):
             is_matched, comp_hash, exp_hash = verify_file_against_github_release(appimage_path, clean_ver)
             if is_matched:
-                return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
+                return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
         # Fallback to repository manifest check
         build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
         if "tazihad/bengal-download-manager" in build_source:
-            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
-        return _cache_and_return((False, "", "AppImage checksum unverified"))
+            return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        if appimage_path and os.path.isfile(appimage_path) and exp_hash is None:
+            return _cache_and_return("no_network", "", "No network connection to verify checksums")
+        return _cache_and_return("unverified", "", "AppImage checksum unverified")
 
     # 3. Tar Build (Standalone PyInstaller frozen executable)
     if pkg == "Tar Build":
@@ -388,22 +393,34 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         if exec_path and os.path.isfile(exec_path):
             is_matched, comp_hash, exp_hash = verify_file_against_github_release(exec_path, clean_ver)
             if is_matched:
-                return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
+                return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
         # Official build receipt validation
         build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
         if "tazihad/bengal-download-manager" in build_source:
-            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
-        return _cache_and_return((False, "", "Tar build checksum unverified"))
+            return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        if exec_path and os.path.isfile(exec_path) and exp_hash is None:
+            return _cache_and_return("no_network", "", "No network connection to verify checksums")
+        return _cache_and_return("unverified", "", "Tar build checksum unverified")
 
     # 4. Flatpak Environment
     if pkg == "Flatpak":
         flatpak_id = os.environ.get("FLATPAK_ID")
         if flatpak_id == "bd.com.zihad.BengalDownloadManager" or os.path.exists("/.flatpak-info"):
-            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
-        return _cache_and_return((False, "", "Flatpak ID unverified"))
+            return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        return _cache_and_return("unverified", "", "Flatpak ID unverified")
 
     # 5. Dev Build (Local development checkout, not a published release)
     if pkg == "Dev Build":
-        return _cache_and_return((False, "", ""))
+        return _cache_and_return("unverified", "", "")
 
-    return _cache_and_return((False, "", ""))
+    return _cache_and_return("unverified", "", "")
+
+
+def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, str]:
+    """
+    Comprehensive source and authenticity verification backward compatible API.
+    Returns:
+        (is_verified: bool, source_url: str, verification_note: str)
+    """
+    status, url, note = verify_source_status(version=version)
+    return (status == "verified", url, note)
