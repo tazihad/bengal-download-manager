@@ -950,7 +950,7 @@ class OptionsDialog(QDialog):
         self.txt_host.setToolTip("Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)")
         self.txt_host.textChanged.connect(self.save_proxy_data)
         self.txt_host.textChanged.connect(self.refresh_engine_status)
-        addr_layout.addWidget(self.txt_host)
+        addr_layout.addWidget(self.txt_host, 1)
         
         lbl_port = QLabel("Port:")
         lbl_port.setToolTip("Port number of the proxy server (1-65535)")
@@ -1021,6 +1021,8 @@ class OptionsDialog(QDialog):
 
         self.lbl_proxy_status = QLabel("Proxy status: Not checked")
         self.lbl_proxy_status.setStyleSheet("font-weight: bold; color: palette(window-text);")
+        self.lbl_proxy_status.setWordWrap(True)
+        self.lbl_proxy_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         status_text_layout.addWidget(self.lbl_proxy_status)
 
         self.lbl_proxy_ip = QLabel("")
@@ -1029,6 +1031,8 @@ class OptionsDialog(QDialog):
         tnum_font.setFeature(QFont.Tag.fromString('tnum'), 1)
         self.lbl_proxy_ip.setFont(tnum_font)
         self.lbl_proxy_ip.setStyleSheet("color: palette(window-text);")
+        self.lbl_proxy_ip.setWordWrap(True)
+        self.lbl_proxy_ip.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         status_text_layout.addWidget(self.lbl_proxy_ip)
 
         status_hlayout.addLayout(status_text_layout, 1)
@@ -1748,13 +1752,19 @@ class OptionsDialog(QDialog):
             if hasattr(self, "lbl_proxy_status"):
                 self.lbl_proxy_status.setText("Proxy status: Host is empty")
                 self.lbl_proxy_status.setStyleSheet("color: palette(placeholder-text);")
+                self.lbl_proxy_status.setToolTip("")
                 self.lbl_proxy_flag.setText("🌐")
                 self.lbl_proxy_flag.setToolTip("Enter proxy host to test connection")
                 self.lbl_proxy_ip.setText("")
+                self.lbl_proxy_ip.setToolTip("")
             return
         if hasattr(self, "lbl_proxy_status"):
             self.lbl_proxy_status.setText("Proxy status: Waiting to test...")
             self.lbl_proxy_status.setStyleSheet("color: palette(window-text);")
+            self.lbl_proxy_status.setToolTip("")
+            if hasattr(self, "lbl_proxy_ip"):
+                self.lbl_proxy_ip.setText("")
+                self.lbl_proxy_ip.setToolTip("")
         if hasattr(self, "_proxy_debounce_timer"):
             self._proxy_debounce_timer.start(750)
 
@@ -1769,8 +1779,12 @@ class OptionsDialog(QDialog):
 
         self.lbl_proxy_status.setText("Testing proxy...")
         self.lbl_proxy_status.setStyleSheet("color: palette(window-text); font-weight: bold;")
+        self.lbl_proxy_status.setToolTip("Testing connection through configured proxy...")
         self.lbl_proxy_flag.setText("⏳")
         self.lbl_proxy_flag.setToolTip("Testing connection through configured proxy...")
+        if hasattr(self, "lbl_proxy_ip"):
+            self.lbl_proxy_ip.setText("")
+            self.lbl_proxy_ip.setToolTip("")
         if hasattr(self, "btn_test_proxy"):
             self.btn_test_proxy.setEnabled(False)
 
@@ -1794,7 +1808,10 @@ class OptionsDialog(QDialog):
             self.lbl_proxy_flag.setToolTip(tooltip_country)
             self.lbl_proxy_status.setText("Proxy is working")
             self.lbl_proxy_status.setStyleSheet("color: #2eb85c; font-weight: bold;")
+            self.lbl_proxy_status.setToolTip("Proxy connection verified successfully")
             self.lbl_proxy_ip.setText(f"IP: {result.ip}")
+            self.lbl_proxy_ip.setStyleSheet("color: palette(window-text);")
+            self.lbl_proxy_ip.setToolTip(tooltip_country)
             if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "on_proxy_verified"):
                 try:
                     self.main_window.on_proxy_verified(result)
@@ -1802,10 +1819,14 @@ class OptionsDialog(QDialog):
                     pass
         else:
             self.lbl_proxy_flag.setText("⚠️")
-            self.lbl_proxy_flag.setToolTip(result.error_message or "Proxy error")
-            self.lbl_proxy_status.setText(f"Connection failed: {result.error_message}")
+            err_msg = result.error_message or "Proxy error"
+            self.lbl_proxy_flag.setToolTip(err_msg)
+            self.lbl_proxy_status.setText("Connection failed")
             self.lbl_proxy_status.setStyleSheet("color: #e55353; font-weight: bold;")
-            self.lbl_proxy_ip.setText("")
+            self.lbl_proxy_status.setToolTip(err_msg)
+            self.lbl_proxy_ip.setText(err_msg)
+            self.lbl_proxy_ip.setStyleSheet("color: #e55353; font-size: 11px;")
+            self.lbl_proxy_ip.setToolTip(err_msg)
 
     def get_current_proxy_data(self) -> dict:
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
