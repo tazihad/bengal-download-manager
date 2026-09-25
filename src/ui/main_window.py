@@ -7095,6 +7095,14 @@ class MainWindow(QMainWindow):
 
     def show_about(self):
         from core.version import VERSION
+        from core.build_info import get_package_type, get_verified_source_info
+        pkg_type = get_package_type()
+        is_verified, source_url = get_verified_source_info()
+        verified_badge = (
+            f" &nbsp;<a href='{source_url}' style='color: #2ecc71; text-decoration: none; font-weight: bold;'>✔ Verified Source</a>"
+            if is_verified
+            else ""
+        )
         QMessageBox.about(
             self,
             "About Bengal Download Manager",
@@ -7107,9 +7115,9 @@ class MainWindow(QMainWindow):
             </p>
 
             <p>
-            <b>Version:</b> {VERSION}<br>
+            <b>Version:</b> {VERSION} ({pkg_type}){verified_badge}<br>
             <b>License:</b> MIT License<br>
-            © 2026 <a>tazihad</a> <a href='https://zihad.com.bd'>https://zihad.com.bd</a><br>
+            © 2026 <a>tazihad</a> <a href='https://zihad.com.bd/bengal-download-manager'>https://zihad.com.bd/bengal-download-manager</a><br>
             Contact: <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a>
             </p>
 

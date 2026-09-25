@@ -153,15 +153,20 @@ def ensure_desktop_integration() -> None:
             os.makedirs(dst_svg_dir, exist_ok=True)
             shutil.copy2(src_svg, dst_svg)
 
-        # 2. Install desktop entry if not present or needs update
-        if getattr(sys, "frozen", False):
-            exec_cmd = f'"{sys.executable}" %u'
-        else:
-            script_path = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
-            if script_path and os.path.isfile(script_path):
-                exec_cmd = f'"{sys.executable}" "{script_path}" %u'
-            else:
-                exec_cmd = f'"{sys.executable}" -m bengal_download_manager %u'
+        # 2. Install desktop entry only for standalone frozen builds (e.g. Tar Build)
+        # Dev builds and testing runs must not place .desktop files in ~/.local/share/applications/
+        if not getattr(sys, "frozen", False):
+            if os.path.exists(desktop_file):
+                try:
+                    with open(desktop_file, "r", encoding="utf-8") as f:
+                        content_existing = f.read()
+                    if "src/main.py" in content_existing or ("python" in content_existing.lower() and "main.py" in content_existing):
+                        os.remove(desktop_file)
+                except Exception:
+                    pass
+            return
+
+        exec_cmd = f'"{sys.executable}" %u'
 
         need_write = not os.path.exists(desktop_file)
         if not need_write:
