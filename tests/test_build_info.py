@@ -200,3 +200,19 @@ def test_about_dialog_formatting(qtbot):
         assert "/releases/tag/v" in text
 
     window.close()
+
+
+def test_help_menu_homepage_url(qtbot):
+    from PyQt6.QtGui import QDesktopServices
+    from ui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    with patch.object(QDesktopServices, "openUrl") as mock_open:
+        window.action_homepage.trigger()
+        assert mock_open.called
+        opened_url = mock_open.call_args[0][0].toString()
+        assert opened_url == "https://zihad.com.bd/bengal-download-manager"
+
+    window.close()

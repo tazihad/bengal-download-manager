@@ -845,7 +845,7 @@ class MainWindow(QMainWindow):
         # 5. Help
         help_menu = menu_bar.addMenu(self.tr("&Help"))
         self.action_homepage = QAction(self.tr("BDM &Homepage"), self)
-        self.action_homepage.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager")))
+        self.action_homepage.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://zihad.com.bd/bengal-download-manager")))
         help_menu.addAction(self.action_homepage)
 
         self.action_bug_report = QAction(self.tr("&File bug report"), self)
