@@ -9,14 +9,6 @@ from PyQt6.QtWidgets import QApplication, QScrollArea, QSizePolicy
 from PyQt6.QtCore import Qt
 
 
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(["-platform", "offscreen"])
-    return app
-
-
 def test_proxy_tab_widgets_and_wrapping(qapp):
     from ui.dialogs.options import OptionsDialog
     from core.services.proxy_service import ProxyDetectionResult
