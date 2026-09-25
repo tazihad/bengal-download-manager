@@ -205,14 +205,79 @@ def verify_snapcraft_store_metadata(timeout: float = 3.0) -> tuple[bool, str]:
         # Offline or connection timed out: local squashfs confinement check passed
         pass
 
-    return True, "Verified Canonical Snapcraft confinement (Launchpad build)"
+def is_snap_origin_github() -> bool:
+    """
+    Determine whether the current snap environment originated from GitHub
+    (such as a GitHub Release .snap installed manually / with --dangerous)
+    versus the official Canonical Snapcraft Store (Launchpad build).
+    """
+    # 1. Environment variable overrides for testing or container configurations
+    snap_source = (os.environ.get("BDM_SNAP_SOURCE") or "").strip().lower()
+    if snap_source == "github":
+        return True
+    if snap_source in ("snapcraft", "store", "launchpad"):
+        return False
+
+    build_source = (os.environ.get("BDM_BUILD_SOURCE") or "").strip().lower()
+    if "github" in build_source:
+        return True
+    if "snapcraft" in build_source or "launchpad" in build_source:
+        return False
+
+    # 2. Check snapd revision:
+    # In snapd, revisions installed from local files (e.g. GitHub release .snap via --dangerous)
+    # always start with 'x' (e.g. 'x1', 'x2').
+    # Store-installed revisions are positive integers (e.g. '1', '2', '42').
+    snap_rev = (os.environ.get("SNAP_REVISION") or "").strip()
+    if snap_rev.startswith("x"):
+        return True
+    if snap_rev.isdigit():
+        return False
+
+    # 3. Check real path of $SNAP mount point
+    snap_dir = os.environ.get("SNAP", "")
+    if snap_dir:
+        try:
+            real_snap = os.path.realpath(snap_dir)
+            base_rev = os.path.basename(real_snap)
+            if base_rev.startswith("x"):
+                return True
+            if base_rev.isdigit():
+                return False
+        except Exception:
+            pass
+
+    # 4. Check build marker injected by GitHub Actions build-snap action
+    try:
+        import core.version as ver_module
+        if getattr(ver_module, "BUILD_SOURCE", None) == "github":
+            return True
+    except Exception:
+        pass
+
+    if snap_dir:
+        candidate_paths = [
+            os.path.join(snap_dir, "share", "bengal-download-manager", "src", "core", "version.py"),
+            os.path.join(os.path.dirname(__file__), "version.py"),
+        ]
+        for p in candidate_paths:
+            if os.path.isfile(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        header = f.read(512)
+                        if "build-snap action" in header or 'BUILD_SOURCE = "github"' in header:
+                            return True
+                except Exception:
+                    pass
+
+    return False
 
 
 def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, str]:
     """
     Comprehensive source and authenticity verification.
     Verifies against:
-      - Canonical Snapcraft (Launchpad build) for Snap packages
+      - Canonical Snapcraft (Launchpad build) or GitHub Releases for Snap packages
       - GitHub Release SHA-256 checksums for AppImage & Tar builds
       - Official GitHub repository remote for Dev builds
 
@@ -230,8 +295,28 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
     clean_ver = version.lstrip("v")
     github_release_url = f"{OFFICIAL_GITHUB_REPO}/releases/tag/v{clean_ver}"
 
-    # 1. Snap Environment (Built via Launchpad / Snapcraft)
+    # 1. Snap Environment (Built via Launchpad / Snapcraft or GitHub Actions)
     if pkg == "Snap":
+        snap_name = os.environ.get("SNAP_NAME")
+        snap_dir = os.environ.get("SNAP", "")
+
+        if not snap_name and snap_dir:
+            meta_yaml = os.path.join(snap_dir, "meta", "snap.yaml")
+            if os.path.exists(meta_yaml):
+                try:
+                    with open(meta_yaml, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    if "name: bengal-download-manager" in content:
+                        snap_name = "bengal-download-manager"
+                except Exception:
+                    pass
+
+        if snap_name != "bengal-download-manager":
+            return False, "", "Unverified Snap package"
+
+        if is_snap_origin_github():
+            return True, github_release_url, "Verified via GitHub Release build"
+
         is_snap_verified, note = verify_snapcraft_store_metadata()
         if is_snap_verified:
             return True, OFFICIAL_SNAP_URL, "Verified via Canonical Snap Store (Launchpad build)"
