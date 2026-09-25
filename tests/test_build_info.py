@@ -6,9 +6,11 @@ SHA-256 release checksum matching, and desktop integration constraints.
 import hashlib
 import os
 import sys
+import pytest
 from unittest.mock import patch, MagicMock
 
 from core.build_info import (
+    clear_build_info_cache,
     compute_file_sha256,
     fetch_github_release_checksums,
     get_package_type,
@@ -19,6 +21,13 @@ from core.build_info import (
     OFFICIAL_GITHUB_REPO,
     OFFICIAL_SNAP_URL,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_build_info_cache():
+    clear_build_info_cache()
+    yield
+    clear_build_info_cache()
 
 
 def test_package_type_detection():
@@ -170,34 +179,33 @@ def test_verified_source_info_dev_and_tar():
 
 
 def test_about_dialog_formatting(qtbot):
-    from PyQt6.QtWidgets import QMessageBox
+    from ui.dialogs.about import AboutDialog
     from ui.main_window import MainWindow
 
     window = MainWindow()
     qtbot.addWidget(window)
 
-    # 1. Dev build
-    with patch.object(QMessageBox, "about") as mock_about:
-        window.show_about()
-        assert mock_about.called
-        title, text = mock_about.call_args[0][1], mock_about.call_args[0][2]
-        assert "About Bengal Download Manager" in title
-        assert "https://zihad.com.bd/bengal-download-manager" in text
-        assert "(Dev Build)" in text
-        # Dev build should not claim to be in a GitHub release
-        assert "✔ Verified Source" not in text
+    # 1. Dev build opens immediately without verified badge
+    dlg = AboutDialog(window)
+    qtbot.addWidget(dlg)
+    dlg.show()
+    assert "About Bengal Download Manager" in dlg.windowTitle()
+    assert dlg.pkg_type == "Dev Build"
+    assert "✔ Verified Source" not in dlg.verify_label.text()
+    dlg.close()
 
-    # 2. Release Tar build with SHA-256 verification and tooltip
+    # 2. Release Tar build with async verification
     with patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
-         patch.object(QMessageBox, "about") as mock_about:
-        window.show_about()
-        assert mock_about.called
-        _, text = mock_about.call_args[0][1], mock_about.call_args[0][2]
-        assert "(Tar Build)" in text
-        assert "✔ Verified Source" in text
-        assert "title='Checksums (SHA-256) matched'" in text
-        assert "/releases/tag/v" in text
+         patch("core.build_info.verify_source_status", return_value=("verified", f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.57", "Checksums (SHA-256) matched")):
+        dlg = AboutDialog(window)
+        qtbot.addWidget(dlg)
+        dlg.show()
+        qtbot.waitUntil(lambda: "Verified Source" in dlg.verify_label.text(), timeout=2000)
+        assert dlg.pkg_type == "Tar Build"
+        assert "✔ Verified Source" in dlg.verify_label.text()
+        assert "Checksums (SHA-256) matched" in dlg.verify_label.toolTip()
+        dlg.close()
 
     window.close()
 
@@ -219,34 +227,72 @@ def test_help_menu_homepage_url(qtbot):
 
 
 def test_about_verified_source_hover_tooltip(qtbot):
-    from PyQt6.QtWidgets import QLabel, QMessageBox, QToolTip
-    from PyQt6.QtCore import Qt
+    from ui.dialogs.about import AboutDialog
     from ui.main_window import MainWindow
 
     window = MainWindow()
     qtbot.addWidget(window)
 
     with patch.object(sys, "frozen", True, create=True), \
-         patch.dict(os.environ, {}, clear=True):
-        def fake_about(parent, title, text):
-            box = QMessageBox(parent)
-            box.setTextFormat(Qt.TextFormat.RichText)
-            box.setText(text)
-            box.show()
-            found = False
-            for lbl in box.findChildren(QLabel):
-                if "Verified Source" in lbl.text():
-                    found = True
-                    assert lbl.hasMouseTracking()
-                    from core.version import VERSION
-                    clean_ver = VERSION.lstrip("v")
-                    expected_url = f"{OFFICIAL_GITHUB_REPO}/releases/tag/v{clean_ver}"
-                    lbl.linkHovered.emit(expected_url)
-                    assert "Checksums (SHA-256) matched" in QToolTip.text()
-            assert found
-            box.close()
-
-        with patch.object(QMessageBox, "about", side_effect=fake_about):
-            window.show_about()
+         patch.dict(os.environ, {}, clear=True), \
+         patch("core.build_info.verify_source_status", return_value=("verified", f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.57", "Checksums (SHA-256) matched")):
+        dlg = AboutDialog(window)
+        qtbot.addWidget(dlg)
+        dlg.show()
+        qtbot.waitUntil(lambda: "Verified Source" in dlg.verify_label.text(), timeout=2000)
+        assert dlg.verify_label.isVisible()
+        assert "Checksums (SHA-256) matched" in dlg.verify_label.toolTip()
+        dlg.close()
 
     window.close()
+
+
+def test_about_dialog_offline_warning(qtbot):
+    """Test that About dialog displays a small size text warning when no network is available."""
+    from ui.dialogs.about import AboutDialog
+    from ui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    with patch.object(sys, "frozen", True, create=True), \
+         patch.dict(os.environ, {}, clear=True), \
+         patch("core.build_info.verify_source_status", return_value=("no_network", "", "No network connection")):
+        dlg = AboutDialog(window)
+        qtbot.addWidget(dlg)
+        dlg.show()
+        # Dialog opens immediately and spinner starts
+        assert dlg.isVisible()
+        assert dlg.spinner.isVisible()
+
+        # On network failure, spinner hides and warning text displays
+        qtbot.waitUntil(lambda: "No network" in dlg.verify_label.text(), timeout=2000)
+        assert not dlg.spinner.isVisible()
+        assert "No network" in dlg.verify_label.text()
+        assert "no network connection" in dlg.verify_label.toolTip().lower()
+        dlg.close()
+
+    window.close()
+
+
+def test_main_window_show_about(qtbot):
+    from ui.main_window import MainWindow
+    from ui.dialogs.about import AboutDialog
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    with patch.object(AboutDialog, "exec") as mock_exec:
+        window.show_about()
+        assert mock_exec.called
+
+    window.close()
+
+
+def test_about_dialog_and_verification_instantaneous():
+    import time
+    t0 = time.perf_counter()
+    get_verified_source_info()
+    t1 = time.perf_counter()
+    assert (t1 - t0) < 0.05
+
