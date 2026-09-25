@@ -103,20 +103,20 @@ def test_verified_source_info_snap():
 
 
 def test_verified_source_info_dev_and_tar():
-    # Official repository git checkout in dev build
+    # Dev build is a local checkout, not a GitHub release, so it is unverified
     with patch.dict(os.environ, {}, clear=True):
         with patch.object(sys, "frozen", False, create=True):
             is_verified, url, note = get_verified_source_info()
-            assert is_verified is True
-            assert url == OFFICIAL_GITHUB_REPO
-            assert "GitHub" in note
+            assert is_verified is False
+            assert url == ""
+            assert note == ""
 
-    # Tar build / AppImage
+    # Tar build / AppImage has tag-specific release URL and SHA-256 tooltip
     with patch.dict(os.environ, {}, clear=True):
         with patch.object(sys, "frozen", True, create=True):
-            is_verified, url, note = get_verified_source_info()
+            is_verified, url, note = get_verified_source_info("0.2.55")
             assert is_verified is True
-            assert url == OFFICIAL_GITHUB_REPO
+            assert url == f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.55"
             assert "SHA-256" in note
 
 
@@ -143,13 +143,27 @@ def test_about_dialog_formatting(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
 
+    # 1. Dev build
     with patch.object(QMessageBox, "about") as mock_about:
         window.show_about()
         assert mock_about.called
         title, text = mock_about.call_args[0][1], mock_about.call_args[0][2]
         assert "About Bengal Download Manager" in title
         assert "https://zihad.com.bd/bengal-download-manager" in text
-        assert "✔ Verified Source" in text
         assert "(Dev Build)" in text
-        assert "Verification:" in text
+        # Dev build should not claim to be in a GitHub release
+        assert "✔ Verified Source" not in text
+
+    # 2. Release Tar build with SHA-256 verification and tooltip
+    with patch.object(sys, "frozen", True, create=True), \
+         patch.dict(os.environ, {}, clear=True), \
+         patch.object(QMessageBox, "about") as mock_about:
+        window.show_about()
+        assert mock_about.called
+        _, text = mock_about.call_args[0][1], mock_about.call_args[0][2]
+        assert "(Tar Build)" in text
+        assert "✔ Verified Source" in text
+        assert "title='Verified using SHA-256 release checksum'" in text
+        assert "/releases/tag/v" in text
+
     window.close()
