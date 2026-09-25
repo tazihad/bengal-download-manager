@@ -160,8 +160,7 @@ def main():
         threading.excepthook = thread_exception_hook
     qInstallMessageHandler(qt_message_handler)
 
-    from core.desktop import get_desktop_file_name, ensure_desktop_integration
-    ensure_desktop_integration()
+    from core.desktop import get_desktop_file_name
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
