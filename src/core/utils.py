@@ -1724,17 +1724,19 @@ def set_autostart_enabled(enabled, start_minimized=False):
     if enabled:
         exec_cmd = get_executable_command(start_minimized)
         wmclass = "bd.com.zihad.BengalDownloadManager"
+        icon_val = "bd.com.zihad.BengalDownloadManager"
         if os.environ.get("SNAP"):
             snap_instance = os.environ.get("SNAP_INSTANCE_NAME") or os.environ.get("SNAP_NAME", "bengal-download-manager")
             snap_app = os.environ.get("SNAP_APP_NAME", "bengal-download-manager")
             wmclass = f"{snap_instance}_{snap_app}"
+            icon_val = f"/snap/{snap_instance}/current/meta/gui/icon.png"
 
         desktop_content = f"""[Desktop Entry]
 Type=Application
 Name=Bengal Download Manager
 Comment=High-performance multi-threaded download manager
 Exec={exec_cmd}
-Icon=bd.com.zihad.BengalDownloadManager
+Icon={icon_val}
 Terminal=false
 StartupWMClass={wmclass}
 Categories=Network;FileTransfer;
