@@ -207,6 +207,13 @@ class MainWindow(QMainWindow):
         self.active_complete_dialogs = {}
         self.active_media_fetchers = []
         self.load_data()
+
+        # Warm up build info & source verification in background for instant About dialog
+        try:
+            from core.build_info import warmup_build_info_async
+            warmup_build_info_async()
+        except Exception:
+            pass
         
         # FEATURE: Timer for periodic timestamp updates (Run every 10 seconds)
         self.timestamp_timer = QTimer(self)

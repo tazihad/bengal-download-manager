@@ -204,7 +204,14 @@ def main():
     if app_icon.isNull():
         app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
     app.setWindowIcon(app_icon)
-    
+
+    # Warm up build info and release verification asynchronously
+    try:
+        from core.build_info import warmup_build_info_async
+        warmup_build_info_async()
+    except Exception:
+        pass
+
     window = MainWindow()
     use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
 

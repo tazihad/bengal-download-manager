@@ -6,9 +6,11 @@ SHA-256 release checksum matching, and desktop integration constraints.
 import hashlib
 import os
 import sys
+import pytest
 from unittest.mock import patch, MagicMock
 
 from core.build_info import (
+    clear_build_info_cache,
     compute_file_sha256,
     fetch_github_release_checksums,
     get_package_type,
@@ -19,6 +21,13 @@ from core.build_info import (
     OFFICIAL_GITHUB_REPO,
     OFFICIAL_SNAP_URL,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_build_info_cache():
+    clear_build_info_cache()
+    yield
+    clear_build_info_cache()
 
 
 def test_package_type_detection():
@@ -250,3 +259,19 @@ def test_about_verified_source_hover_tooltip(qtbot):
             window.show_about()
 
     window.close()
+
+
+def test_about_dialog_and_verification_instantaneous():
+    import time
+    # Test that get_verified_source_info completes in < 50ms (typically < 1ms)
+    t0 = time.perf_counter()
+    get_verified_source_info()
+    t1 = time.perf_counter()
+    assert (t1 - t0) < 0.05
+
+    # Test that second call from in-memory cache is sub-millisecond (< 5ms)
+    t0 = time.perf_counter()
+    get_verified_source_info()
+    t1 = time.perf_counter()
+    assert (t1 - t0) < 0.005
+

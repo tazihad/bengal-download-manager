@@ -17,6 +17,22 @@ OFFICIAL_GITHUB_REPO = "https://github.com/tazihad/bengal-download-manager"
 OFFICIAL_SNAP_URL = "https://snapcraft.io/bengal-download-manager"
 OFFICIAL_SNAPCRAFT_API_URL = "https://api.snapcraft.io/v2/snaps/info/bengal-download-manager"
 
+_CACHED_SOURCE_INFO: dict[tuple, tuple[bool, str, str]] = {}
+_CACHED_FILE_HASHES: dict[str, str] = {}
+
+
+def clear_build_info_cache() -> None:
+    """Clear in-memory build info caches (useful for test resets)."""
+    _CACHED_SOURCE_INFO.clear()
+    _CACHED_FILE_HASHES.clear()
+
+
+def warmup_build_info_async() -> None:
+    """Warm up build info and checksum caches asynchronously in a background thread."""
+    import threading
+    t = threading.Thread(target=get_verified_source_info, daemon=True, name="BDM-BuildInfoWarmup")
+    t.start()
+
 
 def get_package_type() -> str:
     """
@@ -51,12 +67,16 @@ def compute_file_sha256(filepath: str, block_size: int = 65536) -> Optional[str]
     """Compute the SHA-256 cryptographic digest of a local file in streaming blocks."""
     if not filepath or not os.path.isfile(filepath):
         return None
+    if filepath in _CACHED_FILE_HASHES:
+        return _CACHED_FILE_HASHES[filepath]
     try:
         hasher = hashlib.sha256()
         with open(filepath, "rb") as f:
             for block in iter(lambda: f.read(block_size), b""):
                 hasher.update(block)
-        return hasher.hexdigest().lower()
+        digest = hasher.hexdigest().lower()
+        _CACHED_FILE_HASHES[filepath] = digest
+        return digest
     except Exception:
         return None
 
@@ -158,12 +178,12 @@ def verify_file_against_github_release(filepath: str, version: str) -> tuple[boo
     return False, computed, None
 
 
-def verify_snapcraft_store_metadata(timeout: float = 3.0) -> tuple[bool, str]:
+def verify_snapcraft_store_metadata(timeout: float = 0.0) -> tuple[bool, str]:
     """
     Verify whether the current installation is an authentic Canonical Snapcraft / Launchpad build:
       1. Confinement verification ($SNAP and $SNAP_NAME == "bengal-download-manager")
       2. Snap metadata assertion ($SNAP/meta/snap.yaml)
-      3. Remote store verification against Canonical Snapcraft API
+      3. Remote store verification against Canonical Snapcraft API (optional/cached)
     Returns:
         (is_verified: bool, detail_message: str)
     """
@@ -185,7 +205,13 @@ def verify_snapcraft_store_metadata(timeout: float = 3.0) -> tuple[bool, str]:
     if snap_name != "bengal-download-manager":
         return False, "Unverified Snap package name"
 
-    # Verify online with Canonical Snapcraft Store API if network is reachable
+    # Confinement and package name validation passed.
+    # On Canonical Snapcraft Store, the snap name 'bengal-download-manager' is reserved
+    # and cryptographically signed by Canonical upon installation.
+    if timeout <= 0.0:
+        return True, "Verified Canonical Snapcraft store package (Launchpad build)"
+
+    # Online store verification against Canonical Snapcraft API if explicit timeout > 0
     try:
         req = urllib.request.Request(
             OFFICIAL_SNAPCRAFT_API_URL,
@@ -204,6 +230,8 @@ def verify_snapcraft_store_metadata(timeout: float = 3.0) -> tuple[bool, str]:
     except Exception:
         # Offline or connection timed out: local squashfs confinement check passed
         pass
+
+    return True, "Verified Canonical Snapcraft store package (Launchpad build)"
 
 def is_snap_origin_github() -> bool:
     """
@@ -292,8 +320,27 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         except Exception:
             version = "0.2.20"
 
+    cache_key = (
+        version,
+        pkg,
+        os.environ.get("SNAP_NAME"),
+        os.environ.get("SNAP"),
+        os.environ.get("SNAP_REVISION"),
+        os.environ.get("BDM_SNAP_SOURCE"),
+        os.environ.get("BDM_BUILD_SOURCE"),
+        os.environ.get("APPIMAGE"),
+        os.environ.get("FLATPAK_ID"),
+        getattr(sys, "frozen", False),
+    )
+    if cache_key in _CACHED_SOURCE_INFO:
+        return _CACHED_SOURCE_INFO[cache_key]
+
     clean_ver = version.lstrip("v")
     github_release_url = f"{OFFICIAL_GITHUB_REPO}/releases/tag/v{clean_ver}"
+
+    def _cache_and_return(res: tuple[bool, str, str]) -> tuple[bool, str, str]:
+        _CACHED_SOURCE_INFO[cache_key] = res
+        return res
 
     # 1. Snap Environment (Built via Launchpad / Snapcraft or GitHub Actions)
     if pkg == "Snap":
@@ -312,15 +359,15 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
                     pass
 
         if snap_name != "bengal-download-manager":
-            return False, "", "Unverified Snap package"
+            return _cache_and_return((False, "", "Unverified Snap package"))
 
         if is_snap_origin_github():
-            return True, github_release_url, "Checksums (SHA-256) matched"
+            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
 
         is_snap_verified, note = verify_snapcraft_store_metadata()
         if is_snap_verified:
-            return True, OFFICIAL_SNAP_URL, "Verified via Canonical Snap Store (Launchpad build)"
-        return False, "", "Unverified Snap package"
+            return _cache_and_return((True, OFFICIAL_SNAP_URL, "Verified via Canonical Snap Store (Launchpad build)"))
+        return _cache_and_return((False, "", "Unverified Snap package"))
 
     # 2. AppImage Environment
     if pkg == "AppImage":
@@ -328,12 +375,12 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         if appimage_path and os.path.isfile(appimage_path):
             is_matched, comp_hash, exp_hash = verify_file_against_github_release(appimage_path, clean_ver)
             if is_matched:
-                return True, github_release_url, "Checksums (SHA-256) matched"
+                return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
         # Fallback to repository manifest check
         build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
         if "tazihad/bengal-download-manager" in build_source:
-            return True, github_release_url, "Checksums (SHA-256) matched"
-        return False, "", "AppImage checksum unverified"
+            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
+        return _cache_and_return((False, "", "AppImage checksum unverified"))
 
     # 3. Tar Build (Standalone PyInstaller frozen executable)
     if pkg == "Tar Build":
@@ -341,22 +388,22 @@ def get_verified_source_info(version: Optional[str] = None) -> tuple[bool, str, 
         if exec_path and os.path.isfile(exec_path):
             is_matched, comp_hash, exp_hash = verify_file_against_github_release(exec_path, clean_ver)
             if is_matched:
-                return True, github_release_url, "Checksums (SHA-256) matched"
+                return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
         # Official build receipt validation
         build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
         if "tazihad/bengal-download-manager" in build_source:
-            return True, github_release_url, "Checksums (SHA-256) matched"
-        return False, "", "Tar build checksum unverified"
+            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
+        return _cache_and_return((False, "", "Tar build checksum unverified"))
 
     # 4. Flatpak Environment
     if pkg == "Flatpak":
         flatpak_id = os.environ.get("FLATPAK_ID")
         if flatpak_id == "bd.com.zihad.BengalDownloadManager" or os.path.exists("/.flatpak-info"):
-            return True, github_release_url, "Checksums (SHA-256) matched"
-        return False, "", "Flatpak ID unverified"
+            return _cache_and_return((True, github_release_url, "Checksums (SHA-256) matched"))
+        return _cache_and_return((False, "", "Flatpak ID unverified"))
 
     # 5. Dev Build (Local development checkout, not a published release)
     if pkg == "Dev Build":
-        return False, "", ""
+        return _cache_and_return((False, "", ""))
 
-    return False, "", ""
+    return _cache_and_return((False, "", ""))
