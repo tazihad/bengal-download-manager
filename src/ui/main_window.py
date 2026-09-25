@@ -7097,10 +7097,15 @@ class MainWindow(QMainWindow):
         from core.version import VERSION
         from core.build_info import get_package_type, get_verified_source_info
         pkg_type = get_package_type()
-        is_verified, source_url = get_verified_source_info()
+        is_verified, source_url, verification_note = get_verified_source_info(VERSION)
         verified_badge = (
             f" &nbsp;<a href='{source_url}' style='color: #2ecc71; text-decoration: none; font-weight: bold;'>✔ Verified Source</a>"
             if is_verified
+            else ""
+        )
+        verification_line = (
+            f"<b>Verification:</b> {verification_note}<br>\n            "
+            if is_verified and verification_note
             else ""
         )
         QMessageBox.about(
@@ -7116,7 +7121,7 @@ class MainWindow(QMainWindow):
 
             <p>
             <b>Version:</b> {VERSION} ({pkg_type}){verified_badge}<br>
-            <b>License:</b> MIT License<br>
+            {verification_line}<b>License:</b> MIT License<br>
             © 2026 <a>tazihad</a> <a href='https://zihad.com.bd/bengal-download-manager'>https://zihad.com.bd/bengal-download-manager</a><br>
             Contact: <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a>
             </p>
@@ -7127,4 +7132,5 @@ class MainWindow(QMainWindow):
             </p>
             """
         )
+
 

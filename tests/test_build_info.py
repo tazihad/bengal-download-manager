@@ -1,16 +1,20 @@
 """
 Unit tests for build info, package type detection, source verification,
-and desktop integration constraints.
+SHA-256 release checksum matching, and desktop integration constraints.
 """
 
+import hashlib
 import os
 import sys
-import unittest
 from unittest.mock import patch, MagicMock
 
 from core.build_info import (
+    compute_file_sha256,
+    fetch_github_release_checksums,
     get_package_type,
     get_verified_source_info,
+    verify_file_against_github_release,
+    verify_snapcraft_store_metadata,
     OFFICIAL_GITHUB_REPO,
     OFFICIAL_SNAP_URL,
 )
@@ -45,16 +49,55 @@ def test_package_type_detection():
         assert get_package_type() == "Custom Build"
 
 
+def test_compute_file_sha256(tmp_path):
+    test_file = tmp_path / "sample.bin"
+    test_data = b"Bengal Download Manager Verification Test 12345"
+    test_file.write_bytes(test_data)
+
+    expected_hash = hashlib.sha256(test_data).hexdigest()
+    computed = compute_file_sha256(str(test_file))
+    assert computed == expected_hash
+
+    # Non-existent file returns None
+    assert compute_file_sha256(str(tmp_path / "nonexistent.bin")) is None
+
+
+def test_verify_file_against_github_release(tmp_path):
+    appimage_file = tmp_path / "bengal-download-manager-0.2.55-x86_64.AppImage"
+    content = b"Mock AppImage Content"
+    appimage_file.write_bytes(content)
+    actual_hash = hashlib.sha256(content).hexdigest()
+
+    mock_checksums = {
+        "bengal-download-manager-0.2.55-x86_64.AppImage": actual_hash,
+        "bengal-download-manager-0.2.55-x86_64.tar.xz": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    }
+
+    with patch("core.build_info.fetch_github_release_checksums", return_value=mock_checksums):
+        # 1. Matching hash
+        matched, comp, exp = verify_file_against_github_release(str(appimage_file), "0.2.55")
+        assert matched is True
+        assert comp == actual_hash
+        assert exp == actual_hash
+
+        # 2. Checksum mismatch with corrupted file
+        corrupted_file = tmp_path / "corrupted.AppImage"
+        corrupted_file.write_bytes(b"Tampered payload")
+        matched, comp, exp = verify_file_against_github_release(str(corrupted_file), "0.2.55")
+        assert matched is False
+
+
 def test_verified_source_info_snap():
     # Verified Snap
     with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager", "SNAP_NAME": "bengal-download-manager"}, clear=True):
-        is_verified, url = get_verified_source_info()
+        is_verified, url, note = get_verified_source_info()
         assert is_verified is True
         assert url == OFFICIAL_SNAP_URL
+        assert "Launchpad" in note or "Snap" in note
 
     # Unverified / third-party snap
     with patch.dict(os.environ, {"SNAP": "/snap/other-dm", "SNAP_NAME": "other-dm"}, clear=True):
-        is_verified, url = get_verified_source_info()
+        is_verified, url, note = get_verified_source_info()
         assert is_verified is False
         assert url == ""
 
@@ -63,16 +106,18 @@ def test_verified_source_info_dev_and_tar():
     # Official repository git checkout in dev build
     with patch.dict(os.environ, {}, clear=True):
         with patch.object(sys, "frozen", False, create=True):
-            is_verified, url = get_verified_source_info()
+            is_verified, url, note = get_verified_source_info()
             assert is_verified is True
             assert url == OFFICIAL_GITHUB_REPO
+            assert "GitHub" in note
 
     # Tar build / AppImage
     with patch.dict(os.environ, {}, clear=True):
         with patch.object(sys, "frozen", True, create=True):
-            is_verified, url = get_verified_source_info()
+            is_verified, url, note = get_verified_source_info()
             assert is_verified is True
             assert url == OFFICIAL_GITHUB_REPO
+            assert "SHA-256" in note
 
 
 def test_ensure_desktop_integration_skips_in_dev_build(tmp_path):
@@ -106,4 +151,5 @@ def test_about_dialog_formatting(qtbot):
         assert "https://zihad.com.bd/bengal-download-manager" in text
         assert "✔ Verified Source" in text
         assert "(Dev Build)" in text
+        assert "Verification:" in text
     window.close()
