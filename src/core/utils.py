@@ -1649,14 +1649,46 @@ def choose_portal_open_file_path(title="Select File", folder=""):
     return None
 
 
+LEGACY_AUTOSTART_FILENAMES = (
+    "bd.com.zihad.BengalDownloadManager.desktop",
+    "bengal-download-manager.desktop",
+    "io.github.tazihad.bengal-download-manager.desktop",
+)
+
+
 def get_autostart_filepath():
     autostart_dir = os.path.expanduser("~/.config/autostart")
-    return os.path.join(autostart_dir, "bd.com.zihad.BengalDownloadManager.desktop")
+    filename = "bd.com.zihad.BengalDownloadManager.desktop"
+
+    # If running inside Snap, synchronize with the active snap.yaml declaration if present
+    snap_dir = os.environ.get("SNAP")
+    if snap_dir:
+        meta_yaml = os.path.join(snap_dir, "meta", "snap.yaml")
+        if os.path.exists(meta_yaml):
+            try:
+                with open(meta_yaml, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("autostart:"):
+                            val = line.split(":", 1)[1].strip()
+                            if val:
+                                filename = val
+                                break
+            except Exception:
+                pass
+
+    return os.path.join(autostart_dir, filename)
 
 
 def is_autostart_enabled():
     filepath = get_autostart_filepath()
-    return os.path.exists(filepath)
+    if os.path.exists(filepath):
+        return True
+    autostart_dir = os.path.dirname(filepath)
+    for legacy_name in LEGACY_AUTOSTART_FILENAMES:
+        if os.path.exists(os.path.join(autostart_dir, legacy_name)):
+            return True
+    return False
 
 
 def get_executable_command(start_minimized=False):
@@ -1688,8 +1720,15 @@ def get_executable_command(start_minimized=False):
 
 def set_autostart_enabled(enabled, start_minimized=False):
     filepath = get_autostart_filepath()
+    autostart_dir = os.path.dirname(filepath)
     if enabled:
         exec_cmd = get_executable_command(start_minimized)
+        wmclass = "bd.com.zihad.BengalDownloadManager"
+        if os.environ.get("SNAP"):
+            snap_instance = os.environ.get("SNAP_INSTANCE_NAME") or os.environ.get("SNAP_NAME", "bengal-download-manager")
+            snap_app = os.environ.get("SNAP_APP_NAME", "bengal-download-manager")
+            wmclass = f"{snap_instance}_{snap_app}"
+
         desktop_content = f"""[Desktop Entry]
 Type=Application
 Name=Bengal Download Manager
@@ -1697,28 +1736,49 @@ Comment=High-performance multi-threaded download manager
 Exec={exec_cmd}
 Icon=bd.com.zihad.BengalDownloadManager
 Terminal=false
-StartupWMClass=bd.com.zihad.BengalDownloadManager
+StartupWMClass={wmclass}
 Categories=Network;FileTransfer;
 X-GNOME-Autostart-enabled=true
 """
         try:
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            os.makedirs(autostart_dir, exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(desktop_content)
             os.chmod(filepath, 0o755)
+
+            # Clean up any legacy or duplicate autostart desktop entries in this directory
+            # (In snap environments, unmatched .desktop files cause snap-userd to abort startup)
+            active_name = os.path.basename(filepath)
+            for legacy_name in LEGACY_AUTOSTART_FILENAMES:
+                if legacy_name != active_name:
+                    legacy_path = os.path.join(autostart_dir, legacy_name)
+                    if os.path.exists(legacy_path):
+                        try:
+                            os.remove(legacy_path)
+                        except Exception:
+                            pass
             return True
         except Exception as e:
             print(f"Failed to write autostart file: {e}")
             return False
     else:
+        # Remove target autostart file and any legacy autostart entries
+        success = True
+        for name in LEGACY_AUTOSTART_FILENAMES:
+            target = os.path.join(autostart_dir, name)
+            if os.path.exists(target):
+                try:
+                    os.remove(target)
+                except Exception as e:
+                    print(f"Failed to remove autostart file {target}: {e}")
+                    success = False
         if os.path.exists(filepath):
             try:
                 os.remove(filepath)
-                return True
             except Exception as e:
-                print(f"Failed to remove autostart file: {e}")
-                return False
-        return True
+                print(f"Failed to remove autostart file {filepath}: {e}")
+                success = False
+        return success
 
 
 POPULAR_MEDIA_DOMAINS = {
