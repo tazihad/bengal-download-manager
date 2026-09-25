@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-version: '0.2.55'
+version: '0.2.56-alpha.5'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -33,8 +33,8 @@ platforms:
 apps:
   bengal-download-manager:
     command: bin/bengal-wrapper
-    desktop: usr/share/applications/bd.com.zihad.BengalDownloadManager.desktop
-    autostart: bd.com.zihad.BengalDownloadManager.desktop
+    desktop: usr/share/applications/bengal-download-manager.desktop
+    autostart: bengal-download-manager.desktop
     extensions: [ gnome ]
     plugs:
       - desktop
@@ -82,7 +82,7 @@ parts:
       bash scripts/prepare_runtime_assets.sh "$CRAFT_PART_INSTALL/share/bengal-download-manager/assets" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
 
       # 2. Install desktop entry & AppStream metadata
-      install -D -m 644 snap/gui/bd.com.zihad.BengalDownloadManager.desktop "$CRAFT_PART_INSTALL/usr/share/applications/bd.com.zihad.BengalDownloadManager.desktop"
+      install -D -m 644 snap/gui/bengal-download-manager.desktop "$CRAFT_PART_INSTALL/usr/share/applications/bengal-download-manager.desktop"
       install -D -m 644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml "$CRAFT_PART_INSTALL/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml"
 
       # 3. Install hicolor icons

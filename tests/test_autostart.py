@@ -80,3 +80,34 @@ def test_get_executable_command_modes(monkeypatch):
     monkeypatch.setenv("SNAP", "/snap/bengal-download-manager/current")
     assert get_executable_command(start_minimized=False) == "bengal-download-manager"
     assert get_executable_command(start_minimized=True) == "bengal-download-manager --minimized"
+
+
+def test_snap_desktop_entry_icon_specification():
+    """Verify snap desktop entry declares canonical ${SNAP}/meta/gui/icon.png for start menu integration."""
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    desktop_path = os.path.join(repo_root, "snap", "gui", "bengal-download-manager.desktop")
+    assert os.path.exists(desktop_path)
+
+    with open(desktop_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "Icon=${SNAP}/meta/gui/icon.png" in content
+    assert "Exec=bengal-download-manager %u" in content
+    assert "StartupWMClass=bengal-download-manager_bengal-download-manager" in content
+
+
+def test_autostart_snap_icon_path(tmp_path, monkeypatch):
+    """Under Snap, set_autostart_enabled should write canonical snap icon path."""
+    autostart_dir = tmp_path / ".config" / "autostart"
+    autostart_dir.mkdir(parents=True)
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path / p.lstrip("~/")))
+    snap_dir = tmp_path / "snap"
+    snap_dir.mkdir(parents=True)
+    monkeypatch.setenv("SNAP", str(snap_dir))
+    monkeypatch.setenv("SNAP_INSTANCE_NAME", "bengal-download-manager")
+
+    assert set_autostart_enabled(True)
+    active_path = autostart_dir / "bengal-download-manager.desktop"
+    assert active_path.exists()
+    content = active_path.read_text()
+    assert "Icon=/snap/bengal-download-manager/current/meta/gui/icon.png" in content

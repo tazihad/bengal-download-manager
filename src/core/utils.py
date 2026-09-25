@@ -1663,6 +1663,7 @@ def get_autostart_filepath():
     # If running inside Snap, synchronize with the active snap.yaml declaration if present
     snap_dir = os.environ.get("SNAP")
     if snap_dir:
+        filename = f"{os.environ.get('SNAP_NAME', 'bengal-download-manager')}.desktop"
         meta_yaml = os.path.join(snap_dir, "meta", "snap.yaml")
         if os.path.exists(meta_yaml):
             try:
@@ -1724,17 +1725,19 @@ def set_autostart_enabled(enabled, start_minimized=False):
     if enabled:
         exec_cmd = get_executable_command(start_minimized)
         wmclass = "bd.com.zihad.BengalDownloadManager"
+        icon_val = "bd.com.zihad.BengalDownloadManager"
         if os.environ.get("SNAP"):
             snap_instance = os.environ.get("SNAP_INSTANCE_NAME") or os.environ.get("SNAP_NAME", "bengal-download-manager")
             snap_app = os.environ.get("SNAP_APP_NAME", "bengal-download-manager")
             wmclass = f"{snap_instance}_{snap_app}"
+            icon_val = f"/snap/{snap_instance}/current/meta/gui/icon.png"
 
         desktop_content = f"""[Desktop Entry]
 Type=Application
 Name=Bengal Download Manager
 Comment=High-performance multi-threaded download manager
 Exec={exec_cmd}
-Icon=bd.com.zihad.BengalDownloadManager
+Icon={icon_val}
 Terminal=false
 StartupWMClass={wmclass}
 Categories=Network;FileTransfer;
@@ -2143,6 +2146,48 @@ def determine_next_release_tag(
 
     version = tag[1:] if tag.startswith("v") else tag
     return tag, version
+
+
+def wrap_url_tooltip(url: str, max_line_len: int = 80) -> str:
+    """
+    Wraps long URLs for display in tooltips so they do not exceed screen width.
+    Breaks preferentially after natural URL delimiters (&, ?, /, =, ;) when
+    approaching max_line_len, or hard breaks at max_line_len if no delimiter exists.
+    """
+    if not url:
+        return ""
+    if len(url) <= max_line_len:
+        return url
+
+    delimiters = {'?', '&', '/', '=', ';', '#'}
+    lines = []
+    current_line = []
+    current_len = 0
+    min_break_len = max(40, max_line_len - 25)
+
+    for i, c in enumerate(url):
+        current_line.append(c)
+        current_len += 1
+
+        if c in delimiters and current_len >= min_break_len:
+            # Avoid breaking inside the protocol scheme (e.g. http://)
+            if c == '/' and i >= 1 and url[i - 1] == '/' and i >= 2 and url[i - 2] == ':':
+                continue
+            if c == '/' and i + 1 < len(url) and url[i + 1] == '/':
+                continue
+            lines.append("".join(current_line))
+            current_line = []
+            current_len = 0
+        elif current_len >= max_line_len:
+            lines.append("".join(current_line))
+            current_line = []
+            current_len = 0
+
+    if current_line:
+        lines.append("".join(current_line))
+
+    return "\n".join(lines)
+
 
 
 
