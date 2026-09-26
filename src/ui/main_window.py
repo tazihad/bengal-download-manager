@@ -2211,6 +2211,7 @@ class MainWindow(QMainWindow):
             "filename": item_name.text(),
             "url": url,
             "filepath": filepath,
+            "icon": item_name.icon(),
             "total_bytes": total_bytes,
             "downloaded_bytes": downloaded_bytes,
             "status": logic_status or status_text,

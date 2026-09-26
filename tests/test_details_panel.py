@@ -102,6 +102,8 @@ def test_details_panel_data_population(qapp):
     assert "50.00 MB" in panel.gen_size_label.text()
     assert panel.gen_url_label.text() == "https://releases.ubuntu.com/26.04/test-file.iso"
     assert "/home/user/Downloads" in panel.gen_folder_btn.text()
+    assert panel.gen_icon_label.pixmap() is not None
+    assert not panel.gen_icon_label.pixmap().isNull()
 
     # Progress Tab checks
     assert panel.prog_percent_label.text() == "50.00%"

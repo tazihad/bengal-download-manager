@@ -22,6 +22,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QFileInfo, QRectF
 from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush, QPalette
 
 from core.utils import format_bytes, show_in_folder, load_proxy_config, open_file_generic
+from core.services.theme_service import get_file_icon
 
 
 def apply_tnum_font(widget, point_size: int = 0, bold: bool = False):
@@ -629,16 +630,16 @@ class DetailsPanel(QFrame):
         self.gen_folder_btn.setText(folder_path or "--")
         self.gen_url_label.setText(url or "--")
 
-        # Icon
-        if filepath and os.path.exists(filepath):
-            icon = QFileIconProvider().icon(QFileInfo(filepath))
+        # Icon: use the same themed icon that is used for the file name in the table
+        icon = data.get("icon")
+        if not icon or (hasattr(icon, "isNull") and icon.isNull()):
+            icon = get_file_icon(filename) if filename and filename != "No download selected" else None
+
+        if icon and hasattr(icon, "pixmap") and not icon.isNull():
             pix = icon.pixmap(48, 48)
             self.gen_icon_label.setPixmap(pix)
         else:
-            # Fallback file icon
-            icon = QFileIconProvider().icon(QFileIconProvider.IconType.File)
-            pix = icon.pixmap(48, 48)
-            self.gen_icon_label.setPixmap(pix)
+            self.gen_icon_label.clear()
 
         # --- 2. Update Progress Tab ---
         self.prog_percent_label.setText(f"{percent:.2f}%")
