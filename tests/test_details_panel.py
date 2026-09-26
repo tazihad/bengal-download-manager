@@ -153,5 +153,33 @@ def test_main_window_details_integration(qapp, monkeypatch):
     assert not win.details_panel.isVisible()
     assert win.btn_details_toggle.lbl_arrow.text() == "▲"
 
+    # 6. Test live row update updates details panel
+    win.toggle_details_panel()
+    assert win.details_panel.isVisible()
+
+    # Add a mock row
+    from PyQt6.QtWidgets import QTableWidgetItem
+    win.download_table.setRowCount(0)
+    win.download_table.insertRow(0)
+    item_ref = QTableWidgetItem("test.iso")
+    item_ref.setData(Qt.ItemDataRole.UserRole, "https://example.com/test.iso")
+    item_ref.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/test.iso")
+    win.download_table.setItem(0, 0, item_ref)
+    win._set_sortable_item(0, 1, "1000.00 KB", lambda x: 1000000)
+    win._set_status_text(0, "Downloading...")
+    win._set_sortable_item(0, 3, "1m", lambda x: 60)
+    win._set_sortable_item(0, 4, "500 KB/s", lambda x: 500000)
+
+    # Simulate progress update data: [filename, size, status, time_left, rate, comp_bytes, tot_bytes, raw_speed]
+    data = ["test.iso", "1000.00 KB", "Downloading...", "1m", "500 KB/s", 500000, 1000000, 500000]
+    win._apply_download_row_data(item_ref, data)
+
+    # Verify details panel updated with live downloaded bytes and active segments
+    assert "488.28 KB" in win.details_panel.gen_size_label.text()
+    assert "488.28 KB" in win.details_panel.prog_bytes_label.text()
+    assert "50.00%" in win.details_panel.prog_percent_label.text()
+    assert "Active: 8" in win.details_panel.prog_active_stat.text()
+
     win.close()
+
 

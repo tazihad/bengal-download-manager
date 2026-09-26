@@ -2055,35 +2055,54 @@ class MainWindow(QMainWindow):
         filepath = item_name.data(Qt.ItemDataRole.UserRole + 1) or ""
         date_added = item_added.text() if item_added else (item_name.data(Qt.ItemDataRole.UserRole + 3) or "--")
 
-        total_bytes = item_size.data(Qt.ItemDataRole.UserRole) if item_size else 0
+        total_bytes = item_name.data(Qt.ItemDataRole.UserRole + 26) or (item_size.data(Qt.ItemDataRole.UserRole) if item_size else 0) or 0
         if not total_bytes and item_size:
             from core.services.theme_service import parse_size_to_bytes
             total_bytes = parse_size_to_bytes(item_size.text())
 
-        downloaded_bytes = item_name.data(Qt.ItemDataRole.UserRole + 4) or 0
-
-        status_text = item_status.text() if item_status else ""
-        logic_status = item_status.data(Qt.ItemDataRole.UserRole + 1) if item_status else status_text
-        percent_raw = item_status.data(Qt.ItemDataRole.UserRole) if item_status else 0.0
-        try:
-            percent = float(percent_raw)
-        except (ValueError, TypeError):
-            percent = 0.0
-
-        if item_name.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
-            percent = 100.0
-            logic_status = "Complete"
-            if total_bytes and not downloaded_bytes:
-                downloaded_bytes = total_bytes
-
-        time_left = item_time.text() if item_time else "--"
-        speed = item_speed.text() if item_speed else "0 B/s"
+        downloaded_bytes = item_name.data(Qt.ItemDataRole.UserRole + 25) or 0
 
         key = self._get_item_key(item_name)
         worker = None
         if hasattr(self, "active_downloads") and key in self.active_downloads:
             entry = self.active_downloads[key]
             worker = getattr(entry, "worker", entry)
+
+        if worker:
+            w_tot = getattr(worker, "total_bytes", 0) or getattr(worker, "total_length", 0)
+            if w_tot > 0:
+                total_bytes = w_tot
+            w_dl = getattr(worker, "current_bytes", 0) or getattr(worker, "downloaded", 0) or getattr(worker, "completed_length", 0)
+            if w_dl > 0:
+                downloaded_bytes = w_dl
+
+        status_text = item_status.text() if item_status else ""
+        logic_status = item_status.data(Qt.ItemDataRole.UserRole + 1) if item_status else status_text
+        percent_raw = item_status.data(Qt.ItemDataRole.UserRole) if item_status else 0.0
+        percent = 0.0
+        try:
+            if isinstance(percent_raw, str):
+                cleaned_pct = percent_raw.replace("%", "").strip()
+                percent = float(cleaned_pct)
+            elif isinstance(percent_raw, (int, float)):
+                percent = float(percent_raw)
+        except (ValueError, TypeError):
+            percent = 0.0
+
+        if percent == 0.0 and total_bytes > 0 and downloaded_bytes > 0:
+            percent = min(100.0, (downloaded_bytes / total_bytes) * 100.0)
+
+        if not downloaded_bytes and total_bytes > 0 and percent > 0:
+            downloaded_bytes = int((percent / 100.0) * total_bytes)
+
+        if item_name.data(Qt.ItemDataRole.UserRole + 11) == "Complete" or percent >= 100.0:
+            percent = 100.0
+            logic_status = "Complete"
+            if total_bytes > 0 and not downloaded_bytes:
+                downloaded_bytes = total_bytes
+
+        time_left = item_time.text() if item_time else "--"
+        speed = item_speed.text() if item_speed else "0 B/s"
 
         ext_cfg = load_extension_config()
         num_connections = ext_cfg.get("max_connections", 8)
@@ -5984,6 +6003,11 @@ class MainWindow(QMainWindow):
             elif last_try_item.text() != formatted_last_try:
                 last_try_item.setText(formatted_last_try)
             
+            if comp_bytes > 0:
+                item_ref.setData(Qt.ItemDataRole.UserRole + 25, comp_bytes)
+            if tot_bytes > 0:
+                item_ref.setData(Qt.ItemDataRole.UserRole + 26, tot_bytes)
+
             self._set_row_bold(row, is_active)
             if hasattr(self, "details_panel") and self.details_panel.isVisible():
                 sel_row = self.download_table.currentRow()
@@ -5991,6 +6015,8 @@ class MainWindow(QMainWindow):
                     sel_rows = self.download_table.selectionModel().selectedRows()
                     if sel_rows:
                         sel_row = sel_rows[0].row()
+                    elif self.download_table.rowCount() == 1:
+                        sel_row = 0
                 if sel_row == row:
                     self.update_details_panel()
         except (RuntimeError, Exception):

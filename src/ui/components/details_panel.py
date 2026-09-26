@@ -62,24 +62,24 @@ class SegmentGridWidget(QWidget):
         self._segments = segments_data or []
         self.update()
 
-    def set_fallback_progress(self, overall_percent: float, num_segments: int = 8, is_complete: bool = False):
-        """Generates synthetic segment progress from overall download percentage when workers are inactive."""
+    def set_fallback_progress(self, overall_percent: float, num_segments: int = 8, is_complete: bool = False, is_active: bool = False):
+        """Generates synthetic segment progress from overall download percentage."""
         self._num_segments = max(1, num_segments)
         segments = []
         if is_complete or overall_percent >= 100.0:
             for _ in range(self._num_segments):
-                segments.append({"percent": 100.0, "status": "Complete", "failed": False})
+                segments.append({"percent": 100.0, "status": "Complete", "failed": False, "is_active": False})
         elif overall_percent <= 0.0:
             for _ in range(self._num_segments):
-                segments.append({"percent": 0.0, "status": "Pending", "failed": False})
+                segments.append({"percent": 0.0, "status": "Downloading" if is_active else "Pending", "failed": False, "is_active": is_active})
         else:
             # Distribute overall percent across segments realistically
             remaining_total = overall_percent * self._num_segments
             for i in range(self._num_segments):
                 seg_p = min(100.0, max(0.0, remaining_total))
                 remaining_total -= seg_p
-                status = "Complete" if seg_p >= 100.0 else ("Downloading" if seg_p > 0 else "Pending")
-                segments.append({"percent": seg_p, "status": status, "failed": False})
+                status = "Complete" if seg_p >= 100.0 else ("Downloading" if is_active or seg_p > 0 else "Pending")
+                segments.append({"percent": seg_p, "status": status, "failed": False, "is_active": is_active})
         self._segments = segments
         self.update()
 
@@ -99,11 +99,11 @@ class SegmentGridWidget(QWidget):
         grid_start_x = 0
         grid_width = max(50, w - 2)
 
-        # Colors
-        downloaded_color = QColor("#a855f7")  # Purple
-        active_remaining_color = QColor("#784b28")  # Orange-brown tint for active remaining
-        empty_block_color = QColor(60, 50, 45)  # Dim base block
-        failed_color = QColor("#ef4444")  # Red
+        # Colors matching legend
+        downloaded_color = QColor("#a855f7")       # Purple (downloaded bytes)
+        active_remaining_color = QColor("#f97316") # Orange (active remaining bytes)
+        dim_remaining_color = QColor(60, 48, 40)   # Dim base block (inactive/paused)
+        failed_color = QColor("#ef4444")           # Red
 
         # Calculate number of blocks that fit
         block_w = 6
@@ -118,7 +118,7 @@ class SegmentGridWidget(QWidget):
             seg_info = self._segments[i] if i < len(self._segments) else {"percent": 0.0, "status": "Pending"}
             seg_percent = float(seg_info.get("percent", 0.0))
             is_failed = seg_info.get("failed", False) or seg_info.get("status") == "Error"
-            is_active = seg_info.get("status") in ["Receiving data...", "Downloading", "Active"]
+            is_active = seg_info.get("is_active", False) or seg_info.get("status") in ["Receiving data...", "Downloading", "Active"]
 
             # Number of downloaded blocks
             filled_blocks = int(round((seg_percent / 100.0) * num_blocks))
@@ -135,7 +135,7 @@ class SegmentGridWidget(QWidget):
                 elif is_active:
                     color = active_remaining_color
                 else:
-                    color = empty_block_color
+                    color = dim_remaining_color
 
                 painter.fillRect(rect, color)
 
@@ -153,6 +153,8 @@ class DetailsPanel(QFrame):
         self.setMinimumHeight(210)
         self.current_download_data = {}
         self.current_worker = None
+        self._attached_worker = None
+        self._live_segments = {}
 
         self.setup_ui()
 
@@ -579,11 +581,24 @@ class DetailsPanel(QFrame):
         self.prog_speed_label.setText(speed)
         self.prog_eta_label.setText(f"ETA {time_left}")
 
-        active_count = num_connections if (status in ["Downloading", "Receiving data..."] and not is_complete) else 0
+        status_lower = status.lower()
+        is_active = (
+            "download" in status_lower
+            or "receiv" in status_lower
+            or "resum" in status_lower
+            or "start" in status_lower
+            or (worker is not None and getattr(worker, "isRunning", lambda: False)() and not getattr(worker, "is_paused", False))
+            or (speed and speed not in ["0 B/s", "0.00 B/s", "--", ""])
+        ) and not is_complete
+
+        active_count = num_connections if is_active else 0
         comp_count = num_connections if is_complete else int(round((percent / 100.0) * num_connections))
         self.prog_segments_stat.setText(f"Segments: {comp_count} / {num_connections}")
         self.prog_active_stat.setText(f"Active: {active_count}")
         self.prog_failed_stat.setText("Failed: 0")
+
+        # Attach worker live signals
+        self.attach_worker(worker)
 
         # Extract worker segment information if active
         segment_items = []
@@ -592,14 +607,97 @@ class DetailsPanel(QFrame):
                 s_tot = getattr(s, "total_size", 0)
                 s_dl = getattr(s, "downloaded", 0)
                 s_pct = (s_dl / s_tot * 100.0) if s_tot > 0 else (100.0 if is_complete else 0.0)
-                s_status = "Complete" if s_pct >= 100.0 else ("Downloading" if getattr(s, "is_running", False) else "Pending")
-                segment_items.append({"percent": s_pct, "status": s_status, "downloaded": s_dl, "total": s_tot})
+                s_status = "Complete" if s_pct >= 100.0 else ("Downloading" if (is_active or getattr(s, "is_running", False)) else "Pending")
+                segment_items.append({"percent": s_pct, "status": s_status, "downloaded": s_dl, "total": s_tot, "is_active": is_active})
             self.segment_grid.set_segment_data(segment_items, total_segments=len(worker.segments))
+        elif hasattr(self, "_live_segments") and self._live_segments and is_active:
+            total_segs = max(num_connections, max(self._live_segments.keys()) + 1)
+            seg_list = [self._live_segments.get(i, {"percent": 0.0, "status": "Pending", "is_active": is_active}) for i in range(total_segs)]
+            self.segment_grid.set_segment_data(seg_list, total_segments=total_segs)
         else:
-            self.segment_grid.set_fallback_progress(percent, num_segments=num_connections, is_complete=is_complete)
+            self.segment_grid.set_fallback_progress(percent, num_segments=num_connections, is_complete=is_complete, is_active=is_active)
 
         # --- 3. Update Connections Tab ---
         self._update_connections_table(url, num_connections, active_count, is_complete)
+
+    def attach_worker(self, worker):
+        if getattr(self, "_attached_worker", None) == worker:
+            return
+        if getattr(self, "_attached_worker", None) is not None:
+            try:
+                self._attached_worker.main_progress_signal.disconnect(self._on_worker_progress)
+            except Exception:
+                pass
+            try:
+                self._attached_worker.segment_update_signal.disconnect(self._on_segment_update)
+            except Exception:
+                pass
+        self._attached_worker = worker
+        self._live_segments = {}
+        if worker is not None:
+            try:
+                worker.main_progress_signal.connect(self._on_worker_progress)
+            except Exception:
+                pass
+            try:
+                worker.segment_update_signal.connect(self._on_segment_update)
+            except Exception:
+                pass
+
+    def _on_segment_update(self, index, dl, total, speed, status):
+        if not self.isVisible():
+            return
+        if not hasattr(self, "_live_segments"):
+            self._live_segments = {}
+        pct = (dl / total * 100.0) if total > 0 else 0.0
+        is_act = (status in ["Receiving data...", "Downloading", "Active"] or speed > 0)
+        self._live_segments[index] = {
+            "percent": pct,
+            "status": status,
+            "downloaded": dl,
+            "total": total,
+            "speed": speed,
+            "failed": (status == "Error"),
+            "is_active": is_act
+        }
+        num_connections = self.current_download_data.get("num_connections", 8)
+        total_segs = max(num_connections, max(self._live_segments.keys()) + 1 if self._live_segments else num_connections)
+        seg_list = [self._live_segments.get(i, {"percent": 0.0, "status": "Pending", "is_active": True}) for i in range(total_segs)]
+        self.segment_grid.set_segment_data(seg_list, total_segments=total_segs)
+
+    def _on_worker_progress(self, row_idx, data):
+        if not self.isVisible() or not data:
+            return
+        try:
+            filename = data[0]
+            status_str = data[2] if len(data) > 2 else ""
+            time_left = data[3] if len(data) > 3 else "--"
+            speed = data[4] if len(data) > 4 else "0 B/s"
+            dl_bytes = data[5] if len(data) > 5 else 0
+            tot_bytes = data[6] if len(data) > 6 else 0
+
+            pct = (dl_bytes / tot_bytes * 100.0) if tot_bytes > 0 else 0.0
+            total_str = format_bytes(tot_bytes, precision=2) if tot_bytes > 0 else "Unknown"
+            dl_str = format_bytes(dl_bytes, precision=2)
+
+            self.gen_progress_bar.setValue(int(pct * 10))
+            self.gen_status_label.setText(f"{int(pct)}% {status_str}")
+            self.gen_size_label.setText(f"Downloaded: {dl_str} of {total_str}")
+
+            self.prog_percent_label.setText(f"{pct:.2f}%")
+            self.prog_bytes_label.setText(f"{dl_str} / {total_str}")
+            self.prog_speed_label.setText(speed)
+            self.prog_eta_label.setText(f"ETA {time_left}")
+
+            num_conn = self.current_download_data.get("num_connections", 8)
+            is_comp = status_str == "Complete" or pct >= 100.0
+            is_act = not is_comp and status_str not in ["Paused", "Cancelled", "Error"]
+            act_count = num_conn if is_act else 0
+            comp_count = num_conn if is_comp else int(round((pct / 100.0) * num_conn))
+            self.prog_segments_stat.setText(f"Segments: {comp_count} / {num_conn}")
+            self.prog_active_stat.setText(f"Active: {act_count}")
+        except Exception:
+            pass
 
     def _update_connections_table(self, url: str, num_connections: int, active_count: int, is_complete: bool):
         self.conn_table.setRowCount(0)
