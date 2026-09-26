@@ -230,4 +230,100 @@ def test_details_panel_persistence(qapp, monkeypatch, tmp_path):
     win3.close()
 
 
+def test_details_panel_accent_color_adaptation(qapp):
+    """Test that details panel indicators and block visualizer derive colors from accent/palette."""
+    from PyQt6.QtGui import QPalette, QColor
+
+    panel = DetailsPanel()
+    # Check legend widgets exist
+    assert hasattr(panel, "legend_sq_downloaded")
+    assert hasattr(panel, "legend_sq_active")
+    assert hasattr(panel, "legend_sq_failed")
+
+    # Set custom palette highlight (e.g. emerald green)
+    pal = panel.palette()
+    pal.setColor(QPalette.ColorRole.Highlight, QColor(16, 185, 129))
+    pal.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
+    panel.setPalette(pal)
+    panel.update_palette_colors()
+
+    # The active indicator stylesheet should be updated with derived active color
+    active_style = panel.legend_sq_active.styleSheet()
+    assert "background-color:" in active_style
+    # Ensure arrow icon uses palette highlight
+    toggle_btn = DetailsToggleButton()
+    assert "palette(highlight)" in toggle_btn.lbl_arrow.styleSheet()
+
+
+def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, tmp_path):
+    """Test that the last session's selected item, details panel open state, and Connections/Proxy tab (tab 2) are restored on startup."""
+    config_dir = str(tmp_path / "bengal_config")
+    import os
+    os.makedirs(config_dir, exist_ok=True)
+
+    monkeypatch.setattr("core.utils.get_config_dir", lambda: config_dir)
+    monkeypatch.setattr("ui.main_window.get_config_dir", lambda: config_dir)
+
+    # Mock downloads list
+    mock_downloads = [
+        {"filename": "archlinux-2026.iso", "url": "https://arch.org/archlinux-2026.iso", "path": "/downloads/archlinux-2026.iso", "size": "1.2 GB", "status": "Complete"},
+        {"filename": "debian-13.iso", "url": "https://debian.org/debian-13.iso", "path": "/downloads/debian-13.iso", "size": "650 MB", "status": "Downloading", "rate": "3 MB/s"},
+        {"filename": "fedora-42.iso", "url": "https://fedora.org/fedora-42.iso", "path": "/downloads/fedora-42.iso", "size": "2.1 GB", "status": "Paused"}
+    ]
+    monkeypatch.setattr("ui.main_window.get_all_downloads", lambda: mock_downloads)
+    monkeypatch.setattr("core.download_store.DownloadStore.load_from_database", lambda self: mock_downloads)
+
+    from ui.main_window import MainWindow
+
+    # Session 1: Start app, select item 1 (debian-13.iso), open details panel, switch to Connections tab (index 2)
+    win1 = MainWindow(start_ipc=False)
+    win1.show()
+
+    assert win1.download_table.rowCount() == 3
+    # Select row 1
+    win1.download_table.selectRow(1)
+    win1.download_table.setCurrentCell(1, 0)
+    win1.show_details_panel()
+    win1.details_panel.switch_tab(2)  # Connections / Proxy tab
+
+    assert win1.details_panel.stacked_widget.currentIndex() == 2
+    assert win1.btn_details_toggle.lbl_arrow.text() == "▼"
+    assert "debian-13.iso" in win1.btn_details_toggle.lbl_name.text()
+    assert "debian-13.iso" in win1.btn_details_toggle.toolTip()
+
+    # Save settings and close
+    win1.save_settings()
+    win1.close()
+
+    # Session 2: Start app afresh
+    win2 = MainWindow(start_ipc=False)
+    win2.show()
+
+    # Verify:
+    # 1. Row 1 (debian-13.iso) is selected
+    assert win2.download_table.currentRow() == 1
+    selected_items = win2.download_table.selectedItems()
+    assert len(selected_items) > 0
+    assert win2.download_table.item(1, 0).text() == "debian-13.iso"
+
+    # 2. Toggle button shows filename and open arrow ▼
+    assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
+    assert "debian-13.iso" in win2.btn_details_toggle.lbl_name.text()
+    assert "debian-13.iso" in win2.btn_details_toggle.toolTip()
+
+    # 3. Details panel is visible
+    assert win2.details_panel.isVisible()
+
+    # 4. Connections / Proxy tab (index 2) is restored
+    assert win2.details_panel.stacked_widget.currentIndex() == 2
+
+    # 5. Connections table is populated with host and proxy info
+    assert win2.details_panel.conn_table.rowCount() >= 1
+    assert win2.details_panel.conn_table.item(0, 0).text() == "debian.org"
+    assert win2.details_panel.conn_table.item(0, 3).text() in ["Direct", "HTTP", "SOCKS5"]
+
+    win2.close()
+
+
+
 

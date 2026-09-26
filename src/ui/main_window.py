@@ -210,28 +210,69 @@ class MainWindow(QMainWindow):
         self.active_media_fetchers = []
         self.load_data()
 
-        # Restore bottom details panel visibility, tab, and sizes preference
+        # 1. Restore selected download item from previous session
+        saved_sel = self.settings.get("selected_download", {}) if isinstance(self.settings, dict) else {}
+        matched_row = -1
+        if isinstance(saved_sel, dict) and self.download_table.rowCount() > 0:
+            target_url = saved_sel.get("url")
+            target_name = saved_sel.get("filename")
+            target_path = saved_sel.get("path")
+            target_row = saved_sel.get("row", -1)
+
+            for r in range(self.download_table.rowCount()):
+                it = self.download_table.item(r, 0)
+                if not it:
+                    continue
+                r_url = it.data(Qt.ItemDataRole.UserRole)
+                r_path = it.data(Qt.ItemDataRole.UserRole + 1)
+                if target_url and r_url == target_url:
+                    matched_row = r
+                    break
+                if target_path and r_path == target_path:
+                    matched_row = r
+                    break
+                if target_name and it.text() == target_name:
+                    matched_row = r
+                    break
+
+            if matched_row < 0 and 0 <= target_row < self.download_table.rowCount():
+                matched_row = target_row
+
+        if matched_row < 0 and self.download_table.rowCount() > 0:
+            matched_row = 0
+
+        if matched_row >= 0 and matched_row < self.download_table.rowCount():
+            self.download_table.selectRow(matched_row)
+            self.download_table.setCurrentCell(matched_row, 0)
+
+        # 2. Restore bottom details panel visibility, tab, and sizes preference
         if isinstance(self.settings, dict):
+            self._show_details_panel_pref = bool(self.settings.get("show_details_panel", False))
             saved_tab = self.settings.get("details_panel_tab", 0)
+
+            saved_splitter_sizes = self.settings.get("table_details_splitter_sizes")
+            if saved_splitter_sizes and hasattr(self, "table_details_splitter") and len(saved_splitter_sizes) == 2:
+                try:
+                    sizes = [int(s) for s in saved_splitter_sizes]
+                    if sum(sizes) > 0 and sizes[1] > 10:
+                        self._last_details_splitter_sizes = sizes
+                        self.table_details_splitter.setSizes(sizes)
+                except (ValueError, TypeError):
+                    pass
+
+            if self._show_details_panel_pref:
+                self.show_details_panel(save=False)
+            else:
+                self.hide_details_panel(save=False)
+
             if hasattr(self, "details_panel") and hasattr(self.details_panel, "switch_tab"):
                 try:
                     self.details_panel.switch_tab(int(saved_tab))
                 except (ValueError, TypeError):
                     pass
 
-            saved_splitter_sizes = self.settings.get("table_details_splitter_sizes")
-            if saved_splitter_sizes and hasattr(self, "table_details_splitter") and len(saved_splitter_sizes) == 2:
-                try:
-                    sizes = [int(s) for s in saved_splitter_sizes]
-                    if sum(sizes) > 0:
-                        self.table_details_splitter.setSizes(sizes)
-                except (ValueError, TypeError):
-                    pass
-
-            if self.settings.get("show_details_panel", False):
-                self.show_details_panel(save=False)
-            else:
-                self.hide_details_panel(save=False)
+        # Ensure toggle button and details panel selection are in sync
+        self.update_details_panel_selection()
 
         # Warm up build info & source verification in background for instant About dialog
         try:
@@ -1233,6 +1274,7 @@ class MainWindow(QMainWindow):
         self.table_details_splitter.addWidget(self.details_panel)
         self.table_details_splitter.setCollapsible(0, False)
         self.table_details_splitter.setCollapsible(1, False)
+        self.table_details_splitter.splitterMoved.connect(self._on_table_details_splitter_moved)
 
         self.splitter = splitter
         splitter.addWidget(self.left_panel_container)
@@ -1985,6 +2027,12 @@ class MainWindow(QMainWindow):
         if save and hasattr(self, "save_settings"):
             self.save_settings()
 
+    def _on_table_details_splitter_moved(self, pos, index):
+        if hasattr(self, "table_details_splitter") and self.table_details_splitter:
+            sizes = self.table_details_splitter.sizes()
+            if len(sizes) == 2 and sizes[1] > 10:
+                self._last_details_splitter_sizes = sizes
+
     def toggle_details_panel(self):
         """Toggles visibility of the bottom details panel."""
         if not hasattr(self, "details_panel"):
@@ -1998,6 +2046,7 @@ class MainWindow(QMainWindow):
         """Opens and populates the bottom details panel."""
         if not hasattr(self, "details_panel"):
             return
+        self._show_details_panel_pref = True
         if not self.download_table.selectedItems() and self.download_table.rowCount() > 0:
             self.download_table.selectRow(0)
 
@@ -2009,11 +2058,15 @@ class MainWindow(QMainWindow):
             curr_sizes = self.table_details_splitter.sizes()
             # If details panel had 0 height previously or not partitioned, set default sizes
             if len(curr_sizes) == 2 and curr_sizes[1] <= 10:
-                total_h = self.table_details_splitter.height()
-                if total_h > 350:
-                    self.table_details_splitter.setSizes([int(total_h * 0.65), int(total_h * 0.35)])
+                saved_sizes = getattr(self, "_last_details_splitter_sizes", None)
+                if saved_sizes and len(saved_sizes) == 2 and saved_sizes[1] > 10:
+                    self.table_details_splitter.setSizes(saved_sizes)
                 else:
-                    self.table_details_splitter.setSizes([260, 240])
+                    total_h = self.table_details_splitter.height()
+                    if total_h > 350:
+                        self.table_details_splitter.setSizes([int(total_h * 0.65), int(total_h * 0.35)])
+                    else:
+                        self.table_details_splitter.setSizes([260, 240])
 
         self.update_details_panel()
         if save and hasattr(self, "save_settings"):
@@ -2023,6 +2076,11 @@ class MainWindow(QMainWindow):
         """Hides the bottom details panel."""
         if not hasattr(self, "details_panel"):
             return
+        self._show_details_panel_pref = False
+        if hasattr(self, "table_details_splitter"):
+            sizes = self.table_details_splitter.sizes()
+            if len(sizes) == 2 and sizes[1] > 10:
+                self._last_details_splitter_sizes = sizes
         self.details_panel.setVisible(False)
         if hasattr(self, "btn_details_toggle"):
             self.btn_details_toggle.set_open(False)
@@ -2044,18 +2102,24 @@ class MainWindow(QMainWindow):
             item_name = self.download_table.item(row, 0)
             if item_name:
                 self.btn_details_toggle.set_filename(item_name.text())
-                if hasattr(self, "details_panel") and self.details_panel.isVisible():
+                if hasattr(self, "details_panel") and (getattr(self, "_show_details_panel_pref", False) or not self.details_panel.isHidden()):
                     self.update_details_panel()
                 return
 
         if self.download_table.rowCount() == 0:
             self.btn_details_toggle.set_filename("No downloads")
-            if hasattr(self, "details_panel") and self.details_panel.isVisible():
+            if hasattr(self, "details_panel") and (getattr(self, "_show_details_panel_pref", False) or not self.details_panel.isHidden()):
+                self.details_panel.set_download_data({})
+        else:
+            self.btn_details_toggle.set_filename("No selection")
+            if hasattr(self, "details_panel") and (getattr(self, "_show_details_panel_pref", False) or not self.details_panel.isHidden()):
                 self.details_panel.set_download_data({})
 
     def update_details_panel(self):
         """Extracts data for the current download row and updates the DetailsPanel."""
-        if not hasattr(self, "details_panel") or not self.details_panel.isVisible():
+        if not hasattr(self, "details_panel"):
+            return
+        if not getattr(self, "_show_details_panel_pref", False) and self.details_panel.isHidden():
             return
 
         row = self.download_table.currentRow()
@@ -3417,6 +3481,38 @@ class MainWindow(QMainWindow):
                     "visible": not self.download_table.isColumnHidden(logical_idx)
                 })
 
+            selected_row = self.download_table.currentRow() if hasattr(self, "download_table") else -1
+            if selected_row < 0 and hasattr(self, "download_table") and hasattr(self.download_table, "selectionModel"):
+                sel_rows = self.download_table.selectionModel().selectedRows()
+                if sel_rows:
+                    selected_row = sel_rows[0].row()
+
+            selected_download = {}
+            if selected_row >= 0 and hasattr(self, "download_table") and selected_row < self.download_table.rowCount():
+                item0 = self.download_table.item(selected_row, 0)
+                if item0:
+                    selected_download = {
+                        "url": item0.data(Qt.ItemDataRole.UserRole) or "",
+                        "filename": item0.text() or "",
+                        "path": item0.data(Qt.ItemDataRole.UserRole + 1) or "",
+                        "date_added": item0.data(Qt.ItemDataRole.UserRole + 3) or "",
+                        "row": selected_row,
+                    }
+            elif hasattr(self, "settings") and isinstance(self.settings, dict) and self.settings.get("selected_download"):
+                selected_download = self.settings.get("selected_download", {})
+
+            splitter_sizes = []
+            if hasattr(self, "table_details_splitter") and self.table_details_splitter:
+                sizes = self.table_details_splitter.sizes()
+                if len(sizes) == 2 and sizes[1] > 10:
+                    splitter_sizes = sizes
+                elif hasattr(self, "_last_details_splitter_sizes") and self._last_details_splitter_sizes:
+                    splitter_sizes = self._last_details_splitter_sizes
+
+            show_details = getattr(self, "_show_details_panel_pref", False)
+            if not hasattr(self, "_show_details_panel_pref") and hasattr(self, "details_panel") and self.details_panel:
+                show_details = not self.details_panel.isHidden()
+
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
@@ -3443,9 +3539,10 @@ class MainWindow(QMainWindow):
                 "show_progress_dialog": getattr(self, "settings", {}).get("show_progress_dialog", True),
                 "show_complete_dialog": getattr(self, "settings", {}).get("show_complete_dialog", True),
                 "show_queue_complete_dialog": getattr(self, "settings", {}).get("show_queue_complete_dialog", False),
-                "show_details_panel": self.details_panel.isVisible() if hasattr(self, "details_panel") and self.details_panel else False,
+                "show_details_panel": show_details,
                 "details_panel_tab": self.details_panel.stacked_widget.currentIndex() if hasattr(self, "details_panel") and hasattr(self.details_panel, "stacked_widget") else 0,
-                "table_details_splitter_sizes": self.table_details_splitter.sizes() if hasattr(self, "table_details_splitter") and self.table_details_splitter else [],
+                "table_details_splitter_sizes": splitter_sizes,
+                "selected_download": selected_download,
                 "status_bar_items": {
                     "memory": self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True,
                     "aria2": self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else False,
@@ -3458,6 +3555,8 @@ class MainWindow(QMainWindow):
             }
             with open(os.path.join(config_dir, "settings.json"), "w") as f:
                 json.dump(settings, f)
+            if hasattr(self, "settings") and isinstance(self.settings, dict):
+                self.settings.update(settings)
         except Exception:
             pass
 
@@ -3567,6 +3666,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "status_bar_timer") and not self.status_bar_timer.isActive():
             self.status_bar_timer.start(1000)
         self._flush_pending_tray_updates()
+        if getattr(self, "_show_details_panel_pref", False):
+            self.update_details_panel()
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -3844,6 +3945,8 @@ class MainWindow(QMainWindow):
         settings["show_queue_complete_dialog"] = settings.get("show_queue_complete_dialog", False)
         settings["show_details_panel"] = settings.get("show_details_panel", False)
         settings["details_panel_tab"] = settings.get("details_panel_tab", 0)
+        settings["selected_download"] = settings.get("selected_download", {})
+        settings["table_details_splitter_sizes"] = settings.get("table_details_splitter_sizes", [])
         settings["precheck_delete_files_from_disk"] = settings.get("precheck_delete_files_from_disk", False)
         self.precheck_delete_files_from_disk = settings["precheck_delete_files_from_disk"]
 

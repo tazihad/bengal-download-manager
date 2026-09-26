@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QFileIconProvider, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QFileInfo, QRectF
-from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush
+from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush, QPalette
 
 from core.utils import format_bytes, show_in_folder, load_proxy_config, open_file_generic
 
@@ -99,10 +99,27 @@ class SegmentGridWidget(QWidget):
         grid_start_x = 0
         grid_width = max(50, w - 2)
 
-        # Colors matching legend
-        downloaded_color = QColor("#a855f7")       # Purple (downloaded bytes)
-        active_remaining_color = QColor("#f97316") # Orange (active remaining bytes)
-        dim_remaining_color = QColor(60, 48, 40)   # Dim base block (inactive/paused)
+        # Colors derived from active accent color (palette Highlight) and window background
+        hl = self.palette().color(QPalette.ColorRole.Highlight)
+        win = self.palette().color(QPalette.ColorRole.Window)
+        mid = self.palette().color(QPalette.ColorRole.Mid)
+
+        # Downloaded: solid application accent color
+        downloaded_color = hl
+
+        # Active remaining: harmonized blend of accent and window background
+        active_remaining_color = QColor(
+            int(hl.red() * 0.6 + win.red() * 0.4),
+            int(hl.green() * 0.6 + win.green() * 0.4),
+            int(hl.blue() * 0.6 + win.blue() * 0.4),
+        )
+
+        # Dim base block (inactive/paused/pending)
+        dim_remaining_color = QColor(
+            int(mid.red() * 0.5 + win.red() * 0.5),
+            int(mid.green() * 0.5 + win.green() * 0.5),
+            int(mid.blue() * 0.5 + win.blue() * 0.5),
+        )
         failed_color = QColor("#ef4444")           # Red
 
         # Calculate number of blocks that fit
@@ -247,8 +264,32 @@ class DetailsPanel(QFrame):
         self.stacked_widget.addWidget(self.page_connections)
 
         main_layout.addWidget(self.stacked_widget, 1)
+        self.update_palette_colors()
+
+    def update_palette_colors(self):
+        """Updates legend indicators and segment grid blocks to match active accent color."""
+        hl = self.palette().color(QPalette.ColorRole.Highlight)
+        win = self.palette().color(QPalette.ColorRole.Window)
+        active_c = QColor(
+            int(hl.red() * 0.6 + win.red() * 0.4),
+            int(hl.green() * 0.6 + win.green() * 0.4),
+            int(hl.blue() * 0.6 + win.blue() * 0.4),
+        )
+        if hasattr(self, "legend_sq_active") and self.legend_sq_active:
+            self.legend_sq_active.setStyleSheet(f"background-color: {active_c.name()}; border-radius: 1px;")
+        if hasattr(self, "legend_sq_downloaded") and self.legend_sq_downloaded:
+            self.legend_sq_downloaded.setStyleSheet("background-color: palette(highlight); border-radius: 1px;")
+        if hasattr(self, "segment_grid") and self.segment_grid:
+            self.segment_grid.update()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (event.Type.PaletteChange, event.Type.StyleChange):
+            self.update_palette_colors()
 
     def switch_tab(self, index: int):
+        if not (0 <= index < self.stacked_widget.count()):
+            index = 0
         self.stacked_widget.setCurrentIndex(index)
         for i, btn in enumerate(self.tab_buttons):
             btn.setChecked(i == index)
@@ -446,21 +487,42 @@ class DetailsPanel(QFrame):
         legend_row.setContentsMargins(0, 0, 0, 0)
         legend_row.setSpacing(16)
 
-        def make_legend_item(color_hex, label_text):
-            item_box = QHBoxLayout()
-            item_box.setSpacing(4)
-            sq = QLabel(legend_container)
-            sq.setFixedSize(9, 9)
-            sq.setStyleSheet(f"background-color: {color_hex}; border-radius: 1px;")
-            lbl = QLabel(label_text, legend_container)
-            lbl.setStyleSheet("font-size: 10px; color: palette(placeholder-text);")
-            item_box.addWidget(sq)
-            item_box.addWidget(lbl)
-            return item_box
+        # Downloaded bytes indicator (uses palette highlight / accent)
+        item_dl = QHBoxLayout()
+        item_dl.setSpacing(4)
+        self.legend_sq_downloaded = QLabel(legend_container)
+        self.legend_sq_downloaded.setFixedSize(9, 9)
+        self.legend_sq_downloaded.setStyleSheet("background-color: palette(highlight); border-radius: 1px;")
+        lbl_downloaded = QLabel("Downloaded bytes", legend_container)
+        lbl_downloaded.setStyleSheet("font-size: 10px; color: palette(placeholder-text);")
+        item_dl.addWidget(self.legend_sq_downloaded)
+        item_dl.addWidget(lbl_downloaded)
 
-        legend_row.addLayout(make_legend_item("#a855f7", "Purple = downloaded bytes"))
-        legend_row.addLayout(make_legend_item("#f97316", "Orange = active remaining bytes"))
-        legend_row.addLayout(make_legend_item("#ef4444", "Red = failed"))
+        # Active remaining bytes indicator (derived from accent color)
+        item_act = QHBoxLayout()
+        item_act.setSpacing(4)
+        self.legend_sq_active = QLabel(legend_container)
+        self.legend_sq_active.setFixedSize(9, 9)
+        self.legend_sq_active.setStyleSheet("background-color: palette(highlight); border-radius: 1px;")
+        lbl_active = QLabel("Active remaining bytes", legend_container)
+        lbl_active.setStyleSheet("font-size: 10px; color: palette(placeholder-text);")
+        item_act.addWidget(self.legend_sq_active)
+        item_act.addWidget(lbl_active)
+
+        # Failed indicator
+        item_fail = QHBoxLayout()
+        item_fail.setSpacing(4)
+        self.legend_sq_failed = QLabel(legend_container)
+        self.legend_sq_failed.setFixedSize(9, 9)
+        self.legend_sq_failed.setStyleSheet("background-color: #ef4444; border-radius: 1px;")
+        lbl_failed = QLabel("Failed", legend_container)
+        lbl_failed.setStyleSheet("font-size: 10px; color: palette(placeholder-text);")
+        item_fail.addWidget(self.legend_sq_failed)
+        item_fail.addWidget(lbl_failed)
+
+        legend_row.addLayout(item_dl)
+        legend_row.addLayout(item_act)
+        legend_row.addLayout(item_fail)
         legend_row.addStretch(1)
 
         layout.addWidget(legend_container, 0)
@@ -538,6 +600,7 @@ class DetailsPanel(QFrame):
         """
         self.current_download_data = data or {}
         self.current_worker = worker
+        self.update_palette_colors()
 
         filename = data.get("filename", "") or "No download selected"
         url = data.get("url", "")
@@ -768,7 +831,7 @@ class DetailsToggleButton(QWidget):
         self.lbl_arrow = QLabel("▲", self)
         self.lbl_arrow.setStyleSheet("""
             QLabel {
-                color: #00a2ff;
+                color: palette(highlight);
                 font-size: 10px;
                 font-weight: bold;
                 padding-bottom: 1px;
@@ -792,7 +855,10 @@ class DetailsToggleButton(QWidget):
         metrics = self.lbl_name.fontMetrics()
         elided = metrics.elidedText(self._raw_filename, Qt.TextElideMode.ElideMiddle, 280)
         self.lbl_name.setText(elided)
-        self.setToolTip(f"Toggle details panel for: {self._raw_filename}")
+        if self._raw_filename in ["No selection", "No downloads"]:
+            self.setToolTip("Toggle download details panel")
+        else:
+            self.setToolTip(f"Toggle details panel for: {self._raw_filename}")
 
     def set_open(self, is_open: bool):
         self._is_open = is_open
