@@ -53,9 +53,9 @@ def test_details_toggle_button(qapp):
     assert btn.lbl_arrow.text() == "▲"
     assert not btn.is_open()
 
-    # Filename setting and eliding
+    # Filename tooltip setting
     btn.set_filename("ubuntu-26.04.1-desktop-amd64.iso")
-    assert "ubuntu" in btn.lbl_name.text()
+    assert "ubuntu" in btn.toolTip()
 
 
 def test_details_panel_tabs(qapp):
@@ -288,7 +288,6 @@ def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, t
 
     assert win1.details_panel.stacked_widget.currentIndex() == 2
     assert win1.btn_details_toggle.lbl_arrow.text() == "▼"
-    assert "debian-13.iso" in win1.btn_details_toggle.lbl_name.text()
     assert "debian-13.iso" in win1.btn_details_toggle.toolTip()
 
     # Save settings and close
@@ -306,9 +305,8 @@ def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, t
     assert len(selected_items) > 0
     assert win2.download_table.item(1, 0).text() == "debian-13.iso"
 
-    # 2. Toggle button shows filename and open arrow ▼
+    # 2. Toggle button shows open arrow ▼ and tooltip for selected item
     assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
-    assert "debian-13.iso" in win2.btn_details_toggle.lbl_name.text()
     assert "debian-13.iso" in win2.btn_details_toggle.toolTip()
 
     # 3. Details panel is visible

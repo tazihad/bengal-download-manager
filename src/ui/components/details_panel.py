@@ -816,23 +816,20 @@ class DetailsToggleButton(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip("Toggle download details panel")
         self._is_open = False
-        self._raw_filename = "No selection"
+        self._raw_filename = ""
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 2, 8, 2)
-        layout.setSpacing(6)
-
-        self.lbl_name = QLabel(self._raw_filename, self)
-        apply_tnum_font(self.lbl_name, point_size=9)
-        self.lbl_name.setStyleSheet("color: palette(window-text);")
-        layout.addWidget(self.lbl_name)
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(0)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Arrow icon: ▲ (closed) / ▼ (open)
         self.lbl_arrow = QLabel("▲", self)
+        self.lbl_arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_arrow.setStyleSheet("""
             QLabel {
                 color: palette(highlight);
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: bold;
                 padding-bottom: 1px;
             }
@@ -843,6 +840,7 @@ class DetailsToggleButton(QWidget):
             DetailsToggleButton {
                 background: transparent;
                 border-radius: 3px;
+                min-width: 20px;
             }
             DetailsToggleButton:hover {
                 background-color: palette(mid);
@@ -850,12 +848,8 @@ class DetailsToggleButton(QWidget):
         """)
 
     def set_filename(self, filename: str):
-        self._raw_filename = filename or "No selection"
-        # Elide if excessively long
-        metrics = self.lbl_name.fontMetrics()
-        elided = metrics.elidedText(self._raw_filename, Qt.TextElideMode.ElideMiddle, 280)
-        self.lbl_name.setText(elided)
-        if self._raw_filename in ["No selection", "No downloads"]:
+        self._raw_filename = filename or ""
+        if not self._raw_filename or self._raw_filename in ["No selection", "No downloads"]:
             self.setToolTip("Toggle download details panel")
         else:
             self.setToolTip(f"Toggle details panel for: {self._raw_filename}")
