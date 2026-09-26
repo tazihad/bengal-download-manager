@@ -93,40 +93,27 @@ class SegmentGridWidget(QWidget):
             return
 
         num_segs = max(1, min(16, self._num_segments))
-        row_height = max(8, int((h - 2) / num_segs))
-        block_h = max(4, min(7, row_height - 2))
+        row_height = max(6, int((h - 2) / num_segs))
+        block_h = max(4, min(8, row_height - 2))
 
-        label_width = 24
-        percent_width = 38
-        grid_start_x = label_width + 4
-        grid_width = max(50, w - grid_start_x - percent_width - 10)
+        grid_start_x = 0
+        grid_width = max(50, w - 2)
 
         # Colors
         downloaded_color = QColor("#a855f7")  # Purple
         active_remaining_color = QColor("#784b28")  # Orange-brown tint for active remaining
         empty_block_color = QColor(60, 50, 45)  # Dim base block
         failed_color = QColor("#ef4444")  # Red
-        text_color = self.palette().color(self.palette().ColorGroup.Active, self.palette().ColorRole.WindowText)
-        dim_text_color = self.palette().color(self.palette().ColorGroup.Active, self.palette().ColorRole.PlaceholderText)
 
         # Calculate number of blocks that fit
         block_w = 6
         block_gap = 2
         num_blocks = max(10, int(grid_width / (block_w + block_gap)))
 
-        font = self.font()
-        font.setPointSize(8)
-        font.setFeature(QFont.Tag.fromString("tnum"), 1)
-        painter.setFont(font)
-
         for i in range(num_segs):
             y = i * row_height + int((row_height - block_h) / 2)
             if y + block_h > h:
                 break
-
-            # Draw segment number (e.g. 01, 02)
-            painter.setPen(dim_text_color)
-            painter.drawText(0, y + block_h - 1, f"{i + 1:02d}")
 
             seg_info = self._segments[i] if i < len(self._segments) else {"percent": 0.0, "status": "Pending"}
             seg_percent = float(seg_info.get("percent", 0.0))
@@ -151,11 +138,6 @@ class SegmentGridWidget(QWidget):
                     color = empty_block_color
 
                 painter.fillRect(rect, color)
-
-            # Draw percentage label on the right
-            painter.setPen(text_color)
-            p_text = f"{int(seg_percent)}%"
-            painter.drawText(int(grid_start_x + num_blocks * (block_w + block_gap) + 8), y + block_h - 1, p_text)
 
 
 class DetailsPanel(QFrame):
