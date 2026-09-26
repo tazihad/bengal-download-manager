@@ -1,0 +1,329 @@
+"""
+Unit tests for Bottom Details Panel and Toggle Button components.
+"""
+
+import pytest
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
+
+from ui.components.details_panel import (
+    DetailsPanel,
+    DetailsToggleButton,
+    SegmentGridWidget,
+)
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(["-platform", "offscreen"])
+    return app
+
+
+def test_segment_grid_widget_fallback(qapp):
+    widget = SegmentGridWidget()
+    # Test 0%
+    widget.set_fallback_progress(0.0, num_segments=8, is_complete=False)
+    assert len(widget._segments) == 8
+    assert all(s["percent"] == 0.0 for s in widget._segments)
+
+    # Test 100%
+    widget.set_fallback_progress(100.0, num_segments=8, is_complete=True)
+    assert len(widget._segments) == 8
+    assert all(s["percent"] == 100.0 for s in widget._segments)
+
+    # Test partial
+    widget.set_fallback_progress(25.0, num_segments=8, is_complete=False)
+    assert len(widget._segments) == 8
+    total_pct = sum(s["percent"] for s in widget._segments)
+    assert abs(total_pct - 200.0) < 0.1  # 25% of 8 * 100 = 200
+
+
+def test_details_toggle_button(qapp):
+    btn = DetailsToggleButton()
+    assert btn.lbl_arrow.text() == "▲"
+    assert not btn.is_open()
+
+    btn.set_open(True)
+    assert btn.lbl_arrow.text() == "▼"
+    assert btn.is_open()
+
+    btn.set_open(False)
+    assert btn.lbl_arrow.text() == "▲"
+    assert not btn.is_open()
+
+    # Filename tooltip setting
+    btn.set_filename("ubuntu-26.04.1-desktop-amd64.iso")
+    assert "ubuntu" in btn.toolTip()
+
+
+def test_details_panel_tabs(qapp):
+    panel = DetailsPanel()
+    assert panel.stacked_widget.count() == 3
+    assert len(panel.tab_buttons) == 3
+
+    # Switch tabs
+    panel.switch_tab(1)
+    assert panel.stacked_widget.currentIndex() == 1
+    assert panel.tab_buttons[1].isChecked()
+
+    panel.switch_tab(2)
+    assert panel.stacked_widget.currentIndex() == 2
+    assert panel.tab_buttons[2].isChecked()
+
+    panel.switch_tab(0)
+    assert panel.stacked_widget.currentIndex() == 0
+    assert panel.tab_buttons[0].isChecked()
+
+
+def test_details_panel_data_population(qapp):
+    panel = DetailsPanel()
+
+    test_data = {
+        "filename": "test-file.iso",
+        "url": "https://releases.ubuntu.com/26.04/test-file.iso",
+        "filepath": "/home/user/Downloads/test-file.iso",
+        "total_bytes": 1024 * 1024 * 100,  # 100 MB
+        "downloaded_bytes": 1024 * 1024 * 50,  # 50 MB
+        "status": "Downloading",
+        "percent": 50.0,
+        "speed": "5.50 MB/s",
+        "time_left": "10s",
+        "date_added": "9:21 PM",
+        "num_connections": 8,
+    }
+
+    panel.set_download_data(test_data)
+
+    # General Tab checks
+    assert panel.gen_filename_label.text() == "test-file.iso"
+    assert "50%" in panel.gen_status_label.text()
+    assert "50.00 MB" in panel.gen_size_label.text()
+    assert panel.gen_url_label.text() == "https://releases.ubuntu.com/26.04/test-file.iso"
+    assert "/home/user/Downloads" in panel.gen_folder_btn.text()
+    assert panel.gen_icon_label.pixmap() is not None
+    assert not panel.gen_icon_label.pixmap().isNull()
+
+    # Progress Tab checks
+    assert panel.prog_percent_label.text() == "50.00%"
+    assert panel.prog_speed_label.text() == "5.50 MB/s"
+    assert "ETA 10s" in panel.prog_eta_label.text()
+    assert "8" in panel.prog_segments_stat.text()
+
+    # Connections Tab checks
+    assert panel.conn_table.rowCount() == 1
+    assert panel.conn_table.item(0, 0).text() == "releases.ubuntu.com"
+    assert panel.conn_table.item(0, 1).text() == "443"
+    assert panel.conn_table.item(0, 3).text() in ["Direct", "HTTP", "SOCKS5"]
+
+
+def test_main_window_details_integration(qapp, monkeypatch):
+    from ui.main_window import MainWindow
+    win = MainWindow(start_ipc=False)
+    win.show()
+
+    # 1. Verify layout containment: details_panel is in table_details_splitter and NOT in left pane
+    assert hasattr(win, "details_panel")
+    assert hasattr(win, "table_details_splitter")
+    assert win.table_details_splitter.indexOf(win.download_table) != -1
+    assert win.table_details_splitter.indexOf(win.details_panel) != -1
+    assert win.splitter.indexOf(win.left_panel_container) != -1
+    assert win.splitter.indexOf(win.table_details_splitter) != -1
+
+    # Initially details panel is hidden and arrow is ▲
+    assert not win.details_panel.isVisible()
+    assert win.btn_details_toggle.lbl_arrow.text() == "▲"
+
+    # 2. Toggle open
+    win.toggle_details_panel()
+    assert win.details_panel.isVisible()
+    assert win.btn_details_toggle.lbl_arrow.text() == "▼"
+
+    # 3. Close via panel's close button (✕)
+    win.details_panel.btn_close.click()
+    assert not win.details_panel.isVisible()
+    assert win.btn_details_toggle.lbl_arrow.text() == "▲"
+
+    # 4. Toggle open again
+    win.toggle_details_panel()
+    assert win.details_panel.isVisible()
+    assert win.btn_details_toggle.lbl_arrow.text() == "▼"
+
+    # 5. Toggle closed via toggle button
+    win.toggle_details_panel()
+    assert not win.details_panel.isVisible()
+    assert win.btn_details_toggle.lbl_arrow.text() == "▲"
+
+    # 6. Test live row update updates details panel
+    win.toggle_details_panel()
+    assert win.details_panel.isVisible()
+
+    # Add a mock row
+    from PyQt6.QtWidgets import QTableWidgetItem
+    win.download_table.setRowCount(0)
+    win.download_table.insertRow(0)
+    item_ref = QTableWidgetItem("test.iso")
+    item_ref.setData(Qt.ItemDataRole.UserRole, "https://example.com/test.iso")
+    item_ref.setData(Qt.ItemDataRole.UserRole + 1, "/tmp/test.iso")
+    win.download_table.setItem(0, 0, item_ref)
+    win._set_sortable_item(0, 1, "1000.00 KB", lambda x: 1000000)
+    win._set_status_text(0, "Downloading...")
+    win._set_sortable_item(0, 3, "1m", lambda x: 60)
+    win._set_sortable_item(0, 4, "500 KB/s", lambda x: 500000)
+
+    # Simulate progress update data: [filename, size, status, time_left, rate, comp_bytes, tot_bytes, raw_speed]
+    data = ["test.iso", "1000.00 KB", "Downloading...", "1m", "500 KB/s", 500000, 1000000, 500000]
+    win._apply_download_row_data(item_ref, data)
+
+    # Verify details panel updated with live downloaded bytes and active segments
+    assert "488.28 KB" in win.details_panel.gen_size_label.text()
+    assert "488.28 KB" in win.details_panel.prog_bytes_label.text()
+    assert "50.00%" in win.details_panel.prog_percent_label.text()
+    assert "Active: 8" in win.details_panel.prog_active_stat.text()
+
+    win.close()
+
+
+def test_details_panel_persistence(qapp, monkeypatch, tmp_path):
+    """Test that closing and reopening the app remembers the panel's open/closed state, active tab, and sizes."""
+    config_dir = str(tmp_path / "bengal_config")
+    import os
+    os.makedirs(config_dir, exist_ok=True)
+
+    monkeypatch.setattr("core.utils.get_config_dir", lambda: config_dir)
+    monkeypatch.setattr("ui.main_window.get_config_dir", lambda: config_dir)
+
+    from ui.main_window import MainWindow
+
+    # 1. Open app, panel starts closed by default
+    win1 = MainWindow(start_ipc=False)
+    win1.show()
+    assert not win1.details_panel.isVisible()
+
+    # 2. User opens details panel, switches to Progress tab (index 1)
+    win1.show_details_panel()
+    win1.details_panel.switch_tab(1)
+    assert win1.details_panel.isVisible()
+    assert win1.details_panel.stacked_widget.currentIndex() == 1
+
+    # Save settings and close app
+    win1.save_settings()
+    win1.close()
+
+    # 3. Reopen app: panel must restore to open state and Progress tab
+    win2 = MainWindow(start_ipc=False)
+    win2.show()
+    assert win2.details_panel.isVisible()
+    assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
+    assert win2.details_panel.stacked_widget.currentIndex() == 1
+
+    # 4. User closes details panel
+    win2.hide_details_panel()
+    assert not win2.details_panel.isVisible()
+    win2.save_settings()
+    win2.close()
+
+    # 5. Reopen app: panel must restore to closed state
+    win3 = MainWindow(start_ipc=False)
+    win3.show()
+    assert not win3.details_panel.isVisible()
+    assert win3.btn_details_toggle.lbl_arrow.text() == "▲"
+    win3.close()
+
+
+def test_details_panel_accent_color_adaptation(qapp):
+    """Test that details panel indicators and block visualizer derive colors from accent/palette."""
+    from PyQt6.QtGui import QPalette, QColor
+
+    panel = DetailsPanel()
+    # Check legend widgets exist
+    assert hasattr(panel, "legend_sq_downloaded")
+    assert hasattr(panel, "legend_sq_active")
+    assert hasattr(panel, "legend_sq_failed")
+
+    # Set custom palette highlight (e.g. emerald green)
+    pal = panel.palette()
+    pal.setColor(QPalette.ColorRole.Highlight, QColor(16, 185, 129))
+    pal.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
+    panel.setPalette(pal)
+    panel.update_palette_colors()
+
+    # The active indicator stylesheet should be updated with derived active color
+    active_style = panel.legend_sq_active.styleSheet()
+    assert "background-color:" in active_style
+    # Ensure arrow icon uses palette highlight
+    toggle_btn = DetailsToggleButton()
+    assert "palette(highlight)" in toggle_btn.lbl_arrow.styleSheet()
+
+
+def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, tmp_path):
+    """Test that the last session's selected item, details panel open state, and Connections/Proxy tab (tab 2) are restored on startup."""
+    config_dir = str(tmp_path / "bengal_config")
+    import os
+    os.makedirs(config_dir, exist_ok=True)
+
+    monkeypatch.setattr("core.utils.get_config_dir", lambda: config_dir)
+    monkeypatch.setattr("ui.main_window.get_config_dir", lambda: config_dir)
+
+    # Mock downloads list
+    mock_downloads = [
+        {"filename": "archlinux-2026.iso", "url": "https://arch.org/archlinux-2026.iso", "path": "/downloads/archlinux-2026.iso", "size": "1.2 GB", "status": "Complete"},
+        {"filename": "debian-13.iso", "url": "https://debian.org/debian-13.iso", "path": "/downloads/debian-13.iso", "size": "650 MB", "status": "Downloading", "rate": "3 MB/s"},
+        {"filename": "fedora-42.iso", "url": "https://fedora.org/fedora-42.iso", "path": "/downloads/fedora-42.iso", "size": "2.1 GB", "status": "Paused"}
+    ]
+    monkeypatch.setattr("ui.main_window.get_all_downloads", lambda: mock_downloads)
+    monkeypatch.setattr("core.download_store.DownloadStore.load_from_database", lambda self: mock_downloads)
+
+    from ui.main_window import MainWindow
+
+    # Session 1: Start app, select item 1 (debian-13.iso), open details panel, switch to Connections tab (index 2)
+    win1 = MainWindow(start_ipc=False)
+    win1.show()
+
+    assert win1.download_table.rowCount() == 3
+    # Select row 1
+    win1.download_table.selectRow(1)
+    win1.download_table.setCurrentCell(1, 0)
+    win1.show_details_panel()
+    win1.details_panel.switch_tab(2)  # Connections / Proxy tab
+
+    assert win1.details_panel.stacked_widget.currentIndex() == 2
+    assert win1.btn_details_toggle.lbl_arrow.text() == "▼"
+    assert "debian-13.iso" in win1.btn_details_toggle.toolTip()
+
+    # Save settings and close
+    win1.save_settings()
+    win1.close()
+
+    # Session 2: Start app afresh
+    win2 = MainWindow(start_ipc=False)
+    win2.show()
+
+    # Verify:
+    # 1. Row 1 (debian-13.iso) is selected
+    assert win2.download_table.currentRow() == 1
+    selected_items = win2.download_table.selectedItems()
+    assert len(selected_items) > 0
+    assert win2.download_table.item(1, 0).text() == "debian-13.iso"
+
+    # 2. Toggle button shows open arrow ▼ and tooltip for selected item
+    assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
+    assert "debian-13.iso" in win2.btn_details_toggle.toolTip()
+
+    # 3. Details panel is visible
+    assert win2.details_panel.isVisible()
+
+    # 4. Connections / Proxy tab (index 2) is restored
+    assert win2.details_panel.stacked_widget.currentIndex() == 2
+
+    # 5. Connections table is populated with host and proxy info
+    assert win2.details_panel.conn_table.rowCount() >= 1
+    assert win2.details_panel.conn_table.item(0, 0).text() == "debian.org"
+    assert win2.details_panel.conn_table.item(0, 3).text() in ["Direct", "HTTP", "SOCKS5"]
+
+    win2.close()
+
+
+
+
