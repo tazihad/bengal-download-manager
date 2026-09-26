@@ -385,17 +385,11 @@ class DetailsPanel(QFrame):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(14)
 
-        # Left: Large file type icon
+        # Left: Large file type icon / video thumbnail
         self.gen_icon_label = QLabel(self)
-        self.gen_icon_label.setFixedSize(64, 64)
+        self.gen_icon_label.setFixedSize(72, 72)
         self.gen_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.gen_icon_label.setStyleSheet("""
-            QLabel {
-                background-color: palette(base);
-                border: 1px solid palette(mid);
-                border-radius: 8px;
-            }
-        """)
+        self.gen_icon_label.setStyleSheet("background: transparent; border: none;")
         layout.addWidget(self.gen_icon_label, 0, Qt.AlignmentFlag.AlignTop)
 
         # Right: Metadata details
@@ -685,32 +679,55 @@ class DetailsPanel(QFrame):
                 from core.video_thumbnail import VideoThumbnailManager, is_video_file, extract_youtube_video_id
                 if is_video_file(filename) or is_video_file(filepath_str) or (url_str and bool(extract_youtube_video_id(url_str))):
                     thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(
-                        filepath_str, 64, 64, url=url_str, thumb_url=thumb_url
+                        filepath_str, 272, 152, url=url_str, thumb_url=thumb_url, crop=False
                     )
             except Exception:
                 thumb_pix = None
 
         if thumb_pix and not thumb_pix.isNull():
+            # Modern 16:9 rounded video thumbnail card (136x76, matching FDM)
+            self.gen_icon_label.setFixedSize(136, 76)
             from PyQt6.QtGui import QPainter, QPainterPath
-            rounded = QPixmap(64, 64)
+            rounded = QPixmap(136, 76)
             rounded.fill(Qt.GlobalColor.transparent)
             p = QPainter(rounded)
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+
+            # 6px rounded rectangle clip path
             path = QPainterPath()
-            path.addRoundedRect(0.0, 0.0, 64.0, 64.0, 6.0, 6.0)
+            path.addRoundedRect(QRectF(0.0, 0.0, 136.0, 76.0), 6.0, 6.0)
             p.setClipPath(path)
-            tx = (64 - thumb_pix.width()) // 2
-            ty = (64 - thumb_pix.height()) // 2
-            p.drawPixmap(tx, ty, thumb_pix)
+
+            # Dark letterbox/pillarbox background for portrait videos (Shorts/Reels)
+            p.fillRect(0, 0, 136, 76, QColor(24, 24, 27))
+
+            # Scale preserving aspect ratio inside 136x76 (never squeezed or distorted)
+            scaled = thumb_pix.scaled(
+                136, 76,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            tx = (136 - scaled.width()) // 2
+            ty = (76 - scaled.height()) // 2
+            p.drawPixmap(tx, ty, scaled)
+
+            # Subtle outer contrast border
+            p.setClipping(False)
+            p.setPen(QPen(QColor(128, 128, 128, 60), 1.0))
+            p.drawRoundedRect(QRectF(0.5, 0.5, 135.0, 75.0), 6.0, 6.0)
             p.end()
+
             self.gen_icon_label.setPixmap(rounded)
         else:
+            # File Icon for other files (ISO, ZIP, etc.): 72x72 container with 64x64 icon, no border box
+            self.gen_icon_label.setFixedSize(72, 72)
             icon = data.get("icon")
             if not icon or (hasattr(icon, "isNull") and icon.isNull()):
                 icon = get_file_icon(filename) if filename and filename != "No download selected" else None
 
             if icon and hasattr(icon, "pixmap") and not icon.isNull():
-                pix = icon.pixmap(48, 48)
+                pix = icon.pixmap(64, 64)
                 self.gen_icon_label.setPixmap(pix)
             else:
                 self.gen_icon_label.clear()

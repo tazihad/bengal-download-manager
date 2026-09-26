@@ -393,11 +393,14 @@ class VideoThumbnailManager(QObject):
         max_w: int = 44,
         max_h: int = 30,
         url: Optional[str] = None,
-        thumb_url: Optional[str] = None
+        thumb_url: Optional[str] = None,
+        crop: bool = True
     ) -> Optional[QPixmap]:
         """
         Retrieves a cached QPixmap thumbnail if available, or queues background acquisition and returns None.
         Checks QPixmapCache memory cache first, then disk cache.
+        When crop=True, scales with KeepAspectRatioByExpanding and center-crops to (max_w, max_h) without squeezing.
+        When crop=False, scales with KeepAspectRatio to fit inside (max_w, max_h).
         Supports both local video files and YouTube / remote video URLs.
         """
         if not filepath:
@@ -412,7 +415,7 @@ class VideoThumbnailManager(QObject):
         if not thumb_path:
             return None
 
-        cache_key = f"{thumb_path}_{max_w}_{max_h}"
+        cache_key = f"{thumb_path}_{max_w}_{max_h}_{crop}"
         pix = QPixmapCache.find(cache_key)
         if pix:
             return pix
@@ -420,13 +423,23 @@ class VideoThumbnailManager(QObject):
         if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
             raw_pix = QPixmap(thumb_path)
             if not raw_pix.isNull():
-                scaled = raw_pix.scaled(
-                    max_w, max_h,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                QPixmapCache.insert(cache_key, scaled)
-                return scaled
+                if crop:
+                    scaled = raw_pix.scaled(
+                        max_w, max_h,
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    crop_x = max(0, (scaled.width() - max_w) // 2)
+                    crop_y = max(0, (scaled.height() - max_h) // 2)
+                    result_pix = scaled.copy(crop_x, crop_y, max_w, max_h)
+                else:
+                    result_pix = raw_pix.scaled(
+                        max_w, max_h,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                QPixmapCache.insert(cache_key, result_pix)
+                return result_pix
 
         # Not yet on disk: queue background generation / download
         self.request_thumbnail(filepath, url=url, thumb_url=thumb_url)
