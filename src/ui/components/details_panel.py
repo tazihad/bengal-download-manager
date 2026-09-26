@@ -630,16 +630,44 @@ class DetailsPanel(QFrame):
         self.gen_folder_btn.setText(folder_path or "--")
         self.gen_url_label.setText(url or "--")
 
-        # Icon: use the same themed icon that is used for the file name in the table
-        icon = data.get("icon")
-        if not icon or (hasattr(icon, "isNull") and icon.isNull()):
-            icon = get_file_icon(filename) if filename and filename != "No download selected" else None
+        # Icon / Thumbnail: Use video thumbnail if available and file is video, else themed file icon
+        filepath_str = str(filepath) if filepath else ""
+        thumb_pix = None
+        if filename and filename != "No download selected" and filepath_str:
+            try:
+                from core.video_thumbnail import VideoThumbnailManager, is_video_file
+                if is_video_file(filename) or is_video_file(filepath_str):
+                    thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(filepath_str, 64, 64)
+            except Exception:
+                thumb_pix = None
 
-        if icon and hasattr(icon, "pixmap") and not icon.isNull():
-            pix = icon.pixmap(48, 48)
-            self.gen_icon_label.setPixmap(pix)
+        if thumb_pix and not thumb_pix.isNull():
+            # Create a rounded pixmap for the thumbnail preview
+            from PyQt6.QtGui import QPainter, QPainterPath
+            rounded = QPixmap(64, 64)
+            rounded.fill(Qt.GlobalColor.transparent)
+            p = QPainter(rounded)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            path = QPainterPath()
+            path.addRoundedRect(0.0, 0.0, 64.0, 64.0, 6.0, 6.0)
+            p.setClipPath(path)
+            # Center the scaled thumbnail
+            tx = (64 - thumb_pix.width()) // 2
+            ty = (64 - thumb_pix.height()) // 2
+            p.drawPixmap(tx, ty, thumb_pix)
+            p.end()
+            self.gen_icon_label.setPixmap(rounded)
         else:
-            self.gen_icon_label.clear()
+            # Fallback to file type icon
+            icon = data.get("icon")
+            if not icon or (hasattr(icon, "isNull") and icon.isNull()):
+                icon = get_file_icon(filename) if filename and filename != "No download selected" else None
+
+            if icon and hasattr(icon, "pixmap") and not icon.isNull():
+                pix = icon.pixmap(48, 48)
+                self.gen_icon_label.setPixmap(pix)
+            else:
+                self.gen_icon_label.clear()
 
         # --- 2. Update Progress Tab ---
         self.prog_percent_label.setText(f"{percent:.2f}%")

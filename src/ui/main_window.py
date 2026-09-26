@@ -1423,8 +1423,33 @@ class MainWindow(QMainWindow):
         status_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         status_bar.customContextMenuRequested.connect(self._show_status_bar_context_menu)
 
+        # Connect video thumbnail generation updates
+        try:
+            from core.video_thumbnail import VideoThumbnailManager
+            VideoThumbnailManager.instance().thumbnail_ready.connect(self._on_video_thumbnail_ready)
+        except Exception:
+            pass
+
         self._update_status_bar_visibility()
         self.update_status_bar()
+
+    def _on_video_thumbnail_ready(self, filepath: str, thumb_path: str):
+        """Called when ffmpeg finishes extracting a video thumbnail."""
+        if not hasattr(self, "download_table") or not self.download_table:
+            return
+        # Repaint download table row for this video
+        for r in range(self.download_table.rowCount()):
+            item = self.download_table.item(r, 0)
+            if item and item.data(Qt.ItemDataRole.UserRole + 1) == filepath:
+                self.download_table.update(self.download_table.model().index(r, 0))
+                break
+        # Update details panel if this video is currently selected
+        if hasattr(self, "details_panel") and self.details_panel and self.details_panel.isVisible():
+            sel_row = self.download_table.currentRow()
+            if sel_row >= 0:
+                item = self.download_table.item(sel_row, 0)
+                if item and item.data(Qt.ItemDataRole.UserRole + 1) == filepath:
+                    self.update_details_panel()
 
     def _update_status_bar_visibility(self):
         """Shows or hides status bar widgets and separators according to user preferences."""
@@ -6328,6 +6353,14 @@ class MainWindow(QMainWindow):
                     self.active_file_info_dialogs.pop(key, None)
                 if hasattr(self, "active_complete_dialogs"):
                     self.active_complete_dialogs.pop(key, None)
+                # Clean up cached video thumbnail
+                path = item_name.data(Qt.ItemDataRole.UserRole + 1)
+                if path:
+                    try:
+                        from core.video_thumbnail import delete_thumbnail
+                        delete_thumbnail(path)
+                    except Exception:
+                        pass
             self.download_table.removeRow(row)
         self.save_data()
         self.update_ui_states()
@@ -6420,6 +6453,14 @@ class MainWindow(QMainWindow):
                             os.remove(os.path.join(d, f))
                         except Exception:
                             pass
+            except Exception:
+                pass
+
+        # 4. Video thumbnail cache file
+        if saved_path:
+            try:
+                from core.video_thumbnail import delete_thumbnail
+                delete_thumbnail(saved_path)
             except Exception:
                 pass
 
@@ -6621,6 +6662,15 @@ class MainWindow(QMainWindow):
                 self.active_speeds.pop(key, None)
 
             if display_status == "Complete":
+                # Request video thumbnail generation in background if file is video
+                path = item_ref.data(Qt.ItemDataRole.UserRole + 1)
+                if path and os.path.exists(path):
+                    try:
+                        from core.video_thumbnail import VideoThumbnailManager
+                        VideoThumbnailManager.instance().request_thumbnail(path)
+                    except Exception:
+                        pass
+
                 is_batch_item = bool(item_ref.data(Qt.ItemDataRole.UserRole + 18)) if item_ref else False
                 is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
                 # Dispatch XDG system notification if enabled (suppressed for batch/queue runs)
@@ -7321,6 +7371,13 @@ class MainWindow(QMainWindow):
                                 add_daily_usage(today_str, actual_size, 1)
                             except Exception:
                                 pass
+
+                    # Request video thumbnail generation in background
+                    try:
+                        from core.video_thumbnail import VideoThumbnailManager
+                        VideoThumbnailManager.instance().request_thumbnail(path)
+                    except Exception:
+                        pass
 
                     # Dispatch XDG system notification if enabled
                     if getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)):
