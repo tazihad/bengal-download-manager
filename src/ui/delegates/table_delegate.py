@@ -144,11 +144,15 @@ class ModernTableDelegate(QStyledItemDelegate):
 
         # Check for video thumbnail
         filepath = index.data(Qt.ItemDataRole.UserRole + 1)
+        url = index.data(Qt.ItemDataRole.UserRole)
+        thumb_url = index.data(Qt.ItemDataRole.UserRole + 27)
         thumb_pix = None
         if category == "Video" and filepath:
             try:
                 from core.video_thumbnail import VideoThumbnailManager
-                thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(str(filepath), 40, 26)
+                thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(
+                    str(filepath), 40, 26, url=str(url) if url else None, thumb_url=str(thumb_url) if thumb_url else None
+                )
             except Exception:
                 thumb_pix = None
 

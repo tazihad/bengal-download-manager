@@ -2185,6 +2185,7 @@ class MediaDownloaderDialog(QDialog):
                 if preset_idx == 0 or total_size_bytes == 0 or (estimated_size > total_size_bytes and not target_height):
                     total_size_bytes = estimated_size
 
+            thumb_url = self._video_data.get("thumbnail") if hasattr(self, "_video_data") and isinstance(self._video_data, dict) else None
             if hasattr(mw, "start_media_download"):
                 if is_debug_mode():
                     logger.debug("[MediaDialog] Triggering start_media_download: filename=%s, format=%s, audio_only=%s, total_size=%s",
@@ -2202,7 +2203,8 @@ class MediaDownloaderDialog(QDialog):
                         user_agent=getattr(self, "_user_agent", None),
                         show_file_info=True,
                         cookies=getattr(self, "_cookies", None),
-                        merge_output_format=output_container
+                        merge_output_format=output_container,
+                        thumbnail_url=thumb_url
                     )
                 except TypeError:
                     try:
@@ -2295,7 +2297,8 @@ class MediaDownloaderDialog(QDialog):
                                 cookies_file=c_file,
                                 referrer=getattr(self, "_referrer", None),
                                 user_agent=getattr(self, "_user_agent", None),
-                                cookies=getattr(self, "_cookies", None)
+                                cookies=getattr(self, "_cookies", None),
+                                thumbnail_url=entry.get("thumbnail")
                             )
                         except TypeError:
                             mw.start_media_download(

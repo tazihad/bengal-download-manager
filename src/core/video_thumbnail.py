@@ -1,12 +1,14 @@
 """
 Video Thumbnail Generation & Management
 =======================================
-Provides asynchronous, resource-efficient video thumbnail extraction using ffmpeg.
+Provides asynchronous, resource-efficient video thumbnail extraction using ffmpeg
+or direct remote thumbnail acquisition (e.g. YouTube thumbnails).
 Discovers ffmpeg in bundled paths, XDG data bin, XDG user bin, or system PATH.
 Caches thumbnails in XDG cache directory with SHA256 keying and handles cleanup.
 """
 
 import os
+import re
 import sys
 import shutil
 import hashlib
@@ -15,8 +17,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Set
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QPixmap, QPixmapCache
+from PyQt6.QtCore import Qt, QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QPixmap, QPixmapCache, QImage
 
 from core.utils import get_cache_dir, get_data_dir
 
@@ -34,6 +36,31 @@ def is_video_file(path_or_name: str) -> bool:
         return False
     ext = os.path.splitext(str(path_or_name).lower())[1]
     return ext in VIDEO_EXTENSIONS
+
+
+def extract_youtube_video_id(url: str) -> Optional[str]:
+    """Extracts the 11-character video ID from any valid YouTube URL."""
+    if not url:
+        return None
+    patterns = [
+        r"(?:v=|vi=)([A-Za-z0-9_-]{11})",
+        r"youtu\.be/([A-Za-z0-9_-]{11})",
+        r"youtube\.com/(?:shorts|embed|v|live)/([A-Za-z0-9_-]{11})",
+        r"youtube\.com/watch\?.*v=([A-Za-z0-9_-]{11})",
+    ]
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
+    return None
+
+
+def get_youtube_thumbnail_url(url: str) -> Optional[str]:
+    """Returns the standard high-quality YouTube thumbnail image URL for a YouTube video URL."""
+    vid = extract_youtube_video_id(url)
+    if vid:
+        return f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
+    return None
 
 
 _THUMBNAIL_DIR = Path(get_cache_dir()) / "thumbnails"
@@ -90,22 +117,87 @@ def get_ffmpeg_path() -> Optional[str]:
     return None
 
 
+_FILEPATH_TO_THUMB_MAP: dict[str, str] = {}
+
+
+def register_thumbnail_file(filepath: str, thumb_file_path: str):
+    """Associates a pre-existing thumbnail image file (e.g. downloaded YouTube thumbnail) with a video filepath."""
+    if not filepath or not thumb_file_path or not os.path.exists(thumb_file_path):
+        return
+    abs_fp = os.path.abspath(os.path.normpath(filepath))
+    _FILEPATH_TO_THUMB_MAP[abs_fp] = thumb_file_path
+    _FILEPATH_TO_THUMB_MAP[filepath] = thumb_file_path
+    # Also copy to standard thumbnail cache path so it persists
+    try:
+        cache_dest = get_thumbnail_cache_path(filepath)
+        if cache_dest and cache_dest != thumb_file_path:
+            shutil.copyfile(thumb_file_path, cache_dest)
+            _FILEPATH_TO_THUMB_MAP[abs_fp] = cache_dest
+    except Exception:
+        pass
+
+
 def get_thumbnail_cache_path(filepath: str) -> Optional[str]:
     """
-    Computes a deterministic cache file path based on video filepath, size, and mtime.
+    Computes a deterministic cache file path based on normalized absolute filepath.
     Returns path even if it does not yet exist on disk.
     """
-    if not filepath or not os.path.exists(filepath):
+    if not filepath:
         return None
-    try:
-        stat = os.stat(filepath)
-        raw_key = f"{os.path.abspath(filepath)}:{stat.st_size}:{stat.st_mtime_ns}"
-    except Exception:
-        raw_key = os.path.abspath(filepath)
 
-    key_hash = hashlib.sha256(raw_key.encode("utf-8", errors="ignore")).hexdigest()[:24]
+    abs_fp = os.path.abspath(os.path.normpath(filepath))
+    mapped = _FILEPATH_TO_THUMB_MAP.get(abs_fp) or _FILEPATH_TO_THUMB_MAP.get(filepath)
+    if mapped and os.path.exists(mapped) and os.path.getsize(mapped) > 0:
+        return mapped
+
+    key_hash = hashlib.sha256(abs_fp.encode("utf-8", errors="ignore")).hexdigest()[:24]
     thumb_path = get_thumbnail_dir() / f"thumb_{key_hash}.jpg"
     return str(thumb_path)
+
+
+def download_remote_thumbnail_sync(thumb_url: str, output_path: str) -> bool:
+    """Synchronously downloads a remote image (e.g. YouTube thumbnail) into output_path."""
+    if not thumb_url or not output_path:
+        return False
+    import urllib.request
+    import ssl
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    urls_to_try = [thumb_url]
+    # If high-quality fails, fallback to medium quality
+    if "hqdefault.jpg" in thumb_url:
+        urls_to_try.append(thumb_url.replace("hqdefault.jpg", "mqdefault.jpg"))
+
+    for u in urls_to_try:
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0)"})
+            data = None
+            try:
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    data = resp.read()
+            except Exception:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                with urllib.request.urlopen(req, context=ctx, timeout=6) as resp:
+                    data = resp.read()
+
+            if data and len(data) > 0:
+                with open(output_path, "wb") as f:
+                    f.write(data)
+                # Verify that it is a valid decodable image
+                img = QImage(output_path)
+                if not img.isNull():
+                    return True
+                else:
+                    try:
+                        os.remove(output_path)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug("[video_thumbnail] Failed download attempt for %s: %s", u, e)
+
+    return False
 
 
 def delete_thumbnail(filepath: str):
@@ -113,13 +205,14 @@ def delete_thumbnail(filepath: str):
     if not filepath:
         return
     try:
-        abs_path = os.path.abspath(filepath)
-        # Search thumbnails dir for matching files or prefix
+        abs_path = os.path.abspath(os.path.normpath(filepath))
+        _FILEPATH_TO_THUMB_MAP.pop(abs_path, None)
+        _FILEPATH_TO_THUMB_MAP.pop(filepath, None)
+
         thumb_dir = get_thumbnail_dir()
         if not thumb_dir.exists():
             return
 
-        # Direct check if file still exists
         direct = get_thumbnail_cache_path(filepath)
         if direct and os.path.exists(direct):
             try:
@@ -128,14 +221,11 @@ def delete_thumbnail(filepath: str):
             except Exception:
                 pass
 
-        # Also purge any older hashes for this absolute path if file was modified or deleted
-        path_prefix_hash = hashlib.sha256(abs_path.encode("utf-8", errors="ignore")).hexdigest()[:12]
-        for item in thumb_dir.glob("thumb_*.jpg"):
-            # If the name contains the prefix or matches
+        path_hash = hashlib.sha256(abs_path.encode("utf-8", errors="ignore")).hexdigest()[:24]
+        for item in thumb_dir.glob(f"thumb_{path_hash}*"):
             try:
-                if item.name.startswith(f"thumb_{path_prefix_hash}"):
-                    item.unlink(missing_ok=True)
-                    QPixmapCache.remove(str(item))
+                item.unlink(missing_ok=True)
+                QPixmapCache.remove(str(item))
             except Exception:
                 pass
     except Exception as e:
@@ -153,19 +243,15 @@ def cleanup_orphaned_thumbnails(active_filepaths: Set[str]):
         for fp in active_filepaths:
             if not fp:
                 continue
-            abs_p = os.path.abspath(fp)
-            active_hashes.add(hashlib.sha256(abs_p.encode("utf-8", errors="ignore")).hexdigest()[:12])
+            abs_p = os.path.abspath(os.path.normpath(fp))
+            active_hashes.add(f"thumb_{hashlib.sha256(abs_p.encode('utf-8', errors='ignore')).hexdigest()[:24]}.jpg")
             cached = get_thumbnail_cache_path(fp)
             if cached:
                 active_hashes.add(Path(cached).name)
 
         for item in thumb_dir.glob("thumb_*.jpg"):
             try:
-                if item.name in active_hashes:
-                    continue
-                # Check prefix
-                is_active = any(item.name.startswith(f"thumb_{p_hash}") for p_hash in active_hashes)
-                if not is_active:
+                if item.name not in active_hashes:
                     item.unlink(missing_ok=True)
                     QPixmapCache.remove(str(item))
             except Exception:
@@ -227,7 +313,7 @@ class _ThumbnailWorkerSignals(QObject):
 
 
 class _ThumbnailWorker(QRunnable):
-    """Background runnable worker for extracting video thumbnail."""
+    """Background runnable worker for extracting video thumbnail with ffmpeg."""
 
     def __init__(self, filepath: str, output_path: str, ffmpeg_bin: str, signals: _ThumbnailWorkerSignals):
         super().__init__()
@@ -246,10 +332,31 @@ class _ThumbnailWorker(QRunnable):
             logger.debug("[video_thumbnail] Worker error on %s: %s", self.filepath, e)
 
 
+class _RemoteThumbnailWorker(QRunnable):
+    """Background runnable worker for fetching remote/YouTube thumbnail."""
+
+    def __init__(self, filepath: str, thumb_url: str, output_path: str, signals: _ThumbnailWorkerSignals):
+        super().__init__()
+        self.filepath = filepath
+        self.thumb_url = thumb_url
+        self.output_path = output_path
+        self.signals = signals
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            success = download_remote_thumbnail_sync(self.thumb_url, self.output_path)
+            if success:
+                register_thumbnail_file(self.filepath, self.output_path)
+                self.signals.finished.emit(self.filepath, self.output_path)
+        except Exception as e:
+            logger.debug("[video_thumbnail] Remote worker error on %s: %s", self.filepath, e)
+
+
 class VideoThumbnailManager(QObject):
     """
     Central manager for requesting, caching, and serving video thumbnails.
-    Emits thumbnail_ready(filepath, thumb_path) when extraction succeeds.
+    Emits thumbnail_ready(filepath, thumb_path) when extraction or download succeeds.
     """
 
     thumbnail_ready = pyqtSignal(str, str)
@@ -280,16 +387,25 @@ class VideoThumbnailManager(QObject):
             self._ffmpeg_bin = get_ffmpeg_path()
         return bool(self._ffmpeg_bin)
 
-    def get_cached_pixmap(self, filepath: str, max_w: int = 44, max_h: int = 30) -> Optional[QPixmap]:
+    def get_cached_pixmap(
+        self,
+        filepath: str,
+        max_w: int = 44,
+        max_h: int = 30,
+        url: Optional[str] = None,
+        thumb_url: Optional[str] = None
+    ) -> Optional[QPixmap]:
         """
-        Retrieves a cached QPixmap thumbnail if available, or queues extraction and returns None.
+        Retrieves a cached QPixmap thumbnail if available, or queues background acquisition and returns None.
         Checks QPixmapCache memory cache first, then disk cache.
+        Supports both local video files and YouTube / remote video URLs.
         """
-        if not filepath or not os.path.exists(filepath):
+        if not filepath:
             return None
 
-        # Check if the file is a video
-        if not is_video_file(filepath):
+        # Check if video by extension or url
+        is_vid = is_video_file(filepath) or (url and bool(extract_youtube_video_id(url)))
+        if not is_vid:
             return None
 
         thumb_path = get_thumbnail_cache_path(filepath)
@@ -304,7 +420,6 @@ class VideoThumbnailManager(QObject):
         if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
             raw_pix = QPixmap(thumb_path)
             if not raw_pix.isNull():
-                from PyQt6.QtCore import Qt
                 scaled = raw_pix.scaled(
                     max_w, max_h,
                     Qt.AspectRatioMode.KeepAspectRatioByExpanding,
@@ -313,21 +428,16 @@ class VideoThumbnailManager(QObject):
                 QPixmapCache.insert(cache_key, scaled)
                 return scaled
 
-        # Not yet on disk: queue background generation if ffmpeg is available
-        self.request_thumbnail(filepath)
+        # Not yet on disk: queue background generation / download
+        self.request_thumbnail(filepath, url=url, thumb_url=thumb_url)
         return None
 
-    def request_thumbnail(self, filepath: str):
-        """Asynchronously requests thumbnail extraction for a given video file."""
-        if not filepath or filepath in self._pending_tasks:
+    def request_remote_thumbnail(self, filepath: str, thumb_url: str):
+        """Asynchronously downloads and caches a remote thumbnail (e.g. YouTube)."""
+        if not filepath or not thumb_url:
             return
-        if not os.path.exists(filepath):
-            return
-        if not is_video_file(filepath):
-            return
-
-        ffmpeg = self._ffmpeg_bin or get_ffmpeg_path()
-        if not ffmpeg:
+        abs_fp = os.path.abspath(os.path.normpath(filepath))
+        if abs_fp in self._pending_tasks or filepath in self._pending_tasks:
             return
 
         thumb_path = get_thumbnail_cache_path(filepath)
@@ -337,11 +447,56 @@ class VideoThumbnailManager(QObject):
         if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
             return
 
+        self._pending_tasks.add(abs_fp)
+        self._pending_tasks.add(filepath)
+        worker = _RemoteThumbnailWorker(filepath, thumb_url, thumb_path, self._signals)
+        self._thread_pool.start(worker)
+
+    def request_thumbnail(self, filepath: str, url: Optional[str] = None, thumb_url: Optional[str] = None):
+        """
+        Asynchronously requests thumbnail acquisition:
+        - If remote thumb_url or YouTube URL is present, fetches remote thumbnail.
+        - Otherwise, extracts thumbnail from local video file using ffmpeg.
+        """
+        if not filepath:
+            return
+
+        abs_fp = os.path.abspath(os.path.normpath(filepath))
+        if abs_fp in self._pending_tasks or filepath in self._pending_tasks:
+            return
+
+        # 1. Prefer remote thumbnail / YouTube thumbnail
+        target_remote = thumb_url
+        if not target_remote and url:
+            target_remote = get_youtube_thumbnail_url(url)
+
+        thumb_path = get_thumbnail_cache_path(filepath)
+        if not thumb_path:
+            return
+
+        if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+            return
+
+        if target_remote:
+            self.request_remote_thumbnail(filepath, target_remote)
+            return
+
+        # 2. Local video thumbnail via ffmpeg
+        if not os.path.exists(filepath) or not is_video_file(filepath):
+            return
+
+        ffmpeg = self._ffmpeg_bin or get_ffmpeg_path()
+        if not ffmpeg:
+            return
+
+        self._pending_tasks.add(abs_fp)
         self._pending_tasks.add(filepath)
         worker = _ThumbnailWorker(filepath, thumb_path, ffmpeg, self._signals)
         self._thread_pool.start(worker)
 
     @pyqtSlot(str, str)
     def _on_worker_finished(self, filepath: str, thumb_path: str):
+        abs_fp = os.path.abspath(os.path.normpath(filepath))
+        self._pending_tasks.discard(abs_fp)
         self._pending_tasks.discard(filepath)
         self.thumbnail_ready.emit(filepath, thumb_path)

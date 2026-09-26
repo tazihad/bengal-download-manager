@@ -325,5 +325,74 @@ def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, t
     win2.close()
 
 
+def test_eliding_widgets_and_long_filename(qapp):
+    """Verify ElidingLabel and ElidingButton truncate text without expanding minimum size."""
+    from ui.components.details_panel import ElidingLabel, ElidingButton, DetailsPanel
+    from PyQt6.QtWidgets import QSizePolicy
+
+    long_title = "A" * 300 + ".mp4"
+    lbl = ElidingLabel(long_title)
+    lbl.resize(200, 30)
+
+    assert lbl.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert lbl.minimumWidth() == 0
+    assert lbl.toolTip() == long_title
+
+    # Button
+    btn = ElidingButton("/very/long/path/" + "B" * 200)
+    btn.resize(200, 30)
+    assert btn.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert btn.minimumWidth() == 0
+
+    # Panel with long filename
+    panel = DetailsPanel()
+    panel.resize(400, 220)
+    panel.set_download_data({
+        "filename": long_title,
+        "filepath": "/home/user/Downloads/" + long_title,
+        "url": "https://example.com/" + "C" * 200,
+        "total_bytes": 1000000,
+        "downloaded_bytes": 500000,
+        "status": "Downloading",
+        "percent": 50.0
+    })
+
+    # The panel should not force an enormous minimum width
+    assert panel.minimumWidth() == 0
+    assert panel.gen_filename_label.text() != ""
+    assert panel.gen_filename_label.toolTip() == long_title
 
 
+def test_details_panel_thumbnail_update(qapp, tmp_path):
+    """Verify DetailsPanel updates thumbnail preview when thumbnail_ready is fired."""
+    from ui.components.details_panel import DetailsPanel
+    from core.video_thumbnail import VideoThumbnailManager, register_thumbnail_file
+    from PyQt6.QtGui import QImage
+
+    # Create dummy video and thumbnail
+    video_path = str(tmp_path / "test_movie.mp4")
+    thumb_path = str(tmp_path / "thumb.jpg")
+    img = QImage(160, 90, QImage.Format.Format_RGB32)
+    img.fill(0xFF00FF)
+    img.save(thumb_path, "JPEG")
+
+    register_thumbnail_file(video_path, thumb_path)
+
+    panel = DetailsPanel()
+    panel.set_download_data({
+        "filename": "test_movie.mp4",
+        "filepath": video_path,
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "total_bytes": 5000000,
+        "downloaded_bytes": 5000000,
+        "status": "Complete",
+        "percent": 100.0
+    })
+
+    # Trigger thumbnail_ready signal
+    VideoThumbnailManager.instance().thumbnail_ready.emit(video_path, thumb_path)
+
+    # gen_icon_label should have a non-null pixmap
+    pm = panel.gen_icon_label.pixmap()
+    assert pm is not None
+    assert not pm.isNull()

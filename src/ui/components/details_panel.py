@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QAbstractItemView, QFileIconProvider, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QFileInfo, QRectF
-from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush, QPalette
+from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush, QPalette, QPixmap
 
 from core.utils import format_bytes, show_in_folder, load_proxy_config, open_file_generic
 from core.services.theme_service import get_file_icon
@@ -158,6 +158,79 @@ class SegmentGridWidget(QWidget):
                 painter.fillRect(rect, color)
 
 
+class ElidingLabel(QLabel):
+    """A QLabel that elides its text to fit available width without expanding its container."""
+    def __init__(self, text: str = "", parent=None, elide_mode: Qt.TextElideMode = Qt.TextElideMode.ElideMiddle):
+        super().__init__(text, parent)
+        self._full_text = text or ""
+        self._elide_mode = elide_mode
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(0)
+        if self._full_text:
+            self.setToolTip(self._full_text)
+
+    def setText(self, text: str):
+        self._full_text = text or ""
+        self.setToolTip(self._full_text)
+        self._update_elided_text()
+
+    def text(self) -> str:
+        return self._full_text
+
+    def fullText(self) -> str:
+        return self._full_text
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_elided_text()
+
+    def _update_elided_text(self):
+        if not self._full_text:
+            super().setText("")
+            return
+        fm = self.fontMetrics()
+        avail_w = max(0, self.width() - 4)
+        if avail_w <= 20:
+            return
+        elided = fm.elidedText(self._full_text, self._elide_mode, avail_w)
+        super().setText(elided)
+
+
+class ElidingButton(QPushButton):
+    """A QPushButton that elides its label text to fit available width without expanding."""
+    def __init__(self, text: str = "", parent=None, elide_mode: Qt.TextElideMode = Qt.TextElideMode.ElideMiddle):
+        super().__init__(text, parent)
+        self._full_text = text or ""
+        self._elide_mode = elide_mode
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(0)
+        if self._full_text:
+            self.setToolTip(self._full_text)
+
+    def setText(self, text: str):
+        self._full_text = text or ""
+        self.setToolTip(self._full_text)
+        self._update_elided_text()
+
+    def text(self) -> str:
+        return self._full_text
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_elided_text()
+
+    def _update_elided_text(self):
+        if not self._full_text:
+            super().setText("")
+            return
+        fm = self.fontMetrics()
+        avail_w = max(0, self.width() - 12)
+        if avail_w <= 20:
+            return
+        elided = fm.elidedText(self._full_text, self._elide_mode, avail_w)
+        super().setText(elided)
+
+
 class DetailsPanel(QFrame):
     """
     Bottom collapsible details panel for Bengal Download Manager.
@@ -170,10 +243,17 @@ class DetailsPanel(QFrame):
         super().__init__(parent)
         self.setObjectName("detailsPanel")
         self.setMinimumHeight(210)
+        self.setMinimumWidth(0)
         self.current_download_data = {}
         self.current_worker = None
         self._attached_worker = None
         self._live_segments = {}
+
+        try:
+            from core.video_thumbnail import VideoThumbnailManager
+            VideoThumbnailManager.instance().thumbnail_ready.connect(self._on_video_thumbnail_ready)
+        except Exception:
+            pass
 
         self.setup_ui()
 
@@ -324,7 +404,7 @@ class DetailsPanel(QFrame):
         info_layout.setSpacing(5)
 
         # Filename
-        self.gen_filename_label = QLabel("No download selected", self)
+        self.gen_filename_label = ElidingLabel("No download selected", self, elide_mode=Qt.TextElideMode.ElideMiddle)
         self.gen_filename_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         f = QFont(self.gen_filename_label.font())
         f.setPointSize(12)
@@ -378,7 +458,7 @@ class DetailsPanel(QFrame):
         lbl_f_icon.setFixedWidth(16)
         folder_row.addWidget(lbl_f_icon)
 
-        self.gen_folder_btn = QPushButton("--", self)
+        self.gen_folder_btn = ElidingButton("--", self, elide_mode=Qt.TextElideMode.ElideMiddle)
         self.gen_folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.gen_folder_btn.setToolTip("Click to open containing folder")
         self.gen_folder_btn.setStyleSheet("""
@@ -405,7 +485,7 @@ class DetailsPanel(QFrame):
         lbl_u_icon.setFixedWidth(16)
         url_row.addWidget(lbl_u_icon)
 
-        self.gen_url_label = QLabel("--", self)
+        self.gen_url_label = ElidingLabel("--", self, elide_mode=Qt.TextElideMode.ElideRight)
         self.gen_url_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.gen_url_label.setStyleSheet("color: palette(window-text); font-size: 11px;")
         url_row.addWidget(self.gen_url_label, 1)
@@ -580,6 +660,61 @@ class DetailsPanel(QFrame):
         layout.addWidget(self.conn_table)
         return widget
 
+    def _on_video_thumbnail_ready(self, filepath: str, thumb_path: str):
+        curr_fp = self.current_download_data.get("filepath", "")
+        if not curr_fp:
+            return
+        try:
+            if os.path.normpath(os.path.abspath(curr_fp)) == os.path.normpath(os.path.abspath(filepath)):
+                self._update_icon_or_thumbnail()
+        except Exception:
+            pass
+
+    def _update_icon_or_thumbnail(self):
+        data = self.current_download_data
+        filename = data.get("filename", "")
+        filepath = data.get("filepath", "")
+        url = data.get("url", "")
+        thumb_url = data.get("thumbnail_url", "")
+        filepath_str = str(filepath) if filepath else ""
+        url_str = str(url) if url else ""
+
+        thumb_pix = None
+        if filename and filename != "No download selected" and filepath_str:
+            try:
+                from core.video_thumbnail import VideoThumbnailManager, is_video_file, extract_youtube_video_id
+                if is_video_file(filename) or is_video_file(filepath_str) or (url_str and bool(extract_youtube_video_id(url_str))):
+                    thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(
+                        filepath_str, 64, 64, url=url_str, thumb_url=thumb_url
+                    )
+            except Exception:
+                thumb_pix = None
+
+        if thumb_pix and not thumb_pix.isNull():
+            from PyQt6.QtGui import QPainter, QPainterPath
+            rounded = QPixmap(64, 64)
+            rounded.fill(Qt.GlobalColor.transparent)
+            p = QPainter(rounded)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            path = QPainterPath()
+            path.addRoundedRect(0.0, 0.0, 64.0, 64.0, 6.0, 6.0)
+            p.setClipPath(path)
+            tx = (64 - thumb_pix.width()) // 2
+            ty = (64 - thumb_pix.height()) // 2
+            p.drawPixmap(tx, ty, thumb_pix)
+            p.end()
+            self.gen_icon_label.setPixmap(rounded)
+        else:
+            icon = data.get("icon")
+            if not icon or (hasattr(icon, "isNull") and icon.isNull()):
+                icon = get_file_icon(filename) if filename and filename != "No download selected" else None
+
+            if icon and hasattr(icon, "pixmap") and not icon.isNull():
+                pix = icon.pixmap(48, 48)
+                self.gen_icon_label.setPixmap(pix)
+            else:
+                self.gen_icon_label.clear()
+
     # -------------------------------------------------------------
     # DATA UPDATE METHODS
     # -------------------------------------------------------------
@@ -630,44 +765,8 @@ class DetailsPanel(QFrame):
         self.gen_folder_btn.setText(folder_path or "--")
         self.gen_url_label.setText(url or "--")
 
-        # Icon / Thumbnail: Use video thumbnail if available and file is video, else themed file icon
-        filepath_str = str(filepath) if filepath else ""
-        thumb_pix = None
-        if filename and filename != "No download selected" and filepath_str:
-            try:
-                from core.video_thumbnail import VideoThumbnailManager, is_video_file
-                if is_video_file(filename) or is_video_file(filepath_str):
-                    thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(filepath_str, 64, 64)
-            except Exception:
-                thumb_pix = None
-
-        if thumb_pix and not thumb_pix.isNull():
-            # Create a rounded pixmap for the thumbnail preview
-            from PyQt6.QtGui import QPainter, QPainterPath
-            rounded = QPixmap(64, 64)
-            rounded.fill(Qt.GlobalColor.transparent)
-            p = QPainter(rounded)
-            p.setRenderHint(QPainter.RenderHint.Antialiasing)
-            path = QPainterPath()
-            path.addRoundedRect(0.0, 0.0, 64.0, 64.0, 6.0, 6.0)
-            p.setClipPath(path)
-            # Center the scaled thumbnail
-            tx = (64 - thumb_pix.width()) // 2
-            ty = (64 - thumb_pix.height()) // 2
-            p.drawPixmap(tx, ty, thumb_pix)
-            p.end()
-            self.gen_icon_label.setPixmap(rounded)
-        else:
-            # Fallback to file type icon
-            icon = data.get("icon")
-            if not icon or (hasattr(icon, "isNull") and icon.isNull()):
-                icon = get_file_icon(filename) if filename and filename != "No download selected" else None
-
-            if icon and hasattr(icon, "pixmap") and not icon.isNull():
-                pix = icon.pixmap(48, 48)
-                self.gen_icon_label.setPixmap(pix)
-            else:
-                self.gen_icon_label.clear()
+        # Icon / Thumbnail: Use video thumbnail if available, else themed file icon
+        self._update_icon_or_thumbnail()
 
         # --- 2. Update Progress Tab ---
         self.prog_percent_label.setText(f"{percent:.2f}%")

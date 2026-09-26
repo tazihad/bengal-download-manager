@@ -125,3 +125,46 @@ def test_generate_video_thumbnail_sync_mock(monkeypatch):
         for p in (video_path, out_path):
             if os.path.exists(p):
                 os.remove(p)
+
+
+def test_youtube_video_id_and_thumbnail_url():
+    """Verify YouTube video ID extraction and thumbnail URL generation."""
+    from core.video_thumbnail import extract_youtube_video_id, get_youtube_thumbnail_url
+
+    test_cases = [
+        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://www.youtube.com/shorts/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://www.youtube.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://www.youtube.com/live/dQw4w9WgXcQ?feature=share", "dQw4w9WgXcQ"),
+        ("https://example.com/video.mp4", None),
+    ]
+
+    for url, expected_id in test_cases:
+        vid = extract_youtube_video_id(url)
+        assert vid == expected_id
+        thumb = get_youtube_thumbnail_url(url)
+        if expected_id:
+            assert thumb == f"https://i.ytimg.com/vi/{expected_id}/hqdefault.jpg"
+        else:
+            assert thumb is None
+
+
+def test_register_thumbnail_file():
+    """Verify register_thumbnail_file associates custom thumbnail with a video path."""
+    from core.video_thumbnail import register_thumbnail_file, get_thumbnail_cache_path
+
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf:
+        tf.write(b"jpeg dummy data")
+        thumb_file = tf.name
+
+    video_path = "/home/user/Videos/downloading_video.mp4"
+    try:
+        register_thumbnail_file(video_path, thumb_file)
+        cached_p = get_thumbnail_cache_path(video_path)
+        assert cached_p is not None
+        assert os.path.exists(cached_p)
+    finally:
+        if os.path.exists(thumb_file):
+            os.remove(thumb_file)
+

@@ -1244,6 +1244,7 @@ class MainWindow(QMainWindow):
         # Left panel sidebar container with categories and data usage summary
         self.left_panel_container = QWidget()
         self.left_panel_container.setObjectName("leftPanelContainer")
+        self.left_panel_container.setMinimumWidth(180)
         left_layout = QVBoxLayout(self.left_panel_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
@@ -1434,22 +1435,27 @@ class MainWindow(QMainWindow):
         self.update_status_bar()
 
     def _on_video_thumbnail_ready(self, filepath: str, thumb_path: str):
-        """Called when ffmpeg finishes extracting a video thumbnail."""
+        """Called when video thumbnail is generated or downloaded."""
         if not hasattr(self, "download_table") or not self.download_table:
             return
+        norm_fp = os.path.normpath(os.path.abspath(filepath))
         # Repaint download table row for this video
         for r in range(self.download_table.rowCount()):
             item = self.download_table.item(r, 0)
-            if item and item.data(Qt.ItemDataRole.UserRole + 1) == filepath:
-                self.download_table.update(self.download_table.model().index(r, 0))
-                break
+            if item:
+                item_fp = item.data(Qt.ItemDataRole.UserRole + 1)
+                if item_fp and os.path.normpath(os.path.abspath(str(item_fp))) == norm_fp:
+                    self.download_table.update(self.download_table.model().index(r, 0))
+                    break
         # Update details panel if this video is currently selected
         if hasattr(self, "details_panel") and self.details_panel and self.details_panel.isVisible():
             sel_row = self.download_table.currentRow()
             if sel_row >= 0:
                 item = self.download_table.item(sel_row, 0)
-                if item and item.data(Qt.ItemDataRole.UserRole + 1) == filepath:
-                    self.update_details_panel()
+                if item:
+                    item_fp = item.data(Qt.ItemDataRole.UserRole + 1)
+                    if item_fp and os.path.normpath(os.path.abspath(str(item_fp))) == norm_fp:
+                        self.update_details_panel()
 
     def _update_status_bar_visibility(self):
         """Shows or hides status bar widgets and separators according to user preferences."""
@@ -2236,6 +2242,7 @@ class MainWindow(QMainWindow):
             "filename": item_name.text(),
             "url": url,
             "filepath": filepath,
+            "thumbnail_url": item_name.data(Qt.ItemDataRole.UserRole + 27) or "",
             "icon": item_name.icon(),
             "total_bytes": total_bytes,
             "downloaded_bytes": downloaded_bytes,
@@ -3103,7 +3110,8 @@ class MainWindow(QMainWindow):
                     "date_added": str(date_added_ts), # Save raw timestamp
                     "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) if item_name.data(Qt.ItemDataRole.UserRole + 8) is not None else "Main download queue",
                     "extra_data": {
-                        "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url
+                        "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url,
+                        "thumbnail_url": item_name.data(Qt.ItemDataRole.UserRole + 27) or ""
                     }
                 }
                 downloads.append(dl_data)
@@ -3150,6 +3158,7 @@ class MainWindow(QMainWindow):
                 item_name.setData(Qt.ItemDataRole.UserRole + 8, d.get("queue", "Main download queue") if d.get("queue") is not None else "Main download queue")  # Queue
                 extra = d.get("extra_data", {})
                 item_name.setData(Qt.ItemDataRole.UserRole + 15, extra.get("referer", d.get("url", "")) if isinstance(extra, dict) else d.get("url", ""))
+                item_name.setData(Qt.ItemDataRole.UserRole + 27, extra.get("thumbnail_url", "") if isinstance(extra, dict) else "")
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -3220,6 +3229,18 @@ class MainWindow(QMainWindow):
             self.update_status_bar_items()
             if hasattr(self, "data_usage_widget") and self.data_usage_widget:
                 self.data_usage_widget.refresh_stats(self)
+
+            # Cleanup orphaned cached thumbnails not present in download table
+            try:
+                from core.video_thumbnail import cleanup_orphaned_thumbnails
+                active_fps = {
+                    self.download_table.item(r, 0).data(Qt.ItemDataRole.UserRole + 1)
+                    for r in range(self.download_table.rowCount())
+                    if self.download_table.item(r, 0) and self.download_table.item(r, 0).data(Qt.ItemDataRole.UserRole + 1)
+                }
+                QThreadPool.globalInstance().start(lambda: cleanup_orphaned_thumbnails(active_fps))
+            except Exception:
+                pass
             
         except Exception:
             pass
@@ -6414,6 +6435,14 @@ class MainWindow(QMainWindow):
     def _clear_cache_files(self, item_name, config):
         """Helper to remove temporary/cache files associated with a download item."""
         filename = item_name.text()
+        filepath = item_name.data(Qt.ItemDataRole.UserRole + 1)
+        if filepath:
+            try:
+                from core.video_thumbnail import delete_thumbnail
+                delete_thumbnail(filepath)
+            except Exception:
+                pass
+
         temp_dir = config.get("temp_dir")
         if not temp_dir: return
 
@@ -6865,8 +6894,16 @@ class MainWindow(QMainWindow):
         audio_format=None,
         size_str=None,
         size_is_approximate=False,
+        thumbnail_url=None,
     ):
         from core.media_downloader import YtDlpDownloadWorker
+
+        if not thumbnail_url and url:
+            try:
+                from core.video_thumbnail import get_youtube_thumbnail_url
+                thumbnail_url = get_youtube_thumbnail_url(url)
+            except Exception:
+                pass
 
         if is_debug_mode():
             logger.debug("[MainWindow] start_media_download called: url=%s, filename=%s, format_spec=%s, is_audio=%s, total_size=%s, size_str=%s",
@@ -7091,6 +7128,13 @@ class MainWindow(QMainWindow):
             item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
             item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
             item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
+            item_name.setData(Qt.ItemDataRole.UserRole + 27, thumbnail_url or "")
+            if thumbnail_url:
+                try:
+                    from core.video_thumbnail import VideoThumbnailManager
+                    VideoThumbnailManager.instance().request_remote_thumbnail(resolved_save_path, thumbnail_url)
+                except Exception:
+                    pass
 
             self.download_table.setItem(row, 0, item_name)
             self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
@@ -7144,6 +7188,13 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 15, referrer or url)
         item_name.setData(Qt.ItemDataRole.UserRole + 16, user_agent)
         item_name.setData(Qt.ItemDataRole.UserRole + 17, cookies)
+        item_name.setData(Qt.ItemDataRole.UserRole + 27, thumbnail_url or "")
+        if thumbnail_url:
+            try:
+                from core.video_thumbnail import VideoThumbnailManager
+                VideoThumbnailManager.instance().request_remote_thumbnail(target_path, thumbnail_url)
+            except Exception:
+                pass
 
         if size_str:
             init_size_str = size_str
@@ -7250,6 +7301,13 @@ class MainWindow(QMainWindow):
         item_ref.setIcon(get_file_icon(final_filename))
         item_ref.setToolTip(final_filename)
         item_ref.setData(Qt.ItemDataRole.UserRole + 1, final_save_path)
+        thumb_url = item_ref.data(Qt.ItemDataRole.UserRole + 27)
+        if thumb_url:
+            try:
+                from core.video_thumbnail import VideoThumbnailManager
+                VideoThumbnailManager.instance().request_remote_thumbnail(final_save_path, thumb_url)
+            except Exception:
+                pass
 
         row = self.download_table.row(item_ref)
         if row == -1:
