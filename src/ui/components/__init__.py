@@ -25,6 +25,11 @@ from ui.components.csd_titlebar import (
     ADW_COLORS,
     read_xdg_color_scheme,
 )
+from ui.components.details_panel import (
+    DetailsPanel,
+    DetailsToggleButton,
+    SegmentGridWidget,
+)
 
 __all__ = [
     "SortableTableWidgetItem",
@@ -37,5 +42,9 @@ __all__ = [
     "detach_csd",
     "ADW_COLORS",
     "read_xdg_color_scheme",
+    "DetailsPanel",
+    "DetailsToggleButton",
+    "SegmentGridWidget",
 ]
+
 
