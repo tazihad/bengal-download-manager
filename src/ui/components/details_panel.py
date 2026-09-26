@@ -146,6 +146,7 @@ class DetailsPanel(QFrame):
     Displays General, Progress, and Connections information for the selected download.
     """
     close_requested = pyqtSignal()
+    tab_changed = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -251,6 +252,7 @@ class DetailsPanel(QFrame):
         self.stacked_widget.setCurrentIndex(index)
         for i, btn in enumerate(self.tab_buttons):
             btn.setChecked(i == index)
+        self.tab_changed.emit(index)
 
     # -------------------------------------------------------------
     # TAB 1: GENERAL

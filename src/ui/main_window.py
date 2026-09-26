@@ -210,6 +210,29 @@ class MainWindow(QMainWindow):
         self.active_media_fetchers = []
         self.load_data()
 
+        # Restore bottom details panel visibility, tab, and sizes preference
+        if isinstance(self.settings, dict):
+            saved_tab = self.settings.get("details_panel_tab", 0)
+            if hasattr(self, "details_panel") and hasattr(self.details_panel, "switch_tab"):
+                try:
+                    self.details_panel.switch_tab(int(saved_tab))
+                except (ValueError, TypeError):
+                    pass
+
+            saved_splitter_sizes = self.settings.get("table_details_splitter_sizes")
+            if saved_splitter_sizes and hasattr(self, "table_details_splitter") and len(saved_splitter_sizes) == 2:
+                try:
+                    sizes = [int(s) for s in saved_splitter_sizes]
+                    if sum(sizes) > 0:
+                        self.table_details_splitter.setSizes(sizes)
+                except (ValueError, TypeError):
+                    pass
+
+            if self.settings.get("show_details_panel", False):
+                self.show_details_panel(save=False)
+            else:
+                self.hide_details_panel(save=False)
+
         # Warm up build info & source verification in background for instant About dialog
         try:
             from core.build_info import warmup_build_info_async
@@ -1193,6 +1216,7 @@ class MainWindow(QMainWindow):
         self.details_panel = DetailsPanel(self)
         self.details_panel.setVisible(False)
         self.details_panel.close_requested.connect(self.hide_details_panel)
+        self.details_panel.tab_changed.connect(lambda *_: self.save_settings() if hasattr(self, "save_settings") else None)
 
         self.table_details_splitter = QSplitter(Qt.Orientation.Vertical)
         self.table_details_splitter.setObjectName("tableDetailsSplitter")
@@ -1970,7 +1994,7 @@ class MainWindow(QMainWindow):
         else:
             self.show_details_panel()
 
-    def show_details_panel(self):
+    def show_details_panel(self, save: bool = True):
         """Opens and populates the bottom details panel."""
         if not hasattr(self, "details_panel"):
             return
@@ -1982,21 +2006,28 @@ class MainWindow(QMainWindow):
             self.btn_details_toggle.set_open(True)
 
         if hasattr(self, "table_details_splitter"):
-            total_h = self.table_details_splitter.height()
-            if total_h > 350:
-                self.table_details_splitter.setSizes([int(total_h * 0.65), int(total_h * 0.35)])
-            else:
-                self.table_details_splitter.setSizes([260, 240])
+            curr_sizes = self.table_details_splitter.sizes()
+            # If details panel had 0 height previously or not partitioned, set default sizes
+            if len(curr_sizes) == 2 and curr_sizes[1] <= 10:
+                total_h = self.table_details_splitter.height()
+                if total_h > 350:
+                    self.table_details_splitter.setSizes([int(total_h * 0.65), int(total_h * 0.35)])
+                else:
+                    self.table_details_splitter.setSizes([260, 240])
 
         self.update_details_panel()
+        if save and hasattr(self, "save_settings"):
+            self.save_settings()
 
-    def hide_details_panel(self):
+    def hide_details_panel(self, save: bool = True):
         """Hides the bottom details panel."""
         if not hasattr(self, "details_panel"):
             return
         self.details_panel.setVisible(False)
         if hasattr(self, "btn_details_toggle"):
             self.btn_details_toggle.set_open(False)
+        if save and hasattr(self, "save_settings"):
+            self.save_settings()
 
     def update_details_panel_selection(self):
         """Updates the status bar toggle button and refreshes details if visible."""
@@ -3412,6 +3443,9 @@ class MainWindow(QMainWindow):
                 "show_progress_dialog": getattr(self, "settings", {}).get("show_progress_dialog", True),
                 "show_complete_dialog": getattr(self, "settings", {}).get("show_complete_dialog", True),
                 "show_queue_complete_dialog": getattr(self, "settings", {}).get("show_queue_complete_dialog", False),
+                "show_details_panel": self.details_panel.isVisible() if hasattr(self, "details_panel") and self.details_panel else False,
+                "details_panel_tab": self.details_panel.stacked_widget.currentIndex() if hasattr(self, "details_panel") and hasattr(self.details_panel, "stacked_widget") else 0,
+                "table_details_splitter_sizes": self.table_details_splitter.sizes() if hasattr(self, "table_details_splitter") and self.table_details_splitter else [],
                 "status_bar_items": {
                     "memory": self.action_sb_memory.isChecked() if hasattr(self, "action_sb_memory") else True,
                     "aria2": self.action_sb_aria2.isChecked() if hasattr(self, "action_sb_aria2") else False,
@@ -3808,6 +3842,8 @@ class MainWindow(QMainWindow):
         settings["show_progress_dialog"] = settings.get("show_progress_dialog", True)
         settings["show_complete_dialog"] = settings.get("show_complete_dialog", True)
         settings["show_queue_complete_dialog"] = settings.get("show_queue_complete_dialog", False)
+        settings["show_details_panel"] = settings.get("show_details_panel", False)
+        settings["details_panel_tab"] = settings.get("details_panel_tab", 0)
         settings["precheck_delete_files_from_disk"] = settings.get("precheck_delete_files_from_disk", False)
         self.precheck_delete_files_from_disk = settings["precheck_delete_files_from_disk"]
 

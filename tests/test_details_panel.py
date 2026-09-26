@@ -183,3 +183,51 @@ def test_main_window_details_integration(qapp, monkeypatch):
     win.close()
 
 
+def test_details_panel_persistence(qapp, monkeypatch, tmp_path):
+    """Test that closing and reopening the app remembers the panel's open/closed state, active tab, and sizes."""
+    config_dir = str(tmp_path / "bengal_config")
+    import os
+    os.makedirs(config_dir, exist_ok=True)
+
+    monkeypatch.setattr("core.utils.get_config_dir", lambda: config_dir)
+    monkeypatch.setattr("ui.main_window.get_config_dir", lambda: config_dir)
+
+    from ui.main_window import MainWindow
+
+    # 1. Open app, panel starts closed by default
+    win1 = MainWindow(start_ipc=False)
+    win1.show()
+    assert not win1.details_panel.isVisible()
+
+    # 2. User opens details panel, switches to Progress tab (index 1)
+    win1.show_details_panel()
+    win1.details_panel.switch_tab(1)
+    assert win1.details_panel.isVisible()
+    assert win1.details_panel.stacked_widget.currentIndex() == 1
+
+    # Save settings and close app
+    win1.save_settings()
+    win1.close()
+
+    # 3. Reopen app: panel must restore to open state and Progress tab
+    win2 = MainWindow(start_ipc=False)
+    win2.show()
+    assert win2.details_panel.isVisible()
+    assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
+    assert win2.details_panel.stacked_widget.currentIndex() == 1
+
+    # 4. User closes details panel
+    win2.hide_details_panel()
+    assert not win2.details_panel.isVisible()
+    win2.save_settings()
+    win2.close()
+
+    # 5. Reopen app: panel must restore to closed state
+    win3 = MainWindow(start_ipc=False)
+    win3.show()
+    assert not win3.details_panel.isVisible()
+    assert win3.btn_details_toggle.lbl_arrow.text() == "▲"
+    win3.close()
+
+
+
