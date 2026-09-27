@@ -543,14 +543,14 @@ class DetailsPanel(QFrame):
         metrics_row.addStretch(1)
 
         self.prog_speed_label = QLabel("0 B/s", self)
-        self.prog_speed_label.setMinimumWidth(110)
+        self.prog_speed_label.setFixedWidth(100)
         self.prog_speed_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         apply_tnum_font(self.prog_speed_label, point_size=10, bold=True)
         metrics_row.addWidget(self.prog_speed_label)
 
         self.prog_eta_label = QLabel("ETA --", self)
-        self.prog_eta_label.setMinimumWidth(140)
-        self.prog_eta_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.prog_eta_label.setFixedWidth(140)
+        self.prog_eta_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         apply_tnum_font(self.prog_eta_label, point_size=10)
         metrics_row.addWidget(self.prog_eta_label)
 
