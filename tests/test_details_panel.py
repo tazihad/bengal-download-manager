@@ -328,6 +328,7 @@ def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, t
 def test_eliding_widgets_and_long_filename(qapp):
     """Verify ElidingLabel and ElidingButton truncate text without expanding minimum size."""
     from ui.components.details_panel import ElidingLabel, ElidingButton, DetailsPanel
+    from core.utils import wrap_url_tooltip
     from PyQt6.QtWidgets import QSizePolicy
 
     long_title = "A" * 300 + ".mp4"
@@ -336,13 +337,14 @@ def test_eliding_widgets_and_long_filename(qapp):
 
     assert lbl.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
     assert lbl.minimumWidth() == 0
-    assert lbl.toolTip() == long_title
+    assert lbl.toolTip() == wrap_url_tooltip(long_title)
 
     # Button
     btn = ElidingButton("/very/long/path/" + "B" * 200)
     btn.resize(200, 30)
     assert btn.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
     assert btn.minimumWidth() == 0
+    assert btn.toolTip() == wrap_url_tooltip("/very/long/path/" + "B" * 200)
 
     # Panel with long filename
     panel = DetailsPanel()
@@ -360,7 +362,52 @@ def test_eliding_widgets_and_long_filename(qapp):
     # The panel should not force an enormous minimum width
     assert panel.minimumWidth() == 0
     assert panel.gen_filename_label.text() != ""
-    assert panel.gen_filename_label.toolTip() == long_title
+    assert panel.gen_filename_label.toolTip() == wrap_url_tooltip(long_title)
+    assert panel.gen_url_label.toolTip() == wrap_url_tooltip("https://example.com/" + "C" * 200)
+
+
+def test_eliding_label_copy_without_truncation(qapp):
+    """Verify selecting all and copying on ElidingLabel copies full untruncated text to clipboard."""
+    from ui.components.details_panel import ElidingLabel
+    from PyQt6.QtGui import QKeyEvent, QKeySequence
+    from PyQt6.QtCore import QEvent, Qt
+
+    full_url = "https://downloads.example.org/releases/v2.5.0/very_long_distribution_package_archive_name_x86_64.tar.gz?auth=token123456789&session=active"
+    lbl = ElidingLabel(full_url)
+    lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+    lbl.resize(250, 30)
+
+    # 1. Verify text displayed is elided / shorter than full text
+    assert lbl.text() == full_url  # internal text() returns fullText
+    assert super(ElidingLabel, lbl).text() != full_url
+    assert "…" in super(ElidingLabel, lbl).text() or "..." in super(ElidingLabel, lbl).text() or len(super(ElidingLabel, lbl).text()) < len(full_url)
+
+    # 2. Verify tooltip is wrapped with wrap_url_tooltip
+    assert "\n" in lbl.toolTip()
+    for line in lbl.toolTip().splitlines():
+        assert len(line) <= 80
+
+    # 3. Simulate Select All (Ctrl+A)
+    event_ctrl_a = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    lbl.keyPressEvent(event_ctrl_a)
+    assert lbl.hasSelectedText()
+
+    # 4. Simulate Copy (Ctrl+C)
+    event_ctrl_c = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+    lbl.keyPressEvent(event_ctrl_c)
+
+    clipboard = QApplication.clipboard()
+    assert clipboard.text() == full_url
+
+    # 5. Direct copy_selection when all visible text is selected
+    lbl.setSelection(0, len(super(ElidingLabel, lbl).text()))
+    lbl.copy_selection()
+    assert clipboard.text() == full_url
+
+    # 6. copy_selection when nothing is explicitly selected (default to full text)
+    lbl.setSelection(0, 0)
+    lbl.copy_selection()
+    assert clipboard.text() == full_url
 
 
 def test_details_panel_thumbnail_update(qapp, tmp_path):

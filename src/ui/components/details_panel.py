@@ -16,12 +16,13 @@ from urllib.parse import urlparse
 from PyQt6.QtWidgets import (
     QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QStackedWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QFileIconProvider, QSizePolicy
+    QHeaderView, QAbstractItemView, QFileIconProvider, QSizePolicy,
+    QApplication, QMenu
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QFileInfo, QRectF
-from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush, QPalette, QPixmap
+from PyQt6.QtGui import QFont, QPainter, QColor, QPen, QBrush, QPalette, QPixmap, QKeySequence
 
-from core.utils import format_bytes, show_in_folder, load_proxy_config, open_file_generic
+from core.utils import format_bytes, show_in_folder, load_proxy_config, open_file_generic, wrap_url_tooltip
 from core.services.theme_service import get_file_icon
 
 
@@ -196,11 +197,12 @@ class ElidingLabel(QLabel):
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.setMinimumWidth(0)
         if self._full_text:
-            self.setToolTip(self._full_text)
+            self.setToolTip(wrap_url_tooltip(self._full_text))
+        self._update_elided_text()
 
     def setText(self, text: str):
         self._full_text = text or ""
-        self.setToolTip(self._full_text)
+        self.setToolTip(wrap_url_tooltip(self._full_text))
         self._update_elided_text()
 
     def text(self) -> str:
@@ -208,6 +210,62 @@ class ElidingLabel(QLabel):
 
     def fullText(self) -> str:
         return self._full_text
+
+    def copy_selection(self):
+        """Copies full text or current selection without truncation into the clipboard."""
+        if not self._full_text:
+            return
+        displayed = super().text()
+        if self.hasSelectedText():
+            sel = self.selectedText()
+            # If all visible text is selected, or selection spans across the ellipsis
+            if sel == displayed or len(sel) >= len(displayed) or "…" in sel or "..." in sel:
+                text_to_copy = self._full_text
+            else:
+                text_to_copy = sel
+        else:
+            text_to_copy = self._full_text
+
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText(text_to_copy)
+
+    def keyPressEvent(self, event):
+        if event.matches(QKeySequence.StandardKey.Copy) or (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_C
+        ):
+            self.copy_selection()
+            event.accept()
+            return
+        if event.matches(QKeySequence.StandardKey.SelectAll) or (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_A
+        ):
+            self.setSelection(0, len(super().text()))
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event):
+        if not (self.textInteractionFlags() & (Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)):
+            super().contextMenuEvent(event)
+            return
+
+        menu = QMenu(self)
+        copy_action = menu.addAction(self.tr("Copy"))
+        copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        copy_action.triggered.connect(self.copy_selection)
+
+        if self._full_text and super().text() != self._full_text:
+            is_url = self._full_text.startswith("http://") or self._full_text.startswith("https://") or self._full_text.startswith("ftp://")
+            copy_full_label = self.tr("Copy Full URL") if is_url else self.tr("Copy Full Text")
+            copy_all_action = menu.addAction(copy_full_label)
+            copy_all_action.triggered.connect(lambda: QApplication.clipboard().setText(self._full_text) if QApplication.clipboard() else None)
+
+        select_all_action = menu.addAction(self.tr("Select All"))
+        select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
+        select_all_action.triggered.connect(lambda: self.setSelection(0, len(super().text())))
+
+        menu.exec(event.globalPos())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -234,11 +292,12 @@ class ElidingButton(QPushButton):
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         if self._full_text:
-            self.setToolTip(self._full_text)
+            self.setToolTip(wrap_url_tooltip(self._full_text))
+        self._update_elided_text()
 
     def setText(self, text: str):
         self._full_text = text or ""
-        self.setToolTip(self._full_text)
+        self.setToolTip(wrap_url_tooltip(self._full_text))
         self._update_elided_text()
 
     def text(self) -> str:
@@ -422,7 +481,7 @@ class DetailsPanel(QFrame):
 
         # Filename
         self.gen_filename_label = ElidingLabel("No download selected", self, elide_mode=Qt.TextElideMode.ElideMiddle)
-        self.gen_filename_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.gen_filename_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         f = QFont(self.gen_filename_label.font())
         f.setPointSize(12)
         f.setBold(True)
@@ -503,7 +562,7 @@ class DetailsPanel(QFrame):
         url_row.addWidget(lbl_u_icon)
 
         self.gen_url_label = ElidingLabel("--", self, elide_mode=Qt.TextElideMode.ElideRight)
-        self.gen_url_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.gen_url_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         self.gen_url_label.setStyleSheet("color: palette(window-text); font-size: 11px;")
         url_row.addWidget(self.gen_url_label, 1)
         info_layout.addLayout(url_row)
