@@ -242,27 +242,11 @@ def main():
         window.single_instance_server = single_instance_server
 
     # --- GRACEFUL EXIT & SHUTDOWN HANDLING ---
+    from core.shutdown import perform_application_shutdown
+
     def perform_cleanup():
         """Ensure all background threads, servers, and aria2 daemon are cleanly terminated."""
-        try:
-            if hasattr(window, "listener_thread") and window.listener_thread:
-                window.listener_thread.stop(timeout_ms=1500)
-                window.listener_thread = None
-        except Exception:
-            pass
-
-        try:
-            if hasattr(window, "single_instance_server") and window.single_instance_server:
-                window.single_instance_server.stop()
-                window.single_instance_server = None
-        except Exception:
-            pass
-
-        try:
-            if hasattr(window, "stop_aria2_daemon"):
-                window.stop_aria2_daemon()
-        except Exception:
-            pass
+        perform_application_shutdown(window)
 
     app.aboutToQuit.connect(perform_cleanup)
     atexit.register(perform_cleanup)
