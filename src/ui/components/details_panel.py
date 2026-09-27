@@ -58,6 +58,17 @@ def format_speed_string(speed) -> str:
     return s
 
 
+def get_active_remaining_color(palette: QPalette) -> QColor:
+    """Derives a dimmer, harmonized active-remaining tint from the accent color."""
+    hl = palette.color(QPalette.ColorRole.Highlight)
+    win = palette.color(QPalette.ColorRole.Window)
+    return QColor(
+        int(hl.red() * 0.32 + win.red() * 0.68),
+        int(hl.green() * 0.32 + win.green() * 0.68),
+        int(hl.blue() * 0.32 + win.blue() * 0.68),
+    )
+
+
 class SegmentGridWidget(QWidget):
     """
     Renders connection segments as a grid of discrete blocks.
@@ -130,12 +141,8 @@ class SegmentGridWidget(QWidget):
         # Downloaded: solid application accent color
         downloaded_color = hl
 
-        # Active remaining: harmonized blend of accent and window background
-        active_remaining_color = QColor(
-            int(hl.red() * 0.6 + win.red() * 0.4),
-            int(hl.green() * 0.6 + win.green() * 0.4),
-            int(hl.blue() * 0.6 + win.blue() * 0.4),
-        )
+        # Active remaining: dimmer harmonized tint of accent and window background
+        active_remaining_color = get_active_remaining_color(self.palette())
 
         # Dim base block (inactive/paused/pending)
         dim_remaining_color = QColor(
@@ -371,13 +378,7 @@ class DetailsPanel(QFrame):
 
     def update_palette_colors(self):
         """Updates legend indicators and segment grid blocks to match active accent color."""
-        hl = self.palette().color(QPalette.ColorRole.Highlight)
-        win = self.palette().color(QPalette.ColorRole.Window)
-        active_c = QColor(
-            int(hl.red() * 0.6 + win.red() * 0.4),
-            int(hl.green() * 0.6 + win.green() * 0.4),
-            int(hl.blue() * 0.6 + win.blue() * 0.4),
-        )
+        active_c = get_active_remaining_color(self.palette())
         if hasattr(self, "legend_sq_active") and self.legend_sq_active:
             self.legend_sq_active.setStyleSheet(f"background-color: {active_c.name()}; border-radius: 1px;")
         if hasattr(self, "legend_sq_downloaded") and self.legend_sq_downloaded:
