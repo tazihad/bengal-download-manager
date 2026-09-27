@@ -36,6 +36,28 @@ def apply_tnum_font(widget, point_size: int = 0, bold: bool = False):
     widget.setFont(font)
 
 
+def format_eta_string(time_left, is_complete: bool = False) -> str:
+    """Formats ETA string consistently to prevent horizontal shifting and alignment jitter."""
+    if is_complete or time_left is None:
+        return "ETA --"
+    s = str(time_left).strip()
+    if s in ("--", "0", "0s", "00:00:00", ""):
+        return "ETA --"
+    if s.upper().startswith("ETA"):
+        return s
+    return f"ETA {s}"
+
+
+def format_speed_string(speed) -> str:
+    """Formats speed string consistently."""
+    if speed is None:
+        return "0 B/s"
+    s = str(speed).strip()
+    if not s or s in ("--", ""):
+        return "0 B/s"
+    return s
+
+
 class SegmentGridWidget(QWidget):
     """
     Renders connection segments as a grid of discrete blocks.
@@ -508,21 +530,27 @@ class DetailsPanel(QFrame):
         metrics_row = QHBoxLayout()
         metrics_row.setSpacing(16)
 
-        self.prog_percent_label = QLabel("0.0%", self)
+        self.prog_percent_label = QLabel("0.00%", self)
+        self.prog_percent_label.setMinimumWidth(70)
         apply_tnum_font(self.prog_percent_label, point_size=13, bold=True)
         metrics_row.addWidget(self.prog_percent_label)
 
         self.prog_bytes_label = QLabel("0 B / 0 B", self)
+        self.prog_bytes_label.setMinimumWidth(160)
         apply_tnum_font(self.prog_bytes_label, point_size=10)
         metrics_row.addWidget(self.prog_bytes_label)
 
         metrics_row.addStretch(1)
 
         self.prog_speed_label = QLabel("0 B/s", self)
+        self.prog_speed_label.setMinimumWidth(110)
+        self.prog_speed_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         apply_tnum_font(self.prog_speed_label, point_size=10, bold=True)
         metrics_row.addWidget(self.prog_speed_label)
 
         self.prog_eta_label = QLabel("ETA --", self)
+        self.prog_eta_label.setMinimumWidth(140)
+        self.prog_eta_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         apply_tnum_font(self.prog_eta_label, point_size=10)
         metrics_row.addWidget(self.prog_eta_label)
 
@@ -533,14 +561,17 @@ class DetailsPanel(QFrame):
         stats_row.setSpacing(14)
 
         self.prog_segments_stat = QLabel("Segments: 0 / 8", self)
+        self.prog_segments_stat.setMinimumWidth(115)
         apply_tnum_font(self.prog_segments_stat, point_size=9, bold=True)
         stats_row.addWidget(self.prog_segments_stat)
 
         self.prog_active_stat = QLabel("Active: 0", self)
+        self.prog_active_stat.setMinimumWidth(75)
         apply_tnum_font(self.prog_active_stat, point_size=9)
         stats_row.addWidget(self.prog_active_stat)
 
         self.prog_failed_stat = QLabel("Failed: 0", self)
+        self.prog_failed_stat.setMinimumWidth(75)
         apply_tnum_font(self.prog_failed_stat, point_size=9)
         stats_row.addWidget(self.prog_failed_stat)
 
@@ -788,8 +819,8 @@ class DetailsPanel(QFrame):
         # --- 2. Update Progress Tab ---
         self.prog_percent_label.setText(f"{percent:.2f}%")
         self.prog_bytes_label.setText(f"{dl_str} / {total_str}")
-        self.prog_speed_label.setText(speed)
-        self.prog_eta_label.setText(f"ETA {time_left}")
+        self.prog_speed_label.setText(format_speed_string(speed))
+        self.prog_eta_label.setText(format_eta_string(time_left, is_complete))
 
         status_lower = status.lower()
         is_active = (
@@ -894,13 +925,12 @@ class DetailsPanel(QFrame):
             self.gen_status_label.setText(f"{int(pct)}% {status_str}")
             self.gen_size_label.setText(f"Downloaded: {dl_str} of {total_str}")
 
+            is_comp = status_str == "Complete" or pct >= 100.0
+
             self.prog_percent_label.setText(f"{pct:.2f}%")
             self.prog_bytes_label.setText(f"{dl_str} / {total_str}")
-            self.prog_speed_label.setText(speed)
-            self.prog_eta_label.setText(f"ETA {time_left}")
-
-            num_conn = self.current_download_data.get("num_connections", 8)
-            is_comp = status_str == "Complete" or pct >= 100.0
+            self.prog_speed_label.setText(format_speed_string(speed))
+            self.prog_eta_label.setText(format_eta_string(time_left, is_comp))
             is_act = not is_comp and status_str not in ["Paused", "Cancelled", "Error"]
             act_count = num_conn if is_act else 0
             comp_count = num_conn if is_comp else int(round((pct / 100.0) * num_conn))

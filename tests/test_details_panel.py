@@ -396,3 +396,40 @@ def test_details_panel_thumbnail_update(qapp, tmp_path):
     pm = panel.gen_icon_label.pixmap()
     assert pm is not None
     assert not pm.isNull()
+
+
+def test_eta_and_speed_formatting_and_alignment(qapp):
+    """Verify ETA and speed formatting and label alignments."""
+    from ui.components.details_panel import (
+        format_eta_string,
+        format_speed_string,
+        DetailsPanel,
+    )
+    from PyQt6.QtCore import Qt
+
+    # Test format_eta_string
+    assert format_eta_string("0") == "ETA --"
+    assert format_eta_string("0s") == "ETA --"
+    assert format_eta_string("--") == "ETA --"
+    assert format_eta_string("") == "ETA --"
+    assert format_eta_string(None) == "ETA --"
+    assert format_eta_string("10s", is_complete=True) == "ETA --"
+    assert format_eta_string("1 hour") == "ETA 1 hour"
+    assert format_eta_string("59 mints") == "ETA 59 mints"
+    assert format_eta_string("ETA 59 mints") == "ETA 59 mints"
+    assert format_eta_string("active") == "ETA active"
+
+    # Test format_speed_string
+    assert format_speed_string("0 B/s") == "0 B/s"
+    assert format_speed_string("") == "0 B/s"
+    assert format_speed_string("--") == "0 B/s"
+    assert format_speed_string(None) == "0 B/s"
+    assert format_speed_string("12.5 MB/s") == "12.5 MB/s"
+
+    # Test panel label alignments and minimum widths
+    panel = DetailsPanel()
+    assert panel.prog_speed_label.alignment() & Qt.AlignmentFlag.AlignRight
+    assert panel.prog_eta_label.alignment() & Qt.AlignmentFlag.AlignRight
+    assert panel.prog_speed_label.minimumWidth() >= 110
+    assert panel.prog_eta_label.minimumWidth() >= 130
+
