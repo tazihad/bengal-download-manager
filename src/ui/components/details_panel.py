@@ -213,34 +213,47 @@ class ElidingLabel(QLabel):
 
     def copy_selection(self):
         """Copies full text or current selection without truncation into the clipboard."""
-        if not self._full_text:
+        if not self._full_text or not self.hasSelectedText():
             return
-        displayed = super().text()
-        if self.hasSelectedText():
-            sel = self.selectedText()
-            # If all visible text is selected, or selection spans across the ellipsis
-            if sel == displayed or len(sel) >= len(displayed) or "…" in sel or "..." in sel:
-                text_to_copy = self._full_text
-            else:
-                text_to_copy = sel
-        else:
+        displayed = super(ElidingLabel, self).text()
+        sel = self.selectedText()
+        # If all visible text is selected, or selection spans across the ellipsis
+        if sel == displayed or len(sel) >= len(displayed) or "…" in sel or "..." in sel:
             text_to_copy = self._full_text
+        else:
+            text_to_copy = sel
 
         clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText(text_to_copy)
 
+    def copy_full_text(self):
+        """Copies the full untruncated text or URL into the clipboard."""
+        if not self._full_text:
+            return
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText(self._full_text)
+
+    def select_all(self):
+        """Selects all visible text and gives focus to the label."""
+        displayed = super(ElidingLabel, self).text()
+        if displayed:
+            self.setFocus()
+            self.setSelection(0, len(displayed))
+
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.StandardKey.Copy) or (
             event.modifiers() & Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_C
         ):
-            self.copy_selection()
+            if self.hasSelectedText():
+                self.copy_selection()
             event.accept()
             return
         if event.matches(QKeySequence.StandardKey.SelectAll) or (
             event.modifiers() & Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_A
         ):
-            self.setSelection(0, len(super().text()))
+            self.select_all()
             event.accept()
             return
         super().keyPressEvent(event)
@@ -253,17 +266,26 @@ class ElidingLabel(QLabel):
         menu = QMenu(self)
         copy_action = menu.addAction(self.tr("Copy"))
         copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        copy_action.setEnabled(self.hasSelectedText())
         copy_action.triggered.connect(self.copy_selection)
 
-        if self._full_text and super().text() != self._full_text:
-            is_url = self._full_text.startswith("http://") or self._full_text.startswith("https://") or self._full_text.startswith("ftp://")
-            copy_full_label = self.tr("Copy Full URL") if is_url else self.tr("Copy Full Text")
-            copy_all_action = menu.addAction(copy_full_label)
-            copy_all_action.triggered.connect(lambda: QApplication.clipboard().setText(self._full_text) if QApplication.clipboard() else None)
+        if self._full_text and self._full_text != "--":
+            is_url = (
+                self._full_text.startswith("http://")
+                or self._full_text.startswith("https://")
+                or self._full_text.startswith("ftp://")
+                or self._full_text.startswith("magnet:")
+                or "://" in self._full_text
+            )
+            copy_url_label = self.tr("Copy URL") if is_url else self.tr("Copy Full Text")
+            copy_all_action = menu.addAction(copy_url_label)
+            copy_all_action.triggered.connect(self.copy_full_text)
 
+        displayed = super(ElidingLabel, self).text()
         select_all_action = menu.addAction(self.tr("Select All"))
         select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
-        select_all_action.triggered.connect(lambda: self.setSelection(0, len(super().text())))
+        select_all_action.setEnabled(bool(displayed and displayed != "--"))
+        select_all_action.triggered.connect(self.select_all)
 
         menu.exec(event.globalPos())
 

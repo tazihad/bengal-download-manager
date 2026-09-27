@@ -404,10 +404,21 @@ def test_eliding_label_copy_without_truncation(qapp):
     lbl.copy_selection()
     assert clipboard.text() == full_url
 
-    # 6. copy_selection when nothing is explicitly selected (default to full text)
+    # 6. copy_selection when nothing is selected does not overwrite clipboard
+    clipboard.setText("sentinel")
     lbl.setSelection(0, 0)
+    assert not lbl.hasSelectedText()
     lbl.copy_selection()
+    assert clipboard.text() == "sentinel"
+
+    # 7. copy_full_text explicitly copies full URL
+    lbl.copy_full_text()
     assert clipboard.text() == full_url
+
+    # 8. Test select_all method
+    lbl.select_all()
+    assert lbl.hasSelectedText()
+    assert lbl.selectedText() == super(ElidingLabel, lbl).text()
 
 
 def test_details_panel_thumbnail_update(qapp, tmp_path):
