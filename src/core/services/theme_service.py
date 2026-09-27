@@ -12,6 +12,7 @@ import time
 import glob
 import configparser
 import platform
+import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, List
 
@@ -27,18 +28,8 @@ import ctypes
 if platform.system() == "Windows":
     from ctypes import wintypes
 
-# Optional GIO/GSettings for GNOME
+# GIO/GSettings availability flag (avoid eager PyGObject import to conserve memory)
 _HAS_GIO = False
-try:
-    if getattr(sys, 'frozen', False) or os.environ.get("APPIMAGE") or os.environ.get("APPDIR"):
-        os.environ["GIO_MODULE_DIR"] = "/dev/null"
-        os.environ.pop("GIO_EXTRA_MODULES", None)
-    import gi
-    gi.require_version('Gio', '2.0')
-    from gi.repository import Gio
-    _HAS_GIO = True
-except Exception:
-    _HAS_GIO = False
 
 
 def xdg_config_home() -> Path:
@@ -133,28 +124,49 @@ GNOME_ACCENT_MAP = {
 
 
 def get_gnome_accent_color() -> Optional[QColor]:
-    if not _HAS_GIO:
-        return None
-    try:
-        settings = Gio.Settings.new("org.gnome.desktop.interface")
-        keys = settings.list_keys()
-        candidates = ("accent-color", "accent-color-rgba", "gtk-color-scheme")
-        for candidate in candidates:
-            if candidate in keys:
-                val = settings.get_value(candidate).unpack() if settings.get_value(candidate) is not None else None
-                if isinstance(val, str):
-                    if val.lower() in GNOME_ACCENT_MAP:
-                        return _qcolor_from_hex(GNOME_ACCENT_MAP[val.lower()])
-                    col = _qcolor_from_hex(val)
-                    if col:
+    candidates = ("accent-color", "accent-color-rgba", "gtk-color-scheme")
+    # 1. Try querying via lightweight gsettings subprocess (zero resident Python memory overhead)
+    for candidate in candidates:
+        try:
+            res = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.interface", candidate],
+                capture_output=True,
+                text=True,
+                timeout=0.5,
+            )
+            if res.returncode == 0:
+                raw = res.stdout.strip().strip("'\"")
+                if raw:
+                    if raw.lower() in GNOME_ACCENT_MAP:
+                        return _qcolor_from_hex(GNOME_ACCENT_MAP[raw.lower()])
+                    col = _qcolor_from_hex(raw)
+                    if col and col.isValid():
                         return col
-                if isinstance(val, (list, tuple)):
-                    try:
-                        r, g, b = int(val[0]), int(val[1]), int(val[2])
-                        a = int(val[3]) if len(val) > 3 else 255
-                        return _qcolor_from_rgb_tuple((r, g, b), a)
-                    except Exception:
-                        pass
+        except Exception:
+            pass
+
+    # 2. Lazy fallback: Gio.Settings if available without forcing eager module load
+    try:
+        if "gi.repository" in sys.modules:
+            from gi.repository import Gio
+            settings = Gio.Settings.new("org.gnome.desktop.interface")
+            keys = settings.list_keys()
+            for candidate in candidates:
+                if candidate in keys:
+                    val = settings.get_value(candidate).unpack() if settings.get_value(candidate) is not None else None
+                    if isinstance(val, str):
+                        if val.lower() in GNOME_ACCENT_MAP:
+                            return _qcolor_from_hex(GNOME_ACCENT_MAP[val.lower()])
+                        col = _qcolor_from_hex(val)
+                        if col and col.isValid():
+                            return col
+                    if isinstance(val, (list, tuple)):
+                        try:
+                            r, g, b = int(val[0]), int(val[1]), int(val[2])
+                            a = int(val[3]) if len(val) > 3 else 255
+                            return _qcolor_from_rgb_tuple((r, g, b), a)
+                        except Exception:
+                            pass
     except Exception:
         pass
     return None

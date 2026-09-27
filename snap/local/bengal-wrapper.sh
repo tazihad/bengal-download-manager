@@ -25,7 +25,13 @@ export PATH="$SNAP/bin:$SNAP/usr/bin:$SNAP_APP_ROOT/assets/bin/linux/$ARCH:$SNAP
 export LD_LIBRARY_PATH="$SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH"
 
 # 2. Qt6 / Wayland / Rendering configuration
-export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
+# If the GNOME extension's desktop-launch forced 'wayland-egl', override it to 'wayland;xcb'.
+# 'wayland-egl' forces Qt6 to initialize hardware EGL/OpenGL contexts, which in turn
+# pulls in Mesa Gallium (libgallium.so) and LLVM JIT (libLLVM.so) adding ~70MB unnecessary RSS
+# for a 2D QWidget desktop application.
+if [ "$QT_QPA_PLATFORM" = "wayland-egl" ] || [ -z "$QT_QPA_PLATFORM" ]; then
+    export QT_QPA_PLATFORM="wayland;xcb"
+fi
 # QT_PLUGIN_PATH must be set before QApplication() is constructed so that
 # platform theme plugins (libqxdgdesktopportal, libqgtk3) are discoverable.
 export QT_PLUGIN_PATH="$SNAP/usr/lib/$TRIPLET/qt6/plugins:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/plugins:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
