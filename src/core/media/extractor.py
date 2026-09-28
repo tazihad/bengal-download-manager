@@ -51,6 +51,9 @@ class MediaExtractorWorker(QThread):
         referrer: Optional[str] = None,
         user_agent: Optional[str] = None,
         cookies: Optional[str] = None,
+        no_playlist: bool = False,
+        playlist_start: Optional[int] = None,
+        playlist_end: Optional[int] = None,
     ):
         super().__init__()
         self.url = sanitize_media_url(url)
@@ -59,6 +62,9 @@ class MediaExtractorWorker(QThread):
         self.referrer = referrer
         self.user_agent = user_agent
         self.cookies = cookies
+        self.no_playlist = no_playlist
+        self.playlist_start = playlist_start
+        self.playlist_end = playlist_end
         self.process = None
         self.is_running = True
         _keep_thread_alive(self)
@@ -106,12 +112,23 @@ class MediaExtractorWorker(QThread):
             cmd = [
                 yt_dlp_bin,
                 "-J",
-                "--flat-playlist",
-                "--playlist-end", "100",
+            ]
+            if self.no_playlist:
+                cmd.append("--no-playlist")
+            else:
+                cmd.append("--flat-playlist")
+                if self.playlist_start:
+                    cmd.extend(["--playlist-start", str(self.playlist_start)])
+                if self.playlist_end:
+                    cmd.extend(["--playlist-end", str(self.playlist_end)])
+                else:
+                    cmd.extend(["--playlist-end", "100"])
+
+            cmd.extend([
                 "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
                 "--extractor-args", f"youtube:player_client={yt_client}",
-            ]
+            ])
             cmd.extend(get_js_runtime_args())
             cmd.extend(get_pot_extractor_args(cfg))
 
@@ -201,13 +218,24 @@ class MediaExtractorWorker(QThread):
                     clean_cmd = [
                         yt_dlp_bin,
                         "-J",
-                        "--flat-playlist",
-                        "--playlist-end", "100",
+                    ]
+                    if self.no_playlist:
+                        clean_cmd.append("--no-playlist")
+                    else:
+                        clean_cmd.append("--flat-playlist")
+                        if self.playlist_start:
+                            clean_cmd.extend(["--playlist-start", str(self.playlist_start)])
+                        if self.playlist_end:
+                            clean_cmd.extend(["--playlist-end", str(self.playlist_end)])
+                        else:
+                            clean_cmd.extend(["--playlist-end", "100"])
+
+                    clean_cmd.extend([
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
                         "--extractor-args", f"youtube:player_client={yt_client}",
                         "--add-header", "Accept-Language:en-US,en;q=0.9",
-                    ]
+                    ])
                     clean_cmd.extend(get_js_runtime_args())
                     clean_cmd.extend(get_pot_extractor_args(cfg))
                     if ffmpeg_bin:

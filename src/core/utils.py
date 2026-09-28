@@ -1958,8 +1958,8 @@ def sanitize_media_url(data: str) -> str:
             if "v" in qs or "shorts" in parsed.path:
                 if "list" in qs:
                     lists = qs["list"]
-                    # RD = YouTube Radio/Mix, UL = User Uploads Mix, PU = Popular Uploads Mix, WL = Watch Later
-                    if any(l.startswith("RD") or l.startswith("UL") or l.startswith("PU") or l == "WL" for l in lists):
+                    # WL = Watch Later (private / auth-only)
+                    if any(l == "WL" for l in lists):
                         del qs["list"]
                 qs.pop("start_radio", None)
                 qs.pop("pp", None)
@@ -1983,6 +1983,90 @@ def sanitize_media_url(data: str) -> str:
     except Exception:
         pass
     return raw_url
+
+
+def is_playlist_url(data: str) -> bool:
+    """Checks whether the URL contains a valid playlist identifier."""
+    if not data or not isinstance(data, str):
+        return False
+    from urllib.parse import urlparse, parse_qs
+    try:
+        parsed = urlparse(data.strip())
+        qs = parse_qs(parsed.query)
+        if "list" in qs and qs["list"]:
+            lists = qs["list"]
+            # Exclude special user-private lists that cannot be downloaded without cookies (WL = Watch Later)
+            if any(l == "WL" for l in lists):
+                return False
+            return True
+        if "/playlist" in parsed.path:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def is_mixed_media_url(data: str) -> bool:
+    """Checks whether the URL contains BOTH a video identifier and a playlist identifier."""
+    if not data or not isinstance(data, str):
+        return False
+    from urllib.parse import urlparse, parse_qs
+    try:
+        parsed = urlparse(data.strip())
+        domain = parsed.netloc.lower()
+        if "youtube.com" in domain or "youtu.be" in domain:
+            qs = parse_qs(parsed.query)
+            has_video = bool("v" in qs or "/watch" in parsed.path or "/shorts/" in parsed.path or "youtu.be" in domain)
+            has_playlist = bool("list" in qs and qs["list"])
+            if has_playlist:
+                lists = qs["list"]
+                if any(l == "WL" for l in lists):
+                    return False
+            return has_video and has_playlist
+    except Exception:
+        pass
+    return False
+
+
+def strip_playlist_from_url(data: str) -> str:
+    """Strips playlist parameters from a mixed URL, returning the pure single video URL."""
+    if not data or not isinstance(data, str):
+        return ""
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    try:
+        parsed = urlparse(data.strip())
+        qs = parse_qs(parsed.query, keep_blank_values=True)
+        qs.pop("list", None)
+        qs.pop("index", None)
+        clean_query = urlencode(qs, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, clean_query, parsed.fragment))
+    except Exception:
+        return data
+
+
+def extract_playlist_id(data: str) -> str:
+    """Extracts the playlist ID string from a playlist URL."""
+    if not data or not isinstance(data, str):
+        return ""
+    from urllib.parse import urlparse, parse_qs
+    try:
+        parsed = urlparse(data.strip())
+        qs = parse_qs(parsed.query)
+        if "list" in qs and qs["list"]:
+            return qs["list"][0]
+    except Exception:
+        pass
+    return ""
+
+
+def extract_playlist_from_url(data: str) -> str:
+    """Returns the canonical playlist URL from a mixed or playlist URL."""
+    pl_id = extract_playlist_id(data)
+    if pl_id:
+        if pl_id.startswith("RD"):
+            return data
+        return f"https://www.youtube.com/playlist?list={pl_id}"
+    return data
 
 
 def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) -> str:
@@ -2015,9 +2099,44 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
                 clean_base = "media"
                 break
 
-    if not ext.startswith("."):
+    if clean_base.lower().endswith(".auto"):
+        clean_base = clean_base[:-5].rstrip("_ ").strip() or "media"
+    elif clean_base.lower().endswith(".best"):
+        clean_base = clean_base[:-5].rstrip("_ ").strip() or "media"
+
+    clean_ext = (ext or "").lower().strip()
+    if not clean_ext or clean_ext in (".auto", ".best", "auto", "best"):
+        ext = ".mp4"
+    elif not ext.startswith("."):
         ext = f".{ext}"
     return f"{clean_base}{ext}"
+
+
+def sanitize_media_folder_name(name: str, max_len: int = 90) -> str:
+    """
+    Sanitize folder/directory name (such as playlist titles) to avoid filesystem errors
+    and ensure directory names never have media file extensions appended (e.g. '.mp4').
+    """
+    if not name:
+        name = "Playlist"
+    clean_base = re.sub(r'[\\/*?:"<>|]', "_", str(name)).strip()
+    clean_base = clean_base.strip(". ")
+    if not clean_base:
+        clean_base = "Playlist"
+
+    while len(clean_base.encode("utf-8")) > max_len:
+        clean_base = clean_base.encode("utf-8")[:max_len].decode("utf-8", errors="ignore").rstrip("_ .").strip()
+        if not clean_base:
+            clean_base = "Playlist"
+            break
+
+    known_exts = (".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".mp3", ".m4a", ".opus", ".flac", ".wav", ".auto", ".best")
+    for _ext in known_exts:
+        if clean_base.lower().endswith(_ext):
+            clean_base = clean_base[:-len(_ext)].rstrip("_ .").strip() or "Playlist"
+            break
+
+    return clean_base
 
 
 def get_unique_media_filepath(save_dir: str, filename: str) -> str:
@@ -2027,7 +2146,13 @@ def get_unique_media_filepath(save_dir: str, filename: str) -> str:
     yt-dlp from skipping downloads when re-downloading different qualities of the same media.
     """
     base_name, ext = os.path.splitext(filename)
-    if not ext:
+    if base_name.lower().endswith(".auto"):
+        base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+    elif base_name.lower().endswith(".best"):
+        base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+
+    clean_ext = (ext or "").lower().strip()
+    if not clean_ext or clean_ext in (".auto", ".best", "auto", "best"):
         ext = ".mp4"
 
     media_exts = [ext, ".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"]

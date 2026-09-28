@@ -6759,6 +6759,9 @@ class MainWindow(QMainWindow):
         size_str=None,
         size_is_approximate=False,
         thumbnail_url=None,
+        queue_name="Main download queue",
+        show_progress_dialog=None,
+        suppress_complete_dialog=False,
     ):
         from core.media_downloader import YtDlpDownloadWorker
 
@@ -6807,15 +6810,20 @@ class MainWindow(QMainWindow):
 
         from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes, is_generic_media_title
         base_name, ext = os.path.splitext(filename)
+        if base_name.lower().endswith(".auto"):
+            base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+        elif base_name.lower().endswith(".best"):
+            base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+
         if is_audio_only:
             if audio_format and audio_format not in ("auto", "best"):
                 ext = "." + audio_format
-            elif not ext or ext.lower() in ('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.ts'):
+            elif not ext or ext.lower() in ('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.ts', '.auto', '.best'):
                 ext = ".opus"
         else:
             if merge_output_format and merge_output_format not in ("auto", "best"):
                 ext = "." + merge_output_format
-            elif not ext:
+            elif not ext or ext.lower() in ('.auto', '.best'):
                 ext = ".mp4"
         is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
         is_tiktok = bool((url and "tiktok.com" in url.lower()) or (referrer and "tiktok.com" in referrer.lower()))
@@ -7044,7 +7052,8 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)
         item_name.setData(Qt.ItemDataRole.UserRole + 6, format_spec)      # for _try_start_queued
         item_name.setData(Qt.ItemDataRole.UserRole + 7, is_audio_only)    # for _try_start_queued
-        item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")  # Queue
+        item_name.setData(Qt.ItemDataRole.UserRole + 8, queue_name or "Main download queue")  # Queue
+        item_name.setData(Qt.ItemDataRole.UserRole + 28, bool(suppress_complete_dialog))
         item_name.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
         item_name.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
         item_name.setData(Qt.ItemDataRole.UserRole + 19, merge_output_format)
@@ -7124,7 +7133,10 @@ class MainWindow(QMainWindow):
 
         silent = getattr(self, "settings", {}).get("silent_download", False)
         show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
-        show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
+        if show_progress_dialog is not None:
+            show_prog = bool(show_progress_dialog)
+        else:
+            show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True) and show_start
         if (not silent) and show_prog:
             progress_dialog.show()
         else:
@@ -7321,9 +7333,10 @@ class MainWindow(QMainWindow):
                     # Determine whether to show Download Complete Dialog (IDM style: suppressed in queues by default)
                     silent = getattr(self, "settings", {}).get("silent_download", False)
                     is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
+                    suppress_complete = bool(item_ref.data(Qt.ItemDataRole.UserRole + 28)) if item_ref else False
                     show_comp = getattr(self, "settings", {}).get("show_complete_dialog", True)
                     show_q_comp = getattr(self, "settings", {}).get("show_queue_complete_dialog", False)
-                    should_show_complete = False if silent else (show_q_comp if is_queue_run else show_comp)
+                    should_show_complete = False if (silent or suppress_complete) else (show_q_comp if is_queue_run else show_comp)
 
                     if should_show_complete:
                         # Show IDM-style Download Complete Dialog

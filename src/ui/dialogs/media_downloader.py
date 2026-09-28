@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QMessageBox, QApplication, QFrame, QCheckBox,
-    QAbstractItemView, QToolButton, QToolTip, QFileDialog, QGraphicsDropShadowEffect
+    QAbstractItemView, QToolButton, QToolTip, QFileDialog, QGraphicsDropShadowEffect,
+    QRadioButton, QButtonGroup, QSpinBox, QScrollArea, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer, QPoint, QUrl
 from PyQt6.QtGui import (
@@ -26,7 +27,10 @@ from core.media_downloader import (
     BIN_DIR, DEPENDENCY_TOOLS
 )
 from core.memory_guard import MemoryGuard
-from core.utils import is_debug_mode
+from core.utils import (
+    is_debug_mode, is_playlist_url, is_mixed_media_url, strip_playlist_from_url,
+    extract_playlist_id, extract_playlist_from_url, get_user_downloads_dir
+)
 from ui.delegates import CheckableTableItemDelegate
 
 logger = logging.getLogger("bengal.dialog.media_downloader")
@@ -675,6 +679,85 @@ class MediaDownloaderOptionsHub(QFrame):
             self.dialog.btn_three_dots.set_status(None)
 
 
+class DropUpComboBox(QComboBox):
+    """
+    QComboBox that displays its dropdown list popping upwards above the widget
+    instead of downwards, ideal for bottom-aligned toolbars.
+    """
+    def showPopup(self):
+        super().showPopup()
+        popup = self.view().parentWidget() or self.findChild(QFrame)
+        if popup:
+            popup_h = popup.height()
+            top_left = self.mapToGlobal(QPoint(0, -popup_h))
+            popup.move(top_left)
+
+
+class DynamicStackedWidget(QWidget):
+    """
+    A lightweight container that mimics QStackedWidget while only calculating
+    layout and size hint for the currently visible child page.
+    This prevents hidden pages (such as playlist table) from artificially expanding
+    the container's sizeHint and forcing unnecessary scrollbars in QScrollArea.
+    """
+    currentChanged = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(0)
+        self._widgets = []
+        self._current_index = -1
+
+    def addWidget(self, widget: QWidget) -> int:
+        self._widgets.append(widget)
+        self._layout.addWidget(widget)
+        if len(self._widgets) == 1:
+            self.setCurrentIndex(0)
+        else:
+            widget.setVisible(False)
+        return len(self._widgets) - 1
+
+    def count(self) -> int:
+        return len(self._widgets)
+
+    def widget(self, idx: int) -> QWidget | None:
+        return self._widgets[idx] if 0 <= idx < len(self._widgets) else None
+
+    def currentIndex(self) -> int:
+        return self._current_index
+
+    def currentWidget(self) -> QWidget | None:
+        return self.widget(self._current_index)
+
+    def setCurrentIndex(self, idx: int):
+        if not (0 <= idx < len(self._widgets)):
+            return
+        self._current_index = idx
+        for i, w in enumerate(self._widgets):
+            w.setVisible(i == idx)
+        self.updateGeometry()
+        p = self.parentWidget()
+        if p and hasattr(p, "updateGeometry"):
+            p.updateGeometry()
+        self.currentChanged.emit(idx)
+
+    def setCurrentWidget(self, widget: QWidget):
+        if widget in self._widgets:
+            self.setCurrentIndex(self._widgets.index(widget))
+
+    def removeWidget(self, widget: QWidget):
+        if widget in self._widgets:
+            idx = self._widgets.index(widget)
+            self._widgets.remove(widget)
+            self._layout.removeWidget(widget)
+            if self._current_index >= len(self._widgets):
+                self.setCurrentIndex(len(self._widgets) - 1)
+            elif self._current_index == idx:
+                self.setCurrentIndex(min(idx, len(self._widgets) - 1))
+
+
 class MediaDownloaderDialog(QDialog):
     """
     Top-level Media Downloader Window.
@@ -689,7 +772,7 @@ class MediaDownloaderDialog(QDialog):
         self.setWindowTitle("Media Downloader")
         self.setWindowIcon(QApplication.windowIcon())
         self.resize(1000, 600)
-        self.setMinimumSize(680, 520)
+        self.setMinimumSize(640, 450)
 
         # Standalone top-level window flag
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
@@ -741,6 +824,7 @@ class MediaDownloaderDialog(QDialog):
         self.txt_url = QLineEdit()
         self.txt_url.setPlaceholderText("Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...")
         self.txt_url.setFixedHeight(34)
+        self.txt_url.setClearButtonEnabled(True)
         self.txt_url.returnPressed.connect(self.start_analysis)
         self.txt_url.textChanged.connect(self._on_url_text_changed)
         self.txt_url.setToolTip("Enter direct video URL or playlist link to analyze")
@@ -770,6 +854,9 @@ class MediaDownloaderDialog(QDialog):
         input_layout.addWidget(self.btn_three_dots)
         main_layout.addLayout(input_layout)
 
+        # Playlist Detection Banner
+        self._setup_playlist_banner(main_layout)
+
         # Popover Options Hub
         self.options_hub = MediaDownloaderOptionsHub(self)
         self.btn_update_deps = self.options_hub.btn_update_all
@@ -783,8 +870,9 @@ class MediaDownloaderDialog(QDialog):
         }
 
         # 3. Status Bar & Progress
-        self.lbl_status = QLabel("Ready")
+        self.lbl_status = QLabel("")
         self.lbl_status.setStyleSheet("color: gray;")
+        self.lbl_status.setVisible(False)
         main_layout.addWidget(self.lbl_status)
 
         self.progress_bar = AndroidProgressBar()
@@ -797,8 +885,8 @@ class MediaDownloaderDialog(QDialog):
         sep.setFrameShadow(QFrame.Shadow.Sunken)
         main_layout.addWidget(sep)
 
-        # 4. Stacked View Container
-        self.stack = QStackedWidget()
+        # 4. Stacked View Container in Scroll Area
+        self.stack = DynamicStackedWidget()
         
         page_empty = QWidget()
         empty_layout = QVBoxLayout(page_empty)
@@ -816,10 +904,33 @@ class MediaDownloaderDialog(QDialog):
         self._setup_playlist_page()
         self.stack.addWidget(self.page_playlist)
 
-        main_layout.addWidget(self.stack, stretch=1)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self.scroll_area.setWidget(self.stack)
 
-        # 5. Bottom Action Buttons
+        main_layout.addWidget(self.scroll_area, stretch=1)
+
+        # 5. Bottom Action Buttons with Queue Drop-up on Left
         btn_bar = QHBoxLayout()
+        btn_bar.setContentsMargins(0, 0, 0, 0)
+        btn_bar.setSpacing(10)
+
+        lbl_queue = QLabel("Queue:")
+        lbl_queue.setStyleSheet("font-weight: 500; font-size: 11px;")
+        self.cmb_playlist_queue = DropUpComboBox()
+        self.cmb_playlist_queue.setFixedHeight(30)
+        self.cmb_playlist_queue.setMinimumWidth(160)
+        self.cmb_playlist_queue.setMaximumWidth(220)
+        self.cmb_playlist_queue.setToolTip("Select download queue for the downloaded item(s)")
+        self.cmb_queue = self.cmb_playlist_queue
+        self._populate_playlist_queues()
+
+        btn_bar.addWidget(lbl_queue)
+        btn_bar.addWidget(self.cmb_playlist_queue)
         btn_bar.addStretch()
 
         self.btn_download = QPushButton("Download")
@@ -840,10 +951,45 @@ class MediaDownloaderDialog(QDialog):
         btn_bar.addWidget(self.btn_close)
         main_layout.addLayout(btn_bar)
 
+    def _setup_playlist_banner(self, parent_layout):
+        scope_layout = QHBoxLayout()
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.setSpacing(14)
+
+        lbl_scope = QLabel("Mode:")
+        lbl_scope.setStyleSheet("font-weight: 600; color: palette(window-text); font-size: 11px;")
+        scope_layout.addWidget(lbl_scope)
+
+        self.rad_single_video = QRadioButton("Single")
+        self.rad_single_video.setChecked(True)
+        self.rad_single_video.setToolTip("Download single media")
+        self.rad_single_video.toggled.connect(self._on_scope_radio_toggled)
+
+        self.rad_whole_playlist = QRadioButton("Playlist")
+        self.rad_whole_playlist.setEnabled(False)
+        self.rad_whole_playlist.setToolTip("No playlist detected in URL")
+        self.rad_whole_playlist.toggled.connect(self._on_scope_radio_toggled)
+
+        self.scope_group = QButtonGroup(self)
+        self.scope_group.addButton(self.rad_single_video)
+        self.scope_group.addButton(self.rad_whole_playlist)
+
+        scope_layout.addWidget(self.rad_single_video)
+        scope_layout.addWidget(self.rad_whole_playlist)
+
+        self.lbl_scope_hint = QLabel("")
+        self.lbl_scope_hint.setStyleSheet("color: palette(placeholder-text); font-size: 11px;")
+        self.lbl_banner_sub = self.lbl_scope_hint
+        scope_layout.addWidget(self.lbl_scope_hint)
+        scope_layout.addStretch()
+
+        parent_layout.addLayout(scope_layout)
+        self.playlist_banner = None
+
     def _setup_single_video_page(self):
         layout = QVBoxLayout(self.page_video)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         # 1. Hero Card: Thumbnail + Title + Metadata Badges
         hero_card = QFrame()
@@ -859,19 +1005,21 @@ class MediaDownloaderDialog(QDialog):
                 border: none;
             }
         """)
+        hero_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         hero_layout = QHBoxLayout(hero_card)
-        hero_layout.setContentsMargins(10, 10, 10, 10)
-        hero_layout.setSpacing(14)
+        hero_layout.setContentsMargins(8, 8, 8, 8)
+        hero_layout.setSpacing(12)
 
         self.lbl_thumbnail = QLabel()
-        self.lbl_thumbnail.setFixedSize(160, 90)
+        self.lbl_thumbnail.setFixedSize(120, 68)
         self.lbl_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8))
-        self.lbl_thumbnail.setStyleSheet("border-radius: 8px;")
+        self.lbl_thumbnail.setPixmap(create_thumbnail_placeholder(120, 68, radius=6))
+        self.lbl_thumbnail.setStyleSheet("border-radius: 6px;")
         hero_layout.addWidget(self.lbl_thumbnail)
 
         meta_layout = QVBoxLayout()
-        meta_layout.setSpacing(6)
+        meta_layout.setContentsMargins(0, 0, 0, 0)
+        meta_layout.setSpacing(4)
         meta_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.lbl_video_title = QLabel("Video Title")
@@ -884,6 +1032,7 @@ class MediaDownloaderDialog(QDialog):
         meta_layout.addWidget(self.lbl_video_title)
 
         chips_layout = QHBoxLayout()
+        chips_layout.setContentsMargins(0, 0, 0, 0)
         chips_layout.setSpacing(8)
 
         self.lbl_video_meta = QLabel("Uploader: Unknown | Duration: 0s")
@@ -895,16 +1044,46 @@ class MediaDownloaderDialog(QDialog):
         hero_layout.addLayout(meta_layout, stretch=1)
         layout.addWidget(hero_card)
 
-        # Row 1: Media Quality Preset + Video Format Dropdown + Audio Format Dropdown
-        preset_layout = QHBoxLayout()
+        # Media Type Selection (Video / Audio)
+        type_row = QHBoxLayout()
+        type_row.setContentsMargins(0, 0, 0, 0)
+        type_row.setSpacing(12)
+
+        lbl_type = QLabel("Type:")
+        lbl_type.setStyleSheet("font-weight: 600; color: palette(window-text); font-size: 11px;")
+        type_row.addWidget(lbl_type)
+
+        self.rad_single_type_video = QRadioButton("Video")
+        self.rad_single_type_video.setChecked(True)
+        self.rad_single_type_video.setToolTip("Download video with audio merged")
+        self.rad_single_type_video.toggled.connect(self._on_single_type_toggled)
+
+        self.rad_single_type_audio = QRadioButton("Audio")
+        self.rad_single_type_audio.setToolTip("Extract and download audio track only")
+        self.rad_single_type_audio.toggled.connect(self._on_single_type_toggled)
+
+        self.single_type_group = QButtonGroup(self)
+        self.single_type_group.addButton(self.rad_single_type_video)
+        self.single_type_group.addButton(self.rad_single_type_audio)
+
+        type_row.addWidget(self.rad_single_type_video)
+        type_row.addWidget(self.rad_single_type_audio)
+        type_row.addStretch()
+        layout.addLayout(type_row)
+
+        # Video Options Container
+        self.single_video_options_frame = QWidget()
+        preset_layout = QHBoxLayout(self.single_video_options_frame)
+        preset_layout.setContentsMargins(0, 0, 0, 0)
         preset_layout.setSpacing(8)
 
-        lbl_preset = QLabel("Preset:")
+        lbl_preset = QLabel("Quality:")
         self.cmb_quality_preset = QComboBox()
         self.cmb_quality_preset.setFixedHeight(30)
-        self.cmb_quality_preset.setToolTip("Select quality preset (auto-merges Video + Audio)")
+        self.cmb_quality_preset.setMaximumWidth(200)
+        self.cmb_quality_preset.setToolTip("Select quality (auto-merges Video + Audio)")
         self.cmb_quality_preset.addItems([
-            "Best Quality (Video + Audio merged)",
+            "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
             "2K Quad HD (1440p)",
             "1080p Full HD",
@@ -918,16 +1097,18 @@ class MediaDownloaderDialog(QDialog):
         lbl_fps = QLabel("FPS:")
         self.cmb_fps = QComboBox()
         self.cmb_fps.setFixedHeight(30)
+        self.cmb_fps.setMaximumWidth(160)
         self.cmb_fps.setToolTip("Filter video framerate (e.g. 60 fps, 30 fps)")
-        self.cmb_fps.addItem("Any FPS", 0)
+        self.cmb_fps.addItem("Auto (Best Framerate)", 0)
         self.cmb_fps.currentIndexChanged.connect(self._on_preset_changed)
 
         lbl_vfmt = QLabel("Video:")
         self.cmb_video_format = QComboBox()
         self.cmb_video_format.setFixedHeight(30)
+        self.cmb_video_format.setMaximumWidth(180)
         self.cmb_video_format.setToolTip("Filter video container / codec")
         for label, key in [
-            ("Any Format (Default)", "any"),
+            ("Auto (Best Video Codec)", "any"),
             ("MP4 (H.264 / AVC)", "h264"),
             ("WebM (VP9)", "webm"),
             ("AV1 Codec", "av1")
@@ -938,9 +1119,10 @@ class MediaDownloaderDialog(QDialog):
         lbl_afmt = QLabel("Audio:")
         self.cmb_audio_format = QComboBox()
         self.cmb_audio_format.setFixedHeight(30)
+        self.cmb_audio_format.setMaximumWidth(180)
         self.cmb_audio_format.setToolTip("Filter audio container / codec")
         for label, key in [
-            ("Any Format (Default)", "any"),
+            ("Auto (Best Audio Codec)", "any"),
             ("M4A (AAC Audio)", "m4a"),
             ("Opus (WebM Audio)", "opus"),
             ("MP3 Audio", "mp3")
@@ -949,29 +1131,83 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_audio_format.currentIndexChanged.connect(self._on_preset_changed)
 
         preset_layout.addWidget(lbl_preset)
-        preset_layout.addWidget(self.cmb_quality_preset, stretch=3)
+        preset_layout.addWidget(self.cmb_quality_preset)
         preset_layout.addWidget(lbl_fps)
-        preset_layout.addWidget(self.cmb_fps, stretch=2)
+        preset_layout.addWidget(self.cmb_fps)
         preset_layout.addWidget(lbl_vfmt)
-        preset_layout.addWidget(self.cmb_video_format, stretch=2)
+        preset_layout.addWidget(self.cmb_video_format)
         preset_layout.addWidget(lbl_afmt)
-        preset_layout.addWidget(self.cmb_audio_format, stretch=2)
-        layout.addLayout(preset_layout)
+        preset_layout.addWidget(self.cmb_audio_format)
+        preset_layout.addStretch()
+        layout.addWidget(self.single_video_options_frame)
 
-        # Row 2: Checkboxes for Manual Selection Mode & Preferences Persistence
+        # Audio Options Container
+        self.single_audio_options_frame = QWidget()
+        s_a_layout = QHBoxLayout(self.single_audio_options_frame)
+        s_a_layout.setContentsMargins(0, 0, 0, 0)
+        s_a_layout.setSpacing(8)
+
+        lbl_s_afmt = QLabel("Audio Format:")
+        self.cmb_single_audio_format = QComboBox()
+        self.cmb_single_audio_format.setFixedHeight(30)
+        self.cmb_single_audio_format.setMaximumWidth(240)
+        for label, val in [
+            ("Auto (Best / Native Stream)", "best"),
+            ("MP3 Audio (MPEG-1 Layer 3)", "mp3"),
+            ("M4A (AAC Audio)", "m4a"),
+            ("Opus (WebM High-Efficiency Audio)", "opus"),
+            ("FLAC (Free Lossless Audio)", "flac"),
+            ("WAV (Uncompressed PCM)", "wav"),
+            ("Ogg (Vorbis Audio)", "ogg"),
+            ("ALAC (Apple Lossless)", "alac"),
+        ]:
+            self.cmb_single_audio_format.addItem(label, val)
+
+        lbl_s_aquality = QLabel("Quality / Bitrate:")
+        self.cmb_single_audio_quality = QComboBox()
+        self.cmb_single_audio_quality.setFixedHeight(30)
+        self.cmb_single_audio_quality.setMaximumWidth(240)
+        for label, val in [
+            ("Best Quality (320 kbps CBR / VBR 0)", "320"),
+            ("256 kbps (High Quality)", "256"),
+            ("192 kbps (Standard Quality)", "192"),
+            ("128 kbps (Compact Audio)", "128"),
+            ("Native Source Bitrate", "auto")
+        ]:
+            self.cmb_single_audio_quality.addItem(label, val)
+
+        self.chk_single_embed_art = QCheckBox("Embed Artwork")
+        self.chk_single_embed_art.setChecked(True)
+        self.chk_single_embed_art.setToolTip("Embed album cover artwork into downloaded audio tracks")
+
+        self.chk_single_embed_id3 = QCheckBox("Embed ID3 Tags")
+        self.chk_single_embed_id3.setChecked(True)
+        self.chk_single_embed_id3.setToolTip("Embed ID3 metadata (Artist, Album, Track number) into audio files")
+
+        s_a_layout.addWidget(lbl_s_afmt)
+        s_a_layout.addWidget(self.cmb_single_audio_format)
+        s_a_layout.addWidget(lbl_s_aquality)
+        s_a_layout.addWidget(self.cmb_single_audio_quality)
+        s_a_layout.addWidget(self.chk_single_embed_art)
+        s_a_layout.addWidget(self.chk_single_embed_id3)
+        s_a_layout.addStretch()
+        self.single_audio_options_frame.setVisible(False)
+        layout.addWidget(self.single_audio_options_frame)
+
+        # Row 2: Checkboxes for Advanced Mode & Preferences Persistence
         chk_layout = QHBoxLayout()
         chk_layout.setSpacing(15)
 
-        self.chk_manual_selection = QCheckBox("Enable Manual Stream Selection")
-        self.chk_manual_selection.setToolTip("Enable to manually select a specific video/audio format row from the table below")
+        self.chk_manual_selection = QCheckBox("Advanced Mode")
+        self.chk_manual_selection.setToolTip("Show individual audio and video streams table for advanced format selection")
         self.chk_manual_selection.toggled.connect(self._on_manual_selection_toggled)
 
         self.chk_auto_start_browser = QCheckBox("Auto-start from extension")
         self.chk_auto_start_browser.setToolTip("Automatically start downloading media links sent from the browser extension using preselected quality")
         self.chk_auto_start_browser.toggled.connect(self._on_auto_start_browser_toggled)
 
-        self.chk_save_defaults = QCheckBox("Remember Preset")
-        self.chk_save_defaults.setToolTip("Save current quality preset, format choices, and selection mode for future downloads")
+        self.chk_save_defaults = QCheckBox("Remember selection")
+        self.chk_save_defaults.setToolTip("Save current quality, format choices, and selection mode for future downloads")
         self.chk_save_defaults.toggled.connect(self._save_preferences_if_enabled)
 
         chk_layout.addWidget(self.chk_manual_selection)
@@ -980,10 +1216,12 @@ class MediaDownloaderDialog(QDialog):
         chk_layout.addStretch()
         layout.addLayout(chk_layout)
 
-        lbl_streams = QLabel("Available Formats & Streams (Sorted High to Low Resolution, Audio-Only at Bottom):")
-        layout.addWidget(lbl_streams)
+        self.lbl_streams = QLabel("Available Formats & Streams (Sorted High to Low Resolution, Audio-Only at Bottom):")
+        self.lbl_streams.setVisible(False)
+        layout.addWidget(self.lbl_streams)
 
         self.tbl_formats = QTableWidget()
+        self.tbl_formats.setVisible(False)
         self.tbl_formats.setColumnCount(6)
         self.tbl_formats.setHorizontalHeaderLabels(["Format ID", "Resolution", "Extension", "Codec", "Bitrate", "Size Est."])
         self.tbl_formats.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -1014,12 +1252,17 @@ class MediaDownloaderDialog(QDialog):
 
         layout.addWidget(self.tbl_formats, stretch=1)
 
+        self.video_bottom_spacer = QWidget()
+        self.video_bottom_spacer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.video_bottom_spacer.setVisible(True)
+        layout.addWidget(self.video_bottom_spacer, stretch=1)
+
     def _setup_playlist_page(self):
         layout = QVBoxLayout(self.page_playlist)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
 
-        # Playlist Hero Card
+        # 1. Playlist Hero Card
         pl_hero_card = QFrame()
         pl_hero_card.setObjectName("playlistHeroCard")
         pl_hero_card.setStyleSheet("""
@@ -1034,18 +1277,18 @@ class MediaDownloaderDialog(QDialog):
             }
         """)
         pl_hero_layout = QHBoxLayout(pl_hero_card)
-        pl_hero_layout.setContentsMargins(10, 10, 10, 10)
-        pl_hero_layout.setSpacing(14)
+        pl_hero_layout.setContentsMargins(8, 8, 8, 8)
+        pl_hero_layout.setSpacing(10)
 
         self.lbl_playlist_thumbnail = QLabel()
-        self.lbl_playlist_thumbnail.setFixedSize(160, 90)
+        self.lbl_playlist_thumbnail.setFixedSize(120, 68)
         self.lbl_playlist_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_playlist_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8, is_playlist=True))
-        self.lbl_playlist_thumbnail.setStyleSheet("border-radius: 8px;")
+        self.lbl_playlist_thumbnail.setPixmap(create_thumbnail_placeholder(120, 68, radius=6, is_playlist=True))
+        self.lbl_playlist_thumbnail.setStyleSheet("border-radius: 6px;")
         pl_hero_layout.addWidget(self.lbl_playlist_thumbnail)
 
         pl_meta_layout = QVBoxLayout()
-        pl_meta_layout.setSpacing(6)
+        pl_meta_layout.setSpacing(4)
         pl_meta_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.lbl_playlist_title = QLabel("Playlist Title")
@@ -1057,48 +1300,240 @@ class MediaDownloaderDialog(QDialog):
         self.lbl_playlist_title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         pl_meta_layout.addWidget(self.lbl_playlist_title)
 
-        ctrl_layout = QHBoxLayout()
-        ctrl_layout.setSpacing(8)
+        self.lbl_playlist_stats = QLabel("Total: 0 items")
+        self.lbl_playlist_stats.setStyleSheet("color: palette(window-text); opacity: 0.85; font-size: 11px;")
+        pl_meta_layout.addWidget(self.lbl_playlist_stats)
 
-        self.btn_select_all = QPushButton("Select All")
-        self.btn_select_all.setFixedWidth(90)
-        self.btn_select_all.clicked.connect(lambda: self._set_all_playlist_checked(True))
-
-        self.btn_deselect_all = QPushButton("Deselect All")
-        self.btn_deselect_all.setFixedWidth(90)
-        self.btn_deselect_all.clicked.connect(lambda: self._set_all_playlist_checked(False))
-
-        self.lbl_select_count = QLabel("0 of 0 items selected")
-        self.lbl_select_count.setStyleSheet("font-weight: bold; color: palette(window-text);")
-
-        ctrl_layout.addWidget(self.btn_select_all)
-        ctrl_layout.addWidget(self.btn_deselect_all)
-        ctrl_layout.addWidget(self.lbl_select_count)
-        ctrl_layout.addStretch()
-
-        pl_meta_layout.addLayout(ctrl_layout)
         pl_hero_layout.addLayout(pl_meta_layout, stretch=1)
         layout.addWidget(pl_hero_card)
 
-        pl_preset_layout = QHBoxLayout()
-        pl_preset_layout.addWidget(QLabel("Global Quality Target:"))
+        # 2. Options Card (Format, Container, Audio, Queue, Subfolder) - PLACED ABOVE TRACKS LIST
+        opts_card = QFrame()
+        opts_card.setObjectName("playlistOptionsCard")
+        opts_card.setStyleSheet("""
+            QFrame#playlistOptionsCard {
+                background-color: palette(alternate-base);
+                border: 1px solid palette(mid);
+                border-radius: 8px;
+            }
+        """)
+        opts_layout = QVBoxLayout(opts_card)
+        opts_layout.setContentsMargins(10, 6, 10, 6)
+        opts_layout.setSpacing(6)
+
+        # Mode row: Video Batch vs Audio Only
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(16)
+        lbl_mode = QLabel("Batch Mode:")
+        lbl_mode.setStyleSheet("font-weight: bold;")
+        self.rad_pl_mode_video = QRadioButton("Video Batch")
+        self.rad_pl_mode_video.setChecked(True)
+        self.rad_pl_mode_video.toggled.connect(self._on_playlist_mode_changed)
+
+        self.rad_pl_mode_audio = QRadioButton("Audio Only")
+        self.rad_pl_mode_audio.toggled.connect(self._on_playlist_mode_changed)
+
+        self.pl_mode_group = QButtonGroup(self)
+        self.pl_mode_group.addButton(self.rad_pl_mode_video)
+        self.pl_mode_group.addButton(self.rad_pl_mode_audio)
+
+        mode_row.addWidget(lbl_mode)
+        mode_row.addWidget(self.rad_pl_mode_video)
+        mode_row.addWidget(self.rad_pl_mode_audio)
+        mode_row.addStretch()
+        opts_layout.addLayout(mode_row)
+
+        # Video Options Container
+        self.pl_video_options_frame = QWidget()
+        v_layout = QHBoxLayout(self.pl_video_options_frame)
+        v_layout.setContentsMargins(0, 0, 0, 0)
+        v_layout.setSpacing(8)
+
+        lbl_v_quality = QLabel("Quality:")
         self.cmb_playlist_quality = QComboBox()
         self.cmb_playlist_quality.setFixedHeight(30)
+        self.cmb_playlist_quality.setMaximumWidth(200)
         self.cmb_playlist_quality.addItems([
-            "Best Available (Video + Audio)",
+            "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
             "2K Quad HD (1440p)",
             "1080p Full HD",
             "720p HD",
             "480p SD",
-            "Audio Only (Opus)"
+            "360p Low Quality"
         ])
-        pl_preset_layout.addWidget(self.cmb_playlist_quality, stretch=1)
-        layout.addLayout(pl_preset_layout)
 
+        lbl_v_container = QLabel("Video:")
+        self.cmb_playlist_video_container = QComboBox()
+        self.cmb_playlist_video_container.setFixedHeight(30)
+        self.cmb_playlist_video_container.setMaximumWidth(210)
+        self.cmb_playlist_video_container.setToolTip("Filter video container / codec")
+        for label, val in [
+            ("Auto (Best / Native)", "auto"),
+            ("MP4 (H.264 / AVC)", "mp4"),
+            ("MKV (Matroska)", "mkv"),
+            ("WebM (VP9)", "webm"),
+            ("AV1 Codec", "av1")
+        ]:
+            self.cmb_playlist_video_container.addItem(label, val)
+
+        lbl_v_audio = QLabel("Audio:")
+        self.cmb_playlist_audio_codec = QComboBox()
+        self.cmb_playlist_audio_codec.setFixedHeight(30)
+        self.cmb_playlist_audio_codec.setMaximumWidth(180)
+        for label, val in [
+            ("Auto (Best Audio Codec)", "any"),
+            ("M4A (AAC Audio)", "m4a"),
+            ("Opus (WebM Audio)", "opus"),
+            ("MP3 Audio", "mp3")
+        ]:
+            self.cmb_playlist_audio_codec.addItem(label, val)
+
+        v_layout.addWidget(lbl_v_quality)
+        v_layout.addWidget(self.cmb_playlist_quality)
+        v_layout.addWidget(lbl_v_container)
+        v_layout.addWidget(self.cmb_playlist_video_container)
+        v_layout.addWidget(lbl_v_audio)
+        v_layout.addWidget(self.cmb_playlist_audio_codec)
+        v_layout.addStretch()
+        opts_layout.addWidget(self.pl_video_options_frame)
+
+        # Audio Options Container
+        self.pl_audio_options_frame = QWidget()
+        a_layout = QHBoxLayout(self.pl_audio_options_frame)
+        a_layout.setContentsMargins(0, 0, 0, 0)
+        a_layout.setSpacing(8)
+
+        lbl_a_fmt = QLabel("Audio Format:")
+        self.cmb_playlist_audio_format = QComboBox()
+        self.cmb_playlist_audio_format.setFixedHeight(30)
+        self.cmb_playlist_audio_format.setMaximumWidth(240)
+        for label, val in [
+            ("Auto (Best / Native Stream)", "best"),
+            ("MP3 Audio (MPEG-1 Layer 3)", "mp3"),
+            ("M4A (AAC Audio)", "m4a"),
+            ("Opus (WebM High-Efficiency Audio)", "opus"),
+            ("FLAC (Free Lossless Audio)", "flac"),
+            ("WAV (Uncompressed PCM)", "wav"),
+            ("Ogg (Vorbis Audio)", "ogg"),
+            ("ALAC (Apple Lossless)", "alac"),
+        ]:
+            self.cmb_playlist_audio_format.addItem(label, val)
+        self.cmb_playlist_audio_format.currentIndexChanged.connect(self._update_playlist_selection_count)
+
+        lbl_a_quality = QLabel("Quality / Bitrate:")
+        self.cmb_playlist_audio_quality = QComboBox()
+        self.cmb_playlist_audio_quality.setFixedHeight(30)
+        self.cmb_playlist_audio_quality.setMaximumWidth(240)
+        for label, val in [
+            ("Best Quality (320 kbps CBR / VBR 0)", "320"),
+            ("256 kbps (High Quality)", "256"),
+            ("192 kbps (Standard Quality)", "192"),
+            ("128 kbps (Compact Audio)", "128"),
+            ("Native Source Bitrate", "auto")
+        ]:
+            self.cmb_playlist_audio_quality.addItem(label, val)
+
+        self.chk_playlist_embed_art = QCheckBox("Embed Artwork")
+        self.chk_playlist_embed_art.setChecked(True)
+        self.chk_playlist_embed_art.setToolTip("Embed album cover artwork into downloaded audio tracks")
+
+        self.chk_playlist_embed_id3 = QCheckBox("Embed ID3 Tags")
+        self.chk_playlist_embed_id3.setChecked(True)
+        self.chk_playlist_embed_id3.setToolTip("Embed ID3 metadata (Artist, Album, Track number) into audio files")
+
+        a_layout.addWidget(lbl_a_fmt)
+        a_layout.addWidget(self.cmb_playlist_audio_format)
+        a_layout.addWidget(lbl_a_quality)
+        a_layout.addWidget(self.cmb_playlist_audio_quality)
+        a_layout.addWidget(self.chk_playlist_embed_art)
+        a_layout.addWidget(self.chk_playlist_embed_id3)
+        a_layout.addStretch()
+        self.pl_audio_options_frame.setVisible(False)
+        opts_layout.addWidget(self.pl_audio_options_frame)
+
+        # Subfolder & Numbering Row
+        chk_sub_row = QHBoxLayout()
+        chk_sub_row.setSpacing(12)
+
+        self.chk_playlist_subfolder = QCheckBox("Create dedicated playlist subfolder")
+        self.chk_playlist_subfolder.setChecked(True)
+        self.chk_playlist_subfolder.setToolTip("Save all tracks inside a dedicated subfolder named after the playlist")
+
+        self.chk_playlist_numbering = QCheckBox("Prefix filenames with track order (e.g. 01 - Song)")
+        self.chk_playlist_numbering.setChecked(True)
+        self.chk_playlist_numbering.setToolTip("Preserve album track ordering by prefixing track numbers")
+
+        chk_sub_row.addWidget(self.chk_playlist_subfolder)
+        chk_sub_row.addWidget(self.chk_playlist_numbering)
+        chk_sub_row.addStretch()
+        opts_layout.addLayout(chk_sub_row)
+
+        layout.addWidget(opts_card)
+
+        # 3. Range & Selection Toolbar - PLACED DIRECTLY ABOVE TABLE
+        ctrl_card = QFrame()
+        ctrl_card.setObjectName("playlistCtrlCard")
+        ctrl_layout = QHBoxLayout(ctrl_card)
+        ctrl_layout.setContentsMargins(6, 4, 6, 4)
+        ctrl_layout.setSpacing(8)
+
+        lbl_range = QLabel("Range:")
+        self.spn_range_start = QSpinBox()
+        self.spn_range_start.setRange(1, 1000)
+        self.spn_range_start.setValue(1)
+        self.spn_range_start.setFixedWidth(55)
+
+        lbl_to = QLabel("to")
+        self.spn_range_end = QSpinBox()
+        self.spn_range_end.setRange(1, 1000)
+        self.spn_range_end.setValue(100)
+        self.spn_range_end.setFixedWidth(55)
+
+        self.btn_apply_range = QPushButton("Apply Range")
+        self.btn_apply_range.clicked.connect(self._apply_playlist_range)
+
+        self.btn_select_all = QPushButton("Select All")
+        self.btn_select_all.setFixedWidth(85)
+        self.btn_select_all.clicked.connect(lambda: self._set_all_playlist_checked(True))
+
+        self.btn_deselect_all = QPushButton("Deselect All")
+        self.btn_deselect_all.setFixedWidth(85)
+        self.btn_deselect_all.clicked.connect(lambda: self._set_all_playlist_checked(False))
+
+        self.btn_invert_selection = QPushButton("Invert")
+        self.btn_invert_selection.setFixedWidth(70)
+        self.btn_invert_selection.clicked.connect(self._invert_playlist_selection)
+
+        self.txt_playlist_search = QLineEdit()
+        self.txt_playlist_search.setPlaceholderText("Filter tracks...")
+        self.txt_playlist_search.setClearButtonEnabled(True)
+        self.txt_playlist_search.setFixedWidth(160)
+        self.txt_playlist_search.textChanged.connect(self._filter_playlist_table)
+
+        self.lbl_select_count = QLabel("0 of 0 items selected")
+        self.lbl_select_count.setStyleSheet("font-weight: bold; color: palette(window-text);")
+
+        ctrl_layout.addWidget(lbl_range)
+        ctrl_layout.addWidget(self.spn_range_start)
+        ctrl_layout.addWidget(lbl_to)
+        ctrl_layout.addWidget(self.spn_range_end)
+        ctrl_layout.addWidget(self.btn_apply_range)
+        ctrl_layout.addWidget(self.btn_select_all)
+        ctrl_layout.addWidget(self.btn_deselect_all)
+        ctrl_layout.addWidget(self.btn_invert_selection)
+        ctrl_layout.addWidget(self.txt_playlist_search)
+        ctrl_layout.addStretch()
+        ctrl_layout.addWidget(self.lbl_select_count)
+        layout.addWidget(ctrl_card)
+
+        # 4. Table Checklist - PLACED AT THE BOTTOM
         self.tbl_playlist = QTableWidget()
         self.tbl_playlist.setColumnCount(4)
         self.tbl_playlist.setHorizontalHeaderLabels(["Select", "#", "Title", "Duration"])
+        self.tbl_playlist.verticalHeader().setVisible(False)
+        self.tbl_playlist.verticalHeader().setDefaultSectionSize(28)
+        self.tbl_playlist.setMinimumHeight(160)
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -1113,6 +1548,36 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.setFont(font_pl_tbl)
 
         layout.addWidget(self.tbl_playlist, stretch=1)
+
+    def _populate_playlist_queues(self):
+        """Populates the playlist queue combo box with user-defined and default queues."""
+        if not hasattr(self, "cmb_playlist_queue"):
+            return
+        self.cmb_playlist_queue.blockSignals(True)
+        self.cmb_playlist_queue.clear()
+        queue_names = []
+        try:
+            from core.database import get_all_queues
+            db_queues = get_all_queues() or []
+            queue_names = [q.get("name") for q in db_queues if isinstance(q, dict) and q.get("name")]
+        except Exception:
+            pass
+
+        if self.main_win and hasattr(self.main_win, "_queues_data") and self.main_win._queues_data:
+            for q in self.main_win._queues_data:
+                qn = q.get("name") if isinstance(q, dict) else str(q)
+                if qn and qn not in queue_names:
+                    queue_names.append(qn)
+
+        if "Main download queue" not in queue_names:
+            queue_names.insert(0, "Main download queue")
+        else:
+            queue_names.remove("Main download queue")
+            queue_names.insert(0, "Main download queue")
+
+        self.cmb_playlist_queue.addItems(queue_names)
+        self.cmb_playlist_queue.setCurrentText("Main download queue")
+        self.cmb_playlist_queue.blockSignals(False)
 
     def _toggle_options_hub(self):
         if self.options_hub.isVisible():
@@ -1223,6 +1688,7 @@ class MediaDownloaderDialog(QDialog):
                     pass
         self._finish_loading()
         self.lbl_status.setText("Analysis cancelled.")
+        self.lbl_status.setVisible(True)
 
     def _get_cookies_args(self):
         """Resolves cookies configuration from caller context or persistent application options."""
@@ -1277,19 +1743,31 @@ class MediaDownloaderDialog(QDialog):
         self.btn_analyze.setToolTip("Stop ongoing link analysis")
         self.progress_bar.setVisible(True)
         self.lbl_status.setText("Analyzing link...")
+        self.lbl_status.setVisible(True)
 
         c_browser, c_file = self._get_cookies_args()
         effective_cookies = getattr(self, "_cookies", None) if not c_file else None
         if is_debug_mode():
             logger.debug("[MediaDialog] Starting link analysis: url=%s, c_browser=%s, c_file=%s, referrer=%s",
                          url, c_browser, c_file, getattr(self, "_referrer", None))
+
+        # Determine whether to probe as single video or playlist
+        force_playlist = False
+        if hasattr(self, "rad_whole_playlist") and self.rad_whole_playlist.isChecked():
+            force_playlist = True
+        elif is_playlist_url(url) and not is_mixed_media_url(url):
+            force_playlist = True
+
+        no_playlist = not force_playlist
+
         self._worker = MediaExtractorWorker(
             url,
             cookies_browser=c_browser,
             cookies_file=c_file,
             referrer=getattr(self, "_referrer", None),
             user_agent=getattr(self, "_user_agent", None),
-            cookies=effective_cookies
+            cookies=effective_cookies,
+            no_playlist=no_playlist
         )
         self._worker.status_signal.connect(self._on_status_msg)
         self._worker.single_video_analyzed.connect(self._on_single_video_ready)
@@ -1299,6 +1777,7 @@ class MediaDownloaderDialog(QDialog):
 
     def _on_status_msg(self, msg: str):
         self.lbl_status.setText(msg)
+        self.lbl_status.setVisible(True)
 
     def _on_single_video_ready(self, data: dict):
         self._finish_loading()
@@ -1414,10 +1893,10 @@ class MediaDownloaderDialog(QDialog):
             if isinstance(image_or_pixmap, QImage):
                 if not image_or_pixmap.isNull():
                     pm = QPixmap.fromImage(image_or_pixmap)
-                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pm, 160, 90, radius=8))
+                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pm, 120, 68, radius=6))
             elif isinstance(image_or_pixmap, QPixmap):
                 if not image_or_pixmap.isNull():
-                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 160, 90, radius=8))
+                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 120, 68, radius=6))
 
     def _update_preset_availability(self, data: dict):
         formats = data.get("formats", [])
@@ -1425,7 +1904,7 @@ class MediaDownloaderDialog(QDialog):
         has_audio = any(fmt.get("is_audio") for fmt in formats)
 
         preset_items = [
-            ("Best Quality (Video + Audio merged)", True),
+            ("Auto (Best Quality)", True),
             ("4K Ultra HD (2160p)", any(h >= 2160 for h in available_heights)),
             ("2K Quad HD (1440p)", any(h >= 1440 for h in available_heights)),
             ("1080p Full HD", any(h >= 1080 for h in available_heights)),
@@ -1460,7 +1939,7 @@ class MediaDownloaderDialog(QDialog):
         curr_fps = self.cmb_fps.currentData() if hasattr(self, "cmb_fps") else 0
         self.cmb_fps.blockSignals(True)
         self.cmb_fps.clear()
-        self.cmb_fps.addItem("Any FPS (Default)", 0)
+        self.cmb_fps.addItem("Auto (Best Framerate)", 0)
         fps_to_select = 0
         for fps_val in available_fps:
             self.cmb_fps.addItem(f"{fps_val} fps", fps_val)
@@ -1477,7 +1956,7 @@ class MediaDownloaderDialog(QDialog):
         has_av1 = any("av01" in (f.get("vcodec") or "").lower() or "av1" in (f.get("vcodec") or "").lower() for f in formats if f.get("is_video"))
 
         v_items = [
-            ("Any Format (Default)", "any", True),
+            ("Auto (Best Video Codec)", "any", True),
             ("MP4 (H.264 / AVC)", "h264", has_h264),
             ("WebM (VP9)", "webm", has_webm_vp9),
             ("AV1 Codec", "av1", has_av1),
@@ -1522,7 +2001,7 @@ class MediaDownloaderDialog(QDialog):
         has_mp3 = any("mp3" in (f.get("acodec") or "").lower() or f.get("ext") == "mp3" for f in formats if f.get("is_audio"))
 
         a_items = [
-            ("Any Format (Default)", "any", True),
+            ("Auto (Best Audio Codec)", "any", True),
             ("M4A (AAC Audio)", "m4a", has_m4a),
             ("Opus (WebM Audio)", "opus", has_opus),
             ("MP3 Audio", "mp3", has_mp3),
@@ -1547,7 +2026,7 @@ class MediaDownloaderDialog(QDialog):
 
     def _reset_preset_labels(self):
         preset_items = [
-            "Best Quality (Video + Audio merged)",
+            "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
             "2K Quad HD (1440p)",
             "1080p Full HD",
@@ -1573,12 +2052,12 @@ class MediaDownloaderDialog(QDialog):
         if hasattr(self, "cmb_fps"):
             self.cmb_fps.blockSignals(True)
             self.cmb_fps.clear()
-            self.cmb_fps.addItem("Any FPS (Default)", 0)
+            self.cmb_fps.addItem("Auto (Best Framerate)", 0)
             self.cmb_fps.blockSignals(False)
 
         if hasattr(self, "cmb_video_format"):
             v_items = [
-                ("Any Format (Default)", "any"),
+                ("Auto (Best Video Codec)", "any"),
                 ("MP4 (H.264 / AVC)", "h264"),
                 ("WebM (VP9)", "webm"),
                 ("AV1 Codec", "av1"),
@@ -1597,7 +2076,7 @@ class MediaDownloaderDialog(QDialog):
 
         if hasattr(self, "cmb_audio_format"):
             a_items = [
-                ("Any Format (Default)", "any"),
+                ("Auto (Best Audio Codec)", "any"),
                 ("M4A (AAC Audio)", "m4a"),
                 ("Opus (WebM Audio)", "opus"),
                 ("MP3 Audio", "mp3"),
@@ -1624,8 +2103,18 @@ class MediaDownloaderDialog(QDialog):
                          data.get("title"), data.get("total_items"), len(data.get("entries", [])))
 
         title = data.get("title", "Playlist")
-        total = data.get("total_items", 0)
+        total = data.get("total_items") or len(data.get("entries", []))
         self.lbl_playlist_title.setText(f"{title} ({total} items)")
+        if hasattr(self, "lbl_playlist_stats"):
+            self.lbl_playlist_stats.setText(f"Total: {total} items")
+        if hasattr(self, "lbl_banner_sub"):
+            self.lbl_banner_sub.setText(f"{title} • {total} items")
+
+        if hasattr(self, "spn_range_start") and hasattr(self, "spn_range_end"):
+            self.spn_range_start.setRange(1, max(1, total))
+            self.spn_range_end.setRange(1, max(1, total))
+            self.spn_range_start.setValue(1)
+            self.spn_range_end.setValue(total)
 
         entries = data.get("entries", [])
         self.tbl_playlist.setRowCount(0)
@@ -1638,8 +2127,8 @@ class MediaDownloaderDialog(QDialog):
             chk_item.setCheckState(Qt.CheckState.Checked)
             self.tbl_playlist.setItem(row_idx, 0, chk_item)
 
-            self.tbl_playlist.setItem(row_idx, 1, QTableWidgetItem(str(entry["index"])))
-            self.tbl_playlist.setItem(row_idx, 2, QTableWidgetItem(str(entry["title"])))
+            self.tbl_playlist.setItem(row_idx, 1, QTableWidgetItem(str(entry.get("index", row_idx + 1))))
+            self.tbl_playlist.setItem(row_idx, 2, QTableWidgetItem(str(entry.get("title", f"Track {row_idx + 1}"))))
 
             dur_sec = int(entry.get("duration") or 0)
             dur_str = f"{dur_sec // 60}:{dur_sec % 60:02d}" if dur_sec else "-"
@@ -1685,18 +2174,126 @@ class MediaDownloaderDialog(QDialog):
             if isinstance(image_or_pixmap, QImage):
                 if not image_or_pixmap.isNull():
                     pm = QPixmap.fromImage(image_or_pixmap)
-                    self.lbl_playlist_thumbnail.setPixmap(make_rounded_thumbnail(pm, 160, 90, radius=8))
+                    self.lbl_playlist_thumbnail.setPixmap(make_rounded_thumbnail(pm, 120, 68, radius=6))
             elif isinstance(image_or_pixmap, QPixmap):
                 if not image_or_pixmap.isNull():
-                    self.lbl_playlist_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 160, 90, radius=8))
+                    self.lbl_playlist_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 120, 68, radius=6))
 
     def _on_url_text_changed(self, text: str):
+        from core.utils import is_mixed_media_url, is_playlist_url, extract_playlist_id
+        clean_text = text.strip()
+        has_pl = is_playlist_url(clean_text)
+        is_mixed = is_mixed_media_url(clean_text)
+
+        if hasattr(self, "rad_whole_playlist"):
+            if is_mixed:
+                self.rad_single_video.setEnabled(True)
+                self.rad_whole_playlist.setEnabled(True)
+                self.rad_whole_playlist.setToolTip("Download the entire playlist batch")
+                self.rad_single_video.setChecked(True)
+                pl_id = extract_playlist_id(clean_text)
+                if hasattr(self, "lbl_scope_hint"):
+                    self.lbl_scope_hint.setText(f"Playlist detected ({pl_id})" if pl_id else "Playlist detected")
+            elif has_pl:
+                self.rad_single_video.setEnabled(False)
+                self.rad_whole_playlist.setEnabled(True)
+                self.rad_whole_playlist.setToolTip("Download the entire playlist batch")
+                self.rad_whole_playlist.setChecked(True)
+                pl_id = extract_playlist_id(clean_text)
+                if hasattr(self, "lbl_scope_hint"):
+                    self.lbl_scope_hint.setText(f"Playlist detected ({pl_id})" if pl_id else "Playlist detected")
+            else:
+                self.rad_single_video.setEnabled(True)
+                self.rad_single_video.setChecked(True)
+                self.rad_whole_playlist.setEnabled(False)
+                self.rad_whole_playlist.setToolTip("No playlist detected in this URL")
+                if hasattr(self, "lbl_scope_hint"):
+                    self.lbl_scope_hint.setText("")
+
         self._current_video_data = None
         self._current_playlist_data = None
         self.btn_download.setEnabled(False)
         self.btn_download.setText("Download")
         self._reset_preset_labels()
         self.stack.setCurrentIndex(0)
+
+    def _on_scope_radio_toggled(self):
+        if not hasattr(self, "rad_whole_playlist"):
+            return
+        is_playlist = self.rad_whole_playlist.isChecked()
+
+        if is_playlist:
+            if self._current_playlist_data:
+                self.stack.setCurrentWidget(self.page_playlist)
+                self._update_playlist_selection_count()
+            elif self._current_video_data:
+                self.start_analysis()
+        else:
+            if self._current_video_data:
+                self.stack.setCurrentWidget(self.page_video)
+                self.btn_download.setEnabled(True)
+                is_audio = hasattr(self, "rad_single_type_audio") and self.rad_single_type_audio.isChecked()
+                self.btn_download.setText("Download Audio" if is_audio else "Download")
+            elif self._current_playlist_data:
+                self.start_analysis()
+
+    def _on_single_type_toggled(self):
+        if not hasattr(self, "rad_single_type_audio"):
+            return
+        is_audio = self.rad_single_type_audio.isChecked()
+        self.single_audio_options_frame.setVisible(is_audio)
+        self.single_video_options_frame.setVisible(not is_audio)
+        self.btn_download.setText("Download Audio" if is_audio else "Download")
+        if is_audio:
+            if hasattr(self, "tbl_formats") and self._current_video_data:
+                target_row = self._find_audio_only_row()
+                self.tbl_formats.selectRow(target_row)
+        else:
+            if hasattr(self, "cmb_quality_preset") and self.cmb_quality_preset.currentIndex() == 7:
+                self.cmb_quality_preset.setCurrentIndex(0)
+            self._on_preset_changed()
+        self.stack.updateGeometry()
+
+    def _on_playlist_mode_changed(self):
+        is_audio = self.rad_pl_mode_audio.isChecked()
+        self.pl_audio_options_frame.setVisible(is_audio)
+        self.pl_video_options_frame.setVisible(not is_audio)
+        self._update_playlist_selection_count()
+
+    def _apply_playlist_range(self):
+        start = self.spn_range_start.value()
+        end = self.spn_range_end.value()
+        if start > end:
+            start, end = end, start
+            self.spn_range_start.setValue(start)
+            self.spn_range_end.setValue(end)
+
+        self.tbl_playlist.blockSignals(True)
+        for r in range(self.tbl_playlist.rowCount()):
+            idx = r + 1
+            chk = self.tbl_playlist.item(r, 0)
+            if chk:
+                chk.setCheckState(Qt.CheckState.Checked if (start <= idx <= end) else Qt.CheckState.Unchecked)
+        self.tbl_playlist.blockSignals(False)
+        self._update_playlist_selection_count()
+
+    def _invert_playlist_selection(self):
+        self.tbl_playlist.blockSignals(True)
+        for r in range(self.tbl_playlist.rowCount()):
+            chk = self.tbl_playlist.item(r, 0)
+            if chk:
+                new_state = Qt.CheckState.Unchecked if (chk.checkState() == Qt.CheckState.Checked) else Qt.CheckState.Checked
+                chk.setCheckState(new_state)
+        self.tbl_playlist.blockSignals(False)
+        self._update_playlist_selection_count()
+
+    def _filter_playlist_table(self, query: str):
+        q = (query or "").lower().strip()
+        for r in range(self.tbl_playlist.rowCount()):
+            title_item = self.tbl_playlist.item(r, 2)
+            title_text = title_item.text().lower() if title_item else ""
+            matches = not q or q in title_text
+            self.tbl_playlist.setRowHidden(r, not matches)
 
     def _on_analysis_failed(self, error_msg: str):
         if is_debug_mode():
@@ -1708,6 +2305,7 @@ class MediaDownloaderDialog(QDialog):
         self.btn_download.setText("Download")
         self.stack.setCurrentIndex(0)
         self.lbl_status.setText(f"Analysis failed: {error_msg}")
+        self.lbl_status.setVisible(True)
         if self.isVisible():
             QMessageBox.critical(self, "Extraction Error", f"Failed to analyze URL:\n{error_msg}")
 
@@ -1718,7 +2316,8 @@ class MediaDownloaderDialog(QDialog):
         self.btn_paste.setEnabled(True)
         self.txt_url.setEnabled(True)
         self.progress_bar.setVisible(False)
-        self.lbl_status.setText("Analysis finished.")
+        self.lbl_status.setText("")
+        self.lbl_status.setVisible(False)
 
     def _on_preset_changed(self, idx: int = 0):
         self._save_preferences_if_enabled()
@@ -1729,6 +2328,10 @@ class MediaDownloaderDialog(QDialog):
             return
 
         preset_idx = self.cmb_quality_preset.currentIndex()
+        if preset_idx == 7 and hasattr(self, "rad_single_type_audio"):
+            self.rad_single_type_audio.setChecked(True)
+            return
+
         fps_target = self.cmb_fps.currentData() if hasattr(self, "cmb_fps") else 0
         target_height = 0
         if preset_idx == 1: target_height = 2160
@@ -1752,7 +2355,16 @@ class MediaDownloaderDialog(QDialog):
             self.cmb_fps.setEnabled(not checked)
         self.cmb_video_format.setEnabled(not checked)
         self.cmb_audio_format.setEnabled(not checked)
+        if hasattr(self, "cmb_single_audio_format"):
+            self.cmb_single_audio_format.setEnabled(not checked)
+        if hasattr(self, "cmb_single_audio_quality"):
+            self.cmb_single_audio_quality.setEnabled(not checked)
         self.tbl_formats.setEnabled(checked)
+        self.tbl_formats.setVisible(checked)
+        if hasattr(self, "lbl_streams"):
+            self.lbl_streams.setVisible(checked)
+        if hasattr(self, "video_bottom_spacer"):
+            self.video_bottom_spacer.setVisible(not checked)
         if not checked:
             self.tbl_formats.clearSelection()
         elif self.tbl_formats.rowCount() > 0 and len(self.tbl_formats.selectedItems()) == 0:
@@ -1855,6 +2467,11 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_video_format.setEnabled(not use_manual)
         self.cmb_audio_format.setEnabled(not use_manual)
         self.tbl_formats.setEnabled(use_manual)
+        self.tbl_formats.setVisible(use_manual)
+        if hasattr(self, "lbl_streams"):
+            self.lbl_streams.setVisible(use_manual)
+        if hasattr(self, "video_bottom_spacer"):
+            self.video_bottom_spacer.setVisible(not use_manual)
         if not use_manual:
             self.tbl_formats.clearSelection()
 
@@ -1910,14 +2527,20 @@ class MediaDownloaderDialog(QDialog):
                     else:
                         return (fmt["format_id"], False, "mkv")
 
+        # Dedicated Audio type mode
+        if hasattr(self, "rad_single_type_audio") and self.rad_single_type_audio.isChecked():
+            audio_fmt = (self.cmb_single_audio_format.currentData() or "best").lower() if hasattr(self, "cmb_single_audio_format") else "best"
+            ext = audio_fmt if audio_fmt not in ("best", "auto") else "mp3"
+            return ("bestaudio/best", True, ext)
+
         preset_idx = self.cmb_quality_preset.currentIndex()
         v_key = self.cmb_video_format.currentData() or "any"
         a_key = self.cmb_audio_format.currentData() or "any"
         fps_target = self.cmb_fps.currentData() if hasattr(self, "cmb_fps") else 0
 
-        # Audio-only preset
+        # Audio-only preset fallback
         if preset_idx == 7:
-            return ("bestaudio/best", True, "mkv")
+            return ("bestaudio/best", True, "mp3")
 
         height_limit = None
         if preset_idx == 1: height_limit = 2160     # 4K
@@ -1941,11 +2564,11 @@ class MediaDownloaderDialog(QDialog):
         else:
             try:
                 from core.config import load_category_config as _lcfg
-                _mdefaults = _lcfg().get("media_downloader_defaults", {})
-                _vc_cfg = _mdefaults.get("video_container", "MKV (default)")
+                _mdefaults = _lcfg().get("media_downloader_defaults", {}) or {}
+                _vc_cfg = _mdefaults.get("video_container", "Auto (Best / Native) (Default)")
                 output_container = _vc_cfg.split()[0].lower()
             except Exception:
-                output_container = "mkv"
+                output_container = "auto"
 
         fps_filter = f"[fps<={fps_target}]" if fps_target and fps_target > 0 else ""
 
@@ -1970,11 +2593,12 @@ class MediaDownloaderDialog(QDialog):
         return (format_spec, False, output_container)
 
     def _get_playlist_format_spec(self) -> tuple[str, bool]:
-        """Returns format spec for playlist items based on global playlist quality dropdown."""
+        """Returns format spec for playlist items based on playlist options."""
+        if hasattr(self, "rad_pl_mode_audio") and self.rad_pl_mode_audio.isChecked():
+            return ("bestaudio/best", True)
+
         idx = self.cmb_playlist_quality.currentIndex()
-        if idx == 0:
-            return ("bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best", False)
-        elif idx == 1:
+        if idx == 1:
             return ("bestvideo[height<=2160]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best", False)
         elif idx == 2:
             return ("bestvideo[height<=1440]+bestaudio[ext=m4a]/bestvideo[height<=1440]+bestaudio/best", False)
@@ -1985,7 +2609,7 @@ class MediaDownloaderDialog(QDialog):
         elif idx == 5:
             return ("bestvideo[height<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best", False)
         elif idx == 6:
-            return ("bestaudio/best", True)
+            return ("bestvideo[height<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best", False)
 
         return ("bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best", False)
 
@@ -2026,16 +2650,24 @@ class MediaDownloaderDialog(QDialog):
             format_spec, is_audio_only, output_container = self._get_single_video_format_spec()
 
             from core.utils import sanitize_media_filename
+            audio_fmt = None
             if is_audio_only:
-                try:
-                    from core.config import load_category_config as _lcfg
-                    _mdefaults = _lcfg().get("media_downloader_defaults", {})
-                    _af_cfg = _mdefaults.get("audio_format", "Opus (default)")
-                    ext = "." + _af_cfg.split()[0].lower()
-                except Exception:
-                    ext = ".opus"
+                if hasattr(self, "rad_single_type_audio") and self.rad_single_type_audio.isChecked():
+                    audio_fmt = (self.cmb_single_audio_format.currentData() or "best").lower() if hasattr(self, "cmb_single_audio_format") else "best"
+                    ext = f".{audio_fmt}" if audio_fmt not in ("auto", "best", "") else ".mp3"
+                else:
+                    try:
+                        from core.config import load_category_config as _lcfg
+                        _mdefaults = _lcfg().get("media_downloader_defaults", {})
+                        _af_cfg = _mdefaults.get("audio_format", "Opus (default)")
+                        audio_fmt = _af_cfg.split()[0].lower() if _af_cfg else "opus"
+                        ext = f".{audio_fmt}" if audio_fmt not in ("auto", "best", "") else ".mp3"
+                    except Exception:
+                        audio_fmt = "opus"
+                        ext = ".opus"
             else:
-                ext = f".{output_container}"
+                _c_ext = (output_container or "mp4").lower()
+                ext = f".{_c_ext}" if _c_ext not in ("auto", "best", "") else ".mp4"
 
             preset_idx = self.cmb_quality_preset.currentIndex()
             target_height = None
@@ -2190,6 +2822,7 @@ class MediaDownloaderDialog(QDialog):
                 if is_debug_mode():
                     logger.debug("[MediaDialog] Triggering start_media_download: filename=%s, format=%s, audio_only=%s, total_size=%s",
                                  filename, format_spec, is_audio_only, total_size_bytes)
+                chosen_queue = (self.cmb_playlist_queue.currentText().strip() or "Main download queue") if hasattr(self, "cmb_playlist_queue") else "Main download queue"
                 try:
                     mw.start_media_download(
                         url=webpage_url,
@@ -2204,7 +2837,9 @@ class MediaDownloaderDialog(QDialog):
                         show_file_info=True,
                         cookies=getattr(self, "_cookies", None),
                         merge_output_format=output_container,
-                        thumbnail_url=thumb_url
+                        audio_format=audio_fmt,
+                        thumbnail_url=thumb_url,
+                        queue_name=chosen_queue
                     )
                 except TypeError:
                     try:
@@ -2219,7 +2854,9 @@ class MediaDownloaderDialog(QDialog):
                             referrer=getattr(self, "_referrer", None),
                             user_agent=getattr(self, "_user_agent", None),
                             show_file_info=True,
-                            merge_output_format=output_container
+                            merge_output_format=output_container,
+                            audio_format=audio_fmt,
+                            queue_name=chosen_queue
                         )
                     except TypeError:
                         mw.start_media_download(
@@ -2248,6 +2885,42 @@ class MediaDownloaderDialog(QDialog):
             from core.utils import sanitize_media_filename
             enqueued = 0
 
+            # Determine audio format or video container
+            audio_fmt = None
+            merge_container = None
+            if is_audio_only:
+                audio_fmt = (self.cmb_playlist_audio_format.currentData() or "mp3").lower()
+                ext = f".{audio_fmt}" if audio_fmt not in ("auto", "best", "") else ".mp3"
+            else:
+                merge_container = (self.cmb_playlist_video_container.currentData() or "mp4").lower()
+                if merge_container in ("auto", "best", ""):
+                    try:
+                        from core.config import load_category_config as _lcfg
+                        _mdefaults = _lcfg().get("media_downloader_defaults", {}) or {}
+                        _vc_cfg = _mdefaults.get("video_container", "Auto (Best / Native) (Default)")
+                        _cand = _vc_cfg.split()[0].lower() if _vc_cfg else ""
+                        merge_container = _cand if _cand not in ("auto", "best", "") else "mp4"
+                    except Exception:
+                        merge_container = "mp4"
+                ext = f".{merge_container}" if merge_container not in ("auto", "best", "") else ".mp4"
+
+            # Determine custom playlist subfolder if enabled
+            custom_save_dir = None
+            if hasattr(self, "chk_playlist_subfolder") and self.chk_playlist_subfolder.isChecked():
+                pl_raw_title = self._current_playlist_data.get("title") or "Playlist"
+                from core.utils import sanitize_media_folder_name
+                safe_pl_title = sanitize_media_folder_name(pl_raw_title)
+                default_parent = mw.get_default_download_directory("music" if is_audio_only else "video") if hasattr(mw, "get_default_download_directory") else None
+                if not default_parent:
+                    default_parent = os.path.expanduser(f"~/Downloads/{'Music' if is_audio_only else 'Video'}")
+                custom_save_dir = os.path.join(default_parent, safe_pl_title)
+                try:
+                    os.makedirs(custom_save_dir, exist_ok=True)
+                except Exception:
+                    custom_save_dir = None
+
+            prefix_numbering = getattr(self, "chk_playlist_numbering", None) and self.chk_playlist_numbering.isChecked()
+
             pl_idx = self.cmb_playlist_quality.currentIndex()
             pl_h = None
             if pl_idx == 1: pl_h = 2160
@@ -2255,6 +2928,7 @@ class MediaDownloaderDialog(QDialog):
             elif pl_idx == 3: pl_h = 1080
             elif pl_idx == 4: pl_h = 720
             elif pl_idx == 5: pl_h = 480
+            elif pl_idx == 6: pl_h = 360
 
             for r in range(self.tbl_playlist.rowCount()):
                 chk_item = self.tbl_playlist.item(r, 0)
@@ -2267,7 +2941,6 @@ class MediaDownloaderDialog(QDialog):
                         m_yt = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", item_url)
                         if m_yt:
                             item_id = m_yt.group(1)
-                    ext = ".opus" if is_audio_only else ".mkv"
 
                     is_yt_item = ("youtube.com" in item_url.lower() or "youtu.be" in item_url.lower() or
                                   entry.get("extractor", "").lower() == "youtube" or
@@ -2279,38 +2952,68 @@ class MediaDownloaderDialog(QDialog):
                         else:
                             h_tag = f" [{pl_h}p]" if pl_h else ""
                             yt_item_title = f"{item_title} [{item_id}]{h_tag}"
-                        filename = sanitize_media_filename(yt_item_title, ext=ext)
+                        raw_name = yt_item_title
                     else:
-                        filename = sanitize_media_filename(item_title, ext=ext)
+                        raw_name = item_title
+
+                    if prefix_numbering:
+                        raw_name = f"{r+1:02d} - {raw_name}"
+
+                    filename = sanitize_media_filename(raw_name, ext=ext)
 
                     if hasattr(mw, "start_media_download"):
+                        chosen_queue = (self.cmb_playlist_queue.currentText().strip() or "Main download queue") if hasattr(self, "cmb_playlist_queue") else "Main download queue"
                         if is_debug_mode():
-                            logger.debug("[MediaDialog] Enqueueing playlist item [%d/%d]: filename=%s, url=%s",
-                                         r + 1, len(entries), filename, item_url)
+                            logger.debug("[MediaDialog] Enqueueing playlist item [%d/%d]: filename=%s, url=%s, queue=%s",
+                                         r + 1, len(entries), filename, item_url, chosen_queue)
                         try:
                             mw.start_media_download(
                                 url=item_url,
                                 filename=filename,
                                 format_spec=format_spec,
                                 is_audio_only=is_audio_only,
+                                custom_save_dir=custom_save_dir,
                                 cookies_browser=c_browser,
                                 cookies_file=c_file,
                                 referrer=getattr(self, "_referrer", None),
                                 user_agent=getattr(self, "_user_agent", None),
                                 cookies=getattr(self, "_cookies", None),
-                                thumbnail_url=entry.get("thumbnail")
+                                merge_output_format=merge_container,
+                                audio_format=audio_fmt,
+                                thumbnail_url=entry.get("thumbnail"),
+                                queue_name=chosen_queue,
+                                show_progress_dialog=False,
+                                suppress_complete_dialog=True
                             )
                         except TypeError:
-                            mw.start_media_download(
-                                url=item_url,
-                                filename=filename,
-                                format_spec=format_spec,
-                                is_audio_only=is_audio_only,
-                                cookies_browser=c_browser,
-                                cookies_file=c_file,
-                                referrer=getattr(self, "_referrer", None),
-                                user_agent=getattr(self, "_user_agent", None)
-                            )
+                            try:
+                                mw.start_media_download(
+                                    url=item_url,
+                                    filename=filename,
+                                    format_spec=format_spec,
+                                    is_audio_only=is_audio_only,
+                                    custom_save_dir=custom_save_dir,
+                                    cookies_browser=c_browser,
+                                    cookies_file=c_file,
+                                    referrer=getattr(self, "_referrer", None),
+                                    user_agent=getattr(self, "_user_agent", None),
+                                    cookies=getattr(self, "_cookies", None),
+                                    merge_output_format=merge_container,
+                                    audio_format=audio_fmt,
+                                    thumbnail_url=entry.get("thumbnail")
+                                )
+                            except TypeError:
+                                mw.start_media_download(
+                                    url=item_url,
+                                    filename=filename,
+                                    format_spec=format_spec,
+                                    is_audio_only=is_audio_only,
+                                    custom_save_dir=custom_save_dir,
+                                    cookies_browser=c_browser,
+                                    cookies_file=c_file,
+                                    referrer=getattr(self, "_referrer", None),
+                                    user_agent=getattr(self, "_user_agent", None)
+                                )
                     else:
                         mw.process_incoming_url(item_url)
                     enqueued += 1
