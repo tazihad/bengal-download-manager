@@ -1022,6 +1022,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_preset = QLabel("Quality:")
         self.cmb_quality_preset = QComboBox()
         self.cmb_quality_preset.setFixedHeight(30)
+        self.cmb_quality_preset.setMaximumWidth(200)
         self.cmb_quality_preset.setToolTip("Select quality (auto-merges Video + Audio)")
         self.cmb_quality_preset.addItems([
             "Auto (Best Quality)",
@@ -1038,6 +1039,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_fps = QLabel("FPS:")
         self.cmb_fps = QComboBox()
         self.cmb_fps.setFixedHeight(30)
+        self.cmb_fps.setMaximumWidth(160)
         self.cmb_fps.setToolTip("Filter video framerate (e.g. 60 fps, 30 fps)")
         self.cmb_fps.addItem("Auto (Best Framerate)", 0)
         self.cmb_fps.currentIndexChanged.connect(self._on_preset_changed)
@@ -1045,6 +1047,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_vfmt = QLabel("Video:")
         self.cmb_video_format = QComboBox()
         self.cmb_video_format.setFixedHeight(30)
+        self.cmb_video_format.setMaximumWidth(180)
         self.cmb_video_format.setToolTip("Filter video container / codec")
         for label, key in [
             ("Auto (Best Video Codec)", "any"),
@@ -1058,6 +1061,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_afmt = QLabel("Audio:")
         self.cmb_audio_format = QComboBox()
         self.cmb_audio_format.setFixedHeight(30)
+        self.cmb_audio_format.setMaximumWidth(180)
         self.cmb_audio_format.setToolTip("Filter audio container / codec")
         for label, key in [
             ("Auto (Best Audio Codec)", "any"),
@@ -1069,13 +1073,14 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_audio_format.currentIndexChanged.connect(self._on_preset_changed)
 
         preset_layout.addWidget(lbl_preset)
-        preset_layout.addWidget(self.cmb_quality_preset, stretch=3)
+        preset_layout.addWidget(self.cmb_quality_preset)
         preset_layout.addWidget(lbl_fps)
-        preset_layout.addWidget(self.cmb_fps, stretch=2)
+        preset_layout.addWidget(self.cmb_fps)
         preset_layout.addWidget(lbl_vfmt)
-        preset_layout.addWidget(self.cmb_video_format, stretch=2)
+        preset_layout.addWidget(self.cmb_video_format)
         preset_layout.addWidget(lbl_afmt)
-        preset_layout.addWidget(self.cmb_audio_format, stretch=2)
+        preset_layout.addWidget(self.cmb_audio_format)
+        preset_layout.addStretch()
         layout.addLayout(preset_layout)
 
         # Row 2: Checkboxes for Advanced Mode & Preferences Persistence
@@ -1236,6 +1241,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_v_quality = QLabel("Quality:")
         self.cmb_playlist_quality = QComboBox()
         self.cmb_playlist_quality.setFixedHeight(30)
+        self.cmb_playlist_quality.setMaximumWidth(200)
         self.cmb_playlist_quality.addItems([
             "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
@@ -1249,6 +1255,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_v_container = QLabel("Container:")
         self.cmb_playlist_video_container = QComboBox()
         self.cmb_playlist_video_container.setFixedHeight(30)
+        self.cmb_playlist_video_container.setMaximumWidth(210)
         for label, val in [
             ("MP4 (H.264 / AVC - Universal)", "mp4"),
             ("MKV (Matroska)", "mkv"),
@@ -1261,6 +1268,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_v_audio = QLabel("Audio:")
         self.cmb_playlist_audio_codec = QComboBox()
         self.cmb_playlist_audio_codec.setFixedHeight(30)
+        self.cmb_playlist_audio_codec.setMaximumWidth(180)
         for label, val in [
             ("Auto (Best Audio Codec)", "any"),
             ("M4A (AAC Audio)", "m4a"),
@@ -1270,11 +1278,12 @@ class MediaDownloaderDialog(QDialog):
             self.cmb_playlist_audio_codec.addItem(label, val)
 
         v_layout.addWidget(lbl_v_quality)
-        v_layout.addWidget(self.cmb_playlist_quality, stretch=3)
+        v_layout.addWidget(self.cmb_playlist_quality)
         v_layout.addWidget(lbl_v_container)
-        v_layout.addWidget(self.cmb_playlist_video_container, stretch=2)
+        v_layout.addWidget(self.cmb_playlist_video_container)
         v_layout.addWidget(lbl_v_audio)
-        v_layout.addWidget(self.cmb_playlist_audio_codec, stretch=2)
+        v_layout.addWidget(self.cmb_playlist_audio_codec)
+        v_layout.addStretch()
         opts_layout.addWidget(self.pl_video_options_frame)
 
         # Audio Options Container
@@ -1286,6 +1295,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_a_fmt = QLabel("Audio Format:")
         self.cmb_playlist_audio_format = QComboBox()
         self.cmb_playlist_audio_format.setFixedHeight(30)
+        self.cmb_playlist_audio_format.setMaximumWidth(240)
         for label, val in [
             ("Auto (Best / Native Stream)", "best"),
             ("MP3 Audio (MPEG-1 Layer 3)", "mp3"),
@@ -1302,6 +1312,7 @@ class MediaDownloaderDialog(QDialog):
         lbl_a_quality = QLabel("Quality / Bitrate:")
         self.cmb_playlist_audio_quality = QComboBox()
         self.cmb_playlist_audio_quality.setFixedHeight(30)
+        self.cmb_playlist_audio_quality.setMaximumWidth(240)
         for label, val in [
             ("Best Quality (320 kbps CBR / VBR 0)", "320"),
             ("256 kbps (High Quality)", "256"),
@@ -1320,11 +1331,12 @@ class MediaDownloaderDialog(QDialog):
         self.chk_playlist_embed_id3.setToolTip("Embed ID3 metadata (Artist, Album, Track number) into audio files")
 
         a_layout.addWidget(lbl_a_fmt)
-        a_layout.addWidget(self.cmb_playlist_audio_format, stretch=3)
+        a_layout.addWidget(self.cmb_playlist_audio_format)
         a_layout.addWidget(lbl_a_quality)
-        a_layout.addWidget(self.cmb_playlist_audio_quality, stretch=2)
+        a_layout.addWidget(self.cmb_playlist_audio_quality)
         a_layout.addWidget(self.chk_playlist_embed_art)
         a_layout.addWidget(self.chk_playlist_embed_id3)
+        a_layout.addStretch()
         self.pl_audio_options_frame.setVisible(False)
         opts_layout.addWidget(self.pl_audio_options_frame)
 
@@ -1336,6 +1348,7 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_playlist_queue = QComboBox()
         self.cmb_playlist_queue.setFixedHeight(28)
         self.cmb_playlist_queue.setMinimumWidth(160)
+        self.cmb_playlist_queue.setMaximumWidth(220)
         self._populate_playlist_queues()
 
         self.chk_playlist_subfolder = QCheckBox("Create dedicated playlist subfolder")
@@ -2080,7 +2093,7 @@ class MediaDownloaderDialog(QDialog):
                 self.rad_single_video.setEnabled(True)
                 self.rad_whole_playlist.setEnabled(True)
                 self.rad_whole_playlist.setToolTip("Download the entire playlist batch")
-                self.rad_whole_playlist.setChecked(True)
+                self.rad_single_video.setChecked(True)
                 pl_id = extract_playlist_id(clean_text)
                 if hasattr(self, "lbl_scope_hint"):
                     self.lbl_scope_hint.setText(f"Playlist detected ({pl_id})" if pl_id else "Playlist detected")
