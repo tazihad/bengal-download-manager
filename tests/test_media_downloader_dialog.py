@@ -91,9 +91,11 @@ def test_scope_radio_buttons_behavior(qapp):
     dlg.show()
     qapp.processEvents()
 
-    # Both radio buttons are permanently part of UI
+    # Both radio buttons are permanently part of UI with concise wording
     assert hasattr(dlg, "rad_single_video")
     assert hasattr(dlg, "rad_whole_playlist")
+    assert dlg.rad_single_video.text() == "Single"
+    assert dlg.rad_whole_playlist.text() == "Playlist"
 
     # Initial state (empty URL): single video checked, playlist disabled
     assert dlg.rad_single_video.isChecked()
@@ -253,9 +255,9 @@ def test_single_video_auto_extension_resolution(qapp, monkeypatch):
     assert not filename.endswith(".best"), f"Filename should not end with .best: {filename}"
     assert filename.endswith(".mp4"), f"Filename should end with .mp4: {filename}"
 
-    # 3. Audio-only with Auto format
+    # 3. Audio-only with Auto format (via preset or radio button)
     captured_calls.clear()
-    dlg.cmb_quality_preset.setCurrentIndex(7)  # Audio Only
+    dlg.rad_single_type_audio.setChecked(True)
     qapp.processEvents()
     dlg._on_download_clicked()
     assert len(captured_calls) == 1
@@ -264,5 +266,61 @@ def test_single_video_auto_extension_resolution(qapp, monkeypatch):
     assert not audio_fn.endswith(".auto"), f"Audio filename should not end with .auto: {audio_fn}"
     assert not audio_fn.endswith(".best"), f"Audio filename should not end with .best: {audio_fn}"
     assert audio_fn.endswith(".mp3") or audio_fn.endswith(".opus"), f"Audio filename should have audio ext: {audio_fn}"
+    assert captured_calls[0].get("queue_name") == "Main download queue"
 
     dlg.close()
+
+
+def test_single_video_type_switching_and_dropup_queue(qapp):
+    """
+    Verifies:
+    1. Single video page has dedicated Video and Audio radio buttons.
+    2. Toggling Video shows video options and hides audio options.
+    3. Toggling Audio shows audio options and hides video options.
+    4. Queue selector is a DropUpComboBox in bottom toolbar, used for both single and playlist downloads.
+    """
+    from ui.dialogs.media_downloader import MediaDownloaderDialog, DropUpComboBox
+
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    # 1. DropUpComboBox in bottom-left toolbar
+    assert hasattr(dlg, "cmb_playlist_queue")
+    assert isinstance(dlg.cmb_playlist_queue, DropUpComboBox)
+    assert dlg.cmb_queue == dlg.cmb_playlist_queue
+
+    # 2. Switch to single video page
+    dlg.stack.setCurrentWidget(dlg.page_video)
+    qapp.processEvents()
+
+    assert hasattr(dlg, "rad_single_type_video")
+    assert hasattr(dlg, "rad_single_type_audio")
+    assert dlg.rad_single_type_video.isChecked()
+    assert not dlg.rad_single_type_audio.isChecked()
+    assert dlg.single_video_options_frame.isVisible()
+    assert not dlg.single_audio_options_frame.isVisible()
+    assert dlg.btn_download.text() == "Download"
+
+    # 3. Switch to Audio type
+    dlg.rad_single_type_audio.setChecked(True)
+    qapp.processEvents()
+
+    assert not dlg.rad_single_type_video.isChecked()
+    assert dlg.rad_single_type_audio.isChecked()
+    assert not dlg.single_video_options_frame.isVisible()
+    assert dlg.single_audio_options_frame.isVisible()
+    assert dlg.btn_download.text() == "Download Audio"
+
+    # 4. Switch back to Video type
+    dlg.rad_single_type_video.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.rad_single_type_video.isChecked()
+    assert not dlg.rad_single_type_audio.isChecked()
+    assert dlg.single_video_options_frame.isVisible()
+    assert not dlg.single_audio_options_frame.isVisible()
+    assert dlg.btn_download.text() == "Download"
+
+    dlg.close()
+
