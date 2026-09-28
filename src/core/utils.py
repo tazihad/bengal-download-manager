@@ -64,6 +64,10 @@ def format_bytes(size: float, precision: int = 2) -> str:
     return f"{s:.{precision}f} {units[idx]}"
 
 
+# Re-export size and time parsing helpers from categories domain
+from core.categories import parse_size_to_bytes, parse_time_to_sec
+
+
 def get_process_memory() -> int:
     """
     Returns current process resident set size (RSS) memory in bytes.
