@@ -6810,15 +6810,20 @@ class MainWindow(QMainWindow):
 
         from core.utils import sanitize_media_filename, get_unique_media_filepath, format_bytes, is_generic_media_title
         base_name, ext = os.path.splitext(filename)
+        if base_name.lower().endswith(".auto"):
+            base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+        elif base_name.lower().endswith(".best"):
+            base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+
         if is_audio_only:
             if audio_format and audio_format not in ("auto", "best"):
                 ext = "." + audio_format
-            elif not ext or ext.lower() in ('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.ts'):
+            elif not ext or ext.lower() in ('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.ts', '.auto', '.best'):
                 ext = ".opus"
         else:
             if merge_output_format and merge_output_format not in ("auto", "best"):
                 ext = "." + merge_output_format
-            elif not ext:
+            elif not ext or ext.lower() in ('.auto', '.best'):
                 ext = ".mp4"
         is_youtube = bool(url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()))
         is_tiktok = bool((url and "tiktok.com" in url.lower()) or (referrer and "tiktok.com" in referrer.lower()))

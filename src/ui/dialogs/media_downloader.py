@@ -2365,11 +2365,11 @@ class MediaDownloaderDialog(QDialog):
         else:
             try:
                 from core.config import load_category_config as _lcfg
-                _mdefaults = _lcfg().get("media_downloader_defaults", {})
-                _vc_cfg = _mdefaults.get("video_container", "MKV (default)")
+                _mdefaults = _lcfg().get("media_downloader_defaults", {}) or {}
+                _vc_cfg = _mdefaults.get("video_container", "Auto (Best / Native) (Default)")
                 output_container = _vc_cfg.split()[0].lower()
             except Exception:
-                output_container = "mkv"
+                output_container = "auto"
 
         fps_filter = f"[fps<={fps_target}]" if fps_target and fps_target > 0 else ""
 
@@ -2456,11 +2456,13 @@ class MediaDownloaderDialog(QDialog):
                     from core.config import load_category_config as _lcfg
                     _mdefaults = _lcfg().get("media_downloader_defaults", {})
                     _af_cfg = _mdefaults.get("audio_format", "Opus (default)")
-                    ext = "." + _af_cfg.split()[0].lower()
+                    _af_val = _af_cfg.split()[0].lower() if _af_cfg else "opus"
+                    ext = f".{_af_val}" if _af_val not in ("auto", "best", "") else ".mp3"
                 except Exception:
                     ext = ".opus"
             else:
-                ext = f".{output_container}"
+                _c_ext = (output_container or "mp4").lower()
+                ext = f".{_c_ext}" if _c_ext not in ("auto", "best", "") else ".mp4"
 
             preset_idx = self.cmb_quality_preset.currentIndex()
             target_height = None
@@ -2677,19 +2679,20 @@ class MediaDownloaderDialog(QDialog):
             audio_fmt = None
             merge_container = None
             if is_audio_only:
-                audio_fmt = self.cmb_playlist_audio_format.currentData() or "mp3"
-                ext = f".{audio_fmt}" if audio_fmt != "best" else ".mp3"
+                audio_fmt = (self.cmb_playlist_audio_format.currentData() or "mp3").lower()
+                ext = f".{audio_fmt}" if audio_fmt not in ("auto", "best", "") else ".mp3"
             else:
-                merge_container = self.cmb_playlist_video_container.currentData() or "mp4"
-                if merge_container == "auto":
+                merge_container = (self.cmb_playlist_video_container.currentData() or "mp4").lower()
+                if merge_container in ("auto", "best", ""):
                     try:
                         from core.config import load_category_config as _lcfg
-                        _mdefaults = _lcfg().get("media_downloader_defaults", {})
-                        _vc_cfg = _mdefaults.get("video_container", "MKV (default)")
-                        merge_container = _vc_cfg.split()[0].lower()
+                        _mdefaults = _lcfg().get("media_downloader_defaults", {}) or {}
+                        _vc_cfg = _mdefaults.get("video_container", "Auto (Best / Native) (Default)")
+                        _cand = _vc_cfg.split()[0].lower() if _vc_cfg else ""
+                        merge_container = _cand if _cand not in ("auto", "best", "") else "mp4"
                     except Exception:
-                        merge_container = "mkv"
-                ext = f".{merge_container}"
+                        merge_container = "mp4"
+                ext = f".{merge_container}" if merge_container not in ("auto", "best", "") else ".mp4"
 
             # Determine custom playlist subfolder if enabled
             custom_save_dir = None

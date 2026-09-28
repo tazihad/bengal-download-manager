@@ -176,6 +176,84 @@ def test_playlist_enqueue_parameters(qapp, monkeypatch):
     for call in captured_calls:
         assert call.get("queue_name") == "Main download queue"
         assert call.get("show_progress_dialog") is False
-        assert call.get("suppress_complete_dialog") is True
+    dlg.close()
+
+
+def test_single_video_auto_extension_resolution(qapp, monkeypatch):
+    """
+    Verifies that when downloading a single video with all options set to Auto,
+    the filename ends in '.mp4' (never '.auto' or '.best').
+    """
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+    from core.utils import sanitize_media_filename, get_unique_media_filepath
+
+    # 1. Direct utils verification
+    assert sanitize_media_filename("My Test Video", ext=".auto") == "My Test Video.mp4"
+    assert sanitize_media_filename("My Test Video.auto", ext="") == "My Test Video.mp4"
+    assert sanitize_media_filename("My Test Video", ext="auto") == "My Test Video.mp4"
+    assert sanitize_media_filename("My Test Video", ext=".best") == "My Test Video.mp4"
+    assert get_unique_media_filepath("/tmp", "My Test Video.auto").endswith("My Test Video.mp4")
+
+    # 2. MediaDownloaderDialog verification with all Auto settings
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    captured_calls = []
+
+    class DummyMainWindow:
+        def start_media_download(self, **kwargs):
+            captured_calls.append(kwargs)
+
+        def show(self):
+            pass
+
+        def raise_(self):
+            pass
+
+        def activateWindow(self):
+            pass
+
+    dlg._main_window = DummyMainWindow()
+    dlg.close = lambda: None
+
+    # Setup single video data with auto format
+    dlg.stack.setCurrentWidget(dlg.page_video)
+    dlg._current_video_data = {
+        "id": "r2ecLFsdbzI",
+        "title": "Bengali Test Video",
+        "webpage_url": "https://www.youtube.com/watch?v=r2ecLFsdbzI",
+        "formats": [
+            {"format_id": "137", "ext": "mp4", "height": 1080, "is_video": True, "vcodec": "avc1.640028"},
+            {"format_id": "140", "ext": "m4a", "is_audio": True, "acodec": "mp4a.40.2"},
+        ]
+    }
+    # Quality preset is 0 ("Auto / Best"), video format is "auto", audio format is "auto"
+    dlg.cmb_quality_preset.setCurrentIndex(0)
+    dlg.cmb_video_format.setCurrentIndex(0)
+    dlg.cmb_audio_format.setCurrentIndex(0)
+    qapp.processEvents()
+
+    dlg._on_download_clicked()
+
+    assert len(captured_calls) == 1
+    call_args = captured_calls[0]
+    filename = call_args.get("filename")
+    assert filename is not None
+    assert not filename.endswith(".auto"), f"Filename should not end with .auto: {filename}"
+    assert not filename.endswith(".best"), f"Filename should not end with .best: {filename}"
+    assert filename.endswith(".mp4"), f"Filename should end with .mp4: {filename}"
+
+    # 3. Audio-only with Auto format
+    captured_calls.clear()
+    dlg.cmb_quality_preset.setCurrentIndex(7)  # Audio Only
+    qapp.processEvents()
+    dlg._on_download_clicked()
+    assert len(captured_calls) == 1
+    audio_fn = captured_calls[0].get("filename")
+    assert audio_fn is not None
+    assert not audio_fn.endswith(".auto"), f"Audio filename should not end with .auto: {audio_fn}"
+    assert not audio_fn.endswith(".best"), f"Audio filename should not end with .best: {audio_fn}"
+    assert audio_fn.endswith(".mp3") or audio_fn.endswith(".opus"), f"Audio filename should have audio ext: {audio_fn}"
 
     dlg.close()

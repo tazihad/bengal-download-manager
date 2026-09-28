@@ -2097,7 +2097,15 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
                 clean_base = "media"
                 break
 
-    if not ext.startswith("."):
+    if clean_base.lower().endswith(".auto"):
+        clean_base = clean_base[:-5].rstrip("_ ").strip() or "media"
+    elif clean_base.lower().endswith(".best"):
+        clean_base = clean_base[:-5].rstrip("_ ").strip() or "media"
+
+    clean_ext = (ext or "").lower().strip()
+    if not clean_ext or clean_ext in (".auto", ".best", "auto", "best"):
+        ext = ".mp4"
+    elif not ext.startswith("."):
         ext = f".{ext}"
     return f"{clean_base}{ext}"
 
@@ -2109,7 +2117,13 @@ def get_unique_media_filepath(save_dir: str, filename: str) -> str:
     yt-dlp from skipping downloads when re-downloading different qualities of the same media.
     """
     base_name, ext = os.path.splitext(filename)
-    if not ext:
+    if base_name.lower().endswith(".auto"):
+        base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+    elif base_name.lower().endswith(".best"):
+        base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+
+    clean_ext = (ext or "").lower().strip()
+    if not clean_ext or clean_ext in (".auto", ".best", "auto", "best"):
         ext = ".mp4"
 
     media_exts = [ext, ".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"]
