@@ -138,7 +138,12 @@ def test_scope_radio_buttons_behavior(qapp):
     assert not dlg.rad_single_video.isEnabled()
 
     # YouTube Mix (RD) URL: defaults to single video while enabling playlist option
-    dlg.txt_url.setText("https://www.youtube.com/watch?v=6VgBHZJggkA&list=RDGMEMPipJmhsMq3GHGrfqf4WIqA&start_radio=1&rv=QPSAjqjylTc")
+    mix_url = "https://www.youtube.com/watch?v=6VgBHZJggkA&list=RDGMEMPipJmhsMq3GHGrfqf4WIqA&start_radio=1&rv=QPSAjqjylTc"
+    from core.utils import sanitize_media_url
+    clean_mix = sanitize_media_url(mix_url)
+    assert "list=RDGMEMPipJmhsMq3GHGrfqf4WIqA" in clean_mix
+
+    dlg.txt_url.setText(clean_mix)
     qapp.processEvents()
     assert dlg.rad_single_video.isChecked()
     assert dlg.rad_single_video.isEnabled()
@@ -149,6 +154,7 @@ def test_scope_radio_buttons_behavior(qapp):
     dlg.rad_whole_playlist.setChecked(True)
     qapp.processEvents()
     assert dlg.rad_whole_playlist.isChecked()
+    assert dlg.rad_whole_playlist.isEnabled()
 
     # Back to single video URL: playlist becomes disabled again
     dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")

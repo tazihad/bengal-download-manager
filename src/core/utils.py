@@ -1958,8 +1958,8 @@ def sanitize_media_url(data: str) -> str:
             if "v" in qs or "shorts" in parsed.path:
                 if "list" in qs:
                     lists = qs["list"]
-                    # RD = YouTube Radio/Mix, UL = User Uploads Mix, PU = Popular Uploads Mix, WL = Watch Later
-                    if any(l.startswith("RD") or l.startswith("UL") or l.startswith("PU") or l == "WL" for l in lists):
+                    # WL = Watch Later (private / auth-only)
+                    if any(l == "WL" for l in lists):
                         del qs["list"]
                 qs.pop("start_radio", None)
                 qs.pop("pp", None)
