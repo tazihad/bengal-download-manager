@@ -195,6 +195,10 @@ def test_playlist_enqueue_parameters(qapp, monkeypatch):
     for call in captured_calls:
         assert call.get("queue_name") == "Main download queue"
         assert call.get("show_progress_dialog") is False
+        custom_save_dir = call.get("custom_save_dir")
+        assert custom_save_dir is not None
+        assert not custom_save_dir.endswith(".mp4"), f"Playlist folder should not end with .mp4: {custom_save_dir}"
+        assert custom_save_dir.endswith("Test Playlist")
     dlg.close()
 
 
@@ -202,11 +206,15 @@ def test_single_video_auto_extension_resolution(qapp, monkeypatch):
     """
     Verifies that when downloading a single video with all options set to Auto,
     the filename ends in '.mp4' (never '.auto' or '.best').
+    Also verifies that playlist folders never end in '.mp4'.
     """
     from ui.dialogs.media_downloader import MediaDownloaderDialog
-    from core.utils import sanitize_media_filename, get_unique_media_filepath
+    from core.utils import sanitize_media_filename, sanitize_media_folder_name, get_unique_media_filepath
 
     # 1. Direct utils verification
+    assert sanitize_media_folder_name("My Test Playlist") == "My Test Playlist"
+    assert sanitize_media_folder_name("My Test Playlist.mp4") == "My Test Playlist"
+    assert sanitize_media_folder_name("Rock / Metal Classics: Best of 80s") == "Rock _ Metal Classics_ Best of 80s"
     assert sanitize_media_filename("My Test Video", ext=".auto") == "My Test Video.mp4"
     assert sanitize_media_filename("My Test Video.auto", ext="") == "My Test Video.mp4"
     assert sanitize_media_filename("My Test Video", ext="auto") == "My Test Video.mp4"

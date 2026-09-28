@@ -2110,6 +2110,33 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
     return f"{clean_base}{ext}"
 
 
+def sanitize_media_folder_name(name: str, max_len: int = 90) -> str:
+    """
+    Sanitize folder/directory name (such as playlist titles) to avoid filesystem errors
+    and ensure directory names never have media file extensions appended (e.g. '.mp4').
+    """
+    if not name:
+        name = "Playlist"
+    clean_base = re.sub(r'[\\/*?:"<>|]', "_", str(name)).strip()
+    clean_base = clean_base.strip(". ")
+    if not clean_base:
+        clean_base = "Playlist"
+
+    while len(clean_base.encode("utf-8")) > max_len:
+        clean_base = clean_base.encode("utf-8")[:max_len].decode("utf-8", errors="ignore").rstrip("_ .").strip()
+        if not clean_base:
+            clean_base = "Playlist"
+            break
+
+    known_exts = (".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".mp3", ".m4a", ".opus", ".flac", ".wav", ".auto", ".best")
+    for _ext in known_exts:
+        if clean_base.lower().endswith(_ext):
+            clean_base = clean_base[:-len(_ext)].rstrip("_ .").strip() or "Playlist"
+            break
+
+    return clean_base
+
+
 def get_unique_media_filepath(save_dir: str, filename: str) -> str:
     """
     Ensures a unique filepath for media downloads. Checks across all potential

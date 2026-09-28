@@ -1370,7 +1370,7 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_playlist_video_container.setToolTip("Filter video container / codec")
         for label, val in [
             ("Auto (Best / Native)", "auto"),
-            ("MP4 (H.264 / AVC - Universal)", "mp4"),
+            ("MP4 (H.264 / AVC)", "mp4"),
             ("MKV (Matroska)", "mkv"),
             ("WebM (VP9)", "webm"),
             ("AV1 Codec", "av1")
@@ -2908,7 +2908,8 @@ class MediaDownloaderDialog(QDialog):
             custom_save_dir = None
             if hasattr(self, "chk_playlist_subfolder") and self.chk_playlist_subfolder.isChecked():
                 pl_raw_title = self._current_playlist_data.get("title") or "Playlist"
-                safe_pl_title = sanitize_media_filename(pl_raw_title)
+                from core.utils import sanitize_media_folder_name
+                safe_pl_title = sanitize_media_folder_name(pl_raw_title)
                 default_parent = mw.get_default_download_directory("music" if is_audio_only else "video") if hasattr(mw, "get_default_download_directory") else None
                 if not default_parent:
                     default_parent = os.path.expanduser(f"~/Downloads/{'Music' if is_audio_only else 'Video'}")
