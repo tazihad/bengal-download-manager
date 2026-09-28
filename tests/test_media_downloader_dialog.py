@@ -77,9 +77,13 @@ def test_media_downloader_dialog_ui_elements(qapp):
     assert hasattr(dlg, "cmb_playlist_queue")
     assert dlg.cmb_playlist_queue.currentText() == "Main download queue"
 
-    # 7. Playlist table vertical header is hidden
+    # 7. Playlist table vertical header is hidden, has 4 columns (Type column removed)
     assert not dlg.tbl_playlist.verticalHeader().isVisible()
     assert dlg.tbl_playlist.minimumHeight() >= 160
+    assert dlg.tbl_playlist.columnCount() == 4
+    headers = [dlg.tbl_playlist.horizontalHeaderItem(i).text() for i in range(dlg.tbl_playlist.columnCount())]
+    assert headers == ["Select", "#", "Title", "Duration"]
+    assert "Type" not in headers
 
     dlg.close()
 

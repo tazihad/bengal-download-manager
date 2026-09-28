@@ -1528,8 +1528,8 @@ class MediaDownloaderDialog(QDialog):
 
         # 4. Table Checklist - PLACED AT THE BOTTOM
         self.tbl_playlist = QTableWidget()
-        self.tbl_playlist.setColumnCount(5)
-        self.tbl_playlist.setHorizontalHeaderLabels(["Select", "#", "Title", "Duration", "Type"])
+        self.tbl_playlist.setColumnCount(4)
+        self.tbl_playlist.setHorizontalHeaderLabels(["Select", "#", "Title", "Duration"])
         self.tbl_playlist.verticalHeader().setVisible(False)
         self.tbl_playlist.verticalHeader().setDefaultSectionSize(28)
         self.tbl_playlist.setMinimumHeight(160)
@@ -1537,7 +1537,6 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tbl_playlist.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.tbl_playlist.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.tbl_playlist.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._playlist_delegate = CheckableTableItemDelegate(self.tbl_playlist)
@@ -2119,10 +2118,6 @@ class MediaDownloaderDialog(QDialog):
         entries = data.get("entries", [])
         self.tbl_playlist.setRowCount(0)
 
-        is_audio = hasattr(self, "rad_pl_mode_audio") and self.rad_pl_mode_audio.isChecked()
-        audio_fmt = self.cmb_playlist_audio_format.currentData() if hasattr(self, "cmb_playlist_audio_format") else "mp3"
-        type_str = f"Audio ({audio_fmt.upper()})" if is_audio else "Video"
-
         for row_idx, entry in enumerate(entries):
             self.tbl_playlist.insertRow(row_idx)
 
@@ -2137,7 +2132,6 @@ class MediaDownloaderDialog(QDialog):
             dur_sec = int(entry.get("duration") or 0)
             dur_str = f"{dur_sec // 60}:{dur_sec % 60:02d}" if dur_sec else "-"
             self.tbl_playlist.setItem(row_idx, 3, QTableWidgetItem(dur_str))
-            self.tbl_playlist.setItem(row_idx, 4, QTableWidgetItem(type_str))
 
         self.tbl_playlist.itemChanged.connect(self._update_playlist_selection_count)
         self._update_playlist_selection_count()
@@ -2263,14 +2257,6 @@ class MediaDownloaderDialog(QDialog):
         is_audio = self.rad_pl_mode_audio.isChecked()
         self.pl_audio_options_frame.setVisible(is_audio)
         self.pl_video_options_frame.setVisible(not is_audio)
-        audio_fmt = self.cmb_playlist_audio_format.currentData() if hasattr(self, "cmb_playlist_audio_format") else "mp3"
-        type_str = f"Audio ({audio_fmt.upper()})" if is_audio else "Video"
-
-        for r in range(self.tbl_playlist.rowCount()):
-            item = self.tbl_playlist.item(r, 4)
-            if item:
-                item.setText(type_str)
-
         self._update_playlist_selection_count()
 
     def _apply_playlist_range(self):
