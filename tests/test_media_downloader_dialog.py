@@ -137,6 +137,19 @@ def test_scope_radio_buttons_behavior(qapp):
     assert dlg.rad_whole_playlist.isChecked()
     assert not dlg.rad_single_video.isEnabled()
 
+    # YouTube Mix (RD) URL: defaults to single video while enabling playlist option
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=6VgBHZJggkA&list=RDGMEMPipJmhsMq3GHGrfqf4WIqA&start_radio=1&rv=QPSAjqjylTc")
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert dlg.rad_whole_playlist.isEnabled()
+    assert not dlg.rad_whole_playlist.isChecked()
+
+    # User can switch to playlist for Mix URL
+    dlg.rad_whole_playlist.setChecked(True)
+    qapp.processEvents()
+    assert dlg.rad_whole_playlist.isChecked()
+
     # Back to single video URL: playlist becomes disabled again
     dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
     qapp.processEvents()
