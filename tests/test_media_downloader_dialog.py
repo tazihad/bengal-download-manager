@@ -1,11 +1,11 @@
 """
 Unit tests for MediaDownloaderDialog and playlist mode improvements.
 Verifies scrollability, Advanced Mode toggling, Auto wording, queue selection,
-and progress/complete dialog suppression flags.
+progress/complete dialog suppression flags, and unified scope selector.
 """
 
 import pytest
-from PyQt6.QtWidgets import QScrollArea
+from PyQt6.QtWidgets import QScrollArea, QSizePolicy
 from PyQt6.QtCore import Qt
 
 
@@ -31,17 +31,20 @@ def test_media_downloader_dialog_ui_elements(qapp):
     assert not dlg.chk_manual_selection.isChecked()
     assert not dlg.tbl_formats.isVisible()
     assert not dlg.lbl_streams.isVisible()
+    assert dlg.video_bottom_spacer.isVisible()
 
     # Toggling Advanced Mode displays format table and streams label
     dlg.chk_manual_selection.setChecked(True)
     qapp.processEvents()
     assert dlg.tbl_formats.isVisible()
     assert dlg.lbl_streams.isVisible()
+    assert not dlg.video_bottom_spacer.isVisible()
 
     dlg.chk_manual_selection.setChecked(False)
     qapp.processEvents()
     assert not dlg.tbl_formats.isVisible()
     assert not dlg.lbl_streams.isVisible()
+    assert dlg.video_bottom_spacer.isVisible()
 
     # 3. Auto wording in FPS, Video format, Audio format combo boxes
     assert "Auto" in dlg.cmb_fps.itemText(0)
@@ -69,6 +72,57 @@ def test_media_downloader_dialog_ui_elements(qapp):
     # 7. Playlist table vertical header is hidden
     assert not dlg.tbl_playlist.verticalHeader().isVisible()
     assert dlg.tbl_playlist.minimumHeight() >= 160
+
+    dlg.close()
+
+
+def test_scope_radio_buttons_behavior(qapp):
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    # Both radio buttons are permanently part of UI
+    assert hasattr(dlg, "rad_single_video")
+    assert hasattr(dlg, "rad_whole_playlist")
+
+    # Initial state (empty URL): single video checked, playlist disabled
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert not dlg.rad_whole_playlist.isEnabled()
+
+    # Single video URL (no playlist)
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert not dlg.rad_whole_playlist.isEnabled()
+
+    # Playlist URL with video (mixed)
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI&list=PL9bw4S5ePsEGgHMPYsEJQJaKOs9RBKDxs")
+    qapp.processEvents()
+    assert dlg.rad_whole_playlist.isEnabled()
+    assert dlg.rad_whole_playlist.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+
+    # User can switch back to single video
+    dlg.rad_single_video.setChecked(True)
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+
+    # Pure playlist URL
+    dlg.txt_url.setText("https://www.youtube.com/playlist?list=PL9bw4S5ePsEGgHMPYsEJQJaKOs9RBKDxs")
+    qapp.processEvents()
+    assert dlg.rad_whole_playlist.isEnabled()
+    assert dlg.rad_whole_playlist.isChecked()
+    assert not dlg.rad_single_video.isEnabled()
+
+    # Back to single video URL: playlist becomes disabled again
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert not dlg.rad_whole_playlist.isEnabled()
 
     dlg.close()
 

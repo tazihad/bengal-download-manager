@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QWidget, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QMessageBox, QApplication, QFrame, QCheckBox,
     QAbstractItemView, QToolButton, QToolTip, QFileDialog, QGraphicsDropShadowEffect,
-    QRadioButton, QButtonGroup, QSpinBox, QScrollArea
+    QRadioButton, QButtonGroup, QSpinBox, QScrollArea, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QTimer, QPoint, QUrl
 from PyQt6.QtGui import (
@@ -858,67 +858,44 @@ class MediaDownloaderDialog(QDialog):
         main_layout.addLayout(btn_bar)
 
     def _setup_playlist_banner(self, parent_layout):
-        self.playlist_banner = QFrame()
-        self.playlist_banner.setObjectName("playlistBanner")
-        self.playlist_banner.setStyleSheet("""
-            QFrame#playlistBanner {
-                background-color: palette(alternate-base);
-                border: 1px solid palette(highlight);
-                border-radius: 8px;
-            }
-            QFrame#playlistBanner QLabel {
-                background: transparent;
-                border: none;
-            }
-        """)
-        banner_layout = QVBoxLayout(self.playlist_banner)
-        banner_layout.setContentsMargins(12, 8, 12, 8)
-        banner_layout.setSpacing(6)
+        scope_layout = QHBoxLayout()
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.setSpacing(14)
 
-        header_row = QHBoxLayout()
-        header_row.setSpacing(8)
+        lbl_scope = QLabel("Mode:")
+        lbl_scope.setStyleSheet("font-weight: 600; color: palette(window-text); font-size: 11px;")
+        scope_layout.addWidget(lbl_scope)
 
-        self.lbl_banner_title = QLabel("This video is part of a playlist")
-        font_b_title = QFont()
-        font_b_title.setBold(True)
-        self.lbl_banner_title.setFont(font_b_title)
-
-        self.lbl_banner_sub = QLabel("")
-        self.lbl_banner_sub.setStyleSheet("color: palette(window-text); opacity: 0.85; font-size: 11px;")
-
-        header_row.addWidget(self.lbl_banner_title)
-        header_row.addWidget(self.lbl_banner_sub)
-        header_row.addStretch()
-        banner_layout.addLayout(header_row)
-
-        radio_row = QHBoxLayout()
-        radio_row.setSpacing(24)
-
-        self.rad_single_video = QRadioButton("Just this video")
+        self.rad_single_video = QRadioButton("Single Video")
         self.rad_single_video.setChecked(True)
-        self.rad_single_video.setToolTip("Download only the current single video")
+        self.rad_single_video.setToolTip("Download only the single video")
         self.rad_single_video.toggled.connect(self._on_scope_radio_toggled)
 
-        self.rad_whole_playlist = QRadioButton("Whole playlist")
-        self.rad_whole_playlist.setToolTip("Download the entire playlist batch")
+        self.rad_whole_playlist = QRadioButton("Whole Playlist")
+        self.rad_whole_playlist.setEnabled(False)
+        self.rad_whole_playlist.setToolTip("No playlist detected in URL")
         self.rad_whole_playlist.toggled.connect(self._on_scope_radio_toggled)
 
         self.scope_group = QButtonGroup(self)
         self.scope_group.addButton(self.rad_single_video)
         self.scope_group.addButton(self.rad_whole_playlist)
 
-        radio_row.addWidget(self.rad_single_video)
-        radio_row.addWidget(self.rad_whole_playlist)
-        radio_row.addStretch()
-        banner_layout.addLayout(radio_row)
+        scope_layout.addWidget(self.rad_single_video)
+        scope_layout.addWidget(self.rad_whole_playlist)
 
-        self.playlist_banner.setVisible(False)
-        parent_layout.addWidget(self.playlist_banner)
+        self.lbl_scope_hint = QLabel("")
+        self.lbl_scope_hint.setStyleSheet("color: palette(placeholder-text); font-size: 11px;")
+        self.lbl_banner_sub = self.lbl_scope_hint
+        scope_layout.addWidget(self.lbl_scope_hint)
+        scope_layout.addStretch()
+
+        parent_layout.addLayout(scope_layout)
+        self.playlist_banner = None
 
     def _setup_single_video_page(self):
         layout = QVBoxLayout(self.page_video)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         # 1. Hero Card: Thumbnail + Title + Metadata Badges
         hero_card = QFrame()
@@ -934,19 +911,21 @@ class MediaDownloaderDialog(QDialog):
                 border: none;
             }
         """)
+        hero_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         hero_layout = QHBoxLayout(hero_card)
-        hero_layout.setContentsMargins(10, 10, 10, 10)
-        hero_layout.setSpacing(14)
+        hero_layout.setContentsMargins(8, 8, 8, 8)
+        hero_layout.setSpacing(12)
 
         self.lbl_thumbnail = QLabel()
-        self.lbl_thumbnail.setFixedSize(160, 90)
+        self.lbl_thumbnail.setFixedSize(120, 68)
         self.lbl_thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_thumbnail.setPixmap(create_thumbnail_placeholder(160, 90, radius=8))
-        self.lbl_thumbnail.setStyleSheet("border-radius: 8px;")
+        self.lbl_thumbnail.setPixmap(create_thumbnail_placeholder(120, 68, radius=6))
+        self.lbl_thumbnail.setStyleSheet("border-radius: 6px;")
         hero_layout.addWidget(self.lbl_thumbnail)
 
         meta_layout = QVBoxLayout()
-        meta_layout.setSpacing(6)
+        meta_layout.setContentsMargins(0, 0, 0, 0)
+        meta_layout.setSpacing(4)
         meta_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.lbl_video_title = QLabel("Video Title")
@@ -959,6 +938,7 @@ class MediaDownloaderDialog(QDialog):
         meta_layout.addWidget(self.lbl_video_title)
 
         chips_layout = QHBoxLayout()
+        chips_layout.setContentsMargins(0, 0, 0, 0)
         chips_layout.setSpacing(8)
 
         self.lbl_video_meta = QLabel("Uploader: Unknown | Duration: 0s")
@@ -1090,6 +1070,11 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_formats.setFont(font_tbl)
 
         layout.addWidget(self.tbl_formats, stretch=1)
+
+        self.video_bottom_spacer = QWidget()
+        self.video_bottom_spacer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.video_bottom_spacer.setVisible(True)
+        layout.addWidget(self.video_bottom_spacer, stretch=1)
 
     def _setup_playlist_page(self):
         layout = QVBoxLayout(self.page_playlist)
@@ -1728,10 +1713,10 @@ class MediaDownloaderDialog(QDialog):
             if isinstance(image_or_pixmap, QImage):
                 if not image_or_pixmap.isNull():
                     pm = QPixmap.fromImage(image_or_pixmap)
-                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pm, 160, 90, radius=8))
+                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(pm, 120, 68, radius=6))
             elif isinstance(image_or_pixmap, QPixmap):
                 if not image_or_pixmap.isNull():
-                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 160, 90, radius=8))
+                    self.lbl_thumbnail.setPixmap(make_rounded_thumbnail(image_or_pixmap, 120, 68, radius=6))
 
     def _update_preset_availability(self, data: dict):
         formats = data.get("formats", [])
@@ -2025,23 +2010,30 @@ class MediaDownloaderDialog(QDialog):
         has_pl = is_playlist_url(clean_text)
         is_mixed = is_mixed_media_url(clean_text)
 
-        if hasattr(self, "playlist_banner"):
-            if has_pl or is_mixed:
-                self.playlist_banner.setVisible(True)
+        if hasattr(self, "rad_whole_playlist"):
+            if is_mixed:
+                self.rad_single_video.setEnabled(True)
+                self.rad_whole_playlist.setEnabled(True)
+                self.rad_whole_playlist.setToolTip("Download the entire playlist batch")
+                self.rad_whole_playlist.setChecked(True)
                 pl_id = extract_playlist_id(clean_text)
-                sub_text = f"Playlist ID: {pl_id}" if pl_id else "Playlist detected"
-                self.lbl_banner_sub.setText(sub_text)
-
-                if is_mixed:
-                    self.rad_single_video.setEnabled(True)
-                    self.rad_whole_playlist.setEnabled(True)
-                    if not self.rad_whole_playlist.isChecked():
-                        self.rad_single_video.setChecked(True)
-                else:
-                    self.rad_single_video.setEnabled(False)
-                    self.rad_whole_playlist.setChecked(True)
+                if hasattr(self, "lbl_scope_hint"):
+                    self.lbl_scope_hint.setText(f"Playlist detected ({pl_id})" if pl_id else "Playlist detected")
+            elif has_pl:
+                self.rad_single_video.setEnabled(False)
+                self.rad_whole_playlist.setEnabled(True)
+                self.rad_whole_playlist.setToolTip("Download the entire playlist batch")
+                self.rad_whole_playlist.setChecked(True)
+                pl_id = extract_playlist_id(clean_text)
+                if hasattr(self, "lbl_scope_hint"):
+                    self.lbl_scope_hint.setText(f"Playlist detected ({pl_id})" if pl_id else "Playlist detected")
             else:
-                self.playlist_banner.setVisible(False)
+                self.rad_single_video.setEnabled(True)
+                self.rad_single_video.setChecked(True)
+                self.rad_whole_playlist.setEnabled(False)
+                self.rad_whole_playlist.setToolTip("No playlist detected in this URL")
+                if hasattr(self, "lbl_scope_hint"):
+                    self.lbl_scope_hint.setText("")
 
         self._current_video_data = None
         self._current_playlist_data = None
@@ -2178,6 +2170,8 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_formats.setVisible(checked)
         if hasattr(self, "lbl_streams"):
             self.lbl_streams.setVisible(checked)
+        if hasattr(self, "video_bottom_spacer"):
+            self.video_bottom_spacer.setVisible(not checked)
         if not checked:
             self.tbl_formats.clearSelection()
         elif self.tbl_formats.rowCount() > 0 and len(self.tbl_formats.selectedItems()) == 0:
@@ -2283,6 +2277,8 @@ class MediaDownloaderDialog(QDialog):
         self.tbl_formats.setVisible(use_manual)
         if hasattr(self, "lbl_streams"):
             self.lbl_streams.setVisible(use_manual)
+        if hasattr(self, "video_bottom_spacer"):
+            self.video_bottom_spacer.setVisible(not use_manual)
         if not use_manual:
             self.tbl_formats.clearSelection()
 
