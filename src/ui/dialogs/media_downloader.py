@@ -1363,16 +1363,17 @@ class MediaDownloaderDialog(QDialog):
             "360p Low Quality"
         ])
 
-        lbl_v_container = QLabel("Container:")
+        lbl_v_container = QLabel("Video:")
         self.cmb_playlist_video_container = QComboBox()
         self.cmb_playlist_video_container.setFixedHeight(30)
         self.cmb_playlist_video_container.setMaximumWidth(210)
+        self.cmb_playlist_video_container.setToolTip("Filter video container / codec")
         for label, val in [
+            ("Auto (Best / Native)", "auto"),
             ("MP4 (H.264 / AVC - Universal)", "mp4"),
             ("MKV (Matroska)", "mkv"),
             ("WebM (VP9)", "webm"),
-            ("AV1 Codec", "av1"),
-            ("Auto (Best / Native)", "auto")
+            ("AV1 Codec", "av1")
         ]:
             self.cmb_playlist_video_container.addItem(label, val)
 

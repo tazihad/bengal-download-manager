@@ -68,10 +68,14 @@ def test_media_downloader_dialog_ui_elements(qapp):
     dlg.stack.setCurrentWidget(dlg.page_playlist)
     qapp.processEvents()
 
-    # 5. Playlist options: Auto audio format at top (index 0)
+    # 5. Playlist options: Auto audio format and Auto video container at top (index 0)
     assert dlg.cmb_playlist_audio_format.currentIndex() == 0
     assert dlg.cmb_playlist_audio_format.itemData(0) == "best"
     assert "Auto" in dlg.cmb_playlist_audio_format.itemText(0)
+
+    assert dlg.cmb_playlist_video_container.currentIndex() == 0
+    assert dlg.cmb_playlist_video_container.itemData(0) == "auto"
+    assert "Auto" in dlg.cmb_playlist_video_container.itemText(0)
 
     # 6. Playlist queue combo exists and defaults to "Main download queue"
     assert hasattr(dlg, "cmb_playlist_queue")
