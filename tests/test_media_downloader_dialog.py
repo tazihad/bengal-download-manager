@@ -46,10 +46,18 @@ def test_media_downloader_dialog_ui_elements(qapp):
     assert not dlg.lbl_streams.isVisible()
     assert dlg.video_bottom_spacer.isVisible()
 
-    # 3. Auto wording in FPS, Video format, Audio format combo boxes
+    # 3. Quality preset wording and Remember selection
+    assert dlg.cmb_quality_preset.itemText(0) == "Auto (Best Quality)"
+    assert dlg.chk_save_defaults.text() == "Remember selection"
+
+    # Auto wording in FPS, Video format, Audio format combo boxes
     assert "Auto" in dlg.cmb_fps.itemText(0)
     assert "Auto" in dlg.cmb_video_format.itemText(0)
     assert "Auto" in dlg.cmb_audio_format.itemText(0)
+
+    # Scrollbar visibility: horizontal scrollbar off, vertical scrollbar hidden when not needed
+    assert dlg.scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert not dlg.scroll_area.verticalScrollBar().isVisible()
 
     # 4. Status label is hidden on completion / initial state
     dlg._finish_loading()

@@ -679,6 +679,71 @@ class MediaDownloaderOptionsHub(QFrame):
             self.dialog.btn_three_dots.set_status(None)
 
 
+class DynamicStackedWidget(QWidget):
+    """
+    A lightweight container that mimics QStackedWidget while only calculating
+    layout and size hint for the currently visible child page.
+    This prevents hidden pages (such as playlist table) from artificially expanding
+    the container's sizeHint and forcing unnecessary scrollbars in QScrollArea.
+    """
+    currentChanged = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(0)
+        self._widgets = []
+        self._current_index = -1
+
+    def addWidget(self, widget: QWidget) -> int:
+        self._widgets.append(widget)
+        self._layout.addWidget(widget)
+        if len(self._widgets) == 1:
+            self.setCurrentIndex(0)
+        else:
+            widget.setVisible(False)
+        return len(self._widgets) - 1
+
+    def count(self) -> int:
+        return len(self._widgets)
+
+    def widget(self, idx: int) -> QWidget | None:
+        return self._widgets[idx] if 0 <= idx < len(self._widgets) else None
+
+    def currentIndex(self) -> int:
+        return self._current_index
+
+    def currentWidget(self) -> QWidget | None:
+        return self.widget(self._current_index)
+
+    def setCurrentIndex(self, idx: int):
+        if not (0 <= idx < len(self._widgets)):
+            return
+        self._current_index = idx
+        for i, w in enumerate(self._widgets):
+            w.setVisible(i == idx)
+        self.updateGeometry()
+        p = self.parentWidget()
+        if p and hasattr(p, "updateGeometry"):
+            p.updateGeometry()
+        self.currentChanged.emit(idx)
+
+    def setCurrentWidget(self, widget: QWidget):
+        if widget in self._widgets:
+            self.setCurrentIndex(self._widgets.index(widget))
+
+    def removeWidget(self, widget: QWidget):
+        if widget in self._widgets:
+            idx = self._widgets.index(widget)
+            self._widgets.remove(widget)
+            self._layout.removeWidget(widget)
+            if self._current_index >= len(self._widgets):
+                self.setCurrentIndex(len(self._widgets) - 1)
+            elif self._current_index == idx:
+                self.setCurrentIndex(min(idx, len(self._widgets) - 1))
+
+
 class MediaDownloaderDialog(QDialog):
     """
     Top-level Media Downloader Window.
@@ -807,7 +872,7 @@ class MediaDownloaderDialog(QDialog):
         main_layout.addWidget(sep)
 
         # 4. Stacked View Container in Scroll Area
-        self.stack = QStackedWidget()
+        self.stack = DynamicStackedWidget()
         
         page_empty = QWidget()
         empty_layout = QVBoxLayout(page_empty)
@@ -828,7 +893,7 @@ class MediaDownloaderDialog(QDialog):
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self.scroll_area.setWidget(self.stack)
@@ -954,12 +1019,12 @@ class MediaDownloaderDialog(QDialog):
         preset_layout = QHBoxLayout()
         preset_layout.setSpacing(8)
 
-        lbl_preset = QLabel("Preset:")
+        lbl_preset = QLabel("Quality:")
         self.cmb_quality_preset = QComboBox()
         self.cmb_quality_preset.setFixedHeight(30)
-        self.cmb_quality_preset.setToolTip("Select quality preset (auto-merges Video + Audio)")
+        self.cmb_quality_preset.setToolTip("Select quality (auto-merges Video + Audio)")
         self.cmb_quality_preset.addItems([
-            "Best Quality (Video + Audio merged)",
+            "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
             "2K Quad HD (1440p)",
             "1080p Full HD",
@@ -1025,8 +1090,8 @@ class MediaDownloaderDialog(QDialog):
         self.chk_auto_start_browser.setToolTip("Automatically start downloading media links sent from the browser extension using preselected quality")
         self.chk_auto_start_browser.toggled.connect(self._on_auto_start_browser_toggled)
 
-        self.chk_save_defaults = QCheckBox("Remember Preset")
-        self.chk_save_defaults.setToolTip("Save current quality preset, format choices, and selection mode for future downloads")
+        self.chk_save_defaults = QCheckBox("Remember selection")
+        self.chk_save_defaults.setToolTip("Save current quality, format choices, and selection mode for future downloads")
         self.chk_save_defaults.toggled.connect(self._save_preferences_if_enabled)
 
         chk_layout.addWidget(self.chk_manual_selection)
@@ -1172,7 +1237,7 @@ class MediaDownloaderDialog(QDialog):
         self.cmb_playlist_quality = QComboBox()
         self.cmb_playlist_quality.setFixedHeight(30)
         self.cmb_playlist_quality.addItems([
-            "Best Available (Video + Audio)",
+            "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
             "2K Quad HD (1440p)",
             "1080p Full HD",
@@ -1724,7 +1789,7 @@ class MediaDownloaderDialog(QDialog):
         has_audio = any(fmt.get("is_audio") for fmt in formats)
 
         preset_items = [
-            ("Best Quality (Video + Audio merged)", True),
+            ("Auto (Best Quality)", True),
             ("4K Ultra HD (2160p)", any(h >= 2160 for h in available_heights)),
             ("2K Quad HD (1440p)", any(h >= 1440 for h in available_heights)),
             ("1080p Full HD", any(h >= 1080 for h in available_heights)),
@@ -1846,7 +1911,7 @@ class MediaDownloaderDialog(QDialog):
 
     def _reset_preset_labels(self):
         preset_items = [
-            "Best Quality (Video + Audio merged)",
+            "Auto (Best Quality)",
             "4K Ultra HD (2160p)",
             "2K Quad HD (1440p)",
             "1080p Full HD",
