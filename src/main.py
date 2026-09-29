@@ -33,7 +33,7 @@ if getattr(sys, 'frozen', False) or os.environ.get("APPIMAGE") or os.environ.get
 from PyQt6.QtWidgets import QApplication, QStyle
 from PyQt6.QtCore import Qt, QTimer, qInstallMessageHandler, QtMsgType
 
-from core.utils import setup_logging, get_config_dir, is_debug_mode
+from core.utils import setup_logging, get_config_dir, is_debug_mode, is_verbose_mode
 from core.services.ipc_service import (
     DM_CONNECTOR_PORT,
     SignalEmitter,
@@ -113,8 +113,9 @@ def main():
         pass
 
     is_debug = is_debug_mode()
-    logger = setup_logging(debug=is_debug)
-    if is_debug:
+    is_verbose = is_verbose_mode()
+    logger = setup_logging(debug=is_debug, verbose=is_verbose)
+    if is_debug or is_verbose:
         logger.debug("Command-line arguments: %s", sys.argv)
 
     def exception_hook(exc_type, exc_value, exc_tb):

@@ -79,3 +79,71 @@ def test_wrap_url_tooltip():
     for line in wrapped_opaque.splitlines():
         assert len(line) <= 80
 
+
+def test_parse_size_to_bytes_utils_export():
+    """Verify parse_size_to_bytes and parse_time_to_sec are exported from core.utils and core.categories."""
+    from core.utils import parse_size_to_bytes, parse_time_to_sec
+    from core.categories import parse_size_to_bytes as cat_parse_size, parse_time_to_sec as cat_parse_time
+
+    assert parse_size_to_bytes is cat_parse_size
+    assert parse_time_to_sec is cat_parse_time
+
+    # Test size parsing
+    assert parse_size_to_bytes("1.00 KB") == 1024.0
+    assert parse_size_to_bytes("500 MB") == 500 * 1024 * 1024.0
+    assert parse_size_to_bytes("~12.5 MiB") == 12.5 * 1024 * 1024.0
+    assert parse_size_to_bytes("0 B") == 0.0
+    assert parse_size_to_bytes("...") == 0.0
+    assert parse_size_to_bytes("Size unavailable") == 0.0
+    assert parse_size_to_bytes(None) == 0.0
+
+    # Test time parsing
+    assert parse_time_to_sec("01:00:00") == 3600.0
+    assert parse_time_to_sec("02:30") == 150.0
+    assert parse_time_to_sec("--") == 0.0
+
+
+def test_handle_media_fetch_complete_safety(monkeypatch):
+    """Verify MainWindow._handle_media_fetch_complete handles fallback payload without crashing."""
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(["-platform", "offscreen"])
+
+    from ui.main_window import MainWindow
+    # Create window or mock
+    mw = MainWindow.__new__(MainWindow)
+    mw.active_media_fetchers = []
+    mw.active_file_info_dialogs = {}
+    from PyQt6.QtWidgets import QTableWidget
+    mw.download_table = QTableWidget(0, 5)
+    mw.workers = {}
+    mw.save_data = lambda: None
+
+    started = []
+    def mock_start_media_download(**kwargs):
+        started.append(kwargs)
+    mw.start_media_download = mock_start_media_download
+
+    # Simulate fallback media_info payload (similar to YouTube 413 error)
+    payload = {
+        "url": "https://www.youtube.com/watch?v=u_wB6byrl5k",
+        "filename": "media.mp4",
+        "size_bytes": 0,
+        "size_str": "Size unavailable",
+        "size_is_approximate": False,
+        "format_spec": "bestvideo+bestaudio/best",
+        "is_audio_only": False,
+        "video_container": None,
+        "audio_format": None,
+        "cookies_file": None,
+        "cookies_browser": None,
+        "referrer": None,
+        "user_agent": None,
+        "cookies": None,
+        "success": False,
+    }
+
+    # Should not throw any exception
+    mw._handle_media_fetch_complete(payload)
+    assert len(started) == 1
+    assert started[0]["url"] == "https://www.youtube.com/watch?v=u_wB6byrl5k"
+

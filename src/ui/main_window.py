@@ -5228,71 +5228,73 @@ class MainWindow(QMainWindow):
         if not media_info or not media_info.get("url"):
             return
 
-        url = media_info["url"]
-        size_str = media_info.get("size_str")
-        size_bytes = media_info.get("size_bytes", 0)
-        filename = media_info.get("filename")
-        format_spec = media_info.get("format_spec")
-        cookies_file = media_info.get("cookies_file")
-        cookies_browser = media_info.get("cookies_browser")
-        cookies = media_info.get("cookies")
+        try:
+            url = media_info["url"]
+            size_str = media_info.get("size_str")
+            size_bytes = media_info.get("size_bytes", 0)
+            filename = media_info.get("filename")
+            format_spec = media_info.get("format_spec")
+            cookies_file = media_info.get("cookies_file")
+            cookies_browser = media_info.get("cookies_browser")
+            cookies = media_info.get("cookies")
 
-        updated_dialog = False
-        # 1. Update any active DownloadFileInfoDialog for this URL
-        for dialog in list(getattr(self, "active_file_info_dialogs", {}).values()):
-            if hasattr(dialog, "file_info") and isinstance(dialog.file_info, dict):
-                if dialog.file_info.get("url") == url:
-                    if hasattr(dialog, "update_file_info"):
-                        dialog.update_file_info(size_str=size_str, size_bytes=size_bytes, filename=filename)
-                    updated_dialog = True
+            updated_dialog = False
+            # 1. Update any active DownloadFileInfoDialog for this URL
+            for dialog in list(getattr(self, "active_file_info_dialogs", {}).values()):
+                if hasattr(dialog, "file_info") and isinstance(dialog.file_info, dict):
+                    if dialog.file_info.get("url") == url:
+                        if hasattr(dialog, "update_file_info"):
+                            dialog.update_file_info(size_str=size_str, size_bytes=size_bytes, filename=filename)
+                        updated_dialog = True
 
-        # 2. Update table row if download was already added/queued
-        updated_table = False
-        from core.utils import parse_size_to_bytes
-        for r in range(self.download_table.rowCount()):
-            it = self.download_table.item(r, 0)
-            if it and it.data(Qt.ItemDataRole.UserRole) == url:
-                if size_str:
-                    self._set_sortable_item(r, 1, size_str, parse_size_to_bytes)
-                if format_spec:
-                    it.setData(Qt.ItemDataRole.UserRole + 6, format_spec)
-                if cookies_browser:
-                    it.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
-                if cookies_file:
-                    it.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
-                if cookies:
-                    it.setData(Qt.ItemDataRole.UserRole + 5, cookies)
-                    it.setData(Qt.ItemDataRole.UserRole + 17, cookies)
+            # 2. Update table row if download was already added/queued
+            updated_table = False
+            for r in range(self.download_table.rowCount()):
+                it = self.download_table.item(r, 0)
+                if it and it.data(Qt.ItemDataRole.UserRole) == url:
+                    if size_str:
+                        self._set_sortable_item(r, 1, size_str, parse_size_to_bytes)
+                    if format_spec:
+                        it.setData(Qt.ItemDataRole.UserRole + 6, format_spec)
+                    if cookies_browser:
+                        it.setData(Qt.ItemDataRole.UserRole + 9, cookies_browser)
+                    if cookies_file:
+                        it.setData(Qt.ItemDataRole.UserRole + 10, cookies_file)
+                    if cookies:
+                        it.setData(Qt.ItemDataRole.UserRole + 5, cookies)
+                        it.setData(Qt.ItemDataRole.UserRole + 17, cookies)
 
-                row_key = self._get_item_key(it)
-                if hasattr(self, "workers") and row_key in self.workers:
-                    worker = self.workers[row_key]
-                    if hasattr(worker, "total_bytes") and size_bytes > 0:
-                        worker.total_bytes = size_bytes
-                updated_table = True
+                    row_key = self._get_item_key(it)
+                    if hasattr(self, "workers") and row_key in self.workers:
+                        worker = self.workers[row_key]
+                        if hasattr(worker, "total_bytes") and size_bytes > 0:
+                            worker.total_bytes = size_bytes
+                    updated_table = True
 
-        if updated_table:
-            self.save_data()
+            if updated_table:
+                self.save_data()
 
-        # 3. If neither dialog nor table row was present, start media download
-        if not updated_dialog and not updated_table:
-            self.start_media_download(
-                url=url,
-                filename=filename or "media.mp4",
-                format_spec=format_spec or "bestvideo+bestaudio/best",
-                is_audio_only=media_info.get("is_audio_only", False),
-                cookies_file=cookies_file,
-                cookies_browser=cookies_browser,
-                total_size_bytes=size_bytes,
-                size_str=size_str,
-                size_is_approximate=media_info.get("size_is_approximate", False),
-                referrer=media_info.get("referrer"),
-                user_agent=media_info.get("user_agent"),
-                show_file_info=True,
-                cookies=cookies,
-                merge_output_format=media_info.get("video_container"),
-                audio_format=media_info.get("audio_format"),
-            )
+            # 3. If neither dialog nor table row was present, start media download
+            if not updated_dialog and not updated_table:
+                self.start_media_download(
+                    url=url,
+                    filename=filename or "media.mp4",
+                    format_spec=format_spec or "bestvideo+bestaudio/best",
+                    is_audio_only=media_info.get("is_audio_only", False),
+                    cookies_file=cookies_file,
+                    cookies_browser=cookies_browser,
+                    total_size_bytes=size_bytes,
+                    size_str=size_str,
+                    size_is_approximate=media_info.get("size_is_approximate", False),
+                    referrer=media_info.get("referrer"),
+                    user_agent=media_info.get("user_agent"),
+                    show_file_info=True,
+                    cookies=cookies,
+                    merge_output_format=media_info.get("video_container"),
+                    audio_format=media_info.get("audio_format"),
+                )
+        except Exception as e:
+            logger.error("Error processing media fetch completion for %s: %s", media_info.get("url", "unknown"), e, exc_info=True)
 
     def on_file_info_fetched(self, file_info):
         silent = getattr(self, "settings", {}).get("silent_download", False)

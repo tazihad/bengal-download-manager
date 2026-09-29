@@ -65,6 +65,12 @@ uv run python src/main.py
 
 # KDE Kirigami QML Mode
 uv run python src/main.py --kirigami
+
+# Debug Mode (clean timestamps, file:line context, throttled IPC pings)
+uv run python src/main.py --debug
+
+# Full Unrestricted Verbose Debug Mode (every IPC ping, raw HTTP access lines)
+uv run python src/main.py --debug --verbose
 ```
 
 ### Run Automated Unit Test Suite

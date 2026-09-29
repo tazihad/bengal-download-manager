@@ -27,6 +27,18 @@ uv run python src/main.py
 uv run python src/main.py --kirigami
 ```
 
+### Command-Line Arguments & Debug Flags
+
+Bengal Download Manager supports several runtime flags and environment variables for development and diagnostics:
+
+| Option / Flag | Environment Variable | Description |
+| :--- | :--- | :--- |
+| *(default)* | *(none)* | Standard execution with clean `INFO`-level logging. |
+| `--debug` | `DEBUG=1` or `BENGAL_DEBUG=1` | Enables detailed `DEBUG` logging with timestamps, source file/line context, Aria2 RPC activity, and throttled IPC heartbeat summaries. |
+| `--verbose` | `VERBOSE=1` or `BENGAL_VERBOSE=1` | Enables full unrestricted diagnostic logging, including every raw IPC extension ping and HTTP request/response line. |
+| `--debug --verbose` | `DEBUG=1 VERBOSE=1` | Complete unrestricted verbose debug output for comprehensive troubleshooting. |
+| `--kirigami` | *(none)* | Launches the KDE Kirigami QML responsive user interface instead of the classic PyQt6 QWidget table view. |
+
 ---
 
 ## 2. Automated Test Suite

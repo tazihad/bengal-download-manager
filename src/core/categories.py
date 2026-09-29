@@ -5,6 +5,7 @@ and formatting temporal download indicators.
 """
 
 import os
+import re
 import time
 from typing import Dict, List, Optional
 
