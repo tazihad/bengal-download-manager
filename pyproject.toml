@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bengal-download-manager"
 dynamic = ["version"]
-description = "High-speed multi-threaded download manager powered by PyQt6, KDE Kirigami, and Aria2"
+description = "High-speed multi-threaded download manager powered by PyQt6 and Aria2"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -17,7 +17,6 @@ keywords = [
     "aria2",
     "pyqt6",
     "qt6",
-    "kirigami",
     "multithreaded",
     "media-downloader",
     "desktop-app",
