@@ -18,7 +18,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
-from core.utils import load_extension_config, is_debug_mode
+from core.utils import load_extension_config, is_debug_mode, is_verbose_mode
 
 logger = logging.getLogger("bengal.ipc")
 
@@ -68,8 +68,9 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         self._is_routine_heartbeat = is_heartbeat
         client_ip = self.client_address[0] if (hasattr(self, "client_address") and self.client_address) else "127.0.0.1"
 
-        if is_debug_mode():
-            if os.environ.get("BENGAL_VERBOSE_IPC") == "1":
+        is_verbose = is_verbose_mode() or os.environ.get("BENGAL_VERBOSE_IPC") == "1"
+        if is_debug_mode() or is_verbose:
+            if is_verbose:
                 logger.debug("[IPC] Extension ping / GET request from %s on %s", client_ip, self.path)
             elif is_heartbeat:
                 now = time.time()
@@ -259,10 +260,11 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             
     def log_message(self, format, *args):
-        if is_debug_mode():
+        is_verbose = is_verbose_mode() or os.environ.get("BENGAL_VERBOSE_IPC") == "1"
+        if is_debug_mode() or is_verbose:
             msg = format % args
-            # Suppress routine successful heartbeat GET / pings to prevent terminal flooding
-            if os.environ.get("BENGAL_VERBOSE_IPC") != "1":
+            # Suppress routine successful heartbeat GET / pings unless verbose mode is active
+            if not is_verbose:
                 if getattr(self, "_is_routine_heartbeat", False) and ' 200 ' in msg:
                     return
                 if ('"GET / HTTP/' in msg or '"GET /? ' in msg or '"GET / ' in msg) and ' 200 ' in msg:

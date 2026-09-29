@@ -17,17 +17,32 @@ def is_debug_mode() -> bool:
     return "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or os.environ.get("BENGAL_DEBUG") == "1"
 
 
-def setup_logging(debug=False):
+def is_verbose_mode() -> bool:
+    """Returns True if verbose mode is active via CLI flag (--verbose) or environment variables."""
+    return (
+        "--verbose" in sys.argv
+        or os.environ.get("VERBOSE") == "1"
+        or os.environ.get("BENGAL_VERBOSE") == "1"
+        or os.environ.get("BENGAL_VERBOSE_IPC") == "1"
+    )
+
+
+def setup_logging(debug=False, verbose=False):
     """
     Configures application-wide logging levels and formatting.
     When debug=True (--debug flag), enables verbose DEBUG logs with file/line context.
+    When verbose=True (--verbose flag), enables full unrestricted diagnostic logs.
     """
     if debug:
         os.environ["BENGAL_DEBUG"] = "1"
         os.environ["DEBUG"] = "1"
+    if verbose:
+        os.environ["BENGAL_VERBOSE"] = "1"
+        os.environ["VERBOSE"] = "1"
 
-    log_level = logging.DEBUG if debug else logging.INFO
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if debug else "[%(asctime)s] [%(levelname)s] %(message)s"
+    active_debug = debug or verbose or is_debug_mode() or is_verbose_mode()
+    log_level = logging.DEBUG if active_debug else logging.INFO
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if active_debug else "[%(asctime)s] [%(levelname)s] %(message)s"
     
     logging.basicConfig(
         level=log_level,
@@ -38,8 +53,10 @@ def setup_logging(debug=False):
     )
     logger = logging.getLogger("bengal")
     logger.setLevel(log_level)
-    if debug:
+    if active_debug:
         logger.debug("=== BENGAL DOWNLOAD MANAGER DEBUG LOGGING ENABLED ===")
+        if verbose or is_verbose_mode():
+            logger.debug("=== VERBOSE LOGGING ENABLED (UNRESTRICTED) ===")
         logger.debug("Python Version: %s", sys.version)
         logger.debug("Platform: %s", platform.platform())
         logger.debug("Process PID: %d", os.getpid())
