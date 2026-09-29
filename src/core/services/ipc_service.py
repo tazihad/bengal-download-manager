@@ -48,6 +48,12 @@ IPCEmitter = SignalEmitter
 class IPCRequestHandler(BaseHTTPRequestHandler):
     """Handles HTTP API requests from browser extension (GET config, POST new download)."""
 
+    _heartbeat_lock = threading.Lock()
+    _last_heartbeat_time = 0.0
+    _heartbeat_count = 0
+    _last_heartbeat_client = None
+    _HEARTBEAT_SUMMARY_INTERVAL = 300.0  # Log summary once every 5 minutes in --debug
+
     def do_OPTIONS(self):
         # Handle CORS preflight from extensions or web integrations
         self.send_response(200)
@@ -57,8 +63,36 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        clean_path = self.path.split("?")[0].rstrip("/")
+        is_heartbeat = clean_path in ("", "/")
+        self._is_routine_heartbeat = is_heartbeat
+        client_ip = self.client_address[0] if (hasattr(self, "client_address") and self.client_address) else "127.0.0.1"
+
         if is_debug_mode():
-            logger.debug("[IPC] Extension ping / GET request from %s on %s", self.client_address[0], self.path)
+            if os.environ.get("BENGAL_VERBOSE_IPC") == "1":
+                logger.debug("[IPC] Extension ping / GET request from %s on %s", client_ip, self.path)
+            elif is_heartbeat:
+                now = time.time()
+                with self._heartbeat_lock:
+                    IPCRequestHandler._heartbeat_count += 1
+                    # Log initial connection or client change immediately
+                    if IPCRequestHandler._last_heartbeat_client != client_ip:
+                        IPCRequestHandler._last_heartbeat_client = client_ip
+                        IPCRequestHandler._last_heartbeat_time = now
+                        IPCRequestHandler._heartbeat_count = 1
+                        logger.debug("[IPC] Extension heartbeat connected from %s", client_ip)
+                    elif now - IPCRequestHandler._last_heartbeat_time >= self._HEARTBEAT_SUMMARY_INTERVAL:
+                        elapsed_min = max(1, int((now - IPCRequestHandler._last_heartbeat_time) / 60))
+                        logger.debug(
+                            "[IPC] Extension heartbeat active from %s (%d pings in last %dm)",
+                            client_ip,
+                            IPCRequestHandler._heartbeat_count,
+                            elapsed_min,
+                        )
+                        IPCRequestHandler._last_heartbeat_time = now
+                        IPCRequestHandler._heartbeat_count = 0
+            else:
+                logger.debug("[IPC] GET request from %s on %s", client_ip, self.path)
         ext_data = load_extension_config()
         try:
             from core.version import VERSION
@@ -226,7 +260,15 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             
     def log_message(self, format, *args):
         if is_debug_mode():
-            logger.debug("[IPC HTTP] %s - %s", self.client_address[0], format % args)
+            msg = format % args
+            # Suppress routine successful heartbeat GET / pings to prevent terminal flooding
+            if os.environ.get("BENGAL_VERBOSE_IPC") != "1":
+                if getattr(self, "_is_routine_heartbeat", False) and ' 200 ' in msg:
+                    return
+                if ('"GET / HTTP/' in msg or '"GET /? ' in msg or '"GET / ' in msg) and ' 200 ' in msg:
+                    return
+            client_ip = self.client_address[0] if (hasattr(self, "client_address") and self.client_address) else "127.0.0.1"
+            logger.debug("[IPC HTTP] %s - %s", client_ip, msg)
 
 
 class ReusableHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
