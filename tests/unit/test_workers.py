@@ -1,0 +1,142 @@
+"""Unit tests for core.workers."""
+
+import os
+import pytest
+from unittest.mock import MagicMock, patch
+
+from PyQt6.QtCore import QThread
+
+
+class TestDownloadWorkerFormatting:
+    @pytest.fixture
+    def worker(self, tmp_path, qapp):
+        from core.workers.download import DownloadWorker
+        w = DownloadWorker(
+            url="https://example.com/file.zip",
+            download_id=0,
+            save_dir=str(tmp_path),
+        )
+        yield w
+        w.workers.clear()
+
+    def test_format_bytes_zero(self, worker):
+        assert worker.format_bytes(0) == "0.00  B"
+
+    def test_format_bytes_kilobytes(self, worker):
+        assert worker.format_bytes(1024) == "1.00  KB"
+
+    def test_format_bytes_megabytes(self, worker):
+        assert worker.format_bytes(1024 * 1024) == "1.00  MB"
+
+    def test_format_bytes_gigabytes(self, worker):
+        assert worker.format_bytes(1024 ** 3) == "1.00  GB"
+
+    def test_format_bytes_pad(self, worker):
+        result = worker.format_bytes(1024, pad=True)
+        assert "KB" in result
+
+    def test_format_time_seconds(self, worker):
+        assert worker.format_time(30) == "30 sec"
+
+    def test_format_time_minutes(self, worker):
+        assert worker.format_time(120) == "2 min"
+
+    def test_format_time_hours(self, worker):
+        assert worker.format_time(7200) == "2 hr"
+
+    def test_format_time_zero(self, worker):
+        assert worker.format_time(0) == "0 sec"
+
+    def test_filename_from_url(self, worker):
+        assert worker.filename == "file.zip"
+
+    def test_opener_created(self, worker):
+        assert worker.opener is not None
+
+    def test_initial_state(self, worker):
+        assert worker.is_running is True
+        assert worker.is_paused is False
+        assert worker.workers == []
+        assert worker.segment_stats == {}
+
+    def test_set_global_speed_limit(self, worker, qapp):
+        worker.set_global_speed_limit(1024)
+        assert worker.current_global_limit == 1024
+
+    def test_set_global_speed_limit_zero(self, worker, qapp):
+        worker.set_global_speed_limit(5000)
+        worker.set_global_speed_limit(0)
+        assert worker.current_global_limit == 0
+
+
+class TestAria2WorkerFormatting:
+    @pytest.fixture
+    def worker(self, tmp_path, qapp):
+        from core.workers.aria2 import Aria2Worker
+        w = Aria2Worker(
+            url="https://example.com/file.zip",
+            download_id=0,
+            save_dir=str(tmp_path),
+        )
+        yield w
+
+    def test_format_bytes_zero(self, worker):
+        assert worker.format_bytes(0) == "0.00  B"
+
+    def test_format_bytes_kilobytes(self, worker):
+        assert worker.format_bytes(1024) == "1.00  KB"
+
+    def test_format_bytes_megabytes(self, worker):
+        assert worker.format_bytes(1024 * 1024) == "1.00  MB"
+
+    def test_format_time_seconds(self, worker):
+        assert worker.format_time(30) == "30 sec"
+
+    def test_format_time_minutes(self, worker):
+        assert worker.format_time(120) == "2 min"
+
+    def test_format_time_hours(self, worker):
+        assert worker.format_time(7200) == "2 hr"
+
+    def test_filename_from_url(self, worker):
+        assert worker.filename == "file.zip"
+
+    def test_initial_state(self, worker):
+        assert worker.is_running is True
+        assert worker.gid is None
+
+    def test_rpc_url_constructed(self, worker):
+        assert "jsonrpc" in worker.rpc_url
+        assert "127.0.0.1" in worker.rpc_url
+
+    def test_call_rpc_mocked(self, worker):
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            mock_rpc.return_value = {"ok": True}
+            result = worker.call_rpc("aria2.getVersion")
+            assert result == {"ok": True}
+            mock_rpc.assert_called_once()
+
+
+class TestFileInfoFetcherFormatting:
+    @pytest.fixture
+    def fetcher(self, tmp_path, qapp):
+        from core.workers.fetcher import FileInfoFetcherWorker
+        f = FileInfoFetcherWorker(
+            url="https://example.com/file.zip",
+        )
+        yield f
+
+    def test_format_bytes(self, fetcher):
+        assert fetcher.format_bytes(1024) == "1.00  KB"
+
+    def test_format_bytes_zero(self, fetcher):
+        assert fetcher.format_bytes(0) == "0.00  B"
+
+    def test_url_stored(self, fetcher):
+        assert fetcher.url == "https://example.com/file.zip"
+
+    def test_default_user_agent(self, fetcher):
+        assert "Mozilla" in fetcher.user_agent
+
+    def test_cookie_jar_exists(self, fetcher):
+        assert fetcher.cookie_jar is not None
