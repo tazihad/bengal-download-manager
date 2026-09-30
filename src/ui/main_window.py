@@ -4349,12 +4349,25 @@ class MainWindow(QMainWindow):
             self.open_batch_download(lines, is_import=True)
 
     def open_batch_download(self, urls_or_items, is_import: bool = False):
-        """Opens the Batch Download Review dialog with the provided items."""
+        """Opens the Batch Download Review dialog with the provided items.
+
+        Uses show() (non-blocking) instead of exec() so the Qt modal event loop
+        is not seized, allowing browser-extension download popups (DownloadFileInfoDialog)
+        to remain fully interactive while the batch dialog is open.
+        """
         if not urls_or_items:
             return
         from ui.dialogs import BatchDownloadDialog
         dlg = BatchDownloadDialog(urls_or_items, parent=self, main_window=self, is_import=is_import)
-        dlg.exec()
+        # Keep a strong reference so the dialog is not garbage-collected while open.
+        if not hasattr(self, "_batch_download_dialogs"):
+            self._batch_download_dialogs = []
+        self._batch_download_dialogs.append(dlg)
+        dlg.finished.connect(lambda _result, d=dlg: self._batch_download_dialogs.remove(d)
+                             if d in self._batch_download_dialogs else None)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def add_batch_downloads(self, batch_files: list, queue_name: str = None, start_immediate: bool = True):
         """
