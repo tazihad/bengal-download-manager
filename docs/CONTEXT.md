@@ -15,7 +15,7 @@ A persisted or active transfer request identified by a unique key.
 - **Transfer Metrics**: Numeric indicators including byte size, transfer rate, progress percentage, and time remaining (rendered with tabular figures `tnum`).
 
 ### Download Store
-The authoritative in-memory repository module managing active and completed download records. It provides mutation interfaces, query methods, and reactive change signals to presentation adapters (desktop table and QML card views) while synchronizing with SQLite storage.
+The authoritative in-memory repository module managing active and completed download records. It provides mutation interfaces, query methods, and reactive change signals to the presentation layer (desktop table view) while synchronizing with SQLite storage.
 
 ### Queue
 A managed execution group governing concurrency and order for a collection of Downloads.
@@ -37,7 +37,7 @@ An execution adapter fulfilling the transfer interface at the download seam.
 Classification of downloads based on payload file extensions (e.g., Compressed, Documents, Music, Programs, Video) used for folder routing and view filtering.
 
 ### Bridge
-The presentation seam connecting the core application model to alternative frontends (PyQt6 QWidget table and KDE Kirigami QML cards).
+The presentation seam connecting the core application model to the PyQt6 QWidget frontend. Previously also served Kirigami QML cards (removed in PR #144).
 
 ### Desktop Integration
 The platform seam managing system interactions: XDG Desktop Portals, D-Bus file manager discovery, system tray status, and autostart launchers.

@@ -3,7 +3,7 @@
 Status: accepted
 
 ## Context
-`MainWindow` previously managed active worker threads, progress dialog instances, and bandwidth metrics directly in its internal dictionaries (`self.active_downloads = {}`, `self.active_speeds = {}`). It was responsible for iterating active worker entries, inspecting whether entries were `QDialog` or `QThread` instances, managing pause/resume operations, and calculating overall transfer rates. This coupled active download execution lifecycles to GUI table presentation and forced QML `DownloadBridge` to inspect GUI window dictionaries.
+`MainWindow` previously managed active worker threads, progress dialog instances, and bandwidth metrics directly in its internal dictionaries (`self.active_downloads = {}`, `self.active_speeds = {}`). It was responsible for iterating active worker entries, inspecting whether entries were `QDialog` or `QThread` instances, managing pause/resume operations, and calculating overall transfer rates. This coupled active download execution lifecycles to GUI table presentation.
 
 ## Decision
 We introduce `DownloadController` in `src/core/download_controller.py` as a deep module that:
@@ -13,6 +13,8 @@ We introduce `DownloadController` in `src/core/download_controller.py` as a deep
 - Centralizes graceful bulk pausing and termination (`stop_all`, `pause`).
 
 ## Consequences
-- Presentation views (`MainWindow`, `DownloadBridge`) access active download state and speed metrics through a unified domain controller.
+- `MainWindow` accesses active download state and speed metrics through a unified domain controller.
 - Concurrency tracking and speed calculations can be tested headlessly without GUI tables.
 - Eliminates brittle duck-typing checks across GUI layers for worker vs. dialog objects.
+
+> **Note:** `DownloadBridge` (Kirigami QML layer) was removed in PR #144. `DownloadController` continues to serve `MainWindow`.

@@ -12,21 +12,20 @@ Bengal Download Manager is designed around a decoupled, asynchronous, and reacti
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │                                     PRESENTATION LAYER                                  │
 │                                                                                         │
-│   ┌──────────────────────────────────────────────┐  ┌────────────────────────────────┐  │
-│   │         PyQt6 QWidget Application            │  │     KDE Kirigami QML Engine    │  │
-│   │  - MainWindow, QSplitter, Category Sidebar   │  │  - Main.qml, CardsListView     │  │
-│   │  - DownloadTableWidget & Custom Delegates    │  │  - GlobalDrawer, Dialogs       │  │
-│   │  - Specialized Modal Dialogs (Add, Progress) │  │  - OpenType Tabular Numerics   │  │
-│   └──────────────────────┬───────────────────────┘  └───────────────┬────────────────┘  │
-│                          │                                          │                   │
-│                          └────────────────────┬─────────────────────┘                   │
-│                                               │                                         │
-│                                               ▼                                         │
-│                                  ┌───────────────────────────┐                          │
-│                                  │   DownloadBridge QObject  │                          │
-│                                  │  (Signals, Slots, Props)  │                          │
-│                                  └────────────┬──────────────┘                          │
-└───────────────────────────────────────────────┼─────────────────────────────────────────┘
+│   ┌──────────────────────────────────────────────────────────────────────────────────┐  │
+│   │                         PyQt6 QWidget Application                                │  │
+│   │  - MainWindow, QSplitter, Category Sidebar                                       │  │
+│   │  - DownloadTableWidget & Custom Delegates                                        │  │
+│   │  - Specialized Modal Dialogs (Add URL, Progress, Complete, File Info)            │  │
+│   └──────────────────────────────────────────┬───────────────────────────────────────┘  │
+│                                              │                                          │
+│                                              ▼                                          │
+│                             ┌────────────────────────────────┐                          │
+│                             │  MainWindow State Coordinator  │                          │
+│                             │  (Download Registry, Themes,   │                          │
+│                             │   Tray, Queue Ticker)          │                          │
+│                             └───────────────┬────────────────┘                          │
+└───────────────────────────────────────────────────────────────────────────────────────┘
                                                 │
 ┌───────────────────────────────────────────────┼─────────────────────────────────────────┐
 │                                   APPLICATION CONTROLLER                                │
@@ -176,19 +175,7 @@ Long-running download managers often suffer from Python memory fragmentation and
 
 ---
 
-## 7. KDE Kirigami QML Hybrid Architecture
 
-BDM includes an alternative, touch-friendly UI mode built on KDE's Kirigami framework (`src/ui/qml/`):
-- **Entry Point**: Triggered via `uv run python src/main.py --kirigami`.
-- **C++ / Python Bridge (`DownloadBridge`)**: A `QObject` subclass registered into the QML context as `DownloadBridge`. Exposes reactive Qt properties (`downloads`, `statusMessage`, `totalSpeed`, `memoryUsage`, `aria2Running`) and invokable slots (`addDownload`, `pauseDownload`, `resumeDownload`, `deleteDownload`, `openFile`, `openFolder`).
-- **QML Components**:
-  - `Main.qml`: Root Kirigami application window featuring responsive action bars.
-  - `GlobalDrawer.qml`: Collapsible category and queue filter drawer.
-  - `DownloadCard.qml`: Fluid cards list view displaying download status badges, speed counters, and OpenType tabular figures (`font.features: { "tnum": 1 }`).
-
----
-
-## 8. Operating System & Desktop Environment Integration
 
 - **Theme Detection**: Listens to `QGuiApplication.styleHints().colorSchemeChanged` and Qt event types `ApplicationPaletteChange`, `PaletteChange`, `ThemeChange`, and `StyleChange` to switch themes dynamically between Dark and Light mode.
 - **Icon Resolution**: Probes standard FreeDesktop icon paths (`/usr/share/icons`, `~/.local/share/icons`, `/app/share/icons`). If monochrome mode is active, generates vector stroke icons with dynamic luminance matching the active palette.
@@ -209,7 +196,7 @@ A persisted or active transfer request identified by a unique key.
 - **Transfer Metrics**: Numeric indicators including byte size, transfer rate, progress percentage, and time remaining (rendered with tabular figures `tnum`).
 
 ### Download Store
-The authoritative in-memory repository module managing active and completed download records. It provides mutation interfaces, query methods, and reactive change signals to presentation adapters (desktop table and QML card views) while synchronizing with SQLite storage.
+The authoritative in-memory repository module managing active and completed download records. It provides mutation interfaces, query methods, and reactive change signals to the presentation layer (desktop table view) while synchronizing with SQLite storage.
 
 ### Queue
 A managed execution group governing concurrency and order for a collection of Downloads.
@@ -231,7 +218,7 @@ An execution adapter fulfilling the transfer interface at the download seam.
 Classification of downloads based on payload file extensions (e.g., Compressed, Documents, Music, Programs, Video) used for folder routing and view filtering.
 
 ### Bridge
-The presentation seam connecting the core application model to alternative frontends (PyQt6 QWidget table and KDE Kirigami QML cards).
+The presentation seam connecting the core application model to the PyQt6 QWidget frontend. Previously also served Kirigami QML cards (removed in PR #144).
 
 ### Desktop Integration
 The platform seam managing system interactions: XDG Desktop Portals, D-Bus file manager discovery, system tray status, and autostart launchers.

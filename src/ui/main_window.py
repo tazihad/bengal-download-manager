@@ -2304,7 +2304,7 @@ class MainWindow(QMainWindow):
             self._notify_views_changed()
 
     def _notify_views_changed(self):
-        """Notifies QML bridge and scheduler dialog of download list/progress changes."""
+        """Notifies scheduler dialog of download list/progress changes."""
         if not self.isVisible():
             return
         now = time.monotonic()
@@ -3275,6 +3275,7 @@ class MainWindow(QMainWindow):
 
         col_name = "Last Attempt" if col == 5 else "Date Added"
         item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
+        return item
 
     def add_new_download(self, url, category="General", save_path=""):
         if url:

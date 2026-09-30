@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('build/runtime_assets', 'assets')]
+datas = [('.pyinstaller-build/runtime_assets', 'assets')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('core')
