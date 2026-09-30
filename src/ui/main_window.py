@@ -2315,8 +2315,6 @@ class MainWindow(QMainWindow):
         if MemoryGuard.is_widget_alive(getattr(self, '_scheduler_dlg', None)):
             if hasattr(self._scheduler_dlg, 'tabs') and self._scheduler_dlg.tabs.currentIndex() == 1:
                 self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
-        if hasattr(self, 'bridge') and self.bridge:
-            self.bridge.refresh()
 
     def update_ui_states(self):
         selected_rows = self.download_table.selectedItems()
@@ -3274,109 +3272,13 @@ class MainWindow(QMainWindow):
             self.download_table.setItem(row, col, item)
         elif item.text() != text:
             item.setText(text)
-            
+
         col_name = "Last Attempt" if col == 5 else "Date Added"
         item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
-        return item
 
     def add_new_download(self, url, category="General", save_path=""):
         if url:
             self.start_download(url, custom_save_dir=save_path if save_path else None)
-
-    def get_qml_downloads_data(self):
-        data = []
-        for r in range(self.download_table.rowCount()):
-            item0 = self.download_table.item(r, 0)
-            item1 = self.download_table.item(r, 1)
-            item2 = self.download_table.item(r, 2)
-            item3 = self.download_table.item(r, 3)
-            item4 = self.download_table.item(r, 4)
-            item5 = self.download_table.item(r, 5)
-            item6 = self.download_table.item(r, 6)
-            if item0:
-                data.append({
-                    "filename": item0.text(),
-                    "url": item0.data(Qt.ItemDataRole.UserRole) or "",
-                    "referer": item0.data(Qt.ItemDataRole.UserRole + 15) or item0.data(Qt.ItemDataRole.UserRole) or "",
-                    "path": item0.data(Qt.ItemDataRole.UserRole + 1) or "",
-                    "size": item1.text() if item1 else "",
-                    "status": item2.text() if item2 else "",
-                    "time_left": item3.text() if item3 else "",
-                    "rate": item4.text() if item4 else "",
-                    "last_try": item5.text() if item5 else "",
-                    "date_added": item6.text() if item6 else "",
-                    "category": get_category_for_filename(item0.text())
-                })
-        return data
-
-    def qml_pause_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                item.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
-                key = self._get_item_key(item)
-                if key in self.active_downloads:
-                    entry = self.active_downloads.get(key)
-                    worker = getattr(entry, 'worker', entry)
-                    if worker and hasattr(worker, 'pause'):
-                        try:
-                            worker.pause()
-                        except Exception:
-                            pass
-                    else:
-                        self._stop_worker_entry(entry)
-                    from core.media_downloader import YtDlpDownloadWorker
-                    if isinstance(worker, YtDlpDownloadWorker):
-                        self.active_downloads.pop(key, None)
-                        if hasattr(self, "active_speeds"):
-                            self.active_speeds.pop(key, None)
-                        self.update_status_bar_speed()
-                status_item = self.download_table.item(index, 2)
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                self._set_status_text(index, "Paused", logic_status="Paused")
-                self._set_row_bold(index, False)
-                self.update_ui_states()
-
-    def qml_resume_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                url = item.data(Qt.ItemDataRole.UserRole)
-                if url:
-                    key = self._get_item_key(item)
-                    format_spec = item.data(Qt.ItemDataRole.UserRole + 6)
-                    if format_spec is not None and key in self.active_downloads:
-                        entry = self.active_downloads.pop(key, None)
-                        if entry:
-                            self._stop_worker_entry(entry)
-                    self._start_download_worker(url, item, resume_filename=item.text())
-
-    def qml_delete_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                key = self._get_item_key(item)
-                if key and key in self.active_downloads:
-                    dlg = self.active_downloads.pop(key, None)
-                    self._stop_worker_entry(dlg)
-                if hasattr(self, "active_speeds") and key:
-                    self.active_speeds.pop(key, None)
-                if hasattr(self, "_pending_tray_updates") and key:
-                    self._pending_tray_updates.pop(key, None)
-            self.download_table.removeRow(index)
-
-    def qml_move_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                self.ctx_move(item)
-
-    def qml_rename_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                self.ctx_rename(item)
 
     def save_settings(self):
         try:

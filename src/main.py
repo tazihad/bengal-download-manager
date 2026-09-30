@@ -214,7 +214,6 @@ def main():
         pass
 
     window = MainWindow()
-    use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
 
     # Start single instance server on primary instance if enabled
     if "--no-single-instance" not in sys.argv:
@@ -224,16 +223,6 @@ def main():
             args = payload.get("args", [])
             if "--minimized" not in args:
                 window.restore_window()
-                if use_qml and 'qml_engine' in locals() and qml_engine.rootObjects():
-                    for root in qml_engine.rootObjects():
-                        if hasattr(root, "show"):
-                            root.show()
-                        if hasattr(root, "showNormal"):
-                            root.showNormal()
-                        if hasattr(root, "raise_"):
-                            root.raise_()
-                        if hasattr(root, "requestActivate"):
-                            root.requestActivate()
             for arg in args:
                 if isinstance(arg, str) and (arg.startswith("http://") or arg.startswith("https://")):
                     window.process_incoming_url(arg)
@@ -278,28 +267,6 @@ def main():
         QTimer.singleShot(0, window.update_tray_action)
     else:
         window.start_minimized = False
-
-    if use_qml:
-        try:
-            from PyQt6.QtQml import QQmlApplicationEngine
-            from PyQt6.QtCore import QUrl
-            from core.bridge import DownloadBridge
-
-            qml_engine = QQmlApplicationEngine()
-            qml_engine.addImportPath("/usr/lib/x86_64-linux-gnu/qt6/qml")
-            bridge = DownloadBridge(main_window=window, store=getattr(window, "download_store", None))
-            window.bridge = bridge
-            qml_engine.rootContext().setContextProperty("downloadBridge", bridge)
-
-            qml_file = os.path.join(os.path.dirname(__file__), "ui", "qml", "Main.qml")
-            qml_engine.load(QUrl.fromLocalFile(qml_file))
-
-            if qml_engine.rootObjects():
-                sys.exit(app.exec())
-            else:
-                print("Failed to initialize QML root object. Falling back to native UI.")
-        except Exception as e:
-            print(f"Kirigami QML initialization skipped ({e}). Falling back to native UI.")
 
     if not getattr(window, "start_minimized", False):
         window.show()
