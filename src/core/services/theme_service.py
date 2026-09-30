@@ -730,7 +730,12 @@ class _TitleBarEventFilter(QObject):
                                 detach_csd(watched)
         except Exception:
             pass
-        return super().eventFilter(watched, event)
+        try:
+            return super().eventFilter(watched, event)
+        except RuntimeError:
+            # The underlying C++ QObject has been deleted (app shutdown race).
+            # Return False so Qt can continue normal cleanup without crashing.
+            return False
 
 
 _GLOBAL_TITLEBAR_FILTER = None

@@ -4297,8 +4297,10 @@ class MainWindow(QMainWindow):
     def open_add_url(self, paste_clipboard=False):
         from ui.dialogs import AddUrlDialog
         self._add_url_dialog = AddUrlDialog(self, paste_clipboard=paste_clipboard)
-        if self._add_url_dialog.exec():
-            self._handle_add_url_accepted(self._add_url_dialog)
+        self._add_url_dialog.accepted.connect(lambda: self._handle_add_url_accepted(self._add_url_dialog))
+        self._add_url_dialog.show()
+        self._add_url_dialog.raise_()
+        self._add_url_dialog.activateWindow()
 
     def _handle_add_url_accepted(self, dialog):
         if getattr(dialog, "is_batch_mode", False):
@@ -4318,13 +4320,28 @@ class MainWindow(QMainWindow):
                 self.process_incoming_url(url)
 
     def open_batch_pattern(self, initial_url: str = None):
-        """Opens the Batch Pattern Dialog to generate wildcard URLs."""
+        """Opens the Batch Pattern Dialog to generate wildcard URLs.
+
+        Uses show() (non-blocking) instead of exec() so the Qt modal event loop
+        is not seized, keeping any concurrently shown download popup interactive.
+        """
         from ui.dialogs import BatchPatternDialog
         dlg = BatchPatternDialog(self, initial_url=initial_url or "")
-        if dlg.exec():
-            urls = dlg.get_generated_urls()
-            if urls:
-                self.open_batch_download(urls, is_import=False)
+        if not hasattr(self, "_batch_pattern_dialogs"):
+            self._batch_pattern_dialogs = []
+        self._batch_pattern_dialogs.append(dlg)
+        dlg.finished.connect(lambda _result, d=dlg: self._batch_pattern_dialogs.remove(d)
+                             if d in self._batch_pattern_dialogs else None)
+        dlg.accepted.connect(lambda d=dlg: self._on_batch_pattern_accepted(d))
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+
+    def _on_batch_pattern_accepted(self, dlg):
+        """Called when BatchPatternDialog is accepted; chains into open_batch_download."""
+        urls = dlg.get_generated_urls()
+        if urls:
+            self.open_batch_download(urls, is_import=False)
 
     def update_import_links_action_state(self):
         """Disables 'Import Links from Clipboard' action when clipboard is empty or has no download links."""
@@ -5029,16 +5046,21 @@ class MainWindow(QMainWindow):
 
         from ui.dialogs.duplicate import DuplicateDownloadDialog
         dlg = DuplicateDownloadDialog(file_data, parent=None)
-        dlg.exec()
-        action = dlg.get_action()
 
-        if action == "resume":
-            self.download_table.selectRow(row)
-            self.resume_selected_download()
-        elif action in ["restart", "redownload"]:
-            self._restart_download_row(row, item_ref, url, user_agent, cookies)
-        elif action == "download_copy":
-            self._start_duplicate_copy(url, user_agent, cookies)
+        def _on_dup_accepted(d=dlg, _row=row, _item_ref=item_ref, _url=url, _ua=user_agent, _ck=cookies):
+            action = d.get_action()
+            if action == "resume":
+                self.download_table.selectRow(_row)
+                self.resume_selected_download()
+            elif action in ["restart", "redownload"]:
+                self._restart_download_row(_row, _item_ref, _url, _ua, _ck)
+            elif action == "download_copy":
+                self._start_duplicate_copy(_url, _ua, _ck)
+
+        dlg.accepted.connect(_on_dup_accepted)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _restart_download_row(self, row, item_ref, url=None, user_agent=None, cookies=None):
         """Restarts a download from 0%, resetting progress and deleting previous partial chunks."""
