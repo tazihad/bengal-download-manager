@@ -210,18 +210,14 @@ class TestOptionsDialogTabs:
         from ui.dialogs.options import OptionsDialog
         dlg = OptionsDialog(main_window=None)
         dlg.select_tab("media")
-        assert hasattr(dlg, "cmb_opt_youtube_client")
-        assert dlg.cmb_opt_youtube_client.count() >= 5
-        assert dlg.cmb_opt_youtube_client.itemText(0) == "Auto"
-        # Verify Auto multi-client is an option
-        items_data = [dlg.cmb_opt_youtube_client.itemData(i) for i in range(dlg.cmb_opt_youtube_client.count())]
-        assert "auto" in items_data
-        assert "android,ios" in items_data
-        assert "mweb" in items_data
-        # Test reset button
-        dlg.cmb_opt_youtube_client.setCurrentIndex(2)
+        assert hasattr(dlg, "txt_opt_youtube_client")
+        assert dlg.txt_opt_youtube_client.text().lower() in ("auto", "dynamic")
+        # Test manual editing
+        dlg.txt_opt_youtube_client.setText("android,ios")
+        assert dlg.txt_opt_youtube_client.text() == "android,ios"
+        # Test reset button resets to auto
         dlg.btn_opt_reset_youtube_client.click()
-        assert dlg.cmb_opt_youtube_client.currentIndex() == 0
+        assert dlg.txt_opt_youtube_client.text() == "auto"
         dlg.close()
 
 
