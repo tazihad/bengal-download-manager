@@ -12,6 +12,14 @@
   if (window.__bengalDmVideoWidgetLoaded) return;
   window.__bengalDmVideoWidgetLoaded = true;
 
+  function isExtensionValid() {
+    try {
+      return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
   let activeVideo = null;
   let isUserPositioned = false;
   let userCoords = { left: 0, top: 0 };
@@ -434,7 +442,7 @@
       videoPanelPosition: 'top-right',
       blacklistUrls: []
     }, (items) => {
-      if (chrome.runtime.lastError) return;
+      if (!isExtensionValid() || chrome.runtime.lastError) return;
       enableInterception = items.enableInterception !== false;
       enableMediaSniffing = items.enableMediaSniffing !== false;
       blacklistUrls = Array.isArray(items.blacklistUrls) ? items.blacklistUrls : [];
@@ -444,80 +452,126 @@
       }
     });
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === 'local') {
-        let shouldCheckVisibility = false;
+    if (window === window.top && window.matchMedia) {
+      try {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        const syncSystemTheme = (isChange = false) => {
+          if (!isExtensionValid()) return;
+          try {
+            const detected = mq.matches ? 'dark' : 'light';
+            chrome.storage.local.get({ theme: 'system', actionIcon: 'system', systemTheme: '' }, (items) => {
+              if (!isExtensionValid() || chrome.runtime.lastError) return;
+              if (items && items.systemTheme !== detected) {
+                try {
+                  chrome.storage.local.set({ systemTheme: detected });
+                } catch {}
+                if (isChange && (!items.theme || items.theme === 'system') && (!items.actionIcon || items.actionIcon === 'system')) {
+                  try {
+                    chrome.runtime.sendMessage({
+                      action: "sync_icon_with_theme",
+                      effectiveTheme: detected
+                    }).catch(() => {});
+                  } catch {}
+                }
+              }
+            });
+          } catch {}
+        };
+        syncSystemTheme(false);
+        if (mq.addEventListener) {
+          mq.addEventListener('change', () => {
+            if (isExtensionValid()) syncSystemTheme(true);
+          });
+        } else if (mq.addListener) {
+          mq.addListener(() => {
+            if (isExtensionValid()) syncSystemTheme(true);
+          });
+        }
+      } catch {}
+    }
 
-        if (changes.blacklistUrls !== undefined) {
-          blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
-          shouldCheckVisibility = true;
-        }
-        if (changes.enableInterception !== undefined) {
-          enableInterception = changes.enableInterception.newValue !== false;
-          shouldCheckVisibility = true;
-        }
-        if (changes.enableMediaSniffing !== undefined) {
-          enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
-          shouldCheckVisibility = true;
-        }
-        if (changes.videoPanelPosition !== undefined) {
-          videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
-          updateWidgetPosition();
-        }
+    if (isExtensionValid() && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (!isExtensionValid()) return;
+        if (areaName === 'local') {
+          let shouldCheckVisibility = false;
 
-        if (shouldCheckVisibility) {
-          if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
-            hideWidget('storage_changed_disabled_or_blacklisted');
-          } else if (activeVideo && isAppConnected && enableMediaSniffing) {
-            showWidget();
+          if (changes.blacklistUrls !== undefined) {
+            blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
+            shouldCheckVisibility = true;
+          }
+          if (changes.enableInterception !== undefined) {
+            enableInterception = changes.enableInterception.newValue !== false;
+            shouldCheckVisibility = true;
+          }
+          if (changes.enableMediaSniffing !== undefined) {
+            enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
+            shouldCheckVisibility = true;
+          }
+          if (changes.videoPanelPosition !== undefined) {
+            videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
+            updateWidgetPosition();
+          }
+
+          if (shouldCheckVisibility) {
+            if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
+              hideWidget('storage_changed_disabled_or_blacklisted');
+            } else if (activeVideo && isAppConnected && enableMediaSniffing) {
+              showWidget();
+            }
           }
         }
-      }
-    });
+      });
+    }
   } catch {}
 
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg && msg.action === "close_dropdown") {
-      if (isDropdownOpen) {
-        closeDropdown();
-      }
-      return;
-    }
-    if (msg && msg.action === "connection_status_changed") {
-      const wasConnected = isAppConnected;
-      isAppConnected = Boolean(msg.online);
-      if (!isAppConnected || isSiteBlacklisted()) {
-        hideWidget('connection_status_changed');
-      } else if (!wasConnected && enableMediaSniffing) {
-        if (activeVideo) {
-          showWidget();
-        } else {
-          const v = document.querySelector('video');
-          if (v && (!v.paused || v.currentTime > 0)) {
-            onVideoState(v);
+  try {
+    if (isExtensionValid() && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((msg) => {
+        if (!isExtensionValid()) return;
+        if (msg && msg.action === "close_dropdown") {
+          if (isDropdownOpen) {
+            closeDropdown();
+          }
+          return;
+        }
+        if (msg && msg.action === "connection_status_changed") {
+          const wasConnected = isAppConnected;
+          isAppConnected = Boolean(msg.online);
+          if (!isAppConnected || isSiteBlacklisted()) {
+            hideWidget('connection_status_changed');
+          } else if (!wasConnected && enableMediaSniffing) {
+            if (activeVideo) {
+              showWidget();
+            } else {
+              const v = document.querySelector('video');
+              if (v && (!v.paused || v.currentTime > 0)) {
+                onVideoState(v);
+              }
+            }
+          }
+          return;
+        }
+        if (msg && msg.action === "media_stream_detected" && msg.stream) {
+          if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
+          const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
+          if (existing) {
+            if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
+            if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
+          } else {
+            sniffedMediaStreams.unshift(msg.stream);
+            if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
+            if (activeVideo && isDropdownOpen) {
+              populateDropdown();
+            }
+            if (window.self !== window.top && activeVideo) {
+              notifyTopFrameVideo(activeVideo, 'playing');
+            }
           }
         }
-      }
-      return;
+      });
     }
-    if (msg && msg.action === "media_stream_detected" && msg.stream) {
-      if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
-      const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
-      if (existing) {
-        if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
-        if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
-      } else {
-        sniffedMediaStreams.unshift(msg.stream);
-        if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
-        if (activeVideo && isDropdownOpen) {
-          populateDropdown();
-        }
-        if (window.self !== window.top && activeVideo) {
-          notifyTopFrameVideo(activeVideo, 'playing');
-        }
-      }
-    }
-  });
+  } catch {}
 
   // Request fresh media info periodically
   function requestMediaInfo() {

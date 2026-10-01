@@ -179,12 +179,123 @@ function refreshFilterRules() {
 }
 refreshFilterRules();
 
+function getIconPathsForStyle(style, effectiveTheme) {
+  let target = style || 'system';
+  if (target === 'system') {
+    target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+  }
+  if (target === 'light') {
+    return {
+      16: 'assets/icon-light-16.png',
+      32: 'assets/icon-light-32.png',
+      48: 'assets/icon-light-48.png',
+      128: 'assets/icon-light-128.png'
+    };
+  }
+  if (target === 'dark') {
+    return {
+      16: 'assets/icon-dark-16.png',
+      32: 'assets/icon-dark-32.png',
+      48: 'assets/icon-dark-48.png',
+      128: 'assets/icon-dark-128.png'
+    };
+  }
+  return {
+    16: 'assets/icon-16.png',
+    32: 'assets/icon-32.png',
+    48: 'assets/icon-48.png',
+    128: 'assets/icon-128.png'
+  };
+}
+
+function isFirefoxEnv() {
+  if (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.getBrowserInfo === 'function') {
+    return true;
+  }
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Firefox')) {
+    return true;
+  }
+  return false;
+}
+
+let lastAppliedIconKey = null;
+
+function updateChromeActionIcon(effectiveTheme, iconStyle = 'system') {
+  if (isFirefoxEnv()) return;
+  const action = getActionAPI();
+  if (!action || !action.setIcon) return;
+
+  const iconKey = `${iconStyle}_${effectiveTheme}`;
+  if (lastAppliedIconKey === iconKey) {
+    return;
+  }
+  lastAppliedIconKey = iconKey;
+
+  const paths = getIconPathsForStyle(iconStyle, effectiveTheme);
+  try {
+    action.setIcon({ path: paths }).catch(() => {});
+  } catch (err) {
+    console.warn("Could not set extension toolbar icon:", err);
+  }
+}
+
+async function applyStoredActionIcon() {
+  const action = getActionAPI();
+  if (!action || !action.setIcon) return;
+
+  chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, async (items) => {
+    const iconPref = items.actionIcon || 'system';
+    const themePref = items.theme || 'system';
+
+    // In Firefox, if both icon and theme are set to system default, reset icon override to let native manifest theme_icons handle it seamlessly without hover
+    if (isFirefoxEnv() && iconPref === 'system' && themePref === 'system') {
+      try {
+        await action.setIcon({ path: null });
+        return;
+      } catch (e) {
+        // Fallback to explicit paths if path: null fails
+      }
+    }
+
+    let effectiveTheme = 'light';
+    if (themePref === 'dark') {
+      effectiveTheme = 'dark';
+    } else if (themePref === 'light') {
+      effectiveTheme = 'light';
+    } else {
+      // themePref === 'system'
+      if (items.systemTheme) {
+        effectiveTheme = items.systemTheme;
+      } else if (typeof matchMedia !== 'undefined') {
+        try {
+          effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } catch {}
+      }
+    }
+
+    if (!isFirefoxEnv()) {
+      updateChromeActionIcon(effectiveTheme, iconPref);
+    } else {
+      const paths = getIconPathsForStyle(iconPref, effectiveTheme);
+      try {
+        await action.setIcon({ path: paths });
+      } catch (err) {
+        console.warn("Could not set extension toolbar icon:", err);
+      }
+    }
+  });
+}
+applyStoredActionIcon();
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
     for (const key of ['enableInterception', 'enableMediaSniffing', 'whitelistUrls', 'whitelistExts', 'blacklistUrls', 'blacklistExts']) {
       if (changes[key] !== undefined) {
         cachedFilterRules[key] = changes[key].newValue;
       }
+    }
+    if (changes.actionIcon || changes.theme || changes.systemTheme) {
+      applyStoredActionIcon();
     }
   }
 });
@@ -1284,14 +1395,17 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
     );
   };
 
+  const isFirefox = isFirefoxEnv();
   const manifest = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest() : {};
-  const hasBlocking = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
+  const hasBlocking = isFirefox && manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
   const extraSpec = hasBlocking ? ["responseHeaders", "blocking"] : ["responseHeaders"];
 
   try {
     setupListener(extraSpec);
-  } catch {
-    setupListener(["responseHeaders"]);
+  } catch (err) {
+    try {
+      setupListener(["responseHeaders"]);
+    } catch {}
   }
 }
 
@@ -1465,7 +1579,7 @@ function sanitizeMediaUrl(url) {
 
 // --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['port', 'enableInterception', 'theme'], (items) => {
+  chrome.storage.local.get(['port', 'enableInterception', 'theme', 'actionIcon'], (items) => {
     if (!items.port || items.port === 6800 || items.port === 50001 || items.port === 6801) {
       chrome.storage.local.set({ port: 56800 });
     }
@@ -1475,6 +1589,10 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!items.theme) {
       chrome.storage.local.set({ theme: "system" });
     }
+    if (!items.actionIcon) {
+      chrome.storage.local.set({ actionIcon: "system" });
+    }
+    applyStoredActionIcon();
   });
 
   chrome.contextMenus.removeAll(() => {
@@ -1716,6 +1834,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         whitelistedExt
       });
     })();
+    return true;
+  }
+
+  if (request.action === "report_system_theme" && request.systemTheme) {
+    chrome.storage.local.get({ systemTheme: '' }, (items) => {
+      if (items.systemTheme !== request.systemTheme) {
+        chrome.storage.local.set({ systemTheme: request.systemTheme }, () => {
+          applyStoredActionIcon();
+        });
+      }
+    });
+    sendResponse({ status: "ok" });
+    return true;
+  }
+
+  if (request.action === "sync_icon_with_theme" && request.effectiveTheme) {
+    if (!isFirefoxEnv()) {
+      chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, (items) => {
+        const iconPref = items.actionIcon || 'system';
+        const themePref = items.theme || 'system';
+        if (iconPref === 'system') {
+          if (items.systemTheme !== request.effectiveTheme) {
+            chrome.storage.local.set({ systemTheme: request.effectiveTheme }, () => {
+              updateChromeActionIcon(request.effectiveTheme, iconPref);
+            });
+          } else {
+            updateChromeActionIcon(request.effectiveTheme, iconPref);
+          }
+        }
+      });
+    }
+    sendResponse({ status: "ok" });
     return true;
   }
 

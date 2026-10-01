@@ -1,4 +1,116 @@
-// --- THEME MANAGEMENT ---
+// --- THEME & ICON MANAGEMENT ---
+function getActionAPI() {
+  if (typeof chrome !== 'undefined') {
+    if (chrome.action) return chrome.action;
+    if (chrome.browserAction) return chrome.browserAction;
+  }
+  if (typeof browser !== 'undefined') {
+    if (browser.action) return browser.action;
+    if (browser.browserAction) return browser.browserAction;
+  }
+  return null;
+}
+
+function resolveEffectiveTheme(themeSetting) {
+  if (themeSetting === 'dark') return 'dark';
+  if (themeSetting === 'light') return 'light';
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const docTheme = document.documentElement.getAttribute('data-theme');
+    if (docTheme === 'dark' || docTheme === 'light') return docTheme;
+  }
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+function getIconPathsForStyle(style, effectiveTheme) {
+  let target = style || 'system';
+  if (target === 'system') {
+    target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+  }
+  if (target === 'light') {
+    return {
+      16: 'assets/icon-light-16.png',
+      32: 'assets/icon-light-32.png',
+      48: 'assets/icon-light-48.png',
+      128: 'assets/icon-light-128.png'
+    };
+  }
+  if (target === 'dark') {
+    return {
+      16: 'assets/icon-dark-16.png',
+      32: 'assets/icon-dark-32.png',
+      48: 'assets/icon-dark-48.png',
+      128: 'assets/icon-dark-128.png'
+    };
+  }
+  return {
+    16: 'assets/icon-16.png',
+    32: 'assets/icon-32.png',
+    48: 'assets/icon-48.png',
+    128: 'assets/icon-128.png'
+  };
+}
+
+function isFirefoxEnv() {
+  if (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.getBrowserInfo === 'function') {
+    return true;
+  }
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Firefox')) {
+    return true;
+  }
+  return false;
+}
+
+function applyActionIcon(iconStyle) {
+  const currentIcon = iconStyle || 'system';
+
+  // Sync radio buttons if DOM is ready
+  const radios = document.querySelectorAll('input[name="icon-radio"]');
+  radios.forEach(radio => {
+    radio.checked = (radio.value === currentIcon);
+  });
+
+  const iconSelect = document.getElementById('actionIcon');
+  if (iconSelect) {
+    iconSelect.value = currentIcon;
+  }
+
+  // Update brand logo in options sidebar
+  const optionsLogo = document.getElementById('options-logo') || document.querySelector('.sidebar-brand .brand-icon');
+  chrome.storage.local.get({ theme: 'system' }, (items) => {
+    const effectiveTheme = resolveEffectiveTheme(items.theme);
+    let target = currentIcon;
+    if (target === 'system') {
+      target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+    }
+    if (optionsLogo) {
+      if (target === 'light') {
+        optionsLogo.src = 'assets/icon-light-48.png';
+      } else if (target === 'dark') {
+        optionsLogo.src = 'assets/icon-dark-48.png';
+      } else {
+        optionsLogo.src = 'assets/icon-48.png';
+      }
+    }
+
+    const action = getActionAPI();
+    if (action && action.setIcon) {
+      if (isFirefoxEnv() && currentIcon === 'system' && (items.theme || 'system') === 'system') {
+        action.setIcon({ path: null }).catch(() => {});
+      } else {
+        const paths = getIconPathsForStyle(currentIcon, effectiveTheme);
+        action.setIcon({ path: paths }).catch(() => {});
+        chrome.runtime.sendMessage({
+          action: "sync_icon_with_theme",
+          effectiveTheme
+        }).catch(() => {});
+      }
+    }
+  });
+}
+
 function applyTheme(theme) {
   const currentTheme = theme || 'system';
   if (currentTheme === 'system') {
@@ -22,6 +134,24 @@ function applyTheme(theme) {
   }
 }
 
+// Observe theme selection changes to ensure extension icon system default stays in sync (Chrome)
+if (!isFirefoxEnv()) {
+  const themeObserver = new MutationObserver(() => {
+    const currentThemeSetting = document.documentElement.getAttribute('data-theme-setting') || 'system';
+    if (currentThemeSetting === 'system') {
+      chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+        if ((items.actionIcon || 'system') === 'system') {
+          applyActionIcon('system');
+        }
+      });
+    }
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-theme-setting']
+  });
+}
+
 function formatAppVersion(ver) {
   if (!ver) return "";
   let clean = String(ver).trim();
@@ -31,16 +161,24 @@ function formatAppVersion(ver) {
   return clean;
 }
 
-// Initial theme check as early as possible
-chrome.storage.local.get({ theme: 'system' }, (items) => {
+// Initial theme & icon check as early as possible
+chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
   applyTheme(items.theme || 'system');
+  applyActionIcon(items.actionIcon || 'system');
 });
 
 // System theme change listener
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  chrome.storage.local.get({ theme: 'system' }, (items) => {
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  const isDark = e.matches;
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
+  chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
     if (items.theme === 'system') {
       applyTheme('system');
+    }
+    if (items.actionIcon === 'system') {
+      applyActionIcon('system');
     }
   });
 });
@@ -50,6 +188,21 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
     if (changes.theme) {
       applyTheme(changes.theme.newValue);
+      chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+        if (items.actionIcon === 'system') {
+          applyActionIcon('system');
+        }
+      });
+    }
+    if (changes.systemTheme) {
+      chrome.storage.local.get({ actionIcon: 'system', theme: 'system' }, (items) => {
+        if ((items.actionIcon || 'system') === 'system' && (items.theme || 'system') === 'system') {
+          applyActionIcon('system');
+        }
+      });
+    }
+    if (changes.actionIcon) {
+      applyActionIcon(changes.actionIcon.newValue);
     }
     if (changes.bdmVersion) {
       const formatted = formatAppVersion(changes.bdmVersion.newValue);
@@ -193,8 +346,12 @@ async function testConnection(port, token, ipcPort) {
     }
 
     // 2. Query Aria2 RPC
-    const url = `http://127.0.0.1:${port}/jsonrpc`;
-    const params = token ? [`token:${token}`] : [];
+    const effectiveRpcPort = port || parseInt(document.getElementById('port')?.value, 10) || 56800;
+    const effectiveToken = (typeof token === 'string') ? token : (document.getElementById('token')?.value?.trim() || '');
+    const rpcBadge = document.getElementById('rpc-port-status');
+
+    const url = `http://127.0.0.1:${effectiveRpcPort}/jsonrpc`;
+    const params = effectiveToken ? [`token:${effectiveToken}`] : [];
     const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion", params: params };
 
     let ariaResponse = null;
@@ -207,7 +364,7 @@ async function testConnection(port, token, ipcPort) {
       });
     } catch {
       try {
-        ariaResponse = await fetch(`http://localhost:${port}/jsonrpc`, {
+        ariaResponse = await fetch(`http://localhost:${effectiveRpcPort}/jsonrpc`, {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -226,20 +383,40 @@ async function testConnection(port, token, ipcPort) {
           ariaOnline = true;
           if (dotRpc) dotRpc.className = "dot online";
           if (connTextRpc) connTextRpc.textContent = `RPC: Connected (v${ariaData.result.version})`;
+          if (rpcBadge) {
+            rpcBadge.className = 'port-status-badge visible connected';
+            rpcBadge.textContent = `● Active and connected on port ${effectiveRpcPort}`;
+          }
         } else if (ariaData && ariaData.error) {
           if (dotRpc) dotRpc.className = "dot offline";
           if (connTextRpc) connTextRpc.textContent = "RPC: Auth Error";
+          if (rpcBadge) {
+            rpcBadge.className = 'port-status-badge visible fallback';
+            rpcBadge.textContent = `● Authentication failed — check secret RPC token on port ${effectiveRpcPort}`;
+          }
         } else {
           if (dotRpc) dotRpc.className = "dot offline";
           if (connTextRpc) connTextRpc.textContent = "RPC: Invalid Response";
+          if (rpcBadge) {
+            rpcBadge.className = 'port-status-badge visible disconnected';
+            rpcBadge.textContent = `● Disconnected — Invalid response from Aria2 on port ${effectiveRpcPort}`;
+          }
         }
       } catch {
         if (dotRpc) dotRpc.className = "dot offline";
         if (connTextRpc) connTextRpc.textContent = "RPC: Error";
+        if (rpcBadge) {
+          rpcBadge.className = 'port-status-badge visible disconnected';
+          rpcBadge.textContent = `● Disconnected — Error connecting to Aria2 on port ${effectiveRpcPort}`;
+        }
       }
     } else {
       if (dotRpc) dotRpc.className = "dot offline";
       if (connTextRpc) connTextRpc.textContent = "RPC: Disconnected";
+      if (rpcBadge) {
+        rpcBadge.className = 'port-status-badge visible disconnected';
+        rpcBadge.textContent = `● Disconnected — Aria2 is not running on port ${effectiveRpcPort}`;
+      }
     }
 
     // Notify background script of connection status
@@ -259,6 +436,11 @@ async function testConnection(port, token, ipcPort) {
     if (ipcBadge) {
       ipcBadge.className = 'port-status-badge visible disconnected';
       ipcBadge.textContent = "● Disconnected — Unable to contact Bengal DM";
+    }
+    const rpcBadge = document.getElementById('rpc-port-status');
+    if (rpcBadge) {
+      rpcBadge.className = 'port-status-badge visible disconnected';
+      rpcBadge.textContent = "● Disconnected — Unable to contact Aria2";
     }
     chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
   } finally {
@@ -391,6 +573,23 @@ document.addEventListener('DOMContentLoaded', () => {
       applyTheme(selectedTheme);
       chrome.storage.local.set({ theme: selectedTheme }, () => {
         showToast('Theme updated ✓', 'success');
+        chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+          if (items.actionIcon === 'system') {
+            applyActionIcon('system');
+          }
+        });
+      });
+    });
+  });
+
+  // Extension Icon Radio Cards (with instant auto-save)
+  const iconRadios = document.querySelectorAll('input[name="icon-radio"]');
+  iconRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      const selectedIcon = radio.value;
+      applyActionIcon(selectedIcon);
+      chrome.storage.local.set({ actionIcon: selectedIcon }, () => {
+        showToast('Extension icon updated ✓', 'success');
       });
     });
   });
@@ -435,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ipcPort: 56900,
     token: "",
     theme: "system",
+    actionIcon: "system",
     bdmVersion: "",
     enableInterception: true,
     enableMediaSniffing: true,
@@ -469,6 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     applyTheme(items.theme || 'system');
+    applyActionIcon(items.actionIcon || 'system');
 
     if (items.bdmVersion) {
       const formatted = formatAppVersion(items.bdmVersion);
@@ -509,6 +710,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = document.getElementById('token').value.trim();
     const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
     const theme = selectedRadio ? selectedRadio.value : 'system';
+    const selectedIconRadio = document.querySelector('input[name="icon-radio"]:checked');
+    const actionIcon = selectedIconRadio ? selectedIconRadio.value : 'system';
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
     const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
     const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
@@ -519,6 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ipcPort,
       token,
       theme,
+      actionIcon,
       enableInterception,
       enableMediaSniffing,
       videoPanelPosition,
@@ -530,6 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     chrome.storage.local.set(payload, () => {
       applyTheme(theme);
+      applyActionIcon(actionIcon);
       showToast('Settings saved successfully ✓', 'success');
       testConnection(port, token, ipcPort);
     });
@@ -600,6 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ipcPort: 56900,
       token: "",
       theme: "system",
+      actionIcon: "system",
       enableInterception: true,
       enableMediaSniffing: true,
       videoPanelPosition: "top-right",
@@ -618,6 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mediaSniffingCheckbox) mediaSniffingCheckbox.checked = true;
       if (videoPositionSelect) videoPositionSelect.value = 'top-right';
       applyTheme(defaults.theme);
+      applyActionIcon(defaults.actionIcon);
 
       filterLists.whitelistUrls = [];
       filterLists.whitelistExts = [];

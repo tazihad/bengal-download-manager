@@ -10,7 +10,7 @@
     <!-- Left Navigation Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <img src="assets/icon-48.png" alt="BDM Logo" class="brand-icon">
+        <img src="assets/icon-48.png" alt="BDM Logo" class="brand-icon" id="options-logo">
         <div class="brand-text">
           <h1>Bengal DM</h1>
           <span class="brand-sub">Settings</span>
@@ -85,6 +85,7 @@
             <label for="port">RPC Port</label>
             <input type="number" id="port" class="form-input" value="56800" min="1024" max="65535">
             <span class="field-hint">Default Bengal DM Aria2 Port is 56800.</span>
+            <div id="rpc-port-status" class="port-status-badge"></div>
           </div>
 
           <div class="form-group">
@@ -179,6 +180,74 @@
             <option value="system">System Default</option>
             <option value="light">Light Mode</option>
             <option value="dark">Dark Mode</option>
+          </select>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Extension Icon</div>
+          <p class="card-desc">Choose your preferred toolbar icon style for Bengal Download Manager.</p>
+
+          <div class="theme-options-grid">
+            <!-- System Default -->
+            <label class="theme-card">
+              <input type="radio" name="icon-radio" value="system" checked>
+              <div class="theme-card-body">
+                <div class="theme-preview icon-preview-system">
+                  <div class="split-left">
+                    <img src="assets/icon-dark-32.png" alt="Dark Icon" class="preview-icon">
+                  </div>
+                  <div class="split-right">
+                    <img src="assets/icon-light-32.png" alt="Light Icon" class="preview-icon">
+                  </div>
+                </div>
+                <span class="theme-name">System Default</span>
+                <span class="theme-detail">Adapts icon to system theme</span>
+              </div>
+            </label>
+
+            <!-- App Icon (Default) -->
+            <label class="theme-card">
+              <input type="radio" name="icon-radio" value="app">
+              <div class="theme-card-body">
+                <div class="theme-preview icon-preview-app">
+                  <img src="assets/icon-48.png" alt="App Icon" class="preview-icon">
+                </div>
+                <span class="theme-name">App Icon</span>
+                <span class="theme-detail">Original colorful Bengal icon</span>
+              </div>
+            </label>
+
+            <!-- Monochrome Dark -->
+            <label class="theme-card">
+              <input type="radio" name="icon-radio" value="dark">
+              <div class="theme-card-body">
+                <div class="theme-preview icon-preview-dark">
+                  <img src="assets/icon-dark-32.png" alt="Dark Icon" class="preview-icon">
+                </div>
+                <span class="theme-name">Dark Icon</span>
+                <span class="theme-detail">Monochrome dark for light bars</span>
+              </div>
+            </label>
+
+            <!-- Monochrome Light -->
+            <label class="theme-card">
+              <input type="radio" name="icon-radio" value="light">
+              <div class="theme-card-body">
+                <div class="theme-preview icon-preview-light">
+                  <img src="assets/icon-light-32.png" alt="Light Icon" class="preview-icon">
+                </div>
+                <span class="theme-name">Light Icon</span>
+                <span class="theme-detail">Monochrome light for dark bars</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- Hidden select for compatibility -->
+          <select id="actionIcon" style="display: none;">
+            <option value="system">System Default</option>
+            <option value="app">App Icon</option>
+            <option value="dark">Dark Icon</option>
+            <option value="light">Light Icon</option>
           </select>
         </div>
       </section>
@@ -306,7 +375,7 @@
             </div>
             <div class="about-item">
               <span class="about-label">Extension Version</span>
-              <span id="about-ext-version" class="about-value">0.2 (Manifest V3)</span>
+              <span id="about-ext-version" class="about-value">0.10 (Manifest V3)</span>
             </div>
             <div class="about-item">
               <span class="about-label">Backend Engine</span>
