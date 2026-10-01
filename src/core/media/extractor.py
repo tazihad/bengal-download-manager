@@ -22,7 +22,12 @@ from core.media.dependencies import (
     YtDlpManager,
     get_tool_path,
 )
-from core.media.pot_provider import get_pot_extractor_args
+from core.media.pot_provider import (
+    get_pot_extractor_args,
+    get_pot_plugin_args,
+    get_youtube_player_client_args,
+    get_youtube_fallback_client_args,
+)
 
 logger = logging.getLogger("bengal.media.extractor")
 
@@ -127,9 +132,10 @@ class MediaExtractorWorker(QThread):
             cmd.extend([
                 "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
-                "--extractor-args", f"youtube:player_client={yt_client}",
             ])
+            cmd.extend(get_youtube_player_client_args(cfg, yt_client))
             cmd.extend(get_js_runtime_args())
+            cmd.extend(get_pot_plugin_args())
             cmd.extend(get_pot_extractor_args(cfg))
 
             ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
@@ -233,10 +239,11 @@ class MediaExtractorWorker(QThread):
                     clean_cmd.extend([
                         "--verbose" if is_debug else "--no-warnings",
                         "--remote-components", "ejs:github",
-                        "--extractor-args", f"youtube:player_client={yt_client}",
                         "--add-header", "Accept-Language:en-US,en;q=0.9",
                     ])
+                    clean_cmd.extend(get_youtube_fallback_client_args())
                     clean_cmd.extend(get_js_runtime_args())
+                    clean_cmd.extend(get_pot_plugin_args())
                     clean_cmd.extend(get_pot_extractor_args(cfg))
                     if ffmpeg_bin:
                         clean_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
@@ -808,9 +815,10 @@ def probe_media_sizes(
             "--flat-playlist",
             "--verbose" if is_debug else "--no-warnings",
             "--remote-components", "ejs:github",
-            "--extractor-args", f"youtube:player_client={yt_client}",
         ]
+        cmd.extend(get_youtube_player_client_args(cfg, yt_client))
         cmd.extend(get_js_runtime_args())
+        cmd.extend(get_pot_plugin_args())
         cmd.extend(get_pot_extractor_args(cfg))
 
         ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
@@ -861,41 +869,42 @@ def probe_media_sizes(
 
         if proc.returncode != 0 or not stdout:
             err_text = ((stderr or "") + " " + (stdout or "")).lower()
-            if any(e in err_text for e in ("bot", "429", "sign in", "login_required", "cookie")):
+            if any(e in err_text for e in ("bot", "429", "sign in", "login_required", "cookie", "sabr", "missing required visitor data", "unable to fetch gvs po token")):
                 browser_candidate = get_installed_browser_for_cookies()
+                retry_cmd = [
+                    yt_dlp_bin,
+                    "-J",
+                    "--flat-playlist",
+                    "--verbose" if is_debug else "--no-warnings",
+                    "--remote-components", "ejs:github",
+                ]
+                retry_cmd.extend(get_youtube_fallback_client_args())
                 if browser_candidate:
-                    retry_cmd = [
-                        yt_dlp_bin,
-                        "-J",
-                        "--flat-playlist",
-                        "--verbose" if is_debug else "--no-warnings",
-                        "--remote-components", "ejs:github",
-                        "--extractor-args", f"youtube:player_client={yt_client}",
-                        "--cookies-from-browser", browser_candidate,
-                    ]
-                    retry_cmd.extend(get_js_runtime_args())
-                    retry_cmd.extend(get_pot_extractor_args(cfg))
-                    if ffmpeg_bin:
-                        retry_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
-                    elif os.path.exists(bin_dir):
-                        retry_cmd.extend(["--ffmpeg-location", bin_dir])
-                    retry_cmd.append(clean_url)
-                    try:
-                        retry_proc = subprocess.Popen(
-                            retry_cmd,
-                            env=clean_env,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            encoding="utf-8",
-                        )
-                        r_stdout, r_stderr = retry_proc.communicate(timeout=timeout)
-                        if retry_proc.returncode == 0 and r_stdout:
-                            proc = retry_proc
-                            stdout = r_stdout
-                            stderr = r_stderr
-                    except Exception:
-                        pass
+                    retry_cmd.extend(["--cookies-from-browser", browser_candidate])
+                retry_cmd.extend(get_js_runtime_args())
+                retry_cmd.extend(get_pot_plugin_args())
+                retry_cmd.extend(get_pot_extractor_args(cfg))
+                if ffmpeg_bin:
+                    retry_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+                elif os.path.exists(bin_dir):
+                    retry_cmd.extend(["--ffmpeg-location", bin_dir])
+                retry_cmd.append(clean_url)
+                try:
+                    retry_proc = subprocess.Popen(
+                        retry_cmd,
+                        env=clean_env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding="utf-8",
+                    )
+                    r_stdout, r_stderr = retry_proc.communicate(timeout=timeout)
+                    if retry_proc.returncode == 0 and r_stdout:
+                        proc = retry_proc
+                        stdout = r_stdout
+                        stderr = r_stderr
+                except Exception:
+                    pass
 
         if proc.returncode != 0 or not stdout:
             return {"success": False, "error": f"yt-dlp probe failed: {stderr[:200]}"}
@@ -1062,9 +1071,10 @@ class MediaInfoFetcherWorker(QThread):
                 "--flat-playlist",
                 "--verbose" if is_debug else "--no-warnings",
                 "--remote-components", "ejs:github",
-                "--extractor-args", f"youtube:player_client={yt_client}",
             ]
+            cmd.extend(get_youtube_player_client_args(cfg, yt_client))
             cmd.extend(get_js_runtime_args())
+            cmd.extend(get_pot_plugin_args())
             cmd.extend(get_pot_extractor_args(cfg))
 
             ffmpeg_bin = get_tool_path("ffmpeg") or shutil.which("ffmpeg")
@@ -1113,41 +1123,42 @@ class MediaInfoFetcherWorker(QThread):
 
             if self.process.returncode != 0 or not stdout:
                 err_text = ((stderr or "") + " " + (stdout or "")).lower()
-                if any(e in err_text for e in ("bot", "429", "sign in", "login_required", "cookie")):
+                if any(e in err_text for e in ("bot", "429", "sign in", "login_required", "cookie", "sabr", "missing required visitor data", "unable to fetch gvs po token")):
                     browser_candidate = get_installed_browser_for_cookies()
+                    retry_cmd = [
+                        yt_dlp_bin,
+                        "-J",
+                        "--flat-playlist",
+                        "--verbose" if is_debug else "--no-warnings",
+                        "--remote-components", "ejs:github",
+                    ]
+                    retry_cmd.extend(get_youtube_fallback_client_args())
                     if browser_candidate:
-                        retry_cmd = [
-                            yt_dlp_bin,
-                            "-J",
-                            "--flat-playlist",
-                            "--verbose" if is_debug else "--no-warnings",
-                            "--remote-components", "ejs:github",
-                            "--extractor-args", f"youtube:player_client={yt_client}",
-                            "--cookies-from-browser", browser_candidate,
-                        ]
-                        retry_cmd.extend(get_js_runtime_args())
-                        retry_cmd.extend(get_pot_extractor_args(cfg))
-                        if ffmpeg_bin:
-                            retry_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
-                        elif os.path.exists(bin_dir):
-                            retry_cmd.extend(["--ffmpeg-location", bin_dir])
-                        retry_cmd.append(self.url)
-                        try:
-                            retry_proc = subprocess.Popen(
-                                retry_cmd,
-                                env=clean_env,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                text=True,
-                                encoding="utf-8",
-                            )
-                            r_stdout, r_stderr = retry_proc.communicate(timeout=20)
-                            if retry_proc.returncode == 0 and r_stdout:
-                                self.process = retry_proc
-                                stdout = r_stdout
-                                stderr = r_stderr
-                        except Exception:
-                            pass
+                        retry_cmd.extend(["--cookies-from-browser", browser_candidate])
+                    retry_cmd.extend(get_js_runtime_args())
+                    retry_cmd.extend(get_pot_plugin_args())
+                    retry_cmd.extend(get_pot_extractor_args(cfg))
+                    if ffmpeg_bin:
+                        retry_cmd.extend(["--ffmpeg-location", ffmpeg_bin])
+                    elif os.path.exists(bin_dir):
+                        retry_cmd.extend(["--ffmpeg-location", bin_dir])
+                    retry_cmd.append(self.url)
+                    try:
+                        retry_proc = subprocess.Popen(
+                            retry_cmd,
+                            env=clean_env,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            encoding="utf-8",
+                        )
+                        r_stdout, r_stderr = retry_proc.communicate(timeout=20)
+                        if retry_proc.returncode == 0 and r_stdout:
+                            self.process = retry_proc
+                            stdout = r_stdout
+                            stderr = r_stderr
+                    except Exception:
+                        pass
 
             if self.process.returncode != 0 or not stdout:
                 raise RuntimeError(f"yt-dlp probe failed: {stderr[:200]}")

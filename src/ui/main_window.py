@@ -6728,14 +6728,14 @@ class MainWindow(QMainWindow):
             _af = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
             audio_format = _af.split()[0].lower()
 
-        # If cookies.txt in option is set and exists, use it.
-        # If cookies.txt in option is empty, use the browser-sent cookies.
+        # If browser sent fresh cookies, use them.
+        # If browser sent nothing, fall back to explicit cookies_file or configured options cookies.txt.
         opt_cookies_path = config.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
-        if not cookies_file and opt_cookies_path and os.path.exists(opt_cookies_path):
+        if not cookies and not cookies_file and opt_cookies_path and os.path.exists(opt_cookies_path):
             cookies_file = opt_cookies_path
 
-        if cookies_file and os.path.exists(cookies_file):
-            cookies = None
+        if cookies:
+            cookies_file = None
 
         final_category = "Video" if not is_audio_only else "Music"
         if final_category not in categories:

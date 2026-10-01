@@ -99,6 +99,55 @@ def is_pot_provider_available(base_url: str = DEFAULT_POT_PROVIDER_URL, timeout:
     return available
 
 
+def get_pot_plugin_args() -> List[str]:
+    """
+    Returns --plugin-dirs arguments if any yt_dlp_plugins package is discoverable in sys.path.
+    Allows standalone yt-dlp binary to find bgutil-ytdlp-pot-provider and other plugins.
+    """
+    try:
+        for p in sys.path:
+            if p and os.path.isdir(os.path.join(p, "yt_dlp_plugins")):
+                return ["--plugin-dirs", str(p)]
+    except Exception:
+        pass
+    return []
+
+
+def get_youtube_player_client_args(config: Optional[dict] = None, custom_client: Optional[str] = None) -> List[str]:
+    """
+    Returns --extractor-args for YouTube player clients.
+    If 'default', 'auto', or empty, returns empty list so yt-dlp uses its full intelligent
+    multi-client strategy (visionos, web_creator, mweb, android, ios, web).
+    If an explicit client is given (e.g. 'ios', 'android', 'web_creator'), returns the argument.
+    """
+    client = custom_client
+    if client is None:
+        if config is None:
+            try:
+                config = load_category_config()
+            except Exception:
+                config = {}
+        media_defaults = config.get("media_downloader_defaults", {}) if isinstance(config, dict) else {}
+        client = media_defaults.get("youtube_player_client", "default")
+
+    if not client:
+        return []
+
+    c_clean = str(client).strip().lower()
+    if c_clean in ("default", "auto", "none", ""):
+        return []
+
+    return ["--extractor-args", f"youtube:player_client={client.strip()}"]
+
+
+def get_youtube_fallback_client_args() -> List[str]:
+    """
+    Returns resilient multi-client player client extractor arguments for retry attempts
+    when YouTube blocks standard web extraction with bot checks or SABR streaming.
+    """
+    return ["--extractor-args", "youtube:player_client=mweb,android,ios,web_creator,tv_embedded,visionos,web"]
+
+
 def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:
     """
     Builds the appropriate yt-dlp --extractor-args for PO token handling.
@@ -129,7 +178,7 @@ def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:
     # 2. Check if Deno is available from Bengal DM media download tools or system
     deno_path = get_deno_executable_path()
     if deno_path:
-        # bgutil plugin generates tokens in-process via Deno; no extra args needed
+        # bgutil plugin / JS runtime generates tokens in-process via Deno; no extra args needed
         return []
 
     # 3. Check if Node.js is available
@@ -138,3 +187,4 @@ def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:
 
     # 4. If no JS engine is present, disable fetch_pot to prevent format corruption
     return ["--extractor-args", "youtube:fetch_pot=never"]
+
