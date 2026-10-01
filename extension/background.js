@@ -218,6 +218,29 @@ function isFirefoxEnv() {
   return false;
 }
 
+async function ensureOffscreenWatcher() {
+  if (typeof chrome === 'undefined' || !chrome.offscreen || !chrome.offscreen.createDocument) {
+    return;
+  }
+  try {
+    if (chrome.offscreen.hasDocument) {
+      const hasDoc = await chrome.offscreen.hasDocument();
+      if (hasDoc) return;
+    } else if (chrome.runtime.getContexts) {
+      const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+      if (contexts && contexts.length > 0) return;
+    }
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['MATCH_MEDIA'],
+      justification: 'Continuously track system dark mode theme changes'
+    });
+  } catch (err) {
+    // If already exists or error, ignore safely
+  }
+}
+ensureOffscreenWatcher();
+
 async function applyStoredActionIcon() {
   const action = getActionAPI();
   if (!action || !action.setIcon) return;
@@ -234,6 +257,11 @@ async function applyStoredActionIcon() {
       } catch (e) {
         // Fallback to explicit paths if path: null fails
       }
+    }
+
+    // In Chromium, ensure offscreen watcher is running to detect system theme
+    if (!isFirefoxEnv()) {
+      ensureOffscreenWatcher();
     }
 
     let effectiveTheme = 'light';
@@ -259,10 +287,10 @@ async function applyStoredActionIcon() {
       console.warn("Could not set extension toolbar icon:", err);
     }
 
-    // Update active tab(s) explicitly to eliminate Chromium tab-level display delay
+    // Update all tabs explicitly in Chromium to eliminate per-tab display caching delay
     try {
       if (chrome.tabs && chrome.tabs.query) {
-        chrome.tabs.query({ active: true }, (tabs) => {
+        chrome.tabs.query({}, (tabs) => {
           if (!chrome.runtime.lastError && Array.isArray(tabs)) {
             for (const t of tabs) {
               if (t && t.id) {
@@ -1594,6 +1622,7 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!items.actionIcon) {
       chrome.storage.local.set({ actionIcon: "system" });
     }
+    ensureOffscreenWatcher();
     applyStoredActionIcon();
   });
 
@@ -1955,6 +1984,8 @@ try {
 if (chrome.runtime && chrome.runtime.onStartup) {
   chrome.runtime.onStartup.addListener(() => {
     checkAndUpdateConnection();
+    ensureOffscreenWatcher();
+    applyStoredActionIcon();
   });
 }
 

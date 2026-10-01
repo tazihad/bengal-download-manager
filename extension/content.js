@@ -5,6 +5,30 @@
 // landing pages with captchas/countdowns (e.g. datanodes.to, rapidgator), and single-page apps
 // navigate naturally without opening blank tabs or triggering popup blockers.
 
+// Immediate system theme synchronization for background service worker (runs before DOM readiness)
+(function syncPageTheme() {
+  if (typeof window === 'undefined' || !window.matchMedia) return;
+  try {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const reportTheme = () => {
+      const mode = mq.matches ? 'dark' : 'light';
+      try { chrome.storage.local.set({ systemTheme: mode }); } catch {}
+      try {
+        chrome.runtime.sendMessage({
+          action: "report_system_theme",
+          systemTheme: mode
+        }).catch(() => {});
+      } catch {}
+    };
+    reportTheme();
+    if (mq.addEventListener) {
+      mq.addEventListener('change', reportTheme);
+    } else if (mq.addListener) {
+      mq.addListener(reportTheme);
+    }
+  } catch {}
+})();
+
 // =========================================================================
 // Bengal DM - IDM-Style Floating Video Downloader System
 // =========================================================================
