@@ -7,6 +7,7 @@ Bypasses YouTube bot detection, 403 Forbidden errors, and streaming throttling s
 """
 
 import os
+import sys
 import shutil
 import logging
 import urllib.request
