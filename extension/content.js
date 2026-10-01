@@ -5,31 +5,6 @@
 // landing pages with captchas/countdowns (e.g. datanodes.to, rapidgator), and single-page apps
 // navigate naturally without opening blank tabs or triggering popup blockers.
 
-// Immediate system theme synchronization for background service worker (runs before DOM readiness)
-(function syncPageTheme() {
-  if (typeof window === 'undefined' || !window.matchMedia) return;
-  try {
-    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const reportTheme = (isDark) => {
-      const mode = isDark ? 'dark' : 'light';
-      try { chrome.storage.local.set({ systemTheme: mode }); } catch {}
-      try {
-        chrome.runtime.sendMessage({
-          action: "changeTheme",
-          isDark: Boolean(isDark),
-          systemTheme: mode
-        }).catch(() => {});
-      } catch {}
-    };
-    reportTheme(darkModeQuery.matches);
-    if (darkModeQuery.addEventListener) {
-      darkModeQuery.addEventListener('change', (e) => reportTheme(e.matches));
-    } else if (darkModeQuery.addListener) {
-      darkModeQuery.addListener((e) => reportTheme(e.matches));
-    }
-  } catch {}
-})();
-
 // =========================================================================
 // Bengal DM - IDM-Style Floating Video Downloader System
 // =========================================================================
@@ -428,7 +403,11 @@
         }
         const wasConnected = isAppConnected;
         isAppConnected = Boolean(res && res.online);
-        host.dataset.bgOnline = String(res && res.online);
+        try {
+          if (typeof host !== 'undefined' && host && host.dataset) {
+            host.dataset.bgOnline = String(res && res.online);
+          }
+        } catch {}
         if (!isAppConnected) {
           hideWidget('checkConnection_offline');
         } else if (!wasConnected && enableMediaSniffing) {
@@ -445,7 +424,11 @@
       });
     } catch (err) {
       isAppConnected = false;
-      host.dataset.bgOnline = 'error_' + err.message;
+      try {
+        if (typeof host !== 'undefined' && host && host.dataset) {
+          host.dataset.bgOnline = 'error_' + err.message;
+        }
+      } catch {}
       hideWidget('checkConnection_catch');
       if (callback) callback(false);
     }
