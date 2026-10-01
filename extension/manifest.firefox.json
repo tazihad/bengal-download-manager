@@ -16,11 +16,35 @@
       "48": "assets/icon-48.png",
       "128": "assets/icon-128.png"
     },
+    "theme_icons": [
+      {
+        "light": "assets/icon-light-16.png",
+        "dark": "assets/icon-dark-16.png",
+        "size": 16
+      },
+      {
+        "light": "assets/icon-light-32.png",
+        "dark": "assets/icon-dark-32.png",
+        "size": 32
+      },
+      {
+        "light": "assets/icon-light-48.png",
+        "dark": "assets/icon-dark-48.png",
+        "size": 48
+      },
+      {
+        "light": "assets/icon-light-128.png",
+        "dark": "assets/icon-dark-128.png",
+        "size": 128
+      }
+    ],
     "default_title": "Bengal DM",
     "default_popup": "popup.html"
   },
   "background": {
-    "service_worker": "background.js"
+    "scripts": [
+      "background.js"
+    ]
   },
   "content_scripts": [
     {
@@ -37,10 +61,10 @@
   ],
   "permissions": [
     "downloads",
-    "downloads.ui",
     "storage",
     "contextMenus",
     "webRequest",
+    "webRequestBlocking",
     "cookies",
     "notifications",
     "activeTab",
@@ -66,5 +90,16 @@
         "<all_urls>"
       ]
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "bengal-download-manager@zihad.com.bd",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
 }

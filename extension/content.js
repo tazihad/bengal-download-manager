@@ -12,6 +12,14 @@
   if (window.__bengalDmVideoWidgetLoaded) return;
   window.__bengalDmVideoWidgetLoaded = true;
 
+  function isExtensionValid() {
+    try {
+      return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
   let activeVideo = null;
   let isUserPositioned = false;
   let userCoords = { left: 0, top: 0 };
@@ -434,7 +442,7 @@
       videoPanelPosition: 'top-right',
       blacklistUrls: []
     }, (items) => {
-      if (chrome.runtime.lastError) return;
+      if (!isExtensionValid() || chrome.runtime.lastError) return;
       enableInterception = items.enableInterception !== false;
       enableMediaSniffing = items.enableMediaSniffing !== false;
       blacklistUrls = Array.isArray(items.blacklistUrls) ? items.blacklistUrls : [];
@@ -448,33 +456,44 @@
       try {
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
         const syncSystemTheme = (isChange = false) => {
-          const detected = mq.matches ? 'dark' : 'light';
-          chrome.storage.local.get({ theme: 'system', actionIcon: 'system', systemTheme: '' }, (items) => {
-            if (chrome.runtime.lastError) return;
-            if (items.systemTheme !== detected) {
-              chrome.storage.local.set({ systemTheme: detected });
-              if (isChange && (!items.theme || items.theme === 'system') && (!items.actionIcon || items.actionIcon === 'system')) {
+          if (!isExtensionValid()) return;
+          try {
+            const detected = mq.matches ? 'dark' : 'light';
+            chrome.storage.local.get({ theme: 'system', actionIcon: 'system', systemTheme: '' }, (items) => {
+              if (!isExtensionValid() || chrome.runtime.lastError) return;
+              if (items && items.systemTheme !== detected) {
                 try {
-                  chrome.runtime.sendMessage({
-                    action: "sync_icon_with_theme",
-                    effectiveTheme: detected
-                  }).catch(() => {});
+                  chrome.storage.local.set({ systemTheme: detected });
                 } catch {}
+                if (isChange && (!items.theme || items.theme === 'system') && (!items.actionIcon || items.actionIcon === 'system')) {
+                  try {
+                    chrome.runtime.sendMessage({
+                      action: "sync_icon_with_theme",
+                      effectiveTheme: detected
+                    }).catch(() => {});
+                  } catch {}
+                }
               }
-            }
-          });
+            });
+          } catch {}
         };
         syncSystemTheme(false);
         if (mq.addEventListener) {
-          mq.addEventListener('change', () => syncSystemTheme(true));
+          mq.addEventListener('change', () => {
+            if (isExtensionValid()) syncSystemTheme(true);
+          });
         } else if (mq.addListener) {
-          mq.addListener(() => syncSystemTheme(true));
+          mq.addListener(() => {
+            if (isExtensionValid()) syncSystemTheme(true);
+          });
         }
       } catch {}
     }
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === 'local') {
+    if (isExtensionValid() && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (!isExtensionValid()) return;
+        if (areaName === 'local') {
         let shouldCheckVisibility = false;
 
         if (changes.blacklistUrls !== undefined) {
@@ -505,8 +524,11 @@
     });
   } catch {}
 
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg && msg.action === "close_dropdown") {
+  try {
+    if (isExtensionValid() && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((msg) => {
+        if (!isExtensionValid()) return;
+        if (msg && msg.action === "close_dropdown") {
       if (isDropdownOpen) {
         closeDropdown();
       }
@@ -545,8 +567,8 @@
           notifyTopFrameVideo(activeVideo, 'playing');
         }
       }
-    }
-  });
+    });
+  } catch {}
 
   // Request fresh media info periodically
   function requestMediaInfo() {

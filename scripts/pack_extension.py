@@ -30,8 +30,22 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
                 abs_path = os.path.join(root, file)
                 rel_path = os.path.relpath(abs_path, extension_dir)
                 
+                # Skip target-specific manifests and helper scripts from archive
+                if file in ("manifest.chrome.json", "manifest.firefox.json", "switch-manifest.sh"):
+                    continue
+
                 if file == "manifest.json":
-                    with open(abs_path, 'r', encoding='utf-8') as f:
+                    manifest_file = abs_path
+                    if target == "firefox":
+                        ff_manifest = os.path.join(extension_dir, "manifest.firefox.json")
+                        if os.path.exists(ff_manifest):
+                            manifest_file = ff_manifest
+                    elif target == "chrome":
+                        ch_manifest = os.path.join(extension_dir, "manifest.chrome.json")
+                        if os.path.exists(ch_manifest):
+                            manifest_file = ch_manifest
+
+                    with open(manifest_file, 'r', encoding='utf-8') as f:
                         manifest = json.load(f)
                     
                     if target == "chrome":
@@ -55,7 +69,7 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
                         }
                     
                     manifest_bytes = json.dumps(manifest, indent=2).encode('utf-8')
-                    zf.writestr(rel_path, manifest_bytes)
+                    zf.writestr("manifest.json", manifest_bytes)
                 else:
                     zf.write(abs_path, rel_path)
 

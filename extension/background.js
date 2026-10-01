@@ -1395,14 +1395,17 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
     );
   };
 
+  const isFirefox = isFirefoxEnv();
   const manifest = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest() : {};
-  const hasBlocking = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
+  const hasBlocking = isFirefox && manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
   const extraSpec = hasBlocking ? ["responseHeaders", "blocking"] : ["responseHeaders"];
 
   try {
     setupListener(extraSpec);
-  } catch {
-    setupListener(["responseHeaders"]);
+  } catch (err) {
+    try {
+      setupListener(["responseHeaders"]);
+    } catch {}
   }
 }
 
