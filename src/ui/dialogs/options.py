@@ -1383,11 +1383,13 @@ class OptionsDialog(QDialog):
         grid_media.setContentsMargins(0, 6, 0, 0)
         grid_media.setSpacing(10)
 
+        COMBO_MAX_WIDTH = 300
+
         lbl_q = QLabel("Quality preset:")
         lbl_q.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality = QComboBox()
         self.cmb_media_quality.setFixedHeight(28)
-        self.cmb_media_quality.setMaximumWidth(220)
+        self.cmb_media_quality.setMaximumWidth(COMBO_MAX_WIDTH)
         self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality.addItems([
             "Best Quality (Video + Audio merged)",
@@ -1422,7 +1424,7 @@ class OptionsDialog(QDialog):
         )
         self.cmb_video_codec = QComboBox()
         self.cmb_video_codec.setFixedHeight(28)
-        self.cmb_video_codec.setMaximumWidth(220)
+        self.cmb_video_codec.setMaximumWidth(COMBO_MAX_WIDTH)
         self.cmb_video_codec.setToolTip(lbl_codec.toolTip())
         self.cmb_video_codec.addItems([
             "Auto (Default)", "AV1", "H.264 / AVC", "VP9"
@@ -1431,8 +1433,8 @@ class OptionsDialog(QDialog):
         idx_codec = self.cmb_video_codec.findText(saved_codec)
         self.cmb_video_codec.setCurrentIndex(idx_codec if idx_codec != -1 else 0)
 
-        grid_media.addWidget(lbl_codec, 0, 2)
-        grid_media.addWidget(self.cmb_video_codec, 0, 3)
+        grid_media.addWidget(lbl_codec, 1, 0)
+        grid_media.addWidget(self.cmb_video_codec, 1, 1)
 
         # Video Container format
         lbl_v = QLabel("Video format:")
@@ -1444,7 +1446,7 @@ class OptionsDialog(QDialog):
         )
         self.cmb_video_container = QComboBox()
         self.cmb_video_container.setFixedHeight(28)
-        self.cmb_video_container.setMaximumWidth(220)
+        self.cmb_video_container.setMaximumWidth(COMBO_MAX_WIDTH)
         self.cmb_video_container.setToolTip(lbl_v.toolTip())
         self.cmb_video_container.addItems([
             "Auto (Best / Native) (Default)", "MKV", "MP4", "WebM"
@@ -1453,8 +1455,8 @@ class OptionsDialog(QDialog):
         idx_vc = self.cmb_video_container.findText(saved_vc)
         self.cmb_video_container.setCurrentIndex(idx_vc if idx_vc != -1 else 0)
 
-        grid_media.addWidget(lbl_v, 1, 0)
-        grid_media.addWidget(self.cmb_video_container, 1, 1)
+        grid_media.addWidget(lbl_v, 2, 0)
+        grid_media.addWidget(self.cmb_video_container, 2, 1)
 
         # Audio Format
         lbl_a = QLabel("Audio format:")
@@ -1465,7 +1467,7 @@ class OptionsDialog(QDialog):
         )
         self.cmb_audio_format = QComboBox()
         self.cmb_audio_format.setFixedHeight(28)
-        self.cmb_audio_format.setMaximumWidth(220)
+        self.cmb_audio_format.setMaximumWidth(COMBO_MAX_WIDTH)
         self.cmb_audio_format.setToolTip(lbl_a.toolTip())
         self.cmb_audio_format.addItems([
             "Auto (Best / Native) (Default)", "Opus", "MP3", "AAC", "FLAC", "M4A", "OGG", "WAV"
@@ -1474,11 +1476,10 @@ class OptionsDialog(QDialog):
         idx_af = self.cmb_audio_format.findText(saved_af)
         self.cmb_audio_format.setCurrentIndex(idx_af if idx_af != -1 else 0)
 
-        grid_media.addWidget(lbl_a, 1, 2)
-        grid_media.addWidget(self.cmb_audio_format, 1, 3)
+        grid_media.addWidget(lbl_a, 3, 0)
+        grid_media.addWidget(self.cmb_audio_format, 3, 1)
 
-        grid_media.setColumnStretch(1, 1)
-        grid_media.setColumnStretch(3, 1)
+        grid_media.setColumnStretch(2, 1)
 
         vbox_browser.addLayout(grid_media)
         layout.addWidget(grp_browser)
