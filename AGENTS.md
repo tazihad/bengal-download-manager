@@ -1,6 +1,6 @@
 # AGENTS.md — Agent & Architectural Reference Guide
 
-> **Bengal Download Manager** is a high-performance, multi-threaded open-source download manager built with PyQt6, KDE Kirigami QML, and Aria2.
+> **Bengal Download Manager** is a high-performance, multi-threaded open-source download manager built with PyQt6 and Aria2.
 
 ---
 
@@ -9,13 +9,13 @@
 ```
 +-------------------------------------------------------------------------+
 |                  Bengal Download Manager User Interface                 |
-|  +-----------------------------------+-------------------------------+  |
-|  |     PyQt6 QWidget Interface       |     KDE Kirigami QML Engine   |  |
-|  |  (QTableWidget, Sidebar Tree)     |   (CardsListView, Drawer)     |  |
-|  +-----------------------------------+-------------------------------+  |
+|  +-------------------------------------------------------------------+  |
+|  |                  PyQt6 QWidget Application                        |  |
+|  |  (MainWindow, QTableWidget, Sidebar Tree, Modal Dialogs)          |  |
+|  +-------------------------------------------------------------------+  |
 +-------------------------------------------------------------------------+
                                     |
-                    [src/core/bridge.py DownloadBridge]
+                    [MainWindow — State Coordinator & Dispatcher]
                                     |
 +-------------------------------------------------------------------------+
 |                        Core Worker Layer (src/core/)                    |
@@ -36,16 +36,10 @@
 ## 2. Directory Structure & Key Files
 
 * **`src/main.py`**: Application entry point, `MainWindow` setup, IPC TCP listener thread, and theme manager.
-* **`src/core/bridge.py`**: `DownloadBridge` (`QObject`) exposing properties and slots for QML Kirigami views.
 * **`src/core/workers/`**:
   * `download.py`: Multi-threaded Python HTTP/HTTPS chunk downloader.
   * `aria2.py`: Aria2 RPC daemon integration and background thread manager.
   * `fetcher.py`: Pre-fetcher worker to query filename and size before starting downloads.
-* **`src/ui/qml/`**: KDE Kirigami QML view components:
-  * `Main.qml`: Root `Kirigami.ApplicationWindow` with header action bar.
-  * `GlobalDrawer.qml`: Category and status filtering sidebar.
-  * `DownloadCard.qml`: Responsive card view with tabular metrics (`font.features: { "tnum": 1 }`).
-  * `AddUrlDialog.qml` & `OptionsDialog.qml`: Kirigami Dialog overlays.
 * **`src/ui/dialogs/`**: PyQt6 QWidget dialog windows (`progress.py`, `complete.py`, `file_info.py`, `options.py`, `properties.py`).
 * **`flatpak/`**:
   * `bd.com.zihad.BengalDownloadManager.yml`: Flatpak manifest for `org.kde.Platform` 6.11.
@@ -62,9 +56,6 @@
 ```bash
 # Standard PyQt6 QWidget Mode
 uv run python src/main.py
-
-# KDE Kirigami QML Mode
-uv run python src/main.py --kirigami
 
 # Debug Mode (clean timestamps, file:line context, throttled IPC pings)
 uv run python src/main.py --debug

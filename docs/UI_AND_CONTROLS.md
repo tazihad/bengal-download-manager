@@ -27,7 +27,6 @@ This document provides an exhaustive, button-by-button, menu-by-menu, and dialog
 12. [Rename Dialog](#12-rename-dialog)
 13. [Column Configuration Dialog](#13-column-configuration-dialog)
 14. [Delete Confirmation Dialog](#14-delete-confirmation-dialog)
-15. [KDE Kirigami QML Interface Controls](#15-kde-kirigami-qml-interface-controls)
 
 ---
 
@@ -554,18 +553,4 @@ Prompted when pressing the `Delete` key or clicking the **Delete** toolbar butto
 - **Yes button**: Executes deletion according to the checkbox setting.
 - **No button**: Cancels the deletion action.
 
----
 
-## 15. KDE Kirigami QML Interface Controls
-
-Invoked via `uv run python src/main.py --kirigami`:
-
-- **Header Action Bar**: Contains Kirigami action icons for **Add URL**, **Resume**, **Stop**, and **Options**.
-- **Global Drawer**: Slide-out drawer on the left side allowing category filtering (**All**, **Documents**, **Videos**, etc.) and status filtering.
-- **CardsListView**: Touch-optimized download card items rendering:
-  - File icon and filename.
-  - Status chip badge (`Complete`, `Downloading`, `Paused`).
-  - Progress bar with smooth Kirigami animations.
-  - Tabular transfer speed, downloaded size, and remaining time labels.
-  - Action buttons on card: **Pause/Resume**, **Open File**, **Open Folder**, and **Delete**.
-- **Kirigami Dialog Overlays**: Native Kirigami modal sheets for URL entry and queue management.

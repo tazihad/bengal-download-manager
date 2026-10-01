@@ -22,9 +22,6 @@ uv pip install -e ".[dev]"
 ```bash
 # Launch standard PyQt6 desktop interface
 uv run python src/main.py
-
-# Launch KDE Kirigami QML interface
-uv run python src/main.py --kirigami
 ```
 
 ### Command-Line Arguments & Debug Flags
@@ -37,7 +34,6 @@ Bengal Download Manager supports several runtime flags and environment variables
 | `--debug` | `DEBUG=1` or `BENGAL_DEBUG=1` | Enables detailed `DEBUG` logging with timestamps, source file/line context, Aria2 RPC activity, and throttled IPC heartbeat summaries. |
 | `--verbose` | `VERBOSE=1` or `BENGAL_VERBOSE=1` | Enables full unrestricted diagnostic logging, including every raw IPC extension ping and HTTP request/response line. |
 | `--debug --verbose` | `DEBUG=1 VERBOSE=1` | Complete unrestricted verbose debug output for comprehensive troubleshooting. |
-| `--kirigami` | *(none)* | Launches the KDE Kirigami QML responsive user interface instead of the classic PyQt6 QWidget table view. |
 
 ---
 

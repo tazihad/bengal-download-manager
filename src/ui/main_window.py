@@ -2304,7 +2304,7 @@ class MainWindow(QMainWindow):
             self._notify_views_changed()
 
     def _notify_views_changed(self):
-        """Notifies QML bridge and scheduler dialog of download list/progress changes."""
+        """Notifies scheduler dialog of download list/progress changes."""
         if not self.isVisible():
             return
         now = time.monotonic()
@@ -2315,8 +2315,6 @@ class MainWindow(QMainWindow):
         if MemoryGuard.is_widget_alive(getattr(self, '_scheduler_dlg', None)):
             if hasattr(self._scheduler_dlg, 'tabs') and self._scheduler_dlg.tabs.currentIndex() == 1:
                 self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
-        if hasattr(self, 'bridge') and self.bridge:
-            self.bridge.refresh()
 
     def update_ui_states(self):
         selected_rows = self.download_table.selectedItems()
@@ -3274,7 +3272,7 @@ class MainWindow(QMainWindow):
             self.download_table.setItem(row, col, item)
         elif item.text() != text:
             item.setText(text)
-            
+
         col_name = "Last Attempt" if col == 5 else "Date Added"
         item.setToolTip(f"{col_name}: {text}" if text else f"{col_name}: N/A")
         return item
@@ -3282,101 +3280,6 @@ class MainWindow(QMainWindow):
     def add_new_download(self, url, category="General", save_path=""):
         if url:
             self.start_download(url, custom_save_dir=save_path if save_path else None)
-
-    def get_qml_downloads_data(self):
-        data = []
-        for r in range(self.download_table.rowCount()):
-            item0 = self.download_table.item(r, 0)
-            item1 = self.download_table.item(r, 1)
-            item2 = self.download_table.item(r, 2)
-            item3 = self.download_table.item(r, 3)
-            item4 = self.download_table.item(r, 4)
-            item5 = self.download_table.item(r, 5)
-            item6 = self.download_table.item(r, 6)
-            if item0:
-                data.append({
-                    "filename": item0.text(),
-                    "url": item0.data(Qt.ItemDataRole.UserRole) or "",
-                    "referer": item0.data(Qt.ItemDataRole.UserRole + 15) or item0.data(Qt.ItemDataRole.UserRole) or "",
-                    "path": item0.data(Qt.ItemDataRole.UserRole + 1) or "",
-                    "size": item1.text() if item1 else "",
-                    "status": item2.text() if item2 else "",
-                    "time_left": item3.text() if item3 else "",
-                    "rate": item4.text() if item4 else "",
-                    "last_try": item5.text() if item5 else "",
-                    "date_added": item6.text() if item6 else "",
-                    "category": get_category_for_filename(item0.text())
-                })
-        return data
-
-    def qml_pause_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                item.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
-                key = self._get_item_key(item)
-                if key in self.active_downloads:
-                    entry = self.active_downloads.get(key)
-                    worker = getattr(entry, 'worker', entry)
-                    if worker and hasattr(worker, 'pause'):
-                        try:
-                            worker.pause()
-                        except Exception:
-                            pass
-                    else:
-                        self._stop_worker_entry(entry)
-                    from core.media_downloader import YtDlpDownloadWorker
-                    if isinstance(worker, YtDlpDownloadWorker):
-                        self.active_downloads.pop(key, None)
-                        if hasattr(self, "active_speeds"):
-                            self.active_speeds.pop(key, None)
-                        self.update_status_bar_speed()
-                status_item = self.download_table.item(index, 2)
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
-                self._set_status_text(index, "Paused", logic_status="Paused")
-                self._set_row_bold(index, False)
-                self.update_ui_states()
-
-    def qml_resume_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                url = item.data(Qt.ItemDataRole.UserRole)
-                if url:
-                    key = self._get_item_key(item)
-                    format_spec = item.data(Qt.ItemDataRole.UserRole + 6)
-                    if format_spec is not None and key in self.active_downloads:
-                        entry = self.active_downloads.pop(key, None)
-                        if entry:
-                            self._stop_worker_entry(entry)
-                    self._start_download_worker(url, item, resume_filename=item.text())
-
-    def qml_delete_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                key = self._get_item_key(item)
-                if key and key in self.active_downloads:
-                    dlg = self.active_downloads.pop(key, None)
-                    self._stop_worker_entry(dlg)
-                if hasattr(self, "active_speeds") and key:
-                    self.active_speeds.pop(key, None)
-                if hasattr(self, "_pending_tray_updates") and key:
-                    self._pending_tray_updates.pop(key, None)
-            self.download_table.removeRow(index)
-
-    def qml_move_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                self.ctx_move(item)
-
-    def qml_rename_download(self, index):
-        if 0 <= index < self.download_table.rowCount():
-            item = self.download_table.item(index, 0)
-            if item:
-                self.ctx_rename(item)
 
     def save_settings(self):
         try:
@@ -4395,8 +4298,10 @@ class MainWindow(QMainWindow):
     def open_add_url(self, paste_clipboard=False):
         from ui.dialogs import AddUrlDialog
         self._add_url_dialog = AddUrlDialog(self, paste_clipboard=paste_clipboard)
-        if self._add_url_dialog.exec():
-            self._handle_add_url_accepted(self._add_url_dialog)
+        self._add_url_dialog.accepted.connect(lambda: self._handle_add_url_accepted(self._add_url_dialog))
+        self._add_url_dialog.show()
+        self._add_url_dialog.raise_()
+        self._add_url_dialog.activateWindow()
 
     def _handle_add_url_accepted(self, dialog):
         if getattr(dialog, "is_batch_mode", False):
@@ -4416,13 +4321,28 @@ class MainWindow(QMainWindow):
                 self.process_incoming_url(url)
 
     def open_batch_pattern(self, initial_url: str = None):
-        """Opens the Batch Pattern Dialog to generate wildcard URLs."""
+        """Opens the Batch Pattern Dialog to generate wildcard URLs.
+
+        Uses show() (non-blocking) instead of exec() so the Qt modal event loop
+        is not seized, keeping any concurrently shown download popup interactive.
+        """
         from ui.dialogs import BatchPatternDialog
         dlg = BatchPatternDialog(self, initial_url=initial_url or "")
-        if dlg.exec():
-            urls = dlg.get_generated_urls()
-            if urls:
-                self.open_batch_download(urls, is_import=False)
+        if not hasattr(self, "_batch_pattern_dialogs"):
+            self._batch_pattern_dialogs = []
+        self._batch_pattern_dialogs.append(dlg)
+        dlg.finished.connect(lambda _result, d=dlg: self._batch_pattern_dialogs.remove(d)
+                             if d in self._batch_pattern_dialogs else None)
+        dlg.accepted.connect(lambda d=dlg: self._on_batch_pattern_accepted(d))
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+
+    def _on_batch_pattern_accepted(self, dlg):
+        """Called when BatchPatternDialog is accepted; chains into open_batch_download."""
+        urls = dlg.get_generated_urls()
+        if urls:
+            self.open_batch_download(urls, is_import=False)
 
     def update_import_links_action_state(self):
         """Disables 'Import Links from Clipboard' action when clipboard is empty or has no download links."""
@@ -4447,12 +4367,25 @@ class MainWindow(QMainWindow):
             self.open_batch_download(lines, is_import=True)
 
     def open_batch_download(self, urls_or_items, is_import: bool = False):
-        """Opens the Batch Download Review dialog with the provided items."""
+        """Opens the Batch Download Review dialog with the provided items.
+
+        Uses show() (non-blocking) instead of exec() so the Qt modal event loop
+        is not seized, allowing browser-extension download popups (DownloadFileInfoDialog)
+        to remain fully interactive while the batch dialog is open.
+        """
         if not urls_or_items:
             return
         from ui.dialogs import BatchDownloadDialog
         dlg = BatchDownloadDialog(urls_or_items, parent=self, main_window=self, is_import=is_import)
-        dlg.exec()
+        # Keep a strong reference so the dialog is not garbage-collected while open.
+        if not hasattr(self, "_batch_download_dialogs"):
+            self._batch_download_dialogs = []
+        self._batch_download_dialogs.append(dlg)
+        dlg.finished.connect(lambda _result, d=dlg: self._batch_download_dialogs.remove(d)
+                             if d in self._batch_download_dialogs else None)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def add_batch_downloads(self, batch_files: list, queue_name: str = None, start_immediate: bool = True):
         """
@@ -5114,16 +5047,21 @@ class MainWindow(QMainWindow):
 
         from ui.dialogs.duplicate import DuplicateDownloadDialog
         dlg = DuplicateDownloadDialog(file_data, parent=None)
-        dlg.exec()
-        action = dlg.get_action()
 
-        if action == "resume":
-            self.download_table.selectRow(row)
-            self.resume_selected_download()
-        elif action in ["restart", "redownload"]:
-            self._restart_download_row(row, item_ref, url, user_agent, cookies)
-        elif action == "download_copy":
-            self._start_duplicate_copy(url, user_agent, cookies)
+        def _on_dup_accepted(d=dlg, _row=row, _item_ref=item_ref, _url=url, _ua=user_agent, _ck=cookies):
+            action = d.get_action()
+            if action == "resume":
+                self.download_table.selectRow(_row)
+                self.resume_selected_download()
+            elif action in ["restart", "redownload"]:
+                self._restart_download_row(_row, _item_ref, _url, _ua, _ck)
+            elif action == "download_copy":
+                self._start_duplicate_copy(_url, _ua, _ck)
+
+        dlg.accepted.connect(_on_dup_accepted)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     def _restart_download_row(self, row, item_ref, url=None, user_agent=None, cookies=None):
         """Restarts a download from 0%, resetting progress and deleting previous partial chunks."""
@@ -6790,14 +6728,14 @@ class MainWindow(QMainWindow):
             _af = media_defaults.get("audio_format", "Auto (Best / Native) (Default)")
             audio_format = _af.split()[0].lower()
 
-        # If cookies.txt in option is set and exists, use it.
-        # If cookies.txt in option is empty, use the browser-sent cookies.
+        # If browser sent fresh cookies, use them.
+        # If browser sent nothing, fall back to explicit cookies_file or configured options cookies.txt.
         opt_cookies_path = config.get("media_downloader_cookies_path") or media_defaults.get("cookies_path", "")
-        if not cookies_file and opt_cookies_path and os.path.exists(opt_cookies_path):
+        if not cookies and not cookies_file and opt_cookies_path and os.path.exists(opt_cookies_path):
             cookies_file = opt_cookies_path
 
-        if cookies_file and os.path.exists(cookies_file):
-            cookies = None
+        if cookies:
+            cookies_file = None
 
         final_category = "Video" if not is_audio_only else "Music"
         if final_category not in categories:

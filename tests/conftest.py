@@ -19,6 +19,8 @@ os.environ["XDG_CACHE_HOME"] = os.path.join(_test_temp_dir.name, "cache")
 os.environ["XDG_DATA_HOME"] = os.path.join(_test_temp_dir.name, "data")
 
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QEvent
+
 
 @pytest.fixture(scope="session")
 def qapp():
@@ -28,3 +30,43 @@ def qapp():
     yield app
     app.processEvents()
     app.sendPostedEvents()
+
+
+@pytest.fixture(autouse=True)
+def _flush_deferred_deletes(qapp):
+    """Process pending deleteLater() calls after every test.
+
+    Without this, widgets created by dialogs/windows accumulate in
+    QApplication.allWidgets() across tests, making app.setStyleSheet()
+    (which re-polishes every live widget) progressively slower and
+    eventually appearing to hang the suite.
+    """
+    yield
+    flush_deferred_deletes(qapp)
+
+
+def flush_deferred_deletes(app):
+    import gc
+    gc.collect()
+    app.processEvents()
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    gc.collect()
+
+
+@pytest.fixture(scope="session")
+def destroy_widget(qapp):
+    """Return a callable that closes and fully destroys a Qt widget."""
+    def _destroy(widget):
+        try:
+            if hasattr(widget, "is_quitting"):
+                widget.is_quitting = True
+            widget.close()
+        except Exception:
+            pass
+        try:
+            widget.deleteLater()
+        except Exception:
+            pass
+        flush_deferred_deletes(qapp)
+    return _destroy

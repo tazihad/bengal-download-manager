@@ -102,8 +102,9 @@ def create_temp_netscape_cookie_file(cookie_str: str, url: str = "") -> str:
         # Clean up any tabs or line breaks
         name = name.replace("\t", " ").replace("\n", "").replace("\r", "")
         val = val.replace("\t", " ").replace("\n", "").replace("\r", "")
+        is_secure = "TRUE" if (name.startswith("__Secure-") or name.startswith("__Host-")) else "FALSE"
         # domain, include_subdomains, path, secure, expires, name, value
-        lines.append(f"{base_domain}\tTRUE\t/\tTRUE\t2147483647\t{name}\t{val}")
+        lines.append(f"{base_domain}\tTRUE\t/\t{is_secure}\t2147483647\t{name}\t{val}")
 
     if len(lines) <= 3:
         return ""
@@ -510,14 +511,19 @@ class YtDlpDownloadWorker(QThread):
                 cfg_fn = getattr(md, "load_category_config", _load_cfg) if md else _load_cfg
                 cfg = cfg_fn()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
+                yt_client = media_defaults.get("youtube_player_client", "auto") or "auto"
             except Exception:
                 cfg = {}
                 media_defaults = {}
-                yt_client = "default"
+                yt_client = "auto"
 
-            yt_client = yt_client.strip() or "default"
-
+            from core.media.extractor import get_js_runtime_args
+            from core.media.pot_provider import (
+                get_pot_extractor_args,
+                get_pot_plugin_args,
+                get_youtube_player_client_args,
+                get_youtube_fallback_client_args,
+            )
             base_cmd = [
                 bin_path,
                 "--newline",
@@ -529,13 +535,12 @@ class YtDlpDownloadWorker(QThread):
                 "--paths", f"temp:{self.temp_dir}",
                 "--continue",
                 "--no-keep-fragments",
-                "--extractor-args", f"youtube:player_client={yt_client}",
                 "--format", self.format_spec,
                 "-o", output_tmpl
             ]
-            from core.media.extractor import get_js_runtime_args
-            from core.media.pot_provider import get_pot_extractor_args
+            base_cmd.extend(get_youtube_player_client_args(cfg, yt_client))
             base_cmd.extend(get_js_runtime_args())
+            base_cmd.extend(get_pot_plugin_args())
             base_cmd.extend(get_pot_extractor_args(cfg))
 
             # Selective thumbnail embedding: only enable for containers supported by yt-dlp/ffmpeg
@@ -630,7 +635,7 @@ class YtDlpDownloadWorker(QThread):
                 or (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
                 or (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
             )
-            attempts = [1, 2] if has_cookies else [1]
+            attempts = [1, 2, 3] if is_popular_platform else ([1, 2] if has_cookies else [1])
 
             for attempt in attempts:
                 if not self.is_running or self.is_paused:
@@ -859,28 +864,53 @@ class YtDlpDownloadWorker(QThread):
                     logger.info("[YtDlpDownload] yt-dlp stopped by user for %s", self.url)
                     return
 
-                if rc != 0 and attempt == 1 and has_cookies:
+                if rc != 0 and attempt < len(attempts):
                     error_blob = " ".join(collected_errors).lower()
-                    is_bot_err = any(e in error_blob for e in ("sign in", "bot", "429", "login_required", "format is not available"))
+                    is_bot_err = any(
+                        e in error_blob for e in (
+                            "sign in", "bot", "429", "login_required", "format is not available",
+                            "unable to fetch gvs po token", "missing required visitor data",
+                            "sabr streaming", "raise_no_formats", "some web client https formats have been skipped"
+                        )
+                    )
                     cookie_failure = (
-                        any(
-                            err in error_blob
-                            for err in ("413", "too large", "connection reset", "connection aborted", "cookie")
-                        ) or is_bot_err or (completed_streams_bytes + stream_downloaded_bytes == 0)
+                        has_cookies and (
+                            any(
+                                err in error_blob
+                                for err in ("413", "too large", "connection reset", "connection aborted", "cookie")
+                            ) or is_bot_err or (completed_streams_bytes + stream_downloaded_bytes == 0)
+                        )
                     )
 
-                    if cookie_failure:
-                        retry_msg = "Retrying clean download without cookies..."
+                    if is_bot_err or cookie_failure or is_popular_platform:
+                        retry_msg = "Retrying with resilient multi-client fallback..."
                         if is_bot_err:
-                            retry_msg = "YouTube bot check detected, retrying clean download..."
-                        logger.warning("[YtDlpDownload] yt-dlp failed with cookies (rc=%d). %s", rc, retry_msg)
-                        self.log_signal.emit(f"Cookies issue detected, {retry_msg}")
+                            retry_msg = "YouTube bot check or SABR stream detected, retrying with PO token and multi-client fallback..."
+                        elif cookie_failure:
+                            retry_msg = "Cookies issue detected, retrying clean download..."
+                        logger.warning("[YtDlpDownload] yt-dlp attempt %d failed (rc=%d). %s", attempt, rc, retry_msg)
+                        self.log_signal.emit(f"{retry_msg} (attempt {attempt + 1})")
                         if temp_cookies_file and os.path.exists(temp_cookies_file):
                             try:
                                 os.remove(temp_cookies_file)
                             except Exception:
                                 pass
                             temp_cookies_file = None
+                        if has_cookies:
+                            has_cookies = False
+
+                        # On retry, inject fallback clients to bypass web bot checks / SABR streaming
+                        filtered_cmd = []
+                        skip_next = False
+                        for i, arg in enumerate(base_cmd):
+                            if skip_next:
+                                skip_next = False
+                                continue
+                            if arg == "--extractor-args" and i + 1 < len(base_cmd) and base_cmd[i + 1].startswith("youtube:player_client="):
+                                skip_next = True
+                                continue
+                            filtered_cmd.append(arg)
+                        base_cmd = filtered_cmd + get_youtube_fallback_client_args()
                         continue
 
                 if rc == 0:

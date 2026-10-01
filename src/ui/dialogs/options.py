@@ -1383,11 +1383,13 @@ class OptionsDialog(QDialog):
         grid_media.setContentsMargins(0, 6, 0, 0)
         grid_media.setSpacing(10)
 
+        COMBO_MAX_WIDTH = 300
+
         lbl_q = QLabel("Quality preset:")
         lbl_q.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality = QComboBox()
         self.cmb_media_quality.setFixedHeight(28)
-        self.cmb_media_quality.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_media_quality.setMaximumWidth(COMBO_MAX_WIDTH)
         self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
         self.cmb_media_quality.addItems([
             "Best Quality (Video + Audio merged)",
@@ -1422,14 +1424,8 @@ class OptionsDialog(QDialog):
         )
         self.cmb_video_codec = QComboBox()
         self.cmb_video_codec.setFixedHeight(28)
-        self.cmb_video_codec.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.cmb_video_codec.setToolTip(
-            "Preferred video codec stream from YouTube and video platforms.\n"
-            "• Auto (Default): Downloads the best available codec stream.\n"
-            "• AV1: Next-generation high-efficiency video codec (av01).\n"
-            "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
-            "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
-        )
+        self.cmb_video_codec.setMaximumWidth(COMBO_MAX_WIDTH)
+        self.cmb_video_codec.setToolTip(lbl_codec.toolTip())
         self.cmb_video_codec.addItems([
             "Auto (Default)", "AV1", "H.264 / AVC", "VP9"
         ])
@@ -1450,13 +1446,8 @@ class OptionsDialog(QDialog):
         )
         self.cmb_video_container = QComboBox()
         self.cmb_video_container.setFixedHeight(28)
-        self.cmb_video_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.cmb_video_container.setToolTip(
-            "Output container format for downloaded videos.\n"
-            "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
-            "• MKV: Universal container, supports all codecs.\n"
-            "• MP4 / WebM: Converts to target format via FFmpeg if needed."
-        )
+        self.cmb_video_container.setMaximumWidth(COMBO_MAX_WIDTH)
+        self.cmb_video_container.setToolTip(lbl_v.toolTip())
         self.cmb_video_container.addItems([
             "Auto (Best / Native) (Default)", "MKV", "MP4", "WebM"
         ])
@@ -1476,12 +1467,8 @@ class OptionsDialog(QDialog):
         )
         self.cmb_audio_format = QComboBox()
         self.cmb_audio_format.setFixedHeight(28)
-        self.cmb_audio_format.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.cmb_audio_format.setToolTip(
-            "Output format for audio-only downloads.\n"
-            "• Auto: Downloads the site's native audio stream (fastest).\n"
-            "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
-        )
+        self.cmb_audio_format.setMaximumWidth(COMBO_MAX_WIDTH)
+        self.cmb_audio_format.setToolTip(lbl_a.toolTip())
         self.cmb_audio_format.addItems([
             "Auto (Best / Native) (Default)", "Opus", "MP3", "AAC", "FLAC", "M4A", "OGG", "WAV"
         ])
@@ -1492,7 +1479,7 @@ class OptionsDialog(QDialog):
         grid_media.addWidget(lbl_a, 3, 0)
         grid_media.addWidget(self.cmb_audio_format, 3, 1)
 
-        grid_media.setColumnStretch(1, 1)
+        grid_media.setColumnStretch(2, 1)
 
         vbox_browser.addLayout(grid_media)
         layout.addWidget(grp_browser)
@@ -1509,6 +1496,7 @@ class OptionsDialog(QDialog):
         row_cookies_config.addWidget(lbl_cookie)
         self.cmb_opt_cookies_mode = QComboBox()
         self.cmb_opt_cookies_mode.setFixedHeight(28)
+        self.cmb_opt_cookies_mode.setMaximumWidth(260)
         self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file or none)")
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
@@ -1516,7 +1504,8 @@ class OptionsDialog(QDialog):
         ])
         saved_cmode = media_defaults.get("cookies_mode_idx", 0)
         self.cmb_opt_cookies_mode.setCurrentIndex(min(max(0, saved_cmode), 1))
-        row_cookies_config.addWidget(self.cmb_opt_cookies_mode, stretch=1)
+        row_cookies_config.addWidget(self.cmb_opt_cookies_mode)
+        row_cookies_config.addStretch()
         vbox_cookies.addLayout(row_cookies_config)
 
         # Full-width cookies path input with Browse / Clear buttons below
@@ -1571,18 +1560,25 @@ class OptionsDialog(QDialog):
         vbox_extractor.setSpacing(10)
 
         row_client = QHBoxLayout()
-        row_client.addWidget(QLabel("YouTube Player Client:"))
+        lbl_yt_client = QLabel("YouTube Player Client:")
+        lbl_yt_client.setToolTip(
+            "YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\n"
+            "• 'auto': Automatically uses resilient multi-client fallback (mweb, android, ios, web_creator, tv, web) to bypass bot verification and SABR blocks.\n"
+            "• Custom clients or comma-separated lists (e.g. 'android,ios', 'mweb', 'web') can be entered manually."
+        )
+        row_client.addWidget(lbl_yt_client)
+
         self.txt_opt_youtube_client = QLineEdit()
-        self.txt_opt_youtube_client.setPlaceholderText("e.g. default, android, web, ios, tv, android_vr, mweb...")
-        self.txt_opt_youtube_client.setToolTip("YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\nDefault is 'default'. Multiple clients can be comma-separated (e.g. 'default', 'android', 'web').")
-        saved_client = media_defaults.get("youtube_player_client", "default")
+        self.txt_opt_youtube_client.setPlaceholderText("e.g. auto, android, web, ios, tv, mweb...")
+        self.txt_opt_youtube_client.setToolTip(lbl_yt_client.toolTip())
+        saved_client = media_defaults.get("youtube_player_client", "auto") or "auto"
         self.txt_opt_youtube_client.setText(saved_client)
         row_client.addWidget(self.txt_opt_youtube_client, stretch=1)
 
         self.btn_opt_reset_youtube_client = QPushButton("Reset")
         self.btn_opt_reset_youtube_client.setFixedWidth(80)
-        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to default ('default')")
-        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("default"))
+        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to 'auto'")
+        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("auto"))
         row_client.addWidget(self.btn_opt_reset_youtube_client)
 
         vbox_extractor.addLayout(row_client)
@@ -1973,7 +1969,7 @@ class OptionsDialog(QDialog):
             media_defaults["cookies_path"] = c_path
             self.config_data["media_downloader_cookies_path"] = c_path
         if hasattr(self, "txt_opt_youtube_client"):
-            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "default"
+            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "auto"
         if hasattr(self, "chk_opt_pot_enabled"):
             media_defaults["youtube_pot_enabled"] = self.chk_opt_pot_enabled.isChecked()
         self.config_data["media_downloader_defaults"] = media_defaults

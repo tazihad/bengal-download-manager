@@ -8,7 +8,7 @@ Architecture:
 - High depth: Encapsulates worker tracking, thread liveness resolution,
   speed aggregation, and graceful bulk termination behind an expressive
   signal-driven interface.
-- Seam: Sits between presentation views (QWidget MainWindow, Kirigami QML DownloadBridge)
+- Seam: Sits between presentation views (QWidget MainWindow)
   and concrete worker adapters (DownloadWorker, Aria2Worker, YtDlpDownloadWorker).
 """
 

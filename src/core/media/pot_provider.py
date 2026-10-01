@@ -7,6 +7,7 @@ Bypasses YouTube bot detection, 403 Forbidden errors, and streaming throttling s
 """
 
 import os
+import sys
 import shutil
 import logging
 import urllib.request
@@ -99,6 +100,63 @@ def is_pot_provider_available(base_url: str = DEFAULT_POT_PROVIDER_URL, timeout:
     return available
 
 
+def get_pot_plugin_args() -> List[str]:
+    """
+    Returns --plugin-dirs arguments if any yt_dlp_plugins package is discoverable in sys.path.
+    Allows standalone yt-dlp binary to find bgutil-ytdlp-pot-provider and other plugins.
+    """
+    try:
+        for p in sys.path:
+            if p and os.path.isdir(os.path.join(p, "yt_dlp_plugins")):
+                return ["--plugin-dirs", str(p)]
+    except Exception:
+        pass
+    return []
+
+
+DYNAMIC_YOUTUBE_CLIENTS = "mweb,android,ios,web_creator,tv_embedded,visionos,web"
+
+
+def get_youtube_player_client_args(config: Optional[dict] = None, custom_client: Optional[str] = None) -> List[str]:
+    """
+    Returns --extractor-args for YouTube player clients.
+    If 'dynamic' (default), returns a multi-client priority fallback chain
+    (mweb, android, ios, web_creator, tv_embedded, visionos, web) so yt-dlp automatically
+    tries other clients if one fails or encounters bot verification.
+    If an explicit client or client list is given (e.g. 'android,ios', 'mweb'), returns the argument.
+    If 'default' or 'raw_default', returns empty list (yt-dlp built-in behavior).
+    """
+    client = custom_client
+    if client is None:
+        if config is None:
+            try:
+                config = load_category_config()
+            except Exception:
+                config = {}
+        media_defaults = config.get("media_downloader_defaults", {}) if isinstance(config, dict) else {}
+        client = media_defaults.get("youtube_player_client", "auto")
+
+    if not client:
+        client = "auto"
+
+    c_clean = str(client).strip().lower()
+    if c_clean in ("auto", "dynamic", "dynamic (auto-fallback)", "dynamic (recommended)", ""):
+        return ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
+    if c_clean in ("default", "none", "yt-dlp default"):
+        return []
+
+    return ["--extractor-args", f"youtube:player_client={client.strip()}"]
+
+
+def get_youtube_fallback_client_args() -> List[str]:
+    """
+    Returns resilient multi-client player client extractor arguments for retry attempts
+    when YouTube blocks standard web extraction with bot checks or SABR streaming.
+    """
+    return ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
+
 def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:
     """
     Builds the appropriate yt-dlp --extractor-args for PO token handling.
@@ -129,7 +187,7 @@ def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:
     # 2. Check if Deno is available from Bengal DM media download tools or system
     deno_path = get_deno_executable_path()
     if deno_path:
-        # bgutil plugin generates tokens in-process via Deno; no extra args needed
+        # bgutil plugin / JS runtime generates tokens in-process via Deno; no extra args needed
         return []
 
     # 3. Check if Node.js is available
@@ -138,3 +196,4 @@ def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:
 
     # 4. If no JS engine is present, disable fetch_pot to prevent format corruption
     return ["--extractor-args", "youtube:fetch_pot=never"]
+
