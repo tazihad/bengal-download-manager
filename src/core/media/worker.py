@@ -630,6 +630,11 @@ class YtDlpDownloadWorker(QThread):
             from core.media.pot_provider import get_pot_env
             clean_env.update(get_pot_env())
             temp_cookies_file = None
+            has_cookies = bool(
+                extension_cookies
+                or (effective_cookies_file and os.path.exists(str(effective_cookies_file)))
+                or (self.cookies_browser and self.cookies_browser.lower() not in ("none", ""))
+            )
             attempts = [1, 2, 3] if is_popular_platform else ([1, 2] if has_cookies else [1])
 
             for attempt in attempts:
