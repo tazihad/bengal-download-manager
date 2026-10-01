@@ -106,13 +106,13 @@ class MediaExtractorWorker(QThread):
             try:
                 cfg = cfg_fn()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "dynamic") or "dynamic"
+                yt_client = media_defaults.get("youtube_player_client", "auto") or "auto"
             except Exception:
                 cfg = {}
                 media_defaults = {}
-                yt_client = "dynamic"
+                yt_client = "auto"
 
-            yt_client = yt_client.strip() or "dynamic"
+            yt_client = yt_client.strip() or "auto"
 
             cmd = [
                 yt_dlp_bin,
@@ -794,7 +794,7 @@ def probe_media_sizes(
         try:
             cfg = load_category_config()
             media_defaults = cfg.get("media_downloader_defaults", {})
-            yt_client = media_defaults.get("youtube_player_client", "dynamic") or "dynamic"
+            yt_client = media_defaults.get("youtube_player_client", "auto") or "auto"
             if video_codec == "auto" and media_defaults.get("video_codec"):
                 video_codec = media_defaults.get("video_codec", "auto")
             if video_container == "auto" and media_defaults.get("video_container"):
@@ -805,9 +805,9 @@ def probe_media_sizes(
                 audio_format = _raw_af.split()[0].lower() if _raw_af else "auto"
         except Exception:
             media_defaults = {}
-            yt_client = "dynamic"
+            yt_client = "auto"
 
-        yt_client = (yt_client or "dynamic").strip() or "dynamic"
+        yt_client = (yt_client or "auto").strip() or "auto"
 
         cmd = [
             yt_dlp_bin,
@@ -1057,13 +1057,13 @@ class MediaInfoFetcherWorker(QThread):
             try:
                 cfg = load_category_config()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "dynamic") or "dynamic"
+                yt_client = media_defaults.get("youtube_player_client", "auto") or "auto"
             except Exception:
                 cfg = {}
                 media_defaults = {}
-                yt_client = "dynamic"
+                yt_client = "auto"
 
-            yt_client = (yt_client or "dynamic").strip() or "dynamic"
+            yt_client = (yt_client or "auto").strip() or "auto"
 
             cmd = [
                 yt_dlp_bin,

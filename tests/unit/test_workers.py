@@ -167,3 +167,14 @@ class TestYouTubePlayerClientArgs:
         from core.media.pot_provider import get_youtube_fallback_client_args, DYNAMIC_YOUTUBE_CLIENTS
         args = get_youtube_fallback_client_args()
         assert args == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
+    def test_youtube_player_client_from_config(self):
+        from core.media.pot_provider import get_youtube_player_client_args, DYNAMIC_YOUTUBE_CLIENTS
+        # Config with auto
+        cfg_auto = {"media_downloader_defaults": {"youtube_player_client": "auto"}}
+        assert get_youtube_player_client_args(cfg_auto) == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+        # Config with custom client list
+        cfg_custom = {"media_downloader_defaults": {"youtube_player_client": "ios,android"}}
+        assert get_youtube_player_client_args(cfg_custom) == ["--extractor-args", "youtube:player_client=ios,android"]
+        # Config with empty / missing
+        assert get_youtube_player_client_args({}) == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]

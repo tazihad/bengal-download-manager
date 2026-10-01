@@ -133,13 +133,13 @@ def get_youtube_player_client_args(config: Optional[dict] = None, custom_client:
             except Exception:
                 config = {}
         media_defaults = config.get("media_downloader_defaults", {}) if isinstance(config, dict) else {}
-        client = media_defaults.get("youtube_player_client", "dynamic")
+        client = media_defaults.get("youtube_player_client", "auto")
 
     if not client:
-        client = "dynamic"
+        client = "auto"
 
     c_clean = str(client).strip().lower()
-    if c_clean in ("dynamic", "auto", "dynamic (auto-fallback)", "dynamic (recommended)", ""):
+    if c_clean in ("auto", "dynamic", "dynamic (auto-fallback)", "dynamic (recommended)", ""):
         return ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
 
     if c_clean in ("default", "none", "yt-dlp default"):
