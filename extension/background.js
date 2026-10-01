@@ -218,7 +218,19 @@ function isFirefoxEnv() {
   return false;
 }
 
-async function applyStoredActionIcon(overrideScheme) {
+// Listen to prefers-color-scheme media query directly if running in an environment with matchMedia
+try {
+  const mediaObj = typeof window !== 'undefined' ? window : (typeof self !== 'undefined' ? self : null);
+  if (mediaObj && typeof mediaObj.matchMedia === 'function') {
+    mediaObj.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      const isDark = e.matches;
+      chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
+      applyStoredActionIcon(isDark ? 'dark' : 'light');
+    });
+  }
+} catch (e) {}
+
+async function applyStoredActionIcon(knownSystemTheme = null) {
   const action = getActionAPI();
   if (!action || !action.setIcon) return;
 
@@ -236,25 +248,21 @@ async function applyStoredActionIcon(overrideScheme) {
       }
     }
 
-    let effectiveTheme = overrideScheme || 'light';
-    if (!overrideScheme) {
-      if (themePref === 'dark') {
-        effectiveTheme = 'dark';
-      } else if (themePref === 'light') {
-        effectiveTheme = 'light';
-      } else {
-        // themePref === 'system'
-        if (items.systemTheme) {
-          effectiveTheme = items.systemTheme;
-        } else if (typeof matchMedia !== 'undefined') {
-          try {
-            effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          } catch {}
-        }
-      }
+    let effectiveTheme = 'light';
+    if (themePref === 'dark') {
+      effectiveTheme = 'dark';
+    } else if (themePref === 'light') {
+      effectiveTheme = 'light';
     } else {
-      if (themePref === 'dark') effectiveTheme = 'dark';
-      else if (themePref === 'light') effectiveTheme = 'light';
+      // themePref === 'system'
+      const currentSystemTheme = knownSystemTheme || items.systemTheme;
+      if (currentSystemTheme) {
+        effectiveTheme = currentSystemTheme;
+      } else if (typeof matchMedia !== 'undefined') {
+        try {
+          effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } catch {}
+      }
     }
 
     const paths = getIconPathsForStyle(iconPref, effectiveTheme);
@@ -264,22 +272,7 @@ async function applyStoredActionIcon(overrideScheme) {
       console.warn("Could not set extension toolbar icon:", err);
     }
 
-    // Update active tab(s) explicitly to eliminate Chromium tab-level display delay
-    try {
-      if (chrome.tabs && chrome.tabs.query) {
-        chrome.tabs.query({ active: true }, (tabs) => {
-          if (!chrome.runtime.lastError && Array.isArray(tabs)) {
-            for (const t of tabs) {
-              if (t && t.id) {
-                action.setIcon({ path: paths, tabId: t.id }).catch(() => {});
-              }
-            }
-          }
-        });
-      }
-    } catch {}
-
-    // Force toolbar view repaint by refreshing action title
+    // Force toolbar view repaint in Chromium
     try {
       if (action.setTitle) {
         const curTitle = (await action.getTitle({})) || 'Bengal DM';
@@ -290,10 +283,36 @@ async function applyStoredActionIcon(overrideScheme) {
 }
 applyStoredActionIcon();
 
-// Ensure active tab toolbar icon is synchronized on tab switch
+// Poll active tab for system theme on tab activation or window focus in Chromium
+function pollActiveTabTheme() {
+  if (chrome.tabs && chrome.tabs.query) {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      if (!chrome.runtime.lastError && tabs && tabs[0] && tabs[0].id) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "query_system_theme" }, (res) => {
+          if (!chrome.runtime.lastError && res && res.systemTheme) {
+            chrome.storage.local.get({ systemTheme: '' }, (s) => {
+              if (s.systemTheme !== res.systemTheme) {
+                chrome.storage.local.set({ systemTheme: res.systemTheme });
+                applyStoredActionIcon(res.systemTheme);
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+}
+
 if (chrome.tabs && chrome.tabs.onActivated) {
   chrome.tabs.onActivated.addListener(() => {
-    applyStoredActionIcon();
+    pollActiveTabTheme();
+  });
+}
+if (chrome.windows && chrome.windows.onFocusChanged) {
+  chrome.windows.onFocusChanged.addListener((winId) => {
+    if (typeof chrome.windows.WINDOW_ID_NONE !== 'undefined' && winId !== chrome.windows.WINDOW_ID_NONE) {
+      pollActiveTabTheme();
+    }
   });
 }
 
@@ -1844,11 +1863,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (request.scheme || (request.action === "report_system_theme" && request.systemTheme)) {
-    const scheme = request.scheme || request.systemTheme;
-    chrome.storage.local.set({ systemTheme: scheme });
-    applyStoredActionIcon(scheme);
-    sendResponse({ status: "ok", scheme: scheme });
+  if (request.action === "report_system_theme" && request.systemTheme) {
+    chrome.storage.local.set({ systemTheme: request.systemTheme });
+    applyStoredActionIcon(request.systemTheme);
+    sendResponse({ status: "ok" });
     return true;
   }
 

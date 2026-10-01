@@ -149,11 +149,7 @@ chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
 // System theme change listener
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
   const isDark = e.matches;
-  const scheme = isDark ? 'dark' : 'light';
-  chrome.storage.local.set({ systemTheme: scheme });
-  try {
-    chrome.runtime.sendMessage({ scheme: scheme, action: "report_system_theme", systemTheme: scheme }).catch(() => {});
-  } catch {}
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
   chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
     if (items.theme === 'system') {
       applyTheme('system');

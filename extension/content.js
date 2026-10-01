@@ -403,11 +403,7 @@
         }
         const wasConnected = isAppConnected;
         isAppConnected = Boolean(res && res.online);
-        try {
-          if (typeof host !== 'undefined' && host && host.dataset) {
-            host.dataset.bgOnline = String(res && res.online);
-          }
-        } catch {}
+        host.dataset.bgOnline = String(res && res.online);
         if (!isAppConnected) {
           hideWidget('checkConnection_offline');
         } else if (!wasConnected && enableMediaSniffing) {
@@ -424,11 +420,7 @@
       });
     } catch (err) {
       isAppConnected = false;
-      try {
-        if (typeof host !== 'undefined' && host && host.dataset) {
-          host.dataset.bgOnline = 'error_' + err.message;
-        }
-      } catch {}
+      host.dataset.bgOnline = 'error_' + err.message;
       hideWidget('checkConnection_catch');
       if (callback) callback(false);
     }
@@ -510,7 +502,12 @@
     });
   } catch {}
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.action === "query_system_theme") {
+      const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      sendResponse({ systemTheme: isDark ? 'dark' : 'light' });
+      return true;
+    }
     if (msg && msg.action === "close_dropdown") {
       if (isDropdownOpen) {
         closeDropdown();
