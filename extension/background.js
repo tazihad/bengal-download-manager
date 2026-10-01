@@ -226,13 +226,21 @@ async function ensureOffscreenWatcher() {
     if (chrome.offscreen.hasDocument) {
       const hasDoc = await chrome.offscreen.hasDocument();
       if (hasDoc) return;
-    } else if (chrome.runtime.getContexts) {
-      const contexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+    }
+    const offscreenUrl = (chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL('offscreen.html') : 'offscreen.html';
+    if (chrome.runtime && chrome.runtime.getContexts) {
+      const contexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [offscreenUrl]
+      });
       if (contexts && contexts.length > 0) return;
     }
+    const reasons = (chrome.offscreen.Reason && chrome.offscreen.Reason.MATCH_MEDIA)
+      ? [chrome.offscreen.Reason.MATCH_MEDIA]
+      : ['MATCH_MEDIA'];
     await chrome.offscreen.createDocument({
-      url: 'offscreen.html',
-      reasons: ['MATCH_MEDIA'],
+      url: offscreenUrl,
+      reasons: reasons,
       justification: 'Continuously track system dark mode theme changes'
     });
   } catch (err) {
@@ -241,77 +249,96 @@ async function ensureOffscreenWatcher() {
 }
 ensureOffscreenWatcher();
 
-async function applyStoredActionIcon() {
+// Update icon based on theme
+async function updateExtensionIcon(isDark) {
   const action = getActionAPI();
   if (!action || !action.setIcon) return;
 
-  chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, async (items) => {
-    const iconPref = items.actionIcon || 'system';
-    const themePref = items.theme || 'system';
+  const mode = isDark ? 'dark' : 'light';
+  try {
+    await chrome.storage.local.set({ systemTheme: mode });
+  } catch {}
 
-    // In Firefox, if both icon and theme are set to system default, reset icon override to let native manifest theme_icons handle it seamlessly without hover
-    if (isFirefoxEnv() && iconPref === 'system' && themePref === 'system') {
-      try {
-        await action.setIcon({ path: null });
-        return;
-      } catch (e) {
-        // Fallback to explicit paths if path: null fails
-      }
-    }
+  const items = await new Promise((resolve) => {
+    chrome.storage.local.get({ actionIcon: 'system', theme: 'system' }, resolve);
+  });
 
-    // In Chromium, ensure offscreen watcher is running to detect system theme
-    if (!isFirefoxEnv()) {
-      ensureOffscreenWatcher();
-    }
+  const iconPref = items.actionIcon || 'system';
+  const themePref = items.theme || 'system';
 
-    let effectiveTheme = 'light';
-    if (themePref === 'dark') {
-      effectiveTheme = 'dark';
-    } else if (themePref === 'light') {
-      effectiveTheme = 'light';
-    } else {
-      // themePref === 'system'
-      if (items.systemTheme) {
-        effectiveTheme = items.systemTheme;
-      } else if (typeof matchMedia !== 'undefined') {
-        try {
-          effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        } catch {}
-      }
-    }
-
-    const paths = getIconPathsForStyle(iconPref, effectiveTheme);
+  // In Firefox, if both icon and theme are set to system default, reset icon override to let native manifest theme_icons handle it seamlessly without hover
+  if (isFirefoxEnv() && iconPref === 'system' && themePref === 'system') {
     try {
-      await action.setIcon({ path: paths });
-    } catch (err) {
-      console.warn("Could not set extension toolbar icon:", err);
+      await action.setIcon({ path: null });
+      return;
+    } catch (e) {
+      // Fallback to explicit paths if path: null fails
     }
+  }
 
-    // Update all tabs explicitly in Chromium to eliminate per-tab display caching delay
-    try {
-      if (chrome.tabs && chrome.tabs.query) {
-        chrome.tabs.query({}, (tabs) => {
-          if (!chrome.runtime.lastError && Array.isArray(tabs)) {
-            for (const t of tabs) {
-              if (t && t.id) {
-                action.setIcon({ path: paths, tabId: t.id }).catch(() => {});
-              }
+  // In Chromium, ensure offscreen watcher is running to detect system theme
+  if (!isFirefoxEnv()) {
+    ensureOffscreenWatcher();
+  }
+
+  let effectiveTheme = mode;
+  if (themePref === 'dark') {
+    effectiveTheme = 'dark';
+  } else if (themePref === 'light') {
+    effectiveTheme = 'light';
+  }
+
+  const paths = getIconPathsForStyle(iconPref, effectiveTheme);
+  try {
+    await action.setIcon({ path: paths });
+  } catch (err) {
+    console.warn("Could not set extension toolbar icon:", err);
+  }
+
+  // Update all tabs explicitly in Chromium to eliminate per-tab display caching delay
+  try {
+    if (chrome.tabs && chrome.tabs.query) {
+      chrome.tabs.query({}, (tabs) => {
+        if (!chrome.runtime.lastError && Array.isArray(tabs)) {
+          for (const t of tabs) {
+            if (t && t.id) {
+              action.setIcon({ path: paths, tabId: t.id }).catch(() => {});
             }
           }
-        });
-      }
-    } catch {}
+        }
+      });
+    }
+  } catch {}
+}
 
-    // Force toolbar view repaint by refreshing action title
-    try {
-      if (action.setTitle) {
-        const curTitle = (await action.getTitle({})) || 'Bengal DM';
-        await action.setTitle({ title: curTitle });
-      }
-    } catch {}
+async function applyStoredActionIcon() {
+  chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, async (items) => {
+    let isDark = false;
+    if (items.theme === 'dark') {
+      isDark = true;
+    } else if (items.theme === 'light') {
+      isDark = false;
+    } else if (items.systemTheme) {
+      isDark = (items.systemTheme === 'dark');
+    } else if (typeof matchMedia !== 'undefined') {
+      try {
+        isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+      } catch {}
+    }
+    await updateExtensionIcon(isDark);
   });
 }
 applyStoredActionIcon();
+
+// Detect system theme in window environments (if available)
+if (typeof window !== 'undefined' && window.matchMedia) {
+  try {
+    const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    darkModeQuery.addEventListener("change", (e) => {
+      updateExtensionIcon(e.matches);
+    });
+  } catch {}
+}
 
 // Ensure active tab toolbar icon is synchronized on tab switch
 if (chrome.tabs && chrome.tabs.onActivated) {
@@ -1868,9 +1895,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === "changeTheme") {
+    const isDark = (typeof request.isDark === 'boolean') ? request.isDark : (request.systemTheme === 'dark');
+    updateExtensionIcon(isDark);
+    sendResponse({ status: "ok" });
+    return true;
+  }
+
   if (request.action === "report_system_theme" && request.systemTheme) {
-    chrome.storage.local.set({ systemTheme: request.systemTheme });
-    applyStoredActionIcon();
+    const isDark = (request.systemTheme === 'dark');
+    updateExtensionIcon(isDark);
     sendResponse({ status: "ok" });
     return true;
   }

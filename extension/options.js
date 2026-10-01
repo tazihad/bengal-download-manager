@@ -146,10 +146,12 @@ chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
   applyActionIcon(items.actionIcon || 'system');
 });
 
-// System theme change listener
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+// Detect system theme
+const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+darkModeQuery.addEventListener('change', (e) => {
   const isDark = e.matches;
   chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
+  chrome.runtime.sendMessage({ action: "changeTheme", isDark: Boolean(isDark) }).catch(() => {});
   chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
     if (items.theme === 'system') {
       applyTheme('system');

@@ -9,22 +9,23 @@
 (function syncPageTheme() {
   if (typeof window === 'undefined' || !window.matchMedia) return;
   try {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const reportTheme = () => {
-      const mode = mq.matches ? 'dark' : 'light';
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const reportTheme = (isDark) => {
+      const mode = isDark ? 'dark' : 'light';
       try { chrome.storage.local.set({ systemTheme: mode }); } catch {}
       try {
         chrome.runtime.sendMessage({
-          action: "report_system_theme",
+          action: "changeTheme",
+          isDark: Boolean(isDark),
           systemTheme: mode
         }).catch(() => {});
       } catch {}
     };
-    reportTheme();
-    if (mq.addEventListener) {
-      mq.addEventListener('change', reportTheme);
-    } else if (mq.addListener) {
-      mq.addListener(reportTheme);
+    reportTheme(darkModeQuery.matches);
+    if (darkModeQuery.addEventListener) {
+      darkModeQuery.addEventListener('change', (e) => reportTheme(e.matches));
+    } else if (darkModeQuery.addListener) {
+      darkModeQuery.addListener((e) => reportTheme(e.matches));
     }
   } catch {}
 })();
