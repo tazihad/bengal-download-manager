@@ -113,12 +113,17 @@ def get_pot_plugin_args() -> List[str]:
     return []
 
 
+DYNAMIC_YOUTUBE_CLIENTS = "mweb,android,ios,web_creator,tv_embedded,visionos,web"
+
+
 def get_youtube_player_client_args(config: Optional[dict] = None, custom_client: Optional[str] = None) -> List[str]:
     """
     Returns --extractor-args for YouTube player clients.
-    If 'default', 'auto', or empty, returns empty list so yt-dlp uses its full intelligent
-    multi-client strategy (visionos, web_creator, mweb, android, ios, web).
-    If an explicit client is given (e.g. 'ios', 'android', 'web_creator'), returns the argument.
+    If 'dynamic' (default), returns a multi-client priority fallback chain
+    (mweb, android, ios, web_creator, tv_embedded, visionos, web) so yt-dlp automatically
+    tries other clients if one fails or encounters bot verification.
+    If an explicit client or client list is given (e.g. 'android,ios', 'mweb'), returns the argument.
+    If 'default' or 'raw_default', returns empty list (yt-dlp built-in behavior).
     """
     client = custom_client
     if client is None:
@@ -128,13 +133,16 @@ def get_youtube_player_client_args(config: Optional[dict] = None, custom_client:
             except Exception:
                 config = {}
         media_defaults = config.get("media_downloader_defaults", {}) if isinstance(config, dict) else {}
-        client = media_defaults.get("youtube_player_client", "default")
+        client = media_defaults.get("youtube_player_client", "dynamic")
 
     if not client:
-        return []
+        client = "dynamic"
 
     c_clean = str(client).strip().lower()
-    if c_clean in ("default", "auto", "none", ""):
+    if c_clean in ("dynamic", "auto", "dynamic (auto-fallback)", "dynamic (recommended)", ""):
+        return ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
+    if c_clean in ("default", "none", "yt-dlp default"):
         return []
 
     return ["--extractor-args", f"youtube:player_client={client.strip()}"]
@@ -145,7 +153,7 @@ def get_youtube_fallback_client_args() -> List[str]:
     Returns resilient multi-client player client extractor arguments for retry attempts
     when YouTube blocks standard web extraction with bot checks or SABR streaming.
     """
-    return ["--extractor-args", "youtube:player_client=mweb,android,ios,web_creator,tv_embedded,visionos,web"]
+    return ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
 
 
 def get_pot_extractor_args(config: Optional[dict] = None) -> List[str]:

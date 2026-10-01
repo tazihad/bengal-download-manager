@@ -1571,18 +1571,57 @@ class OptionsDialog(QDialog):
         vbox_extractor.setSpacing(10)
 
         row_client = QHBoxLayout()
-        row_client.addWidget(QLabel("YouTube Player Client:"))
-        self.txt_opt_youtube_client = QLineEdit()
-        self.txt_opt_youtube_client.setPlaceholderText("e.g. default, android, web, ios, tv, android_vr, mweb...")
-        self.txt_opt_youtube_client.setToolTip("YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\nDefault is 'default'. Multiple clients can be comma-separated (e.g. 'default', 'android', 'web').")
-        saved_client = media_defaults.get("youtube_player_client", "default")
-        self.txt_opt_youtube_client.setText(saved_client)
-        row_client.addWidget(self.txt_opt_youtube_client, stretch=1)
+        lbl_yt_client = QLabel("YouTube Player Client:")
+        lbl_yt_client.setToolTip(
+            "YouTube player client strategy used for format extraction and downloading.\n"
+            "• Dynamic Multi-Client: Automatically falls back across mweb, android, ios, web_creator, tv, and web clients if one encounters bot checks, SABR blocks, or missing formats.\n"
+            "• Android & iOS: Optimized for mobile formats and bypassing web bot checks.\n"
+            "• Mobile Web (mweb): Lightweight, fast web client.\n"
+            "• Android: Full-resolution Android client.\n"
+            "• iOS: High compatibility iOS client.\n"
+            "• Web: Standard desktop web client.\n"
+            "• yt-dlp Default: Standard built-in default client."
+        )
+        row_client.addWidget(lbl_yt_client)
+
+        self.cmb_opt_youtube_client = QComboBox()
+        self.cmb_opt_youtube_client.setEditable(True)
+        self.cmb_opt_youtube_client.setFixedHeight(28)
+        self.cmb_opt_youtube_client.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_opt_youtube_client.setToolTip(lbl_yt_client.toolTip())
+
+        client_items = [
+            ("Dynamic Multi-Client (Auto-Fallback: mweb, android, ios, web_creator, tv, web)", "dynamic"),
+            ("Android & iOS (Bypass SABR streaming)", "android,ios"),
+            ("Mobile Web (mweb)", "mweb"),
+            ("Android App (android)", "android"),
+            ("iOS App (ios)", "ios"),
+            ("Web Creator Studio (web_creator)", "web_creator"),
+            ("TV Embedded (tv_embedded)", "tv_embedded"),
+            ("Desktop Web (web)", "web"),
+            ("yt-dlp Default (Built-in)", "default"),
+        ]
+        for label, val in client_items:
+            self.cmb_opt_youtube_client.addItem(label, val)
+
+        saved_client = media_defaults.get("youtube_player_client", "dynamic") or "dynamic"
+        matched_idx = -1
+        for idx in range(self.cmb_opt_youtube_client.count()):
+            item_val = self.cmb_opt_youtube_client.itemData(idx)
+            if item_val == saved_client or (saved_client in ("dynamic", "auto", "default") and item_val == "dynamic"):
+                matched_idx = idx
+                break
+        if matched_idx != -1:
+            self.cmb_opt_youtube_client.setCurrentIndex(matched_idx)
+        else:
+            self.cmb_opt_youtube_client.setEditText(saved_client)
+
+        row_client.addWidget(self.cmb_opt_youtube_client, stretch=1)
 
         self.btn_opt_reset_youtube_client = QPushButton("Reset")
         self.btn_opt_reset_youtube_client.setFixedWidth(80)
-        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to default ('default')")
-        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("default"))
+        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to Dynamic Multi-Client (Auto-Fallback)")
+        self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.cmb_opt_youtube_client.setCurrentIndex(0))
         row_client.addWidget(self.btn_opt_reset_youtube_client)
 
         vbox_extractor.addLayout(row_client)
@@ -1972,8 +2011,13 @@ class OptionsDialog(QDialog):
             c_path = self.txt_opt_cookies_path.text().strip()
             media_defaults["cookies_path"] = c_path
             self.config_data["media_downloader_cookies_path"] = c_path
-        if hasattr(self, "txt_opt_youtube_client"):
-            media_defaults["youtube_player_client"] = self.txt_opt_youtube_client.text().strip() or "default"
+        if hasattr(self, "cmb_opt_youtube_client"):
+            idx = self.cmb_opt_youtube_client.currentIndex()
+            if idx >= 0 and self.cmb_opt_youtube_client.currentText() == self.cmb_opt_youtube_client.itemText(idx):
+                client_val = self.cmb_opt_youtube_client.itemData(idx) or "dynamic"
+            else:
+                client_val = self.cmb_opt_youtube_client.currentText().strip() or "dynamic"
+            media_defaults["youtube_player_client"] = client_val
         if hasattr(self, "chk_opt_pot_enabled"):
             media_defaults["youtube_pot_enabled"] = self.chk_opt_pot_enabled.isChecked()
         self.config_data["media_downloader_defaults"] = media_defaults

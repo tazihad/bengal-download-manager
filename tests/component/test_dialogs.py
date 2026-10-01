@@ -206,6 +206,23 @@ class TestOptionsDialogTabs:
         assert isinstance(dlg.get_language(), str)
         dlg.close()
 
+    def test_youtube_player_client_options(self, qapp):
+        from ui.dialogs.options import OptionsDialog
+        dlg = OptionsDialog(main_window=None)
+        dlg.select_tab("media")
+        assert hasattr(dlg, "cmb_opt_youtube_client")
+        assert dlg.cmb_opt_youtube_client.count() >= 5
+        # Verify Dynamic Multi-Client is an option
+        items_data = [dlg.cmb_opt_youtube_client.itemData(i) for i in range(dlg.cmb_opt_youtube_client.count())]
+        assert "dynamic" in items_data
+        assert "android,ios" in items_data
+        assert "mweb" in items_data
+        # Test reset button
+        dlg.cmb_opt_youtube_client.setCurrentIndex(2)
+        dlg.btn_opt_reset_youtube_client.click()
+        assert dlg.cmb_opt_youtube_client.currentIndex() == 0
+        dlg.close()
+
 
 class TestTwoRowTabWidget:
     def test_construction(self, qapp):

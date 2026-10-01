@@ -511,11 +511,11 @@ class YtDlpDownloadWorker(QThread):
                 cfg_fn = getattr(md, "load_category_config", _load_cfg) if md else _load_cfg
                 cfg = cfg_fn()
                 media_defaults = cfg.get("media_downloader_defaults", {})
-                yt_client = media_defaults.get("youtube_player_client", "default") or "default"
+                yt_client = media_defaults.get("youtube_player_client", "dynamic") or "dynamic"
             except Exception:
                 cfg = {}
                 media_defaults = {}
-                yt_client = "default"
+                yt_client = "dynamic"
 
             from core.media.extractor import get_js_runtime_args
             from core.media.pot_provider import (

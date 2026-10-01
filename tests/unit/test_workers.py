@@ -140,3 +140,25 @@ class TestFileInfoFetcherFormatting:
 
     def test_cookie_jar_exists(self, fetcher):
         assert fetcher.cookie_jar is not None
+
+
+class TestYouTubePlayerClientArgs:
+    def test_dynamic_client_args(self):
+        from core.media.pot_provider import get_youtube_player_client_args, DYNAMIC_YOUTUBE_CLIENTS
+        args = get_youtube_player_client_args(custom_client="dynamic")
+        assert args == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
+    def test_explicit_client_args(self):
+        from core.media.pot_provider import get_youtube_player_client_args
+        args = get_youtube_player_client_args(custom_client="android,ios")
+        assert args == ["--extractor-args", "youtube:player_client=android,ios"]
+
+    def test_default_client_args(self):
+        from core.media.pot_provider import get_youtube_player_client_args
+        args = get_youtube_player_client_args(custom_client="default")
+        assert args == []
+
+    def test_fallback_client_args(self):
+        from core.media.pot_provider import get_youtube_fallback_client_args, DYNAMIC_YOUTUBE_CLIENTS
+        args = get_youtube_fallback_client_args()
+        assert args == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
