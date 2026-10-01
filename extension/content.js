@@ -494,34 +494,35 @@
       chrome.storage.onChanged.addListener((changes, areaName) => {
         if (!isExtensionValid()) return;
         if (areaName === 'local') {
-        let shouldCheckVisibility = false;
+          let shouldCheckVisibility = false;
 
-        if (changes.blacklistUrls !== undefined) {
-          blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
-          shouldCheckVisibility = true;
-        }
-        if (changes.enableInterception !== undefined) {
-          enableInterception = changes.enableInterception.newValue !== false;
-          shouldCheckVisibility = true;
-        }
-        if (changes.enableMediaSniffing !== undefined) {
-          enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
-          shouldCheckVisibility = true;
-        }
-        if (changes.videoPanelPosition !== undefined) {
-          videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
-          updateWidgetPosition();
-        }
+          if (changes.blacklistUrls !== undefined) {
+            blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
+            shouldCheckVisibility = true;
+          }
+          if (changes.enableInterception !== undefined) {
+            enableInterception = changes.enableInterception.newValue !== false;
+            shouldCheckVisibility = true;
+          }
+          if (changes.enableMediaSniffing !== undefined) {
+            enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
+            shouldCheckVisibility = true;
+          }
+          if (changes.videoPanelPosition !== undefined) {
+            videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
+            updateWidgetPosition();
+          }
 
-        if (shouldCheckVisibility) {
-          if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
-            hideWidget('storage_changed_disabled_or_blacklisted');
-          } else if (activeVideo && isAppConnected && enableMediaSniffing) {
-            showWidget();
+          if (shouldCheckVisibility) {
+            if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
+              hideWidget('storage_changed_disabled_or_blacklisted');
+            } else if (activeVideo && isAppConnected && enableMediaSniffing) {
+              showWidget();
+            }
           }
         }
-      }
-    });
+      });
+    }
   } catch {}
 
   try {
@@ -529,45 +530,47 @@
       chrome.runtime.onMessage.addListener((msg) => {
         if (!isExtensionValid()) return;
         if (msg && msg.action === "close_dropdown") {
-      if (isDropdownOpen) {
-        closeDropdown();
-      }
-      return;
-    }
-    if (msg && msg.action === "connection_status_changed") {
-      const wasConnected = isAppConnected;
-      isAppConnected = Boolean(msg.online);
-      if (!isAppConnected || isSiteBlacklisted()) {
-        hideWidget('connection_status_changed');
-      } else if (!wasConnected && enableMediaSniffing) {
-        if (activeVideo) {
-          showWidget();
-        } else {
-          const v = document.querySelector('video');
-          if (v && (!v.paused || v.currentTime > 0)) {
-            onVideoState(v);
+          if (isDropdownOpen) {
+            closeDropdown();
+          }
+          return;
+        }
+        if (msg && msg.action === "connection_status_changed") {
+          const wasConnected = isAppConnected;
+          isAppConnected = Boolean(msg.online);
+          if (!isAppConnected || isSiteBlacklisted()) {
+            hideWidget('connection_status_changed');
+          } else if (!wasConnected && enableMediaSniffing) {
+            if (activeVideo) {
+              showWidget();
+            } else {
+              const v = document.querySelector('video');
+              if (v && (!v.paused || v.currentTime > 0)) {
+                onVideoState(v);
+              }
+            }
+          }
+          return;
+        }
+        if (msg && msg.action === "media_stream_detected" && msg.stream) {
+          if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
+          const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
+          if (existing) {
+            if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
+            if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
+          } else {
+            sniffedMediaStreams.unshift(msg.stream);
+            if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
+            if (activeVideo && isDropdownOpen) {
+              populateDropdown();
+            }
+            if (window.self !== window.top && activeVideo) {
+              notifyTopFrameVideo(activeVideo, 'playing');
+            }
           }
         }
-      }
-      return;
+      });
     }
-    if (msg && msg.action === "media_stream_detected" && msg.stream) {
-      if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
-      const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
-      if (existing) {
-        if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
-        if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
-      } else {
-        sniffedMediaStreams.unshift(msg.stream);
-        if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
-        if (activeVideo && isDropdownOpen) {
-          populateDropdown();
-        }
-        if (window.self !== window.top && activeVideo) {
-          notifyTopFrameVideo(activeVideo, 'playing');
-        }
-      }
-    });
   } catch {}
 
   // Request fresh media info periodically
