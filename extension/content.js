@@ -454,6 +454,12 @@
               chrome.storage.local.set({ systemTheme: detected });
             }
           });
+          try {
+            chrome.runtime.sendMessage({
+              action: "report_system_theme",
+              systemTheme: detected
+            }).catch(() => {});
+          } catch {}
         };
         syncSystemTheme();
         if (mq.addEventListener) {

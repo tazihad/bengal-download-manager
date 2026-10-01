@@ -208,18 +208,41 @@ function getIconPathsForStyle(style, effectiveTheme) {
   };
 }
 
+function isFirefoxEnv() {
+  if (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.getBrowserInfo === 'function') {
+    return true;
+  }
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Firefox')) {
+    return true;
+  }
+  return false;
+}
+
 async function applyStoredActionIcon() {
   const action = getActionAPI();
   if (!action || !action.setIcon) return;
 
   chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, async (items) => {
+    const iconPref = items.actionIcon || 'system';
+    const themePref = items.theme || 'system';
+
+    // In Firefox, if both icon and theme are set to system default, reset icon override to let native manifest theme_icons handle it seamlessly without hover
+    if (isFirefoxEnv() && iconPref === 'system' && themePref === 'system') {
+      try {
+        await action.setIcon({ path: null });
+        return;
+      } catch (e) {
+        // Fallback to explicit paths if path: null fails
+      }
+    }
+
     let effectiveTheme = 'light';
-    if (items.theme === 'dark') {
+    if (themePref === 'dark') {
       effectiveTheme = 'dark';
-    } else if (items.theme === 'light') {
+    } else if (themePref === 'light') {
       effectiveTheme = 'light';
     } else {
-      // theme === 'system'
+      // themePref === 'system'
       if (items.systemTheme) {
         effectiveTheme = items.systemTheme;
       } else if (typeof matchMedia !== 'undefined') {
@@ -229,15 +252,45 @@ async function applyStoredActionIcon() {
       }
     }
 
-    const paths = getIconPathsForStyle(items.actionIcon || 'system', effectiveTheme);
+    const paths = getIconPathsForStyle(iconPref, effectiveTheme);
     try {
       await action.setIcon({ path: paths });
     } catch (err) {
       console.warn("Could not set extension toolbar icon:", err);
     }
+
+    // Update active tab(s) explicitly to eliminate Chromium tab-level display delay
+    try {
+      if (chrome.tabs && chrome.tabs.query) {
+        chrome.tabs.query({ active: true }, (tabs) => {
+          if (!chrome.runtime.lastError && Array.isArray(tabs)) {
+            for (const t of tabs) {
+              if (t && t.id) {
+                action.setIcon({ path: paths, tabId: t.id }).catch(() => {});
+              }
+            }
+          }
+        });
+      }
+    } catch {}
+
+    // Force toolbar view repaint by refreshing action title
+    try {
+      if (action.setTitle) {
+        const curTitle = (await action.getTitle({})) || 'Bengal DM';
+        await action.setTitle({ title: curTitle });
+      }
+    } catch {}
   });
 }
 applyStoredActionIcon();
+
+// Ensure active tab toolbar icon is synchronized on tab switch
+if (chrome.tabs && chrome.tabs.onActivated) {
+  chrome.tabs.onActivated.addListener(() => {
+    applyStoredActionIcon();
+  });
+}
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {

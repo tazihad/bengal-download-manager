@@ -16,6 +16,28 @@
       "48": "assets/icon-48.png",
       "128": "assets/icon-128.png"
     },
+    "theme_icons": [
+      {
+        "light": "assets/icon-light-16.png",
+        "dark": "assets/icon-dark-16.png",
+        "size": 16
+      },
+      {
+        "light": "assets/icon-light-32.png",
+        "dark": "assets/icon-dark-32.png",
+        "size": 32
+      },
+      {
+        "light": "assets/icon-light-48.png",
+        "dark": "assets/icon-dark-48.png",
+        "size": 48
+      },
+      {
+        "light": "assets/icon-light-128.png",
+        "dark": "assets/icon-dark-128.png",
+        "size": 128
+      }
+    ],
     "default_title": "Bengal DM",
     "default_popup": "popup.html"
   },

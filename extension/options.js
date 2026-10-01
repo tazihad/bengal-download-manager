@@ -49,6 +49,16 @@ function getIconPathsForStyle(style, effectiveTheme) {
   };
 }
 
+function isFirefoxEnv() {
+  if (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.getBrowserInfo === 'function') {
+    return true;
+  }
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Firefox')) {
+    return true;
+  }
+  return false;
+}
+
 function applyActionIcon(iconStyle) {
   const currentIcon = iconStyle || 'system';
 
@@ -83,8 +93,15 @@ function applyActionIcon(iconStyle) {
 
     const action = getActionAPI();
     if (action && action.setIcon) {
-      const paths = getIconPathsForStyle(currentIcon, effectiveTheme);
-      action.setIcon({ path: paths }).catch(() => {});
+      if (isFirefoxEnv() && currentIcon === 'system' && (items.theme || 'system') === 'system') {
+        action.setIcon({ path: null }).catch(() => {});
+      } else {
+        const paths = getIconPathsForStyle(currentIcon, effectiveTheme);
+        action.setIcon({ path: paths }).catch(() => {});
+        if (action.setTitle) {
+          action.getTitle({}).then(t => action.setTitle({ title: t || 'Bengal DM' })).catch(() => {});
+        }
+      }
     }
   });
 }
