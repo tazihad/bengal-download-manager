@@ -346,8 +346,12 @@ async function testConnection(port, token, ipcPort) {
     }
 
     // 2. Query Aria2 RPC
-    const url = `http://127.0.0.1:${port}/jsonrpc`;
-    const params = token ? [`token:${token}`] : [];
+    const effectiveRpcPort = port || parseInt(document.getElementById('port')?.value, 10) || 56800;
+    const effectiveToken = (typeof token === 'string') ? token : (document.getElementById('token')?.value?.trim() || '');
+    const rpcBadge = document.getElementById('rpc-port-status');
+
+    const url = `http://127.0.0.1:${effectiveRpcPort}/jsonrpc`;
+    const params = effectiveToken ? [`token:${effectiveToken}`] : [];
     const payload = { jsonrpc: "2.0", id: "settings-check", method: "aria2.getVersion", params: params };
 
     let ariaResponse = null;
@@ -360,7 +364,7 @@ async function testConnection(port, token, ipcPort) {
       });
     } catch {
       try {
-        ariaResponse = await fetch(`http://localhost:${port}/jsonrpc`, {
+        ariaResponse = await fetch(`http://localhost:${effectiveRpcPort}/jsonrpc`, {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -379,20 +383,40 @@ async function testConnection(port, token, ipcPort) {
           ariaOnline = true;
           if (dotRpc) dotRpc.className = "dot online";
           if (connTextRpc) connTextRpc.textContent = `RPC: Connected (v${ariaData.result.version})`;
+          if (rpcBadge) {
+            rpcBadge.className = 'port-status-badge visible connected';
+            rpcBadge.textContent = `● Active and connected on port ${effectiveRpcPort}`;
+          }
         } else if (ariaData && ariaData.error) {
           if (dotRpc) dotRpc.className = "dot offline";
           if (connTextRpc) connTextRpc.textContent = "RPC: Auth Error";
+          if (rpcBadge) {
+            rpcBadge.className = 'port-status-badge visible fallback';
+            rpcBadge.textContent = `● Authentication failed — check secret RPC token on port ${effectiveRpcPort}`;
+          }
         } else {
           if (dotRpc) dotRpc.className = "dot offline";
           if (connTextRpc) connTextRpc.textContent = "RPC: Invalid Response";
+          if (rpcBadge) {
+            rpcBadge.className = 'port-status-badge visible disconnected';
+            rpcBadge.textContent = `● Disconnected — Invalid response from Aria2 on port ${effectiveRpcPort}`;
+          }
         }
       } catch {
         if (dotRpc) dotRpc.className = "dot offline";
         if (connTextRpc) connTextRpc.textContent = "RPC: Error";
+        if (rpcBadge) {
+          rpcBadge.className = 'port-status-badge visible disconnected';
+          rpcBadge.textContent = `● Disconnected — Error connecting to Aria2 on port ${effectiveRpcPort}`;
+        }
       }
     } else {
       if (dotRpc) dotRpc.className = "dot offline";
       if (connTextRpc) connTextRpc.textContent = "RPC: Disconnected";
+      if (rpcBadge) {
+        rpcBadge.className = 'port-status-badge visible disconnected';
+        rpcBadge.textContent = `● Disconnected — Aria2 is not running on port ${effectiveRpcPort}`;
+      }
     }
 
     // Notify background script of connection status
@@ -412,6 +436,11 @@ async function testConnection(port, token, ipcPort) {
     if (ipcBadge) {
       ipcBadge.className = 'port-status-badge visible disconnected';
       ipcBadge.textContent = "● Disconnected — Unable to contact Bengal DM";
+    }
+    const rpcBadge = document.getElementById('rpc-port-status');
+    if (rpcBadge) {
+      rpcBadge.className = 'port-status-badge visible disconnected';
+      rpcBadge.textContent = "● Disconnected — Unable to contact Aria2";
     }
     chrome.runtime.sendMessage({ action: "update_connection_status", online: false }).catch(() => {});
   } finally {

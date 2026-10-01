@@ -802,6 +802,24 @@ body {
   border: 1px solid rgba(231, 76, 60, 0.22);
 }
 
+[data-theme="dark"] .port-status-badge.connected {
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border-color: rgba(46, 204, 113, 0.35);
+}
+
+[data-theme="dark"] .port-status-badge.fallback {
+  background-color: rgba(243, 156, 18, 0.15);
+  color: #f39c12;
+  border-color: rgba(243, 156, 18, 0.35);
+}
+
+[data-theme="dark"] .port-status-badge.disconnected {
+  background-color: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+  border-color: rgba(231, 76, 60, 0.35);
+}
+
 @media (max-height: 640px) {
   body {
     height: auto;
