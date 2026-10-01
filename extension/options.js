@@ -14,7 +14,11 @@ function getActionAPI() {
 function resolveEffectiveTheme(themeSetting) {
   if (themeSetting === 'dark') return 'dark';
   if (themeSetting === 'light') return 'light';
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const docTheme = document.documentElement.getAttribute('data-theme');
+    if (docTheme === 'dark' || docTheme === 'light') return docTheme;
+  }
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     return 'dark';
   }
   return 'light';
@@ -101,6 +105,10 @@ function applyActionIcon(iconStyle) {
         if (action.setTitle) {
           action.getTitle({}).then(t => action.setTitle({ title: t || 'Bengal DM' })).catch(() => {});
         }
+        chrome.runtime.sendMessage({
+          action: "sync_icon_with_theme",
+          effectiveTheme
+        }).catch(() => {});
       }
     }
   });
@@ -127,6 +135,24 @@ function applyTheme(theme) {
   if (themeSelect) {
     themeSelect.value = currentTheme;
   }
+}
+
+// Observe theme selection changes to ensure extension icon system default stays in sync (Chrome)
+if (!isFirefoxEnv()) {
+  const themeObserver = new MutationObserver(() => {
+    const currentThemeSetting = document.documentElement.getAttribute('data-theme-setting') || 'system';
+    if (currentThemeSetting === 'system') {
+      chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+        if ((items.actionIcon || 'system') === 'system') {
+          applyActionIcon('system');
+        }
+      });
+    }
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-theme-setting']
+  });
 }
 
 function formatAppVersion(ver) {
@@ -167,6 +193,13 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       applyTheme(changes.theme.newValue);
       chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
         if (items.actionIcon === 'system') {
+          applyActionIcon('system');
+        }
+      });
+    }
+    if (changes.systemTheme) {
+      chrome.storage.local.get({ actionIcon: 'system', theme: 'system' }, (items) => {
+        if ((items.actionIcon || 'system') === 'system' && (items.theme || 'system') === 'system') {
           applyActionIcon('system');
         }
       });

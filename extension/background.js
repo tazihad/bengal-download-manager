@@ -218,19 +218,44 @@ function isFirefoxEnv() {
   return false;
 }
 
-// Listen to prefers-color-scheme media query directly if running in an environment with matchMedia
-try {
-  const mediaObj = typeof window !== 'undefined' ? window : (typeof self !== 'undefined' ? self : null);
-  if (mediaObj && typeof mediaObj.matchMedia === 'function') {
-    mediaObj.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      const isDark = e.matches;
-      chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
-      applyStoredActionIcon(isDark ? 'dark' : 'light');
-    });
-  }
-} catch (e) {}
+function updateChromeActionIcon(effectiveTheme, iconStyle = 'system') {
+  if (isFirefoxEnv()) return;
+  const action = getActionAPI();
+  if (!action || !action.setIcon) return;
 
-async function applyStoredActionIcon(knownSystemTheme = null) {
+  const paths = getIconPathsForStyle(iconStyle, effectiveTheme);
+  try {
+    action.setIcon({ path: paths }).catch(() => {});
+  } catch (err) {
+    console.warn("Could not set extension toolbar icon:", err);
+  }
+
+  // Update all open tabs to eliminate Chromium tab-level display delay
+  try {
+    if (chrome.tabs && chrome.tabs.query) {
+      chrome.tabs.query({}, (tabs) => {
+        if (!chrome.runtime.lastError && Array.isArray(tabs)) {
+          for (const t of tabs) {
+            if (t && t.id) {
+              action.setIcon({ path: paths, tabId: t.id }).catch(() => {});
+            }
+          }
+        }
+      });
+    }
+  } catch {}
+
+  // Force toolbar view repaint by refreshing action title
+  try {
+    if (action.setTitle) {
+      action.getTitle({}).then(cur => {
+        action.setTitle({ title: cur || 'Bengal DM' }).catch(() => {});
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+async function applyStoredActionIcon() {
   const action = getActionAPI();
   if (!action || !action.setIcon) return;
 
@@ -255,9 +280,8 @@ async function applyStoredActionIcon(knownSystemTheme = null) {
       effectiveTheme = 'light';
     } else {
       // themePref === 'system'
-      const currentSystemTheme = knownSystemTheme || items.systemTheme;
-      if (currentSystemTheme) {
-        effectiveTheme = currentSystemTheme;
+      if (items.systemTheme) {
+        effectiveTheme = items.systemTheme;
       } else if (typeof matchMedia !== 'undefined') {
         try {
           effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -265,54 +289,24 @@ async function applyStoredActionIcon(knownSystemTheme = null) {
       }
     }
 
-    const paths = getIconPathsForStyle(iconPref, effectiveTheme);
-    try {
-      await action.setIcon({ path: paths });
-    } catch (err) {
-      console.warn("Could not set extension toolbar icon:", err);
-    }
-
-    // Force toolbar view repaint in Chromium
-    try {
-      if (action.setTitle) {
-        const curTitle = (await action.getTitle({})) || 'Bengal DM';
-        await action.setTitle({ title: curTitle });
+    if (!isFirefoxEnv()) {
+      updateChromeActionIcon(effectiveTheme, iconPref);
+    } else {
+      const paths = getIconPathsForStyle(iconPref, effectiveTheme);
+      try {
+        await action.setIcon({ path: paths });
+      } catch (err) {
+        console.warn("Could not set extension toolbar icon:", err);
       }
-    } catch {}
+    }
   });
 }
 applyStoredActionIcon();
 
-// Poll active tab for system theme on tab activation or window focus in Chromium
-function pollActiveTabTheme() {
-  if (chrome.tabs && chrome.tabs.query) {
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-      if (!chrome.runtime.lastError && tabs && tabs[0] && tabs[0].id) {
-        chrome.tabs.sendMessage(tabs[0].id, { action: "query_system_theme" }, (res) => {
-          if (!chrome.runtime.lastError && res && res.systemTheme) {
-            chrome.storage.local.get({ systemTheme: '' }, (s) => {
-              if (s.systemTheme !== res.systemTheme) {
-                chrome.storage.local.set({ systemTheme: res.systemTheme });
-                applyStoredActionIcon(res.systemTheme);
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-}
-
+// Ensure active tab toolbar icon is synchronized on tab switch
 if (chrome.tabs && chrome.tabs.onActivated) {
   chrome.tabs.onActivated.addListener(() => {
-    pollActiveTabTheme();
-  });
-}
-if (chrome.windows && chrome.windows.onFocusChanged) {
-  chrome.windows.onFocusChanged.addListener((winId) => {
-    if (typeof chrome.windows.WINDOW_ID_NONE !== 'undefined' && winId !== chrome.windows.WINDOW_ID_NONE) {
-      pollActiveTabTheme();
-    }
+    applyStoredActionIcon();
   });
 }
 
@@ -1864,8 +1858,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === "report_system_theme" && request.systemTheme) {
-    chrome.storage.local.set({ systemTheme: request.systemTheme });
-    applyStoredActionIcon(request.systemTheme);
+    chrome.storage.local.set({ systemTheme: request.systemTheme }, () => {
+      applyStoredActionIcon();
+    });
+    sendResponse({ status: "ok" });
+    return true;
+  }
+
+  if (request.action === "sync_icon_with_theme" && request.effectiveTheme) {
+    if (!isFirefoxEnv()) {
+      chrome.storage.local.get({ actionIcon: 'system', theme: 'system' }, (items) => {
+        const iconPref = items.actionIcon || 'system';
+        const themePref = items.theme || 'system';
+        if (iconPref === 'system') {
+          chrome.storage.local.set({ systemTheme: request.effectiveTheme }, () => {
+            updateChromeActionIcon(request.effectiveTheme, iconPref);
+          });
+        }
+      });
+    }
     sendResponse({ status: "ok" });
     return true;
   }

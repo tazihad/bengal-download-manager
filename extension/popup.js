@@ -54,8 +54,40 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
     }
     const effectiveDark = (items.theme === 'dark') || (items.theme !== 'light' && isDark);
     updatePopupLogo(items.actionIcon || 'system', effectiveDark);
+    if ((items.actionIcon || 'system') === 'system') {
+      chrome.runtime.sendMessage({
+        action: "sync_icon_with_theme",
+        effectiveTheme: isDark ? 'dark' : 'light'
+      }).catch(() => {});
+    }
   });
 });
+
+// Observe theme selection changes to ensure extension icon system default stays in sync (Chrome)
+if (typeof navigator !== 'undefined' && !navigator.userAgent.includes('Firefox')) {
+  const themeObserver = new MutationObserver(() => {
+    const currentThemeSetting = document.documentElement.getAttribute('data-theme-setting') || 'system';
+    const activeTheme = document.documentElement.getAttribute('data-theme') || 'light';
+
+    if (currentThemeSetting === 'system') {
+      chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+        if ((items.actionIcon || 'system') === 'system') {
+          updatePopupLogo('system', activeTheme === 'dark');
+          chrome.storage.local.set({ systemTheme: activeTheme });
+          chrome.runtime.sendMessage({
+            action: "sync_icon_with_theme",
+            effectiveTheme: activeTheme
+          }).catch(() => {});
+        }
+      });
+    }
+  });
+
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-theme-setting']
+  });
+}
 
 // Live options link
 document.addEventListener('DOMContentLoaded', () => {

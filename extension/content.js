@@ -449,9 +449,19 @@
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
         const syncSystemTheme = () => {
           const detected = mq.matches ? 'dark' : 'light';
-          chrome.storage.local.get({ systemTheme: '' }, (res) => {
-            if (res && res.systemTheme !== detected) {
+          chrome.storage.local.get({ theme: 'system', actionIcon: 'system', systemTheme: '' }, (items) => {
+            const themePref = items.theme || 'system';
+            const iconPref = items.actionIcon || 'system';
+            if (items.systemTheme !== detected) {
               chrome.storage.local.set({ systemTheme: detected });
+            }
+            if (themePref === 'system' && iconPref === 'system') {
+              try {
+                chrome.runtime.sendMessage({
+                  action: "sync_icon_with_theme",
+                  effectiveTheme: detected
+                }).catch(() => {});
+              } catch {}
             }
           });
           try {
@@ -502,12 +512,7 @@
     });
   } catch {}
 
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg && msg.action === "query_system_theme") {
-      const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      sendResponse({ systemTheme: isDark ? 'dark' : 'light' });
-      return true;
-    }
+  chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.action === "close_dropdown") {
       if (isDropdownOpen) {
         closeDropdown();
