@@ -218,10 +218,18 @@ function isFirefoxEnv() {
   return false;
 }
 
+let lastAppliedIconKey = null;
+
 function updateChromeActionIcon(effectiveTheme, iconStyle = 'system') {
   if (isFirefoxEnv()) return;
   const action = getActionAPI();
   if (!action || !action.setIcon) return;
+
+  const iconKey = `${iconStyle}_${effectiveTheme}`;
+  if (lastAppliedIconKey === iconKey) {
+    return;
+  }
+  lastAppliedIconKey = iconKey;
 
   const paths = getIconPathsForStyle(iconStyle, effectiveTheme);
   try {
@@ -229,30 +237,6 @@ function updateChromeActionIcon(effectiveTheme, iconStyle = 'system') {
   } catch (err) {
     console.warn("Could not set extension toolbar icon:", err);
   }
-
-  // Update all open tabs to eliminate Chromium tab-level display delay
-  try {
-    if (chrome.tabs && chrome.tabs.query) {
-      chrome.tabs.query({}, (tabs) => {
-        if (!chrome.runtime.lastError && Array.isArray(tabs)) {
-          for (const t of tabs) {
-            if (t && t.id) {
-              action.setIcon({ path: paths, tabId: t.id }).catch(() => {});
-            }
-          }
-        }
-      });
-    }
-  } catch {}
-
-  // Force toolbar view repaint by refreshing action title
-  try {
-    if (action.setTitle) {
-      action.getTitle({}).then(cur => {
-        action.setTitle({ title: cur || 'Bengal DM' }).catch(() => {});
-      }).catch(() => {});
-    }
-  } catch {}
 }
 
 async function applyStoredActionIcon() {
@@ -302,13 +286,6 @@ async function applyStoredActionIcon() {
   });
 }
 applyStoredActionIcon();
-
-// Ensure active tab toolbar icon is synchronized on tab switch
-if (chrome.tabs && chrome.tabs.onActivated) {
-  chrome.tabs.onActivated.addListener(() => {
-    applyStoredActionIcon();
-  });
-}
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
@@ -1858,8 +1835,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === "report_system_theme" && request.systemTheme) {
-    chrome.storage.local.set({ systemTheme: request.systemTheme }, () => {
-      applyStoredActionIcon();
+    chrome.storage.local.get({ systemTheme: '' }, (items) => {
+      if (items.systemTheme !== request.systemTheme) {
+        chrome.storage.local.set({ systemTheme: request.systemTheme }, () => {
+          applyStoredActionIcon();
+        });
+      }
     });
     sendResponse({ status: "ok" });
     return true;
@@ -1867,13 +1848,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "sync_icon_with_theme" && request.effectiveTheme) {
     if (!isFirefoxEnv()) {
-      chrome.storage.local.get({ actionIcon: 'system', theme: 'system' }, (items) => {
+      chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, (items) => {
         const iconPref = items.actionIcon || 'system';
         const themePref = items.theme || 'system';
         if (iconPref === 'system') {
-          chrome.storage.local.set({ systemTheme: request.effectiveTheme }, () => {
+          if (items.systemTheme !== request.effectiveTheme) {
+            chrome.storage.local.set({ systemTheme: request.effectiveTheme }, () => {
+              updateChromeActionIcon(request.effectiveTheme, iconPref);
+            });
+          } else {
             updateChromeActionIcon(request.effectiveTheme, iconPref);
-          });
+          }
         }
       });
     }

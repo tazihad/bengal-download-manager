@@ -444,38 +444,31 @@
       }
     });
 
-    if (window.matchMedia) {
+    if (window === window.top && window.matchMedia) {
       try {
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
-        const syncSystemTheme = () => {
+        const syncSystemTheme = (isChange = false) => {
           const detected = mq.matches ? 'dark' : 'light';
           chrome.storage.local.get({ theme: 'system', actionIcon: 'system', systemTheme: '' }, (items) => {
-            const themePref = items.theme || 'system';
-            const iconPref = items.actionIcon || 'system';
+            if (chrome.runtime.lastError) return;
             if (items.systemTheme !== detected) {
               chrome.storage.local.set({ systemTheme: detected });
-            }
-            if (themePref === 'system' && iconPref === 'system') {
-              try {
-                chrome.runtime.sendMessage({
-                  action: "sync_icon_with_theme",
-                  effectiveTheme: detected
-                }).catch(() => {});
-              } catch {}
+              if (isChange && (!items.theme || items.theme === 'system') && (!items.actionIcon || items.actionIcon === 'system')) {
+                try {
+                  chrome.runtime.sendMessage({
+                    action: "sync_icon_with_theme",
+                    effectiveTheme: detected
+                  }).catch(() => {});
+                } catch {}
+              }
             }
           });
-          try {
-            chrome.runtime.sendMessage({
-              action: "report_system_theme",
-              systemTheme: detected
-            }).catch(() => {});
-          } catch {}
         };
-        syncSystemTheme();
+        syncSystemTheme(false);
         if (mq.addEventListener) {
-          mq.addEventListener('change', syncSystemTheme);
+          mq.addEventListener('change', () => syncSystemTheme(true));
         } else if (mq.addListener) {
-          mq.addListener(syncSystemTheme);
+          mq.addListener(() => syncSystemTheme(true));
         }
       } catch {}
     }

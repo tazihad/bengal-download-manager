@@ -102,9 +102,6 @@ function applyActionIcon(iconStyle) {
       } else {
         const paths = getIconPathsForStyle(currentIcon, effectiveTheme);
         action.setIcon({ path: paths }).catch(() => {});
-        if (action.setTitle) {
-          action.getTitle({}).then(t => action.setTitle({ title: t || 'Bengal DM' })).catch(() => {});
-        }
         chrome.runtime.sendMessage({
           action: "sync_icon_with_theme",
           effectiveTheme
