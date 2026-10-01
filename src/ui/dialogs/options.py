@@ -1574,7 +1574,7 @@ class OptionsDialog(QDialog):
         lbl_yt_client = QLabel("YouTube Player Client:")
         lbl_yt_client.setToolTip(
             "YouTube player client strategy used for format extraction and downloading.\n"
-            "• Dynamic Multi-Client: Automatically falls back across mweb, android, ios, web_creator, tv, and web clients if one encounters bot checks, SABR blocks, or missing formats.\n"
+            "• Auto: Automatically falls back across mweb, android, ios, web_creator, tv, and web clients if one encounters bot checks, SABR blocks, or missing formats.\n"
             "• Android & iOS: Optimized for mobile formats and bypassing web bot checks.\n"
             "• Mobile Web (mweb): Lightweight, fast web client.\n"
             "• Android: Full-resolution Android client.\n"
@@ -1591,7 +1591,7 @@ class OptionsDialog(QDialog):
         self.cmb_opt_youtube_client.setToolTip(lbl_yt_client.toolTip())
 
         client_items = [
-            ("Dynamic Multi-Client (Auto-Fallback: mweb, android, ios, web_creator, tv, web)", "dynamic"),
+            ("Auto", "auto"),
             ("Android & iOS (Bypass SABR streaming)", "android,ios"),
             ("Mobile Web (mweb)", "mweb"),
             ("Android App (android)", "android"),
@@ -1604,11 +1604,11 @@ class OptionsDialog(QDialog):
         for label, val in client_items:
             self.cmb_opt_youtube_client.addItem(label, val)
 
-        saved_client = media_defaults.get("youtube_player_client", "dynamic") or "dynamic"
+        saved_client = media_defaults.get("youtube_player_client", "auto") or "auto"
         matched_idx = -1
         for idx in range(self.cmb_opt_youtube_client.count()):
             item_val = self.cmb_opt_youtube_client.itemData(idx)
-            if item_val == saved_client or (saved_client in ("dynamic", "auto", "default") and item_val == "dynamic"):
+            if item_val == saved_client or (str(saved_client).lower() in ("dynamic", "auto", "default") and item_val == "auto"):
                 matched_idx = idx
                 break
         if matched_idx != -1:
@@ -1620,7 +1620,7 @@ class OptionsDialog(QDialog):
 
         self.btn_opt_reset_youtube_client = QPushButton("Reset")
         self.btn_opt_reset_youtube_client.setFixedWidth(80)
-        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to Dynamic Multi-Client (Auto-Fallback)")
+        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to Auto")
         self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.cmb_opt_youtube_client.setCurrentIndex(0))
         row_client.addWidget(self.btn_opt_reset_youtube_client)
 
@@ -2014,9 +2014,9 @@ class OptionsDialog(QDialog):
         if hasattr(self, "cmb_opt_youtube_client"):
             idx = self.cmb_opt_youtube_client.currentIndex()
             if idx >= 0 and self.cmb_opt_youtube_client.currentText() == self.cmb_opt_youtube_client.itemText(idx):
-                client_val = self.cmb_opt_youtube_client.itemData(idx) or "dynamic"
+                client_val = self.cmb_opt_youtube_client.itemData(idx) or "auto"
             else:
-                client_val = self.cmb_opt_youtube_client.currentText().strip() or "dynamic"
+                client_val = self.cmb_opt_youtube_client.currentText().strip() or "auto"
             media_defaults["youtube_player_client"] = client_val
         if hasattr(self, "chk_opt_pot_enabled"):
             media_defaults["youtube_pot_enabled"] = self.chk_opt_pot_enabled.isChecked()

@@ -212,9 +212,10 @@ class TestOptionsDialogTabs:
         dlg.select_tab("media")
         assert hasattr(dlg, "cmb_opt_youtube_client")
         assert dlg.cmb_opt_youtube_client.count() >= 5
-        # Verify Dynamic Multi-Client is an option
+        assert dlg.cmb_opt_youtube_client.itemText(0) == "Auto"
+        # Verify Auto multi-client is an option
         items_data = [dlg.cmb_opt_youtube_client.itemData(i) for i in range(dlg.cmb_opt_youtube_client.count())]
-        assert "dynamic" in items_data
+        assert "auto" in items_data
         assert "android,ios" in items_data
         assert "mweb" in items_data
         # Test reset button

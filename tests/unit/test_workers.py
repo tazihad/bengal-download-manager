@@ -143,6 +143,11 @@ class TestFileInfoFetcherFormatting:
 
 
 class TestYouTubePlayerClientArgs:
+    def test_auto_client_args(self):
+        from core.media.pot_provider import get_youtube_player_client_args, DYNAMIC_YOUTUBE_CLIENTS
+        args = get_youtube_player_client_args(custom_client="auto")
+        assert args == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
     def test_dynamic_client_args(self):
         from core.media.pot_provider import get_youtube_player_client_args, DYNAMIC_YOUTUBE_CLIENTS
         args = get_youtube_player_client_args(custom_client="dynamic")
