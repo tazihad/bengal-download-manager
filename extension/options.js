@@ -1,4 +1,94 @@
-// --- THEME MANAGEMENT ---
+// --- THEME & ICON MANAGEMENT ---
+function getActionAPI() {
+  if (typeof chrome !== 'undefined') {
+    if (chrome.action) return chrome.action;
+    if (chrome.browserAction) return chrome.browserAction;
+  }
+  if (typeof browser !== 'undefined') {
+    if (browser.action) return browser.action;
+    if (browser.browserAction) return browser.browserAction;
+  }
+  return null;
+}
+
+function resolveEffectiveTheme(themeSetting) {
+  if (themeSetting === 'dark') return 'dark';
+  if (themeSetting === 'light') return 'light';
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+function getIconPathsForStyle(style, effectiveTheme) {
+  let target = style || 'system';
+  if (target === 'system') {
+    target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+  }
+  if (target === 'light') {
+    return {
+      16: 'assets/icon-light-16.png',
+      32: 'assets/icon-light-32.png',
+      48: 'assets/icon-light-48.png',
+      128: 'assets/icon-light-128.png'
+    };
+  }
+  if (target === 'dark') {
+    return {
+      16: 'assets/icon-dark-16.png',
+      32: 'assets/icon-dark-32.png',
+      48: 'assets/icon-dark-48.png',
+      128: 'assets/icon-dark-128.png'
+    };
+  }
+  return {
+    16: 'assets/icon-16.png',
+    32: 'assets/icon-32.png',
+    48: 'assets/icon-48.png',
+    128: 'assets/icon-128.png'
+  };
+}
+
+function applyActionIcon(iconStyle) {
+  const currentIcon = iconStyle || 'system';
+
+  // Sync radio buttons if DOM is ready
+  const radios = document.querySelectorAll('input[name="icon-radio"]');
+  radios.forEach(radio => {
+    radio.checked = (radio.value === currentIcon);
+  });
+
+  const iconSelect = document.getElementById('actionIcon');
+  if (iconSelect) {
+    iconSelect.value = currentIcon;
+  }
+
+  // Update brand logo in options sidebar
+  const optionsLogo = document.getElementById('options-logo') || document.querySelector('.sidebar-brand .brand-icon');
+  chrome.storage.local.get({ theme: 'system' }, (items) => {
+    const effectiveTheme = resolveEffectiveTheme(items.theme);
+    let target = currentIcon;
+    if (target === 'system') {
+      target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+    }
+    if (optionsLogo) {
+      if (target === 'light') {
+        optionsLogo.src = 'assets/icon-light-48.png';
+      } else if (target === 'dark') {
+        optionsLogo.src = 'assets/icon-dark-48.png';
+      } else {
+        optionsLogo.src = 'assets/icon-48.png';
+      }
+    }
+
+    const action = getActionAPI();
+    if (action && action.setIcon) {
+      const paths = getIconPathsForStyle(currentIcon, effectiveTheme);
+      action.setIcon({ path: paths }).catch(() => {});
+    }
+  });
+}
+
 function applyTheme(theme) {
   const currentTheme = theme || 'system';
   if (currentTheme === 'system') {
@@ -31,16 +121,24 @@ function formatAppVersion(ver) {
   return clean;
 }
 
-// Initial theme check as early as possible
-chrome.storage.local.get({ theme: 'system' }, (items) => {
+// Initial theme & icon check as early as possible
+chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
   applyTheme(items.theme || 'system');
+  applyActionIcon(items.actionIcon || 'system');
 });
 
 // System theme change listener
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  chrome.storage.local.get({ theme: 'system' }, (items) => {
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  const isDark = e.matches;
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
+  chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
     if (items.theme === 'system') {
       applyTheme('system');
+    }
+    if (items.actionIcon === 'system') {
+      applyActionIcon('system');
     }
   });
 });
@@ -50,6 +148,14 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
     if (changes.theme) {
       applyTheme(changes.theme.newValue);
+      chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+        if (items.actionIcon === 'system') {
+          applyActionIcon('system');
+        }
+      });
+    }
+    if (changes.actionIcon) {
+      applyActionIcon(changes.actionIcon.newValue);
     }
     if (changes.bdmVersion) {
       const formatted = formatAppVersion(changes.bdmVersion.newValue);
@@ -391,6 +497,23 @@ document.addEventListener('DOMContentLoaded', () => {
       applyTheme(selectedTheme);
       chrome.storage.local.set({ theme: selectedTheme }, () => {
         showToast('Theme updated ✓', 'success');
+        chrome.storage.local.get({ actionIcon: 'system' }, (items) => {
+          if (items.actionIcon === 'system') {
+            applyActionIcon('system');
+          }
+        });
+      });
+    });
+  });
+
+  // Extension Icon Radio Cards (with instant auto-save)
+  const iconRadios = document.querySelectorAll('input[name="icon-radio"]');
+  iconRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      const selectedIcon = radio.value;
+      applyActionIcon(selectedIcon);
+      chrome.storage.local.set({ actionIcon: selectedIcon }, () => {
+        showToast('Extension icon updated ✓', 'success');
       });
     });
   });
@@ -435,6 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ipcPort: 56900,
     token: "",
     theme: "system",
+    actionIcon: "system",
     bdmVersion: "",
     enableInterception: true,
     enableMediaSniffing: true,
@@ -469,6 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     applyTheme(items.theme || 'system');
+    applyActionIcon(items.actionIcon || 'system');
 
     if (items.bdmVersion) {
       const formatted = formatAppVersion(items.bdmVersion);
@@ -509,6 +634,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = document.getElementById('token').value.trim();
     const selectedRadio = document.querySelector('input[name="theme-radio"]:checked');
     const theme = selectedRadio ? selectedRadio.value : 'system';
+    const selectedIconRadio = document.querySelector('input[name="icon-radio"]:checked');
+    const actionIcon = selectedIconRadio ? selectedIconRadio.value : 'system';
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
     const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
     const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
@@ -519,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ipcPort,
       token,
       theme,
+      actionIcon,
       enableInterception,
       enableMediaSniffing,
       videoPanelPosition,
@@ -530,6 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     chrome.storage.local.set(payload, () => {
       applyTheme(theme);
+      applyActionIcon(actionIcon);
       showToast('Settings saved successfully ✓', 'success');
       testConnection(port, token, ipcPort);
     });
@@ -600,6 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ipcPort: 56900,
       token: "",
       theme: "system",
+      actionIcon: "system",
       enableInterception: true,
       enableMediaSniffing: true,
       videoPanelPosition: "top-right",
@@ -618,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mediaSniffingCheckbox) mediaSniffingCheckbox.checked = true;
       if (videoPositionSelect) videoPositionSelect.value = 'top-right';
       applyTheme(defaults.theme);
+      applyActionIcon(defaults.actionIcon);
 
       filterLists.whitelistUrls = [];
       filterLists.whitelistExts = [];

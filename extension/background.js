@@ -179,12 +179,75 @@ function refreshFilterRules() {
 }
 refreshFilterRules();
 
+function getIconPathsForStyle(style, effectiveTheme) {
+  let target = style || 'system';
+  if (target === 'system') {
+    target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+  }
+  if (target === 'light') {
+    return {
+      16: 'assets/icon-light-16.png',
+      32: 'assets/icon-light-32.png',
+      48: 'assets/icon-light-48.png',
+      128: 'assets/icon-light-128.png'
+    };
+  }
+  if (target === 'dark') {
+    return {
+      16: 'assets/icon-dark-16.png',
+      32: 'assets/icon-dark-32.png',
+      48: 'assets/icon-dark-48.png',
+      128: 'assets/icon-dark-128.png'
+    };
+  }
+  return {
+    16: 'assets/icon-16.png',
+    32: 'assets/icon-32.png',
+    48: 'assets/icon-48.png',
+    128: 'assets/icon-128.png'
+  };
+}
+
+async function applyStoredActionIcon() {
+  const action = getActionAPI();
+  if (!action || !action.setIcon) return;
+
+  chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, async (items) => {
+    let effectiveTheme = 'light';
+    if (items.theme === 'dark') {
+      effectiveTheme = 'dark';
+    } else if (items.theme === 'light') {
+      effectiveTheme = 'light';
+    } else {
+      // theme === 'system'
+      if (items.systemTheme) {
+        effectiveTheme = items.systemTheme;
+      } else if (typeof matchMedia !== 'undefined') {
+        try {
+          effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } catch {}
+      }
+    }
+
+    const paths = getIconPathsForStyle(items.actionIcon || 'system', effectiveTheme);
+    try {
+      await action.setIcon({ path: paths });
+    } catch (err) {
+      console.warn("Could not set extension toolbar icon:", err);
+    }
+  });
+}
+applyStoredActionIcon();
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
     for (const key of ['enableInterception', 'enableMediaSniffing', 'whitelistUrls', 'whitelistExts', 'blacklistUrls', 'blacklistExts']) {
       if (changes[key] !== undefined) {
         cachedFilterRules[key] = changes[key].newValue;
       }
+    }
+    if (changes.actionIcon || changes.theme || changes.systemTheme) {
+      applyStoredActionIcon();
     }
   }
 });
@@ -1465,7 +1528,7 @@ function sanitizeMediaUrl(url) {
 
 // --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['port', 'enableInterception', 'theme'], (items) => {
+  chrome.storage.local.get(['port', 'enableInterception', 'theme', 'actionIcon'], (items) => {
     if (!items.port || items.port === 6800 || items.port === 50001 || items.port === 6801) {
       chrome.storage.local.set({ port: 56800 });
     }
@@ -1475,6 +1538,10 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!items.theme) {
       chrome.storage.local.set({ theme: "system" });
     }
+    if (!items.actionIcon) {
+      chrome.storage.local.set({ actionIcon: "system" });
+    }
+    applyStoredActionIcon();
   });
 
   chrome.contextMenus.removeAll(() => {
@@ -1716,6 +1783,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         whitelistedExt
       });
     })();
+    return true;
+  }
+
+  if (request.action === "report_system_theme" && request.systemTheme) {
+    chrome.storage.local.set({ systemTheme: request.systemTheme });
+    applyStoredActionIcon();
+    sendResponse({ status: "ok" });
     return true;
   }
 

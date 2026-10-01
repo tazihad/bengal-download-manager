@@ -19,17 +19,41 @@ function formatAppVersion(ver) {
   return clean;
 }
 
-// Initial theme check
-chrome.storage.local.get({ theme: 'system' }, (items) => {
+function updatePopupLogo(iconStyle, isDark) {
+  const logo = document.getElementById('popup-logo');
+  if (!logo) return;
+  let target = iconStyle || 'system';
+  if (target === 'system') {
+    target = isDark ? 'light' : 'dark';
+  }
+  if (target === 'light') {
+    logo.src = 'assets/icon-light-32.png';
+  } else if (target === 'dark') {
+    logo.src = 'assets/icon-dark-32.png';
+  } else {
+    logo.src = 'assets/icon-32.png';
+  }
+}
+
+// Initial theme & icon check
+chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
   applyTheme(items.theme || 'system');
+  const effectiveDark = (items.theme === 'dark') || (items.theme !== 'light' && isDark);
+  updatePopupLogo(items.actionIcon || 'system', effectiveDark);
 });
 
 // System theme listener
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  chrome.storage.local.get({ theme: 'system' }, (items) => {
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  const isDark = e.matches;
+  chrome.storage.local.set({ systemTheme: isDark ? 'dark' : 'light' });
+  chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
     if (items.theme === 'system') {
       applyTheme('system');
     }
+    const effectiveDark = (items.theme === 'dark') || (items.theme !== 'light' && isDark);
+    updatePopupLogo(items.actionIcon || 'system', effectiveDark);
   });
 });
 
@@ -180,8 +204,12 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
 // Live storage sync
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
-    if (changes.theme) {
-      applyTheme(changes.theme.newValue);
+    if (changes.theme || changes.actionIcon) {
+      chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
+        applyTheme(items.theme || 'system');
+        const isDark = (items.theme === 'dark') || (items.theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        updatePopupLogo(items.actionIcon || 'system', isDark);
+      });
     }
     if (changes.enableInterception !== undefined) {
       updateGlobalToggleUI(changes.enableInterception.newValue);

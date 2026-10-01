@@ -497,6 +497,56 @@ body {
   background: #2a2e32;
 }
 
+.icon-preview-system {
+  display: flex;
+}
+
+.icon-preview-system .split-left {
+  width: 50%;
+  height: 100%;
+  background: #eff0f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-preview-system .split-right {
+  width: 50%;
+  height: 100%;
+  background: #2a2e32;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-preview-app {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-hover);
+}
+
+.icon-preview-dark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff0f1;
+}
+
+.icon-preview-light {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2a2e32;
+}
+
+.preview-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
 .theme-name {
   font-size: 13px;
   font-weight: 600;

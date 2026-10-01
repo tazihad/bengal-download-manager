@@ -444,6 +444,26 @@
       }
     });
 
+    if (window.matchMedia) {
+      try {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        const syncSystemTheme = () => {
+          const detected = mq.matches ? 'dark' : 'light';
+          chrome.storage.local.get({ systemTheme: '' }, (res) => {
+            if (res && res.systemTheme !== detected) {
+              chrome.storage.local.set({ systemTheme: detected });
+            }
+          });
+        };
+        syncSystemTheme();
+        if (mq.addEventListener) {
+          mq.addEventListener('change', syncSystemTheme);
+        } else if (mq.addListener) {
+          mq.addListener(syncSystemTheme);
+        }
+      } catch {}
+    }
+
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName === 'local') {
         let shouldCheckVisibility = false;
