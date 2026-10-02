@@ -16,7 +16,7 @@ os.path.join(get_data_dir(), "downloads.db")
 | Environment | Configuration Directory (`get_config_dir()`) | Data & Database Directory (`get_data_dir()`) | Temporary Cache (`get_cache_dir()`) |
 | :--- | :--- | :--- | :--- |
 | **Native Linux** | `~/.config/bengal-download-manager` | `~/.local/share/bengal-download-manager` | `~/.cache/bengal-download-manager/downloads` |
-| **Flatpak** | `~/.var/app/io.github.tazihad.bengal-download-manager/config` | `~/.var/app/io.github.tazihad.bengal-download-manager/data` | `~/.var/app/.../cache/downloads` |
+| **Flatpak** | `~/.var/app/bd.com.zihad.BengalDownloadManager/config` | `~/.var/app/bd.com.zihad.BengalDownloadManager/data` | `~/.var/app/.../cache/downloads` |
 | **Snap** | `~/snap/bengal-download-manager/current/.config` | `~/snap/bengal-download-manager/current/.local/share` | `~/snap/.../current/.cache/downloads` |
 | **Windows** | `%APPDATA%\bengal-download-manager` | `%LOCALAPPDATA%\bengal-download-manager` | `%TEMP%\bengal-download-manager\downloads` |
 

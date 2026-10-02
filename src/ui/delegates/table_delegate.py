@@ -141,7 +141,55 @@ class ModernTableDelegate(QStyledItemDelegate):
                 sub_color = QColor("#888888")
 
         x_offset = rect.left()
-        if icon:
+
+        # Check for video thumbnail
+        filepath = index.data(Qt.ItemDataRole.UserRole + 1)
+        url = index.data(Qt.ItemDataRole.UserRole)
+        thumb_url = index.data(Qt.ItemDataRole.UserRole + 27)
+        thumb_pix = None
+        if category == "Video" and filepath:
+            try:
+                from core.video_thumbnail import VideoThumbnailManager
+                thumb_pix = VideoThumbnailManager.instance().get_cached_pixmap(
+                    str(filepath), 84, 48, url=str(url) if url else None, thumb_url=str(thumb_url) if thumb_url else None, crop=True
+                )
+            except Exception:
+                thumb_pix = None
+
+        if thumb_pix and not thumb_pix.isNull():
+            # Modern rounded video thumbnail (aspect fill + center crop, NEVER squeezed)
+            thumb_w = 42
+            thumb_h = 24
+            thumb_y = rect.top() + (rect.height() - thumb_h) // 2
+            thumb_rect = QRect(x_offset, thumb_y, thumb_w, thumb_h)
+
+            scaled = thumb_pix.scaled(
+                thumb_w, thumb_h,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            crop_x = max(0, (scaled.width() - thumb_w) // 2)
+            crop_y = max(0, (scaled.height() - thumb_h) // 2)
+            cropped = scaled.copy(crop_x, crop_y, thumb_w, thumb_h)
+
+            painter.save()
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            from PyQt6.QtGui import QPainterPath
+            clip_path = QPainterPath()
+            clip_path.addRoundedRect(thumb_rect.x(), thumb_rect.y(), thumb_rect.width(), thumb_rect.height(), 4.0, 4.0)
+            painter.setClipPath(clip_path)
+            painter.drawPixmap(thumb_rect, cropped)
+
+            # Subtle border around thumbnail
+            painter.setClipping(False)
+            border_col = QColor(255, 255, 255, 60) if is_selected else QColor(0, 0, 0, 40)
+            painter.setPen(QPen(border_col, 1.0))
+            painter.drawRoundedRect(thumb_rect.x(), thumb_rect.y(), thumb_rect.width(), thumb_rect.height(), 4.0, 4.0)
+            painter.restore()
+
+            x_offset += thumb_w + 8
+        elif icon:
             icon_rect = QRect(x_offset, rect.top() + (rect.height() - 24) // 2, 24, 24)
             if isinstance(icon, QIcon):
                 icon.paint(painter, icon_rect, Qt.AlignmentFlag.AlignCenter, QIcon.Mode.Selected if is_selected else QIcon.Mode.Normal)

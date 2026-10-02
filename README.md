@@ -31,11 +31,11 @@
 <br />
 
 <p align="center">
-  <img width="100%" alt="Bengal Download Manager Poster 1 - Multi-Threaded Downloader" src="assets/poster_classic_hero.jpg" />
+  <img width="100%" alt="Bengal Download Manager Poster 1 - Multi-Threaded Downloader" src="assets/posters/poster_classic_hero.jpg" />
 </p>
 
 <p align="center">
-  <img width="100%" alt="Bengal Download Manager Poster 2 - Adaptive Light & Dark Themes" src="assets/poster_duo.jpg" />
+  <img width="100%" alt="Bengal Download Manager Poster 2 - Adaptive Light & Dark Themes" src="assets/posters/poster_duo.jpg" />
 </p>
 
 Bengal Download Manager is a high-performance download management tool built with PyQt6, KDE Kirigami QML, and Aria2 to accelerate and simplify your download workflow.
@@ -45,25 +45,25 @@ Bengal Download Manager is a high-performance download management tool built wit
 ### Main Application (Dark & Light Mode)
 
 <p align="center">
-  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshot_dark_mode.png" />
-  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshot_light_mode.png" />
+  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshots/screenshot_dark_mode.png" />
+  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshots/screenshot_light_mode.png" />
 </p>
 
 ### One-Click Browser Integration & Settings
 
 <p align="center">
-  <img width="49%" alt="Download Interception File Info Dialog" src="assets/screenshot_download_dialog.png" />
-  <img width="49%" alt="Browser Extension Popup Settings" src="assets/screenshot_extension_popup.png" />
+  <img width="49%" alt="Download Interception File Info Dialog" src="assets/screenshots/screenshot_download_dialog.png" />
+  <img width="49%" alt="Browser Extension Popup Settings" src="assets/screenshots/screenshot_extension_popup.png" />
 </p>
 
 ### Feature Branding Posters
 
 <p align="center">
-  <img width="100%" alt="Seamless Browser Integration Poster" src="assets/poster_browser_integration.jpg" />
+  <img width="100%" alt="Seamless Browser Integration Poster" src="assets/posters/poster_browser_integration.jpg" />
 </p>
 
 <p align="center">
-  <img width="100%" alt="Complete Download Ecosystem Poster" src="assets/poster_master_suite.jpg" />
+  <img width="100%" alt="Complete Download Ecosystem Poster" src="assets/posters/poster_master_suite.jpg" />
 </p>
 
 ## Key Features
@@ -90,7 +90,7 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 | :--- | :--- | :--- |
 | **Snap Store** | `x86_64`, `arm64` | `sudo snap install bengal-download-manager` / [Snapcraft](https://snapcraft.io/bengal-download-manager) |
 | **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
-| **Flatpak** | `x86_64`, `aarch64` | `flatpak install io.github.tazihad.bengal-download-manager.flatpak` |
+| **Flatpak** | `x86_64`, `aarch64` | `flatpak install bd.com.zihad.BengalDownloadManager.flatpak` |
 | **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 
 #### AppImage Quick Start
@@ -125,9 +125,20 @@ Run directly from source (see [DEPENDENCIES.md](DEPENDENCIES.md) for requirement
 ```bash
 git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
-pip install -r requirements.txt
+pip install -e .
 python3 src/main.py
 ```
+
+#### Command-Line Options & Debug Flags
+
+| Option / Flag | Environment Variable | Description |
+| :--- | :--- | :--- |
+| *(default)* | *(none)* | Standard mode with clean `INFO`-level logging. |
+| `--debug` | `DEBUG=1` or `BENGAL_DEBUG=1` | Enables detailed `DEBUG` logging with timestamps, source file/line context, and clean throttled IPC heartbeat summaries. |
+| `--verbose` | `VERBOSE=1` or `BENGAL_VERBOSE=1` | Enables full, unrestricted diagnostic logging including every raw IPC extension ping and HTTP request/response line. |
+| `--debug --verbose` | `DEBUG=1 VERBOSE=1` | Complete unrestricted verbose debug output for comprehensive troubleshooting. |
+| `--kirigami` | *(none)* | Launches the KDE Kirigami QML responsive user interface instead of the classic PyQt6 QWidget table view. |
+
 
 ### 2. Standalone Binary Build (CMake)
 
@@ -135,7 +146,7 @@ Build a self-contained, single-file binary executable using **CMake** and **PyIn
 
 ```bash
 # Ensure dependencies and PyInstaller are installed
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
 # Configure CMake build tree
 cmake -B build -S .

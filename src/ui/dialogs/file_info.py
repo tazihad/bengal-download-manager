@@ -136,7 +136,19 @@ class DownloadFileInfoDialog(QDialog):
         display_size = f"{size_str},  File type: {file_type}" if file_type and file_type != "Unknown Type" else size_str
         self.lbl_size.setText(display_size)
 
+    def update_file_info(self, size_str: str = "", size_bytes: int = 0, filename: str = ""):
+        """Update file info dialog fields when asynchronous metadata probe finishes."""
+        if size_str:
+            self.file_info["size_str"] = size_str
+        if size_bytes:
+            self.file_info["size_bytes"] = size_bytes
+        if filename and not getattr(self, "_save_path_manually_edited", False):
+            self.file_info["filename"] = filename
+            self.update_save_path()
+        self._refresh_size_label()
+
     def on_save_input_changed(self, text):
+        setattr(self, "_save_path_manually_edited", True)
         new_name = os.path.basename(text.strip())
         if new_name:
             self.file_info["filename"] = new_name

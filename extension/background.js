@@ -179,12 +179,123 @@ function refreshFilterRules() {
 }
 refreshFilterRules();
 
+function getIconPathsForStyle(style, effectiveTheme) {
+  let target = style || 'system';
+  if (target === 'system') {
+    target = (effectiveTheme === 'dark') ? 'light' : 'dark';
+  }
+  if (target === 'light') {
+    return {
+      16: 'assets/icon-light-16.png',
+      32: 'assets/icon-light-32.png',
+      48: 'assets/icon-light-48.png',
+      128: 'assets/icon-light-128.png'
+    };
+  }
+  if (target === 'dark') {
+    return {
+      16: 'assets/icon-dark-16.png',
+      32: 'assets/icon-dark-32.png',
+      48: 'assets/icon-dark-48.png',
+      128: 'assets/icon-dark-128.png'
+    };
+  }
+  return {
+    16: 'assets/icon-16.png',
+    32: 'assets/icon-32.png',
+    48: 'assets/icon-48.png',
+    128: 'assets/icon-128.png'
+  };
+}
+
+function isFirefoxEnv() {
+  if (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.getBrowserInfo === 'function') {
+    return true;
+  }
+  if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Firefox')) {
+    return true;
+  }
+  return false;
+}
+
+let lastAppliedIconKey = null;
+
+function updateChromeActionIcon(effectiveTheme, iconStyle = 'system') {
+  if (isFirefoxEnv()) return;
+  const action = getActionAPI();
+  if (!action || !action.setIcon) return;
+
+  const iconKey = `${iconStyle}_${effectiveTheme}`;
+  if (lastAppliedIconKey === iconKey) {
+    return;
+  }
+  lastAppliedIconKey = iconKey;
+
+  const paths = getIconPathsForStyle(iconStyle, effectiveTheme);
+  try {
+    action.setIcon({ path: paths }).catch(() => {});
+  } catch (err) {
+    console.warn("Could not set extension toolbar icon:", err);
+  }
+}
+
+async function applyStoredActionIcon() {
+  const action = getActionAPI();
+  if (!action || !action.setIcon) return;
+
+  chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, async (items) => {
+    const iconPref = items.actionIcon || 'system';
+    const themePref = items.theme || 'system';
+
+    // In Firefox, if both icon and theme are set to system default, reset icon override to let native manifest theme_icons handle it seamlessly without hover
+    if (isFirefoxEnv() && iconPref === 'system' && themePref === 'system') {
+      try {
+        await action.setIcon({ path: null });
+        return;
+      } catch (e) {
+        // Fallback to explicit paths if path: null fails
+      }
+    }
+
+    let effectiveTheme = 'light';
+    if (themePref === 'dark') {
+      effectiveTheme = 'dark';
+    } else if (themePref === 'light') {
+      effectiveTheme = 'light';
+    } else {
+      // themePref === 'system'
+      if (items.systemTheme) {
+        effectiveTheme = items.systemTheme;
+      } else if (typeof matchMedia !== 'undefined') {
+        try {
+          effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } catch {}
+      }
+    }
+
+    if (!isFirefoxEnv()) {
+      updateChromeActionIcon(effectiveTheme, iconPref);
+    } else {
+      const paths = getIconPathsForStyle(iconPref, effectiveTheme);
+      try {
+        await action.setIcon({ path: paths });
+      } catch (err) {
+        console.warn("Could not set extension toolbar icon:", err);
+      }
+    }
+  });
+}
+applyStoredActionIcon();
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
     for (const key of ['enableInterception', 'enableMediaSniffing', 'whitelistUrls', 'whitelistExts', 'blacklistUrls', 'blacklistExts']) {
       if (changes[key] !== undefined) {
         cachedFilterRules[key] = changes[key].newValue;
       }
+    }
+    if (changes.actionIcon || changes.theme || changes.systemTheme) {
+      applyStoredActionIcon();
     }
   }
 });
@@ -490,8 +601,8 @@ function sanitizeMediaCookies(cookieStr, targetUrl) {
   if (!isYt) return cookieStr;
 
   const YT_IGNORE = new Set([
-    "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "SOCS", "OTZ",
-    "CONSENT", "_ga", "_gid", "wide", "1P_JAR", "ANID", "NID"
+    "_gcl_au", "__Secure-ROLLOUT_TOKEN", "GPS", "OTZ",
+    "_ga", "_gid", "1P_JAR"
   ]);
 
   return cookieStr
@@ -1284,14 +1395,17 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
     );
   };
 
+  const isFirefox = isFirefoxEnv();
   const manifest = (chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest() : {};
-  const hasBlocking = manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
+  const hasBlocking = isFirefox && manifest.permissions && Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequestBlocking');
   const extraSpec = hasBlocking ? ["responseHeaders", "blocking"] : ["responseHeaders"];
 
   try {
     setupListener(extraSpec);
-  } catch {
-    setupListener(["responseHeaders"]);
+  } catch (err) {
+    try {
+      setupListener(["responseHeaders"]);
+    } catch {}
   }
 }
 
@@ -1465,7 +1579,7 @@ function sanitizeMediaUrl(url) {
 
 // --- INITIALIZATION & CONTEXT MENUS ---
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['port', 'enableInterception', 'theme'], (items) => {
+  chrome.storage.local.get(['port', 'enableInterception', 'theme', 'actionIcon'], (items) => {
     if (!items.port || items.port === 6800 || items.port === 50001 || items.port === 6801) {
       chrome.storage.local.set({ port: 56800 });
     }
@@ -1475,6 +1589,10 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!items.theme) {
       chrome.storage.local.set({ theme: "system" });
     }
+    if (!items.actionIcon) {
+      chrome.storage.local.set({ actionIcon: "system" });
+    }
+    applyStoredActionIcon();
   });
 
   chrome.contextMenus.removeAll(() => {
@@ -1654,7 +1772,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           quality: request.quality || "",
           isMedia: true,
           sizeBytes: request.sizeBytes || 0,
-          sizeStr: request.sizeStr || ""
+          sizeStr: request.sizeStr || "",
+          ext: request.ext || ""
         });
         sendResponse({ success, resolvedUrl: cleanUrl });
         return;
@@ -1718,6 +1837,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === "report_system_theme" && request.systemTheme) {
+    chrome.storage.local.get({ systemTheme: '' }, (items) => {
+      if (items.systemTheme !== request.systemTheme) {
+        chrome.storage.local.set({ systemTheme: request.systemTheme }, () => {
+          applyStoredActionIcon();
+        });
+      }
+    });
+    sendResponse({ status: "ok" });
+    return true;
+  }
+
+  if (request.action === "sync_icon_with_theme" && request.effectiveTheme) {
+    if (!isFirefoxEnv()) {
+      chrome.storage.local.get({ actionIcon: 'system', theme: 'system', systemTheme: '' }, (items) => {
+        const iconPref = items.actionIcon || 'system';
+        const themePref = items.theme || 'system';
+        if (iconPref === 'system') {
+          if (items.systemTheme !== request.effectiveTheme) {
+            chrome.storage.local.set({ systemTheme: request.effectiveTheme }, () => {
+              updateChromeActionIcon(request.effectiveTheme, iconPref);
+            });
+          } else {
+            updateChromeActionIcon(request.effectiveTheme, iconPref);
+          }
+        }
+      });
+    }
+    sendResponse({ status: "ok" });
+    return true;
+  }
+
   if (request.action === "update_connection_status") {
     updateAppConnectionBadge(Boolean(request.online));
     sendResponse({ success: true, online: cachedAppOnline });
@@ -1756,6 +1907,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     const streams = tabId ? (tabMediaStreams.get(tabId) || []) : [];
     sendResponse({ streams });
+    return true;
+  }
+
+  if (request.action === "get_media_sizes") {
+    (async () => {
+      const isOnline = await isBengalDMOnline();
+      if (!isOnline) {
+        sendResponse({ success: false, offline: true });
+        return;
+      }
+
+      const ipcPort = cachedIpcPort || 56900;
+      const cookieString = await getCookiesForUrl(request.url, sender && sender.tab ? sender.tab.cookieStoreId : undefined);
+
+      const payload = {
+        url: request.url,
+        referrer: request.referrer || ((sender && sender.tab) ? sender.tab.url : ""),
+        userAgent: navigator.userAgent,
+        cookies: sanitizeMediaCookies(cookieString, request.url),
+        heights: request.heights || [2160, 1440, 1080, 720, 480, 360, 240, 144],
+        videoContainer: "auto",
+        audioFormat: "auto"
+      };
+
+      try {
+        let response = await fetch(`http://127.0.0.1:${ipcPort}/media-sizes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          response = await fetch(`http://localhost:${ipcPort}/media-sizes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+        if (response.ok) {
+          const data = await response.json();
+          sendResponse(data);
+          return;
+        }
+      } catch (e) {
+        console.warn("[Bengal DM] get_media_sizes request failed:", e);
+      }
+      sendResponse({ success: false, error: "Fetch failed" });
+    })();
     return true;
   }
 });

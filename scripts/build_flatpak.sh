@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-APP_ID="io.github.tazihad.bengal-download-manager"
+APP_ID="bd.com.zihad.BengalDownloadManager"
 BUILD_DIR="flatpak_app_dir"
 
 DO_RUN=0
@@ -70,7 +70,11 @@ echo " Building Bengal Download Manager Flatpak (v$VERSION - $ARCH_NAME)"
 echo "========================================================"
 
 echo "=== 1. Building PyInstaller Standalone Application ==="
-rm -rf build dist
+WORK_DIR=".pyinstaller-build"
+rm -rf "$WORK_DIR" dist
+RUNTIME_ASSETS_DIR="$WORK_DIR/runtime_assets"
+bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH_NAME"
+
 PYTHONPATH=src $PYINSTALLER_BIN \
     --name "bengal-download-manager" \
     --onedir \
@@ -78,9 +82,10 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --paths "src" \
     --collect-all core \
     --collect-all ui \
-    --add-data "assets:assets" \
+    --collect-all python_socks \
+    --add-data "$RUNTIME_ASSETS_DIR:assets" \
     --distpath "dist" \
-    --workpath "build" \
+    --workpath "$WORK_DIR" \
     --noconfirm src/main.py
 
 echo "=== 2. Assembling Flatpak Package Structure ($BUILD_DIR) ==="
@@ -187,5 +192,6 @@ fi
 
 if [ "$DO_RUN" -eq 1 ]; then
     echo "=== 4. Launching Application from Flatpak App Structure ==="
-    "$BUILD_DIR/files/bin/bengal-download-manager" "${EXTRA_APP_ARGS[@]}"
+    "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager" "${EXTRA_APP_ARGS[@]}"
 fi
+

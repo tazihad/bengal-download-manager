@@ -12,6 +12,14 @@
   if (window.__bengalDmVideoWidgetLoaded) return;
   window.__bengalDmVideoWidgetLoaded = true;
 
+  function isExtensionValid() {
+    try {
+      return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
   let activeVideo = null;
   let isUserPositioned = false;
   let userCoords = { left: 0, top: 0 };
@@ -434,7 +442,7 @@
       videoPanelPosition: 'top-right',
       blacklistUrls: []
     }, (items) => {
-      if (chrome.runtime.lastError) return;
+      if (!isExtensionValid() || chrome.runtime.lastError) return;
       enableInterception = items.enableInterception !== false;
       enableMediaSniffing = items.enableMediaSniffing !== false;
       blacklistUrls = Array.isArray(items.blacklistUrls) ? items.blacklistUrls : [];
@@ -444,80 +452,126 @@
       }
     });
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === 'local') {
-        let shouldCheckVisibility = false;
+    if (window === window.top && window.matchMedia) {
+      try {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        const syncSystemTheme = (isChange = false) => {
+          if (!isExtensionValid()) return;
+          try {
+            const detected = mq.matches ? 'dark' : 'light';
+            chrome.storage.local.get({ theme: 'system', actionIcon: 'system', systemTheme: '' }, (items) => {
+              if (!isExtensionValid() || chrome.runtime.lastError) return;
+              if (items && items.systemTheme !== detected) {
+                try {
+                  chrome.storage.local.set({ systemTheme: detected });
+                } catch {}
+                if (isChange && (!items.theme || items.theme === 'system') && (!items.actionIcon || items.actionIcon === 'system')) {
+                  try {
+                    chrome.runtime.sendMessage({
+                      action: "sync_icon_with_theme",
+                      effectiveTheme: detected
+                    }).catch(() => {});
+                  } catch {}
+                }
+              }
+            });
+          } catch {}
+        };
+        syncSystemTheme(false);
+        if (mq.addEventListener) {
+          mq.addEventListener('change', () => {
+            if (isExtensionValid()) syncSystemTheme(true);
+          });
+        } else if (mq.addListener) {
+          mq.addListener(() => {
+            if (isExtensionValid()) syncSystemTheme(true);
+          });
+        }
+      } catch {}
+    }
 
-        if (changes.blacklistUrls !== undefined) {
-          blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
-          shouldCheckVisibility = true;
-        }
-        if (changes.enableInterception !== undefined) {
-          enableInterception = changes.enableInterception.newValue !== false;
-          shouldCheckVisibility = true;
-        }
-        if (changes.enableMediaSniffing !== undefined) {
-          enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
-          shouldCheckVisibility = true;
-        }
-        if (changes.videoPanelPosition !== undefined) {
-          videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
-          updateWidgetPosition();
-        }
+    if (isExtensionValid() && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (!isExtensionValid()) return;
+        if (areaName === 'local') {
+          let shouldCheckVisibility = false;
 
-        if (shouldCheckVisibility) {
-          if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
-            hideWidget('storage_changed_disabled_or_blacklisted');
-          } else if (activeVideo && isAppConnected && enableMediaSniffing) {
-            showWidget();
+          if (changes.blacklistUrls !== undefined) {
+            blacklistUrls = Array.isArray(changes.blacklistUrls.newValue) ? changes.blacklistUrls.newValue : [];
+            shouldCheckVisibility = true;
+          }
+          if (changes.enableInterception !== undefined) {
+            enableInterception = changes.enableInterception.newValue !== false;
+            shouldCheckVisibility = true;
+          }
+          if (changes.enableMediaSniffing !== undefined) {
+            enableMediaSniffing = changes.enableMediaSniffing.newValue !== false;
+            shouldCheckVisibility = true;
+          }
+          if (changes.videoPanelPosition !== undefined) {
+            videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
+            updateWidgetPosition();
+          }
+
+          if (shouldCheckVisibility) {
+            if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
+              hideWidget('storage_changed_disabled_or_blacklisted');
+            } else if (activeVideo && isAppConnected && enableMediaSniffing) {
+              showWidget();
+            }
           }
         }
-      }
-    });
+      });
+    }
   } catch {}
 
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg && msg.action === "close_dropdown") {
-      if (isDropdownOpen) {
-        closeDropdown();
-      }
-      return;
-    }
-    if (msg && msg.action === "connection_status_changed") {
-      const wasConnected = isAppConnected;
-      isAppConnected = Boolean(msg.online);
-      if (!isAppConnected || isSiteBlacklisted()) {
-        hideWidget('connection_status_changed');
-      } else if (!wasConnected && enableMediaSniffing) {
-        if (activeVideo) {
-          showWidget();
-        } else {
-          const v = document.querySelector('video');
-          if (v && (!v.paused || v.currentTime > 0)) {
-            onVideoState(v);
+  try {
+    if (isExtensionValid() && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((msg) => {
+        if (!isExtensionValid()) return;
+        if (msg && msg.action === "close_dropdown") {
+          if (isDropdownOpen) {
+            closeDropdown();
+          }
+          return;
+        }
+        if (msg && msg.action === "connection_status_changed") {
+          const wasConnected = isAppConnected;
+          isAppConnected = Boolean(msg.online);
+          if (!isAppConnected || isSiteBlacklisted()) {
+            hideWidget('connection_status_changed');
+          } else if (!wasConnected && enableMediaSniffing) {
+            if (activeVideo) {
+              showWidget();
+            } else {
+              const v = document.querySelector('video');
+              if (v && (!v.paused || v.currentTime > 0)) {
+                onVideoState(v);
+              }
+            }
+          }
+          return;
+        }
+        if (msg && msg.action === "media_stream_detected" && msg.stream) {
+          if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
+          const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
+          if (existing) {
+            if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
+            if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
+          } else {
+            sniffedMediaStreams.unshift(msg.stream);
+            if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
+            if (activeVideo && isDropdownOpen) {
+              populateDropdown();
+            }
+            if (window.self !== window.top && activeVideo) {
+              notifyTopFrameVideo(activeVideo, 'playing');
+            }
           }
         }
-      }
-      return;
+      });
     }
-    if (msg && msg.action === "media_stream_detected" && msg.stream) {
-      if (!isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
-      const existing = sniffedMediaStreams.find(s => s.url === msg.stream.url);
-      if (existing) {
-        if (msg.stream.sizeBytes && !existing.sizeBytes) existing.sizeBytes = msg.stream.sizeBytes;
-        if (msg.stream.contentType && !existing.contentType) existing.contentType = msg.stream.contentType;
-      } else {
-        sniffedMediaStreams.unshift(msg.stream);
-        if (sniffedMediaStreams.length > 30) sniffedMediaStreams.pop();
-        if (activeVideo && isDropdownOpen) {
-          populateDropdown();
-        }
-        if (window.self !== window.top && activeVideo) {
-          notifyTopFrameVideo(activeVideo, 'playing');
-        }
-      }
-    }
-  });
+  } catch {}
 
   // Request fresh media info periodically
   function requestMediaInfo() {
@@ -535,6 +589,9 @@
     } catch (e) {}
     fetchTabInfo();
     fetchSniffedMedia();
+    if (activeVideo) {
+      fetchMediaSizesFromApp(activeVideo);
+    }
   }
 
   // 2. Create Shadow DOM Container on document.documentElement
@@ -1863,14 +1920,11 @@
   }
 
   function estimateFileSize(durationSec, bitrateKbps, isAudio) {
-    if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return "~ MB";
-    const bytes = durationSec * bitrateKbps * 125;
-    return formatFileSize(bytes, true);
+    return "";
   }
 
   function estimateFileSizeBytes(durationSec, bitrateKbps) {
-    if (!durationSec || isNaN(durationSec) || !isFinite(durationSec) || durationSec <= 0) return 0;
-    return Math.round(durationSec * (bitrateKbps || 2500) * 125);
+    return 0;
   }
 
   function findMatchingFileSizeBytes(streamUrl, video) {
@@ -1895,8 +1949,114 @@
     return 0;
   }
 
+  // Media sizes cache & state for floating media popup
+  const appMediaSizesCache = new Map(); // targetUrl -> { success, title, duration, sizes }
+  const appMediaSizesInFlight = new Set(); // targetUrl
+
+  function getMediaTargetUrl(video) {
+    if (!video) return "";
+    const pageUrl = getMediaPageUrl(video);
+    if (pageUrl) return pageUrl;
+    if (cachedTabInfo && cachedTabInfo.url && isCanonicalMediaPage(cachedTabInfo.url)) {
+      return cachedTabInfo.url;
+    }
+    if (isCanonicalMediaPage(window.location.href)) {
+      return window.location.href;
+    }
+    if (video.tagName !== 'IFRAME' && video.currentSrc && video.currentSrc.startsWith('http')) {
+      return video.currentSrc;
+    }
+    if (video.tagName !== 'IFRAME' && video.src && video.src.startsWith('http')) {
+      return video.src;
+    }
+    return window.location.href;
+  }
+
+  function fetchMediaSizesFromApp(video) {
+    if (!video || !isAppConnected || !enableMediaSniffing || isSiteBlacklisted()) return;
+    const targetUrl = getMediaTargetUrl(video);
+    if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) return;
+
+    if (appMediaSizesCache.has(targetUrl) || appMediaSizesInFlight.has(targetUrl)) {
+      return;
+    }
+
+    appMediaSizesInFlight.add(targetUrl);
+
+    chrome.runtime.sendMessage({
+      action: "get_media_sizes",
+      url: targetUrl,
+      referrer: (cachedTabInfo && cachedTabInfo.url) || window.location.href
+    }, (res) => {
+      appMediaSizesInFlight.delete(targetUrl);
+      if (res && res.success && res.sizes) {
+        appMediaSizesCache.set(targetUrl, res);
+        if (res.url) appMediaSizesCache.set(res.url, res);
+        appMediaSizesCache.set(window.location.href, res);
+        // If app returned a specific title and current video title is generic, update UI
+        if (res.title && titleEl && (!titleEl.textContent || isGenericTitle(titleEl.textContent))) {
+          titleEl.textContent = res.title;
+          titleEl.title = res.title;
+        }
+        if (activeVideo && isDropdownOpen) {
+          populateDropdown();
+        }
+      }
+    });
+  }
+
+  function findAppSizeEntry(sizes, height) {
+    if (!sizes || !height) return null;
+    if (sizes[String(height)]) return sizes[String(height)];
+    for (const k of Object.keys(sizes)) {
+      const numK = parseInt(k, 10);
+      if (!isNaN(numK) && Math.abs(numK - height) <= 60) {
+        return sizes[k];
+      }
+    }
+    return null;
+  }
+
+  function enrichWithAppSizes(tiers, video) {
+    if (!tiers || !Array.isArray(tiers) || tiers.length === 0) return tiers;
+    const targetUrl = getMediaTargetUrl(video);
+    const appData = appMediaSizesCache.get(targetUrl) ||
+                    appMediaSizesCache.get(window.location.href) ||
+                    (video && (appMediaSizesCache.get(video.currentSrc) || appMediaSizesCache.get(video.src)));
+    if (!appData || !appData.sizes) return tiers;
+
+    const sizes = appData.sizes;
+
+    tiers.forEach((tier) => {
+      if (tier.isAudio) {
+        const audioEntry = sizes["audio"];
+        if (audioEntry && audioEntry.sizeBytes > 0) {
+          tier.sizeBytes = audioEntry.sizeBytes;
+          tier.size = audioEntry.sizeStr || formatFileSize(audioEntry.sizeBytes, audioEntry.isApproximate);
+          tier.sizeIsApproximate = Boolean(audioEntry.isApproximate);
+          if (audioEntry.ext) tier.ext = audioEntry.ext;
+        }
+      } else if (tier.height) {
+        const resEntry = findAppSizeEntry(sizes, tier.height);
+        if (resEntry && resEntry.sizeBytes > 0) {
+          tier.sizeBytes = resEntry.sizeBytes;
+          tier.size = resEntry.sizeStr || formatFileSize(resEntry.sizeBytes, resEntry.isApproximate);
+          tier.sizeIsApproximate = Boolean(resEntry.isApproximate);
+          if (resEntry.ext) tier.ext = resEntry.ext;
+        }
+      }
+    });
+
+    return tiers;
+  }
+
   // 9. Supported Resolutions Filtering (Preserves existing site logic + special Facebook IDM case)
   function getSupportedResolutions(video) {
+    const rawTiers = getRawSupportedResolutions(video);
+    return enrichWithAppSizes(rawTiers, video);
+  }
+
+  function getRawSupportedResolutions(video) {
     const isYouTube = window.location.hostname.includes('youtube.com');
     const isFacebook = window.location.hostname.includes('facebook.com') || window.location.hostname.includes('fb.watch') || window.location.hostname.includes('fb.com');
     const duration = (platformMediaInfo && platformMediaInfo.duration) ||
@@ -1927,23 +2087,23 @@
           seenQualities.add(item.quality);
           result.push({
             ...item,
-            sizeBytes: estimateFileSizeBytes(duration, item.bitrate),
-            size: estimateFileSize(duration, item.bitrate, false)
+            sizeBytes: 0,
+            size: ""
           });
         }
       }
 
       // Append Audio Only Option
       result.push({
-        quality: 'Audio Only (MP3)',
-        badge: 'MP3',
+        quality: 'Audio Only',
+        badge: 'AUDIO',
         label: 'Audio Only',
         height: 0,
         bitrate: 192,
         cls: 'audio',
         isAudio: true,
-        sizeBytes: estimateFileSizeBytes(duration, 192),
-        size: estimateFileSize(duration, 192, true)
+        sizeBytes: 0,
+        size: ""
       });
 
       if (result.length > 1) {
@@ -1978,20 +2138,20 @@
             bitrate: vh >= 1080 ? 5000 : 2500,
             cls: resCls,
             streamUrl: streamCandidate.url,
-            sizeBytes: hasExactFile ? exactFileBytes : estimateFileSizeBytes(duration, vh >= 1080 ? 5000 : 2500),
-            size: hasExactFile ? formatFileSize(exactFileBytes, false) : estimateFileSize(duration, vh >= 1080 ? 5000 : 2500, false)
+            sizeBytes: hasExactFile ? exactFileBytes : 0,
+            size: hasExactFile ? formatFileSize(exactFileBytes, false) : ""
           },
           {
-            quality: 'Audio Only (MP3)',
-            badge: 'MP3',
+            quality: 'Audio Only',
+            badge: 'AUDIO',
             label: 'Audio Only',
             height: 0,
             bitrate: 192,
             cls: 'audio',
             isAudio: true,
             streamUrl: streamCandidate.url,
-            sizeBytes: estimateFileSizeBytes(duration, 192),
-            size: estimateFileSize(duration, 192, true)
+            sizeBytes: 0,
+            size: ""
           }
         ];
       }
@@ -2030,8 +2190,8 @@
             seenQualities.add(tier.quality);
             const item = {
               ...tier,
-              sizeBytes: estimateFileSizeBytes(duration, tier.bitrate),
-              size: estimateFileSize(duration, tier.bitrate, false)
+              sizeBytes: 0,
+              size: ""
             };
             if (tier.height >= 720 && platformMediaInfo.hdUrl) item.streamUrl = platformMediaInfo.hdUrl;
             else if (platformMediaInfo.sdUrl) item.streamUrl = platformMediaInfo.sdUrl;
@@ -2046,15 +2206,15 @@
         }
         if (result.length > 0) {
           result.push({
-            quality: 'Audio Only (MP3)',
-            badge: 'MP3',
+            quality: 'Audio Only',
+            badge: 'AUDIO',
             label: 'Audio Only',
             height: 0,
             bitrate: 192,
             cls: 'audio',
             isAudio: true,
-            sizeBytes: estimateFileSizeBytes(duration, 192),
-            size: estimateFileSize(duration, 192, true)
+            sizeBytes: 0,
+            size: ""
           });
           return result;
         }
@@ -2074,8 +2234,8 @@
           const hasExact = exactFbBytes > 0 && t.height === vh;
           return {
             ...t,
-            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
-            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+            sizeBytes: hasExact ? exactFbBytes : 0,
+            size: hasExact ? formatFileSize(exactFbBytes, false) : ""
           };
         });
 
@@ -2084,22 +2244,22 @@
           const hasExact = exactFbBytes > 0 && t.height === vh;
           return {
             ...t,
-            sizeBytes: hasExact ? exactFbBytes : estimateFileSizeBytes(duration, t.bitrate),
-            size: hasExact ? formatFileSize(exactFbBytes, false) : estimateFileSize(duration, t.bitrate, false)
+            sizeBytes: hasExact ? exactFbBytes : 0,
+            size: hasExact ? formatFileSize(exactFbBytes, false) : ""
           };
         });
       }
 
       filtered.push({
-        quality: 'Audio Only (MP3)',
-        badge: 'MP3',
+        quality: 'Audio Only',
+        badge: 'AUDIO',
         label: 'Audio Only',
         height: 0,
         bitrate: 192,
         cls: 'audio',
         isAudio: true,
-        sizeBytes: estimateFileSizeBytes(duration, 192),
-        size: estimateFileSize(duration, 192, true)
+        sizeBytes: 0,
+        size: ""
       });
       return filtered;
     }
@@ -2127,8 +2287,8 @@
         const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
         return {
           ...t,
-          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
-          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          sizeBytes: hasExact ? exactVideoBytes : 0,
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : ""
         };
       });
 
@@ -2138,23 +2298,23 @@
         const hasExact = exactVideoBytes > 0 && (t.height === vh || idx === 0);
         return {
           ...t,
-          sizeBytes: hasExact ? exactVideoBytes : estimateFileSizeBytes(duration, t.bitrate),
-          size: hasExact ? formatFileSize(exactVideoBytes, false) : estimateFileSize(duration, t.bitrate, false)
+          sizeBytes: hasExact ? exactVideoBytes : 0,
+          size: hasExact ? formatFileSize(exactVideoBytes, false) : ""
         };
       });
     }
 
     // Add Audio Option
     filtered.push({
-      quality: 'Audio Only (MP3)',
-      badge: 'MP3',
+      quality: 'Audio Only',
+      badge: 'AUDIO',
       label: 'Audio Only',
       height: 0,
       bitrate: 192,
       cls: 'audio',
       isAudio: true,
-      sizeBytes: estimateFileSizeBytes(duration, 192),
-      size: estimateFileSize(duration, 192, true)
+      sizeBytes: 0,
+      size: ""
     });
 
     return filtered;
@@ -2275,7 +2435,8 @@
         filename: title,
         quality: tier.quality,
         sizeBytes: tier.sizeBytes || 0,
-        sizeStr: tier.size || ""
+        sizeStr: tier.size || "",
+        ext: tier.ext || ""
       }, (response) => {
         setTimeout(() => {
           closeDropdown();
@@ -2527,6 +2688,7 @@
     }
 
     requestMediaInfo();
+    fetchMediaSizesFromApp(activeVideo);
     populateDropdown();
   }
 

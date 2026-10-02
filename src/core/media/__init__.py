@@ -13,16 +13,29 @@ from core.media.dependencies import (
     get_local_tool_path,
     get_tool_path,
     get_tool_version,
+    get_ytdlp_channel,
+    set_ytdlp_channel,
+    get_tool_url,
     DependencyManagerWorker,
     YtDlpManager,
 )
 from core.media.extractor import (
     MediaExtractorWorker,
+    MediaInfoFetcherWorker,
+    get_format_size_bytes,
+    get_selected_download_size,
+    probe_media_sizes,
     _keep_thread_alive,
 )
 from core.media.worker import (
     create_temp_netscape_cookie_file,
     YtDlpDownloadWorker,
+)
+from core.media.pot_provider import (
+    check_pot_provider_status,
+    is_pot_provider_available,
+    get_pot_extractor_args,
+    DEFAULT_POT_PROVIDER_URL,
 )
 import re
 
@@ -30,7 +43,7 @@ def parse_size_str_to_bytes(size_str: str) -> float:
     """Helper to convert sizes like '12.50MiB', '1.5GB' or '500KiB' to bytes."""
     if not size_str or not isinstance(size_str, str):
         return 0.0
-    s = size_str.strip().upper()
+    s = size_str.strip().lstrip("~").strip().upper()
     units = {
         "KIB": 1024, "KB": 1000,
         "MIB": 1024**2, "MB": 1000**2,
@@ -59,11 +72,22 @@ __all__ = [
     "get_local_tool_path",
     "get_tool_path",
     "get_tool_version",
+    "get_ytdlp_channel",
+    "set_ytdlp_channel",
+    "get_tool_url",
     "DependencyManagerWorker",
     "YtDlpManager",
     "MediaExtractorWorker",
+    "MediaInfoFetcherWorker",
+    "get_format_size_bytes",
+    "get_selected_download_size",
+    "probe_media_sizes",
     "_keep_thread_alive",
     "create_temp_netscape_cookie_file",
     "YtDlpDownloadWorker",
     "parse_size_str_to_bytes",
+    "check_pot_provider_status",
+    "is_pot_provider_available",
+    "get_pot_extractor_args",
+    "DEFAULT_POT_PROVIDER_URL",
 ]

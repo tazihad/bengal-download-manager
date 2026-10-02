@@ -174,3 +174,15 @@ Content-Type: application/json
 - **Aria2 Daemon Port**: Configure custom RPC port (default: `56800`).
 - **File Extension Filter List**: Add or remove file extensions that trigger automatic download capture.
 - **Site Exclusions (Bypass List)**: Add domain names or patterns where browser downloads should never be intercepted.
+
+---
+
+## 8. IPC Debugging & Diagnostics
+
+When developing or troubleshooting communication between the browser extension and the desktop application:
+
+- **Clean Debug Logging (`--debug` or `DEBUG=1`)**:
+  Confirms the initial extension connection handshake, throttles subsequent routine 15-second heartbeat pings to a clean 5-minute periodic summary, and suppresses repetitive HTTP 200 access logs to prevent console clutter.
+- **Unrestricted Verbose Logging (`--verbose` or `--debug --verbose` or `BENGAL_VERBOSE=1`)**:
+  Emits full unrestricted output for every incoming ping and raw HTTP access line (`[IPC HTTP] 127.0.0.1 - "GET / HTTP/1.1" 200 -`) for granular protocol inspection.
+

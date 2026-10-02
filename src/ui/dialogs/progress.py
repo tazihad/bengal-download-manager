@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
-from core.utils import show_in_folder, load_extension_config
+from core.utils import show_in_folder, load_extension_config, wrap_url_tooltip
 from core.memory_guard import MemoryGuard
 
 class DownloadProgressDialog(QDialog):
@@ -14,7 +14,7 @@ class DownloadProgressDialog(QDialog):
         super().__init__(parent)
         self.worker = worker
         MemoryGuard.auto_manage_dialog(self)
-        self.setWindowTitle(f"{self.worker.filename}")
+        self.setWindowTitle(self._format_window_title())
         self.setWindowIcon(QApplication.windowIcon())
         
         # Ensure it behaves like a separate top-level window in the OS taskbar while sharing WM_CLASS
@@ -53,6 +53,26 @@ class DownloadProgressDialog(QDialog):
             self.total_bytes = tb
             self.lbl_size.setText(self.worker.format_bytes(tb, precision=2, pad=False))
 
+    def _format_window_title(self, percent_str: str = "") -> str:
+        raw_name = getattr(self.worker, "filename", "") or "Download"
+        # If the filename is longer than 36 chars, elide it in the middle so the extension and prefix stay intact
+        if len(raw_name) > 36:
+            ext_idx = raw_name.rfind(".")
+            if ext_idx > 0 and (len(raw_name) - ext_idx) <= 8:
+                ext = raw_name[ext_idx:]
+                base = raw_name[:ext_idx]
+                keep_start = 20
+                keep_end = max(4, 30 - keep_start - len(ext))
+                display_name = f"{base[:keep_start]}...{base[-keep_end:]}{ext}"
+            else:
+                display_name = f"{raw_name[:24]}...{raw_name[-6:]}"
+        else:
+            display_name = raw_name
+
+        if percent_str:
+            return f"{percent_str} - {display_name}"
+        return display_name
+
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)
         layout.setContentsMargins(5, 0, 5, 5)
@@ -62,7 +82,7 @@ class DownloadProgressDialog(QDialog):
 
         # Use a label with elided text for the URL
         self.lbl_url = QLabel()
-        self.lbl_url.setToolTip(url_text)
+        self.lbl_url.setToolTip(wrap_url_tooltip(url_text))
         self.lbl_url.setStyleSheet("font-size: 8.5pt; color: #cccccc; padding-bottom: 4px;")
         self.lbl_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         

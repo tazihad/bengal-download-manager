@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 
 from PyQt6.QtGui import QFont
-from core.utils import open_file_generic
+from core.utils import open_file_generic, wrap_url_tooltip
 
 class PropertiesDialog(QDialog):
     def __init__(self, file_data, parent=None):
@@ -43,7 +43,7 @@ class PropertiesDialog(QDialog):
             val_widget = QLineEdit(str(value))
             val_widget.setReadOnly(True)
             val_widget.setCursorPosition(0) 
-            val_widget.setToolTip(f"{label_text} {value}")
+            val_widget.setToolTip(wrap_url_tooltip(f"{label_text} {value}"))
             val_font = QFont(val_widget.font())
             val_font.setFeature(QFont.Tag.fromString('tnum'), 1)
             val_widget.setFont(val_font)

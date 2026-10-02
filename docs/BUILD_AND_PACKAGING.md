@@ -14,18 +14,26 @@ Bengal Download Manager requires **Python 3.10+** and uses [`uv`](https://github
 git clone https://github.com/tazihad/bengal-download-manager.git
 cd bengal-download-manager
 
-# Install project dependencies
-uv pip install -r requirements.txt
+# Install project in editable mode with dev dependencies via pyproject.toml
+uv pip install -e ".[dev]"
 ```
 
 ### Running in Development Mode
 ```bash
 # Launch standard PyQt6 desktop interface
 uv run python src/main.py
-
-# Launch KDE Kirigami QML interface
-uv run python src/main.py --kirigami
 ```
+
+### Command-Line Arguments & Debug Flags
+
+Bengal Download Manager supports several runtime flags and environment variables for development and diagnostics:
+
+| Option / Flag | Environment Variable | Description |
+| :--- | :--- | :--- |
+| *(default)* | *(none)* | Standard execution with clean `INFO`-level logging. |
+| `--debug` | `DEBUG=1` or `BENGAL_DEBUG=1` | Enables detailed `DEBUG` logging with timestamps, source file/line context, Aria2 RPC activity, and throttled IPC heartbeat summaries. |
+| `--verbose` | `VERBOSE=1` or `BENGAL_VERBOSE=1` | Enables full unrestricted diagnostic logging, including every raw IPC extension ping and HTTP request/response line. |
+| `--debug --verbose` | `DEBUG=1 VERBOSE=1` | Complete unrestricted verbose debug output for comprehensive troubleshooting. |
 
 ---
 
@@ -71,7 +79,7 @@ To run directly:
 
 ## 4. Flatpak Packaging (Flathub / KDE Platform 6.11)
 
-The Flatpak manifest is maintained in [`flatpak/io.github.tazihad.bengal-download-manager.yml`](file:///mnt/data/dev/bengal-download-manager/flatpak/io.github.tazihad.bengal-download-manager.yml) using the `org.kde.Platform` 6.11 runtime.
+The Flatpak manifest is maintained in [`flatpak/bd.com.zihad.BengalDownloadManager.yml`](file:///mnt/data/dev/bengal-download-manager/flatpak/bd.com.zihad.BengalDownloadManager.yml) using the `org.kde.Platform` 6.11 runtime.
 
 ### Local Flatpak Build Script
 Run the automated packaging helper:
@@ -85,10 +93,10 @@ bash scripts/build_flatpak.sh
 flatpak install flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
 
 # 2. Build and export Flatpak bundle
-flatpak-builder --user --install --force-clean build-flatpak flatpak/io.github.tazihad.bengal-download-manager.yml
+flatpak-builder --user --install --force-clean build-flatpak flatpak/bd.com.zihad.BengalDownloadManager.yml
 
 # 3. Launch installed Flatpak package
-flatpak run io.github.tazihad.bengal-download-manager
+flatpak run bd.com.zihad.BengalDownloadManager
 ```
 
 ---

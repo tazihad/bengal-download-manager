@@ -34,27 +34,27 @@ if [ ! -f "dist/bengal-download-manager" ]; then
 fi
 
 echo "=== 2. Preparing Icon & AppDir Structure ==="
-$PY_BIN -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/io.github.tazihad.bengal-download-manager.png')"
-cp assets/io.github.tazihad.bengal-download-manager.png assets/bengal-download-manager.png
+$PY_BIN -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bd.com.zihad.BengalDownloadManager.png')"
+cp assets/bd.com.zihad.BengalDownloadManager.png assets/bengal-download-manager.png
 
 rm -rf AppDir
 
 install -Dm755 dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
 for s in 16 32 64 128 256 512; do
     if [ -f "assets/icons/${s}x${s}.png" ]; then
-        install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/io.github.tazihad.bengal-download-manager.png"
+        install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
         install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
     fi
 done
 if [ -f assets/logo.svg ]; then
-    install -Dm644 assets/logo.svg AppDir/usr/share/icons/hicolor/scalable/apps/io.github.tazihad.bengal-download-manager.svg
+    install -Dm644 assets/logo.svg AppDir/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg
     install -Dm644 assets/logo.svg AppDir/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg
 fi
-install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/io.github.tazihad.bengal-download-manager.desktop
-install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
-if [ -f flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml ]; then
-    install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml AppDir/usr/share/metainfo/io.github.tazihad.bengal-download-manager.metainfo.xml
-    install -Dm644 flatpak/io.github.tazihad.bengal-download-manager.metainfo.xml AppDir/usr/share/appdata/io.github.tazihad.bengal-download-manager.appdata.xml
+install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.desktop AppDir/usr/share/applications/bd.com.zihad.BengalDownloadManager.desktop
+install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
+if [ -f flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml ]; then
+    install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml AppDir/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml
+    install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml AppDir/usr/share/appdata/bd.com.zihad.BengalDownloadManager.appdata.xml
 fi
 
 echo "=== 3. Fetching linuxdeploy and appimage plugin ==="
@@ -91,8 +91,8 @@ OUTPUT="${OUTPUT_APPIMAGE}" \
 LDAI_OUTPUT="${OUTPUT_APPIMAGE}" \
 ./linuxdeploy.AppImage \
     --appdir AppDir \
-    --desktop-file flatpak/io.github.tazihad.bengal-download-manager.desktop \
-    --icon-file assets/io.github.tazihad.bengal-download-manager.png \
+    --desktop-file flatpak/bd.com.zihad.BengalDownloadManager.desktop \
+    --icon-file assets/bd.com.zihad.BengalDownloadManager.png \
     --output appimage
 
 # Ensure target files exist or move fallback generated files safely without failing set -e

@@ -26,7 +26,23 @@ runs:
         cd build_cmake
         cmake -DPython3_EXECUTABLE=$(which python) ..
         cmake --build .
-        # Rename binary for release
+        # Preserve binary for downstream packaging (AppImage, Flatpak)
+        cp dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-${ARCH}
+        mkdir -p ../dist
+        cp dist/bengal-download-manager ../dist/bengal-download-manager
+        cp dist/bengal-download-manager-${VERSION}-${ARCH} ../dist/bengal-download-manager-${VERSION}-${ARCH}
+
+        # Package portable tarball (.tar.xz)
         VERSION="${{ inputs.version }}"
         ARCH="${{ inputs.arch }}"
-        mv dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-${ARCH}
+        DIR_NAME="bengal-download-manager-${VERSION}-${ARCH}"
+        mkdir -p "dist/${DIR_NAME}"
+        cp dist/bengal-download-manager "dist/${DIR_NAME}/"
+        chmod 755 "dist/${DIR_NAME}/bengal-download-manager"
+        bash ../scripts/prepare_runtime_assets.sh "dist/${DIR_NAME}/assets" "${ARCH}"
+        cp ../README.md ../LICENSE "dist/${DIR_NAME}/" 2>/dev/null || true
+
+        cd dist
+        tar -cJf "bengal-download-manager-${VERSION}-${ARCH}.tar.xz" "${DIR_NAME}"
+        cp "bengal-download-manager-${VERSION}-${ARCH}.tar.xz" ../../dist/ 2>/dev/null || true
+        cd ..

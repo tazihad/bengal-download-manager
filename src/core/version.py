@@ -76,3 +76,8 @@ def _get_version():
     return "0.2.20"
 
 VERSION = _get_version()
+
+try:
+    from core.build_info import get_package_type, get_verified_source_info
+except ImportError:
+    pass

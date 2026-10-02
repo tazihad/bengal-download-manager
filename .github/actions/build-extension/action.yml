@@ -7,7 +7,9 @@ runs:
     - name: Build Extension Packages
       shell: bash
       run: |
+        EXT_VER=$(python3 -c "import json; print(json.load(open('extension/manifest.json'))['version'])")
+        echo "Building extension version: $EXT_VER"
         python scripts/pack_extension.py extension_build
-        cp extension_build/bengal-download-manager-extension.crx extension-chromium.crx
-        cp extension_build/bengal-download-manager-firefox.xpi extension-firefox.xpi
+        cp extension_build/bengal-download-manager-extension.crx "extension-chromium-${EXT_VER}.crx"
+        cp extension_build/bengal-download-manager-firefox.xpi "extension-firefox-${EXT_VER}.xpi"
         rm -rf extension_build

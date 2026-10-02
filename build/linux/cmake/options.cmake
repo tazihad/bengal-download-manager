@@ -25,10 +25,12 @@ endif()
 
 set(WORK_BUILD_DIR "${CMAKE_BINARY_DIR}/build_pyinstaller")
 set(SPEC_DIR "${CMAKE_BINARY_DIR}")
+set(RUNTIME_ASSETS_DIR "${CMAKE_BINARY_DIR}/runtime_assets")
 
 # Custom command that runs PyInstaller to build dist/bengal-download-manager
 add_custom_command(
     OUTPUT "${DIST_DIR}/${EXECUTABLE_NAME}"
+    COMMAND bash "${ROOT_DIR}/scripts/prepare_runtime_assets.sh" "${RUNTIME_ASSETS_DIR}" "${CMAKE_SYSTEM_PROCESSOR}"
     COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${ROOT_DIR}/src"
             ${Python3_EXECUTABLE} -m PyInstaller
             --name "${APP_NAME}"
@@ -36,14 +38,15 @@ add_custom_command(
             --paths "${ROOT_DIR}/src"
             --collect-all core
             --collect-all ui
-            --add-data "${ROOT_DIR}/assets${SEP}assets"
+            --collect-all python_socks
+            --add-data "${RUNTIME_ASSETS_DIR}${SEP}assets"
             --distpath "${DIST_DIR}"
             --workpath "${WORK_BUILD_DIR}"
             --specpath "${SPEC_DIR}"
             --noconfirm
             "${MAIN_SCRIPT}"
     DEPENDS "${MAIN_SCRIPT}"
-    COMMENT "Building standalone executable with PyInstaller (with PYTHONPATH=src)..."
+    COMMENT "Building standalone executable with PyInstaller (with clean runtime assets)..."
     WORKING_DIRECTORY "${ROOT_DIR}"
 )
 

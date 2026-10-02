@@ -17,17 +17,32 @@ def is_debug_mode() -> bool:
     return "--debug" in sys.argv or os.environ.get("DEBUG") == "1" or os.environ.get("BENGAL_DEBUG") == "1"
 
 
-def setup_logging(debug=False):
+def is_verbose_mode() -> bool:
+    """Returns True if verbose mode is active via CLI flag (--verbose) or environment variables."""
+    return (
+        "--verbose" in sys.argv
+        or os.environ.get("VERBOSE") == "1"
+        or os.environ.get("BENGAL_VERBOSE") == "1"
+        or os.environ.get("BENGAL_VERBOSE_IPC") == "1"
+    )
+
+
+def setup_logging(debug=False, verbose=False):
     """
     Configures application-wide logging levels and formatting.
     When debug=True (--debug flag), enables verbose DEBUG logs with file/line context.
+    When verbose=True (--verbose flag), enables full unrestricted diagnostic logs.
     """
     if debug:
         os.environ["BENGAL_DEBUG"] = "1"
         os.environ["DEBUG"] = "1"
+    if verbose:
+        os.environ["BENGAL_VERBOSE"] = "1"
+        os.environ["VERBOSE"] = "1"
 
-    log_level = logging.DEBUG if debug else logging.INFO
-    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if debug else "[%(asctime)s] [%(levelname)s] %(message)s"
+    active_debug = debug or verbose or is_debug_mode() or is_verbose_mode()
+    log_level = logging.DEBUG if active_debug else logging.INFO
+    log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s" if active_debug else "[%(asctime)s] [%(levelname)s] %(message)s"
     
     logging.basicConfig(
         level=log_level,
@@ -38,8 +53,10 @@ def setup_logging(debug=False):
     )
     logger = logging.getLogger("bengal")
     logger.setLevel(log_level)
-    if debug:
+    if active_debug:
         logger.debug("=== BENGAL DOWNLOAD MANAGER DEBUG LOGGING ENABLED ===")
+        if verbose or is_verbose_mode():
+            logger.debug("=== VERBOSE LOGGING ENABLED (UNRESTRICTED) ===")
         logger.debug("Python Version: %s", sys.version)
         logger.debug("Platform: %s", platform.platform())
         logger.debug("Process PID: %d", os.getpid())
@@ -62,6 +79,10 @@ def format_bytes(size: float, precision: int = 2) -> str:
     if idx == 0:
         return f"{int(s)} B"
     return f"{s:.{precision}f} {units[idx]}"
+
+
+# Re-export size and time parsing helpers from categories domain
+from core.categories import parse_size_to_bytes, parse_time_to_sec
 
 
 def get_process_memory() -> int:
@@ -969,7 +990,7 @@ def get_clean_env(extra_paths=None):
         *([] if _in_snap else ["LD_LIBRARY_PATH", "LD_LIBRARY_PATH_ORIG", "ORIG_LD_LIBRARY_PATH"]),
         "LD_PRELOAD", "LD_AUDIT",
         "DYLD_LIBRARY_PATH", "DYLD_LIBRARY_PATH_ORIG", "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
-        "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QML_IMPORT_PATH", "QML2_IMPORT_PATH",
+        "QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH",
         "PYTHONHOME", "PYTHONPATH", "PYTHONEXECUTABLE", "_MEIPASS2"
     ]
     for key in keys_to_clear:
@@ -1687,14 +1708,47 @@ def choose_portal_open_file_path(title="Select File", folder=""):
     return None
 
 
+LEGACY_AUTOSTART_FILENAMES = (
+    "bd.com.zihad.BengalDownloadManager.desktop",
+    "bengal-download-manager.desktop",
+    "io.github.tazihad.bengal-download-manager.desktop",
+)
+
+
 def get_autostart_filepath():
     autostart_dir = os.path.expanduser("~/.config/autostart")
-    return os.path.join(autostart_dir, "io.github.tazihad.bengal-download-manager.desktop")
+    filename = "bd.com.zihad.BengalDownloadManager.desktop"
+
+    # If running inside Snap, synchronize with the active snap.yaml declaration if present
+    snap_dir = os.environ.get("SNAP")
+    if snap_dir:
+        filename = f"{os.environ.get('SNAP_NAME', 'bengal-download-manager')}.desktop"
+        meta_yaml = os.path.join(snap_dir, "meta", "snap.yaml")
+        if os.path.exists(meta_yaml):
+            try:
+                with open(meta_yaml, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("autostart:"):
+                            val = line.split(":", 1)[1].strip()
+                            if val:
+                                filename = val
+                                break
+            except Exception:
+                pass
+
+    return os.path.join(autostart_dir, filename)
 
 
 def is_autostart_enabled():
     filepath = get_autostart_filepath()
-    return os.path.exists(filepath)
+    if os.path.exists(filepath):
+        return True
+    autostart_dir = os.path.dirname(filepath)
+    for legacy_name in LEGACY_AUTOSTART_FILENAMES:
+        if os.path.exists(os.path.join(autostart_dir, legacy_name)):
+            return True
+    return False
 
 
 def get_executable_command(start_minimized=False):
@@ -1707,7 +1761,7 @@ def get_executable_command(start_minimized=False):
 
     # 2. Check if running inside Flatpak
     if os.path.exists("/.flatpak-info") or os.environ.get("FLATPAK_ID"):
-        flatpak_id = os.environ.get("FLATPAK_ID", "io.github.tazihad.bengal-download-manager")
+        flatpak_id = os.environ.get("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
         return f'flatpak run {flatpak_id}{min_flag}'
 
     # 3. Check if running inside Snap
@@ -1726,37 +1780,67 @@ def get_executable_command(start_minimized=False):
 
 def set_autostart_enabled(enabled, start_minimized=False):
     filepath = get_autostart_filepath()
+    autostart_dir = os.path.dirname(filepath)
     if enabled:
         exec_cmd = get_executable_command(start_minimized)
+        wmclass = "bd.com.zihad.BengalDownloadManager"
+        icon_val = "bd.com.zihad.BengalDownloadManager"
+        if os.environ.get("SNAP"):
+            snap_instance = os.environ.get("SNAP_INSTANCE_NAME") or os.environ.get("SNAP_NAME", "bengal-download-manager")
+            snap_app = os.environ.get("SNAP_APP_NAME", "bengal-download-manager")
+            wmclass = f"{snap_instance}_{snap_app}"
+            icon_val = f"/snap/{snap_instance}/current/meta/gui/icon.png"
+
         desktop_content = f"""[Desktop Entry]
 Type=Application
 Name=Bengal Download Manager
 Comment=High-performance multi-threaded download manager
 Exec={exec_cmd}
-Icon=io.github.tazihad.bengal-download-manager
+Icon={icon_val}
 Terminal=false
-StartupWMClass=io.github.tazihad.bengal-download-manager
+StartupWMClass={wmclass}
 Categories=Network;FileTransfer;
 X-GNOME-Autostart-enabled=true
 """
         try:
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            os.makedirs(autostart_dir, exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(desktop_content)
             os.chmod(filepath, 0o755)
+
+            # Clean up any legacy or duplicate autostart desktop entries in this directory
+            # (In snap environments, unmatched .desktop files cause snap-userd to abort startup)
+            active_name = os.path.basename(filepath)
+            for legacy_name in LEGACY_AUTOSTART_FILENAMES:
+                if legacy_name != active_name:
+                    legacy_path = os.path.join(autostart_dir, legacy_name)
+                    if os.path.exists(legacy_path):
+                        try:
+                            os.remove(legacy_path)
+                        except Exception:
+                            pass
             return True
         except Exception as e:
             print(f"Failed to write autostart file: {e}")
             return False
     else:
+        # Remove target autostart file and any legacy autostart entries
+        success = True
+        for name in LEGACY_AUTOSTART_FILENAMES:
+            target = os.path.join(autostart_dir, name)
+            if os.path.exists(target):
+                try:
+                    os.remove(target)
+                except Exception as e:
+                    print(f"Failed to remove autostart file {target}: {e}")
+                    success = False
         if os.path.exists(filepath):
             try:
                 os.remove(filepath)
-                return True
             except Exception as e:
-                print(f"Failed to remove autostart file: {e}")
-                return False
-        return True
+                print(f"Failed to remove autostart file {filepath}: {e}")
+                success = False
+        return success
 
 
 POPULAR_MEDIA_DOMAINS = {
@@ -1933,8 +2017,8 @@ def sanitize_media_url(data: str) -> str:
             if "v" in qs or "shorts" in parsed.path:
                 if "list" in qs:
                     lists = qs["list"]
-                    # RD = YouTube Radio/Mix, UL = User Uploads Mix, PU = Popular Uploads Mix, WL = Watch Later
-                    if any(l.startswith("RD") or l.startswith("UL") or l.startswith("PU") or l == "WL" for l in lists):
+                    # WL = Watch Later (private / auth-only)
+                    if any(l == "WL" for l in lists):
                         del qs["list"]
                 qs.pop("start_radio", None)
                 qs.pop("pp", None)
@@ -1958,6 +2042,90 @@ def sanitize_media_url(data: str) -> str:
     except Exception:
         pass
     return raw_url
+
+
+def is_playlist_url(data: str) -> bool:
+    """Checks whether the URL contains a valid playlist identifier."""
+    if not data or not isinstance(data, str):
+        return False
+    from urllib.parse import urlparse, parse_qs
+    try:
+        parsed = urlparse(data.strip())
+        qs = parse_qs(parsed.query)
+        if "list" in qs and qs["list"]:
+            lists = qs["list"]
+            # Exclude special user-private lists that cannot be downloaded without cookies (WL = Watch Later)
+            if any(l == "WL" for l in lists):
+                return False
+            return True
+        if "/playlist" in parsed.path:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def is_mixed_media_url(data: str) -> bool:
+    """Checks whether the URL contains BOTH a video identifier and a playlist identifier."""
+    if not data or not isinstance(data, str):
+        return False
+    from urllib.parse import urlparse, parse_qs
+    try:
+        parsed = urlparse(data.strip())
+        domain = parsed.netloc.lower()
+        if "youtube.com" in domain or "youtu.be" in domain:
+            qs = parse_qs(parsed.query)
+            has_video = bool("v" in qs or "/watch" in parsed.path or "/shorts/" in parsed.path or "youtu.be" in domain)
+            has_playlist = bool("list" in qs and qs["list"])
+            if has_playlist:
+                lists = qs["list"]
+                if any(l == "WL" for l in lists):
+                    return False
+            return has_video and has_playlist
+    except Exception:
+        pass
+    return False
+
+
+def strip_playlist_from_url(data: str) -> str:
+    """Strips playlist parameters from a mixed URL, returning the pure single video URL."""
+    if not data or not isinstance(data, str):
+        return ""
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    try:
+        parsed = urlparse(data.strip())
+        qs = parse_qs(parsed.query, keep_blank_values=True)
+        qs.pop("list", None)
+        qs.pop("index", None)
+        clean_query = urlencode(qs, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, clean_query, parsed.fragment))
+    except Exception:
+        return data
+
+
+def extract_playlist_id(data: str) -> str:
+    """Extracts the playlist ID string from a playlist URL."""
+    if not data or not isinstance(data, str):
+        return ""
+    from urllib.parse import urlparse, parse_qs
+    try:
+        parsed = urlparse(data.strip())
+        qs = parse_qs(parsed.query)
+        if "list" in qs and qs["list"]:
+            return qs["list"][0]
+    except Exception:
+        pass
+    return ""
+
+
+def extract_playlist_from_url(data: str) -> str:
+    """Returns the canonical playlist URL from a mixed or playlist URL."""
+    pl_id = extract_playlist_id(data)
+    if pl_id:
+        if pl_id.startswith("RD"):
+            return data
+        return f"https://www.youtube.com/playlist?list={pl_id}"
+    return data
 
 
 def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) -> str:
@@ -1990,9 +2158,44 @@ def sanitize_media_filename(title: str, ext: str = ".mp4", max_len: int = 90) ->
                 clean_base = "media"
                 break
 
-    if not ext.startswith("."):
+    if clean_base.lower().endswith(".auto"):
+        clean_base = clean_base[:-5].rstrip("_ ").strip() or "media"
+    elif clean_base.lower().endswith(".best"):
+        clean_base = clean_base[:-5].rstrip("_ ").strip() or "media"
+
+    clean_ext = (ext or "").lower().strip()
+    if not clean_ext or clean_ext in (".auto", ".best", "auto", "best"):
+        ext = ".mp4"
+    elif not ext.startswith("."):
         ext = f".{ext}"
     return f"{clean_base}{ext}"
+
+
+def sanitize_media_folder_name(name: str, max_len: int = 90) -> str:
+    """
+    Sanitize folder/directory name (such as playlist titles) to avoid filesystem errors
+    and ensure directory names never have media file extensions appended (e.g. '.mp4').
+    """
+    if not name:
+        name = "Playlist"
+    clean_base = re.sub(r'[\\/*?:"<>|]', "_", str(name)).strip()
+    clean_base = clean_base.strip(". ")
+    if not clean_base:
+        clean_base = "Playlist"
+
+    while len(clean_base.encode("utf-8")) > max_len:
+        clean_base = clean_base.encode("utf-8")[:max_len].decode("utf-8", errors="ignore").rstrip("_ .").strip()
+        if not clean_base:
+            clean_base = "Playlist"
+            break
+
+    known_exts = (".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".mp3", ".m4a", ".opus", ".flac", ".wav", ".auto", ".best")
+    for _ext in known_exts:
+        if clean_base.lower().endswith(_ext):
+            clean_base = clean_base[:-len(_ext)].rstrip("_ .").strip() or "Playlist"
+            break
+
+    return clean_base
 
 
 def get_unique_media_filepath(save_dir: str, filename: str) -> str:
@@ -2002,7 +2205,13 @@ def get_unique_media_filepath(save_dir: str, filename: str) -> str:
     yt-dlp from skipping downloads when re-downloading different qualities of the same media.
     """
     base_name, ext = os.path.splitext(filename)
-    if not ext:
+    if base_name.lower().endswith(".auto"):
+        base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+    elif base_name.lower().endswith(".best"):
+        base_name = base_name[:-5].rstrip("_ ").strip() or "media"
+
+    clean_ext = (ext or "").lower().strip()
+    if not clean_ext or clean_ext in (".auto", ".best", "auto", "best"):
         ext = ".mp4"
 
     media_exts = [ext, ".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".flv", ".avi"]
@@ -2121,6 +2330,48 @@ def determine_next_release_tag(
 
     version = tag[1:] if tag.startswith("v") else tag
     return tag, version
+
+
+def wrap_url_tooltip(url: str, max_line_len: int = 80) -> str:
+    """
+    Wraps long URLs for display in tooltips so they do not exceed screen width.
+    Breaks preferentially after natural URL delimiters (&, ?, /, =, ;) when
+    approaching max_line_len, or hard breaks at max_line_len if no delimiter exists.
+    """
+    if not url:
+        return ""
+    if len(url) <= max_line_len:
+        return url
+
+    delimiters = {'?', '&', '/', '=', ';', '#'}
+    lines = []
+    current_line = []
+    current_len = 0
+    min_break_len = max(40, max_line_len - 25)
+
+    for i, c in enumerate(url):
+        current_line.append(c)
+        current_len += 1
+
+        if c in delimiters and current_len >= min_break_len:
+            # Avoid breaking inside the protocol scheme (e.g. http://)
+            if c == '/' and i >= 1 and url[i - 1] == '/' and i >= 2 and url[i - 2] == ':':
+                continue
+            if c == '/' and i + 1 < len(url) and url[i + 1] == '/':
+                continue
+            lines.append("".join(current_line))
+            current_line = []
+            current_len = 0
+        elif current_len >= max_line_len:
+            lines.append("".join(current_line))
+            current_line = []
+            current_len = 0
+
+    if current_line:
+        lines.append("".join(current_line))
+
+    return "\n".join(lines)
+
 
 
 

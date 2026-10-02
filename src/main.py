@@ -24,10 +24,16 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     if sys._MEIPASS not in sys.path:
         sys.path.insert(0, sys._MEIPASS)
 
+# Prevent host GIO modules from loading against bundled GLib in frozen/AppImage environments
+# (prevents libgvfs / symbol mismatch undefined symbol: g_variant_builder_init_static and subsequent segfaults)
+if getattr(sys, 'frozen', False) or os.environ.get("APPIMAGE") or os.environ.get("APPDIR"):
+    os.environ["GIO_MODULE_DIR"] = "/dev/null"
+    os.environ.pop("GIO_EXTRA_MODULES", None)
+
 from PyQt6.QtWidgets import QApplication, QStyle
 from PyQt6.QtCore import Qt, QTimer, qInstallMessageHandler, QtMsgType
 
-from core.utils import setup_logging, get_config_dir, is_debug_mode
+from core.utils import setup_logging, get_config_dir, is_debug_mode, is_verbose_mode
 from core.services.ipc_service import (
     DM_CONNECTOR_PORT,
     SignalEmitter,
@@ -46,6 +52,7 @@ from core.services.theme_service import (
     CATEGORY_EXTENSIONS,
     FREEDESKTOP_MAP,
     apply_app_theme,
+    apply_titlebar_theme,
     detect_accent,
     ensure_adaptive_icon_theme,
     format_timestamp_relative,
@@ -61,6 +68,7 @@ from core.services.theme_service import (
     normalize_accent_name,
     normalize_icon_theme_name,
     normalize_theme_name,
+    normalize_titlebar_name,
     normalize_tray_icon_name,
     parse_size_to_bytes,
     parse_time_to_sec,
@@ -105,8 +113,9 @@ def main():
         pass
 
     is_debug = is_debug_mode()
-    logger = setup_logging(debug=is_debug)
-    if is_debug:
+    is_verbose = is_verbose_mode()
+    logger = setup_logging(debug=is_debug, verbose=is_verbose)
+    if is_debug or is_verbose:
         logger.debug("Command-line arguments: %s", sys.argv)
 
     def exception_hook(exc_type, exc_value, exc_tb):
@@ -132,9 +141,20 @@ def main():
         # Ignore benign development-mode portal registration warning when running unpackaged
         if "Failed to register with host portal" in message and "App info not found" in message:
             return
-        if is_debug or mode in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
-            ctx_str = f" [{context.file}:{context.line}]" if context and context.file else ""
+        # Ignore benign HarfBuzz font shaping OpenType missing script coverage notices
+        if "OpenType support missing for" in message:
+            return
+
+        ctx_str = f" [{context.file}:{context.line}]" if context and context.file else ""
+        if mode in (QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
+            logger.critical("[QT %s]%s %s", level, ctx_str, message)
+        elif mode == QtMsgType.QtWarningMsg:
             logger.warning("[QT %s]%s %s", level, ctx_str, message)
+        elif is_debug:
+            if mode == QtMsgType.QtInfoMsg:
+                logger.info("[QT %s]%s %s", level, ctx_str, message)
+            else:
+                logger.debug("[QT %s]%s %s", level, ctx_str, message)
 
     sys.excepthook = exception_hook
     if hasattr(threading, "excepthook"):
@@ -148,11 +168,13 @@ def main():
         except Exception:
             pass
 
+    from core.desktop import get_desktop_file_name
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
-    app.setDesktopFileName("io.github.tazihad.bengal-download-manager")
+    app.setDesktopFileName(get_desktop_file_name())
     app.setQuitOnLastWindowClosed(False)
 
     if sys.platform == "win32" or platform.system() == "Windows":
@@ -173,10 +195,11 @@ def main():
             print("Bengal Download Manager is already running. Primary instance brought to focus.")
             sys.exit(0)
 
-    saved_theme = "BDM Dark (Default)"
+    saved_theme = "BDM Auto (Default)"
     saved_accent = "BDM (Default)"
     saved_icon_theme = "BDM Auto (Default)"
     saved_tray_icon = "App Icon (Default)"
+    saved_title_bar = "Automatic"
     saved_language = "system"
     try:
         if os.path.exists(cfg_path):
@@ -186,11 +209,12 @@ def main():
                 saved_accent = normalize_accent_name(s_data.get("accent"))
                 saved_icon_theme = normalize_icon_theme_name(s_data.get("icon_theme"))
                 saved_tray_icon = normalize_tray_icon_name(s_data.get("tray_icon"))
+                saved_title_bar = normalize_titlebar_name(s_data.get("title_bar"))
                 saved_language = s_data.get("language", "system")
     except Exception:
         pass
 
-    apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app)
+    apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app=app, title_bar_mode=saved_title_bar)
     from core.services.language_service import apply_language
     apply_language(app, saved_language)
     app.setFont(init_app_font())
@@ -200,9 +224,15 @@ def main():
     if app_icon.isNull():
         app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
     app.setWindowIcon(app_icon)
-    
+
+    # Warm up build info and release verification asynchronously
+    try:
+        from core.build_info import warmup_build_info_async
+        warmup_build_info_async()
+    except Exception:
+        pass
+
     window = MainWindow()
-    use_qml = "--qml" in sys.argv or "--kirigami" in sys.argv or os.environ.get("USE_KIRIGAMI") == "1"
 
     # Start single instance server on primary instance if enabled
     if "--no-single-instance" not in sys.argv:
@@ -212,16 +242,6 @@ def main():
             args = payload.get("args", [])
             if "--minimized" not in args:
                 window.restore_window()
-                if use_qml and 'qml_engine' in locals() and qml_engine.rootObjects():
-                    for root in qml_engine.rootObjects():
-                        if hasattr(root, "show"):
-                            root.show()
-                        if hasattr(root, "showNormal"):
-                            root.showNormal()
-                        if hasattr(root, "raise_"):
-                            root.raise_()
-                        if hasattr(root, "requestActivate"):
-                            root.requestActivate()
             for arg in args:
                 if isinstance(arg, str) and (arg.startswith("http://") or arg.startswith("https://")):
                     window.process_incoming_url(arg)
@@ -231,27 +251,11 @@ def main():
         window.single_instance_server = single_instance_server
 
     # --- GRACEFUL EXIT & SHUTDOWN HANDLING ---
+    from core.shutdown import perform_application_shutdown
+
     def perform_cleanup():
         """Ensure all background threads, servers, and aria2 daemon are cleanly terminated."""
-        try:
-            if hasattr(window, "listener_thread") and window.listener_thread:
-                window.listener_thread.stop(timeout_ms=1500)
-                window.listener_thread = None
-        except Exception:
-            pass
-
-        try:
-            if hasattr(window, "single_instance_server") and window.single_instance_server:
-                window.single_instance_server.stop()
-                window.single_instance_server = None
-        except Exception:
-            pass
-
-        try:
-            if hasattr(window, "stop_aria2_daemon"):
-                window.stop_aria2_daemon()
-        except Exception:
-            pass
+        perform_application_shutdown(window)
 
     app.aboutToQuit.connect(perform_cleanup)
     atexit.register(perform_cleanup)
@@ -282,28 +286,6 @@ def main():
         QTimer.singleShot(0, window.update_tray_action)
     else:
         window.start_minimized = False
-
-    if use_qml:
-        try:
-            from PyQt6.QtQml import QQmlApplicationEngine
-            from PyQt6.QtCore import QUrl
-            from core.bridge import DownloadBridge
-
-            qml_engine = QQmlApplicationEngine()
-            qml_engine.addImportPath("/usr/lib/x86_64-linux-gnu/qt6/qml")
-            bridge = DownloadBridge(main_window=window, store=getattr(window, "download_store", None))
-            window.bridge = bridge
-            qml_engine.rootContext().setContextProperty("downloadBridge", bridge)
-
-            qml_file = os.path.join(os.path.dirname(__file__), "ui", "qml", "Main.qml")
-            qml_engine.load(QUrl.fromLocalFile(qml_file))
-
-            if qml_engine.rootObjects():
-                sys.exit(app.exec())
-            else:
-                print("Failed to initialize QML root object. Falling back to native UI.")
-        except Exception as e:
-            print(f"Kirigami QML initialization skipped ({e}). Falling back to native UI.")
 
     if not getattr(window, "start_minimized", False):
         window.show()

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
 )
 
 class DeleteDialog(QDialog):
-    def __init__(self, count, is_completed=False, parent=None):
+    def __init__(self, count, is_completed=False, parent=None, default_delete_disk=None):
         super().__init__(parent)
         self.setWindowTitle("Delete Completed Downloads" if is_completed else "Delete")
         self.setWindowIcon(QApplication.windowIcon())
@@ -20,7 +20,19 @@ class DeleteDialog(QDialog):
         
         # Checkbox for Disk Deletion
         self.chk_delete_disk = QCheckBox("Also delete files from disk (permanently)")
-        self.chk_delete_disk.setChecked(False) # Default to false for safety
+        if default_delete_disk is None:
+            if parent and hasattr(parent, "settings") and isinstance(parent.settings, dict):
+                default_delete_disk = parent.settings.get("precheck_delete_files_from_disk", False)
+            elif parent and hasattr(parent, "precheck_delete_files_from_disk"):
+                default_delete_disk = getattr(parent, "precheck_delete_files_from_disk", False)
+            else:
+                try:
+                    from core.config import load_category_config
+                    cfg = load_category_config()
+                    default_delete_disk = cfg.get("precheck_delete_files_from_disk", False)
+                except Exception:
+                    default_delete_disk = False
+        self.chk_delete_disk.setChecked(bool(default_delete_disk))
         layout.addWidget(self.chk_delete_disk)
         
         layout.addSpacing(5)

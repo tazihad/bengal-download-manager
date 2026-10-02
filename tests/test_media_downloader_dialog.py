@@ -1,0 +1,361 @@
+"""
+Unit tests for MediaDownloaderDialog and playlist mode improvements.
+Verifies scrollability, Advanced Mode toggling, Auto wording, queue selection,
+progress/complete dialog suppression flags, and unified scope selector.
+"""
+
+import pytest
+from PyQt6.QtWidgets import QScrollArea, QSizePolicy
+from PyQt6.QtCore import Qt
+
+
+def test_media_downloader_dialog_ui_elements(qapp):
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    # 1. Scroll area wraps stack and is resizable
+    assert hasattr(dlg, "scroll_area")
+    assert isinstance(dlg.scroll_area, QScrollArea)
+    assert dlg.scroll_area.widgetResizable() is True
+    assert dlg.scroll_area.widget() == dlg.stack
+
+    # Switch to single video page to inspect widgets
+    dlg.stack.setCurrentWidget(dlg.page_video)
+    qapp.processEvents()
+
+    # 2. Advanced Mode checkbox and table hidden by default
+    assert dlg.chk_manual_selection.text() == "Advanced Mode"
+    assert not dlg.chk_manual_selection.isChecked()
+    assert not dlg.tbl_formats.isVisible()
+    assert not dlg.lbl_streams.isVisible()
+    assert dlg.video_bottom_spacer.isVisible()
+
+    # Toggling Advanced Mode displays format table and streams label
+    dlg.chk_manual_selection.setChecked(True)
+    qapp.processEvents()
+    assert dlg.tbl_formats.isVisible()
+    assert dlg.lbl_streams.isVisible()
+    assert not dlg.video_bottom_spacer.isVisible()
+
+    dlg.chk_manual_selection.setChecked(False)
+    qapp.processEvents()
+    assert not dlg.tbl_formats.isVisible()
+    assert not dlg.lbl_streams.isVisible()
+    assert dlg.video_bottom_spacer.isVisible()
+
+    # 3. Quality preset wording and Remember selection
+    assert dlg.cmb_quality_preset.itemText(0) == "Auto (Best Quality)"
+    assert dlg.chk_save_defaults.text() == "Remember selection"
+
+    # Auto wording in FPS, Video format, Audio format combo boxes
+    assert "Auto" in dlg.cmb_fps.itemText(0)
+    assert "Auto" in dlg.cmb_video_format.itemText(0)
+    assert "Auto" in dlg.cmb_audio_format.itemText(0)
+
+    # Scrollbar visibility: horizontal scrollbar off, vertical scrollbar hidden when not needed
+    assert dlg.scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert not dlg.scroll_area.verticalScrollBar().isVisible()
+
+    # 4. Status label is hidden on completion / initial state
+    dlg._finish_loading()
+    assert not dlg.lbl_status.isVisible()
+    assert dlg.lbl_status.text() == ""
+
+    # Switch to playlist page
+    dlg.stack.setCurrentWidget(dlg.page_playlist)
+    qapp.processEvents()
+
+    # 5. Playlist options: Auto audio format and Auto video container at top (index 0)
+    assert dlg.cmb_playlist_audio_format.currentIndex() == 0
+    assert dlg.cmb_playlist_audio_format.itemData(0) == "best"
+    assert "Auto" in dlg.cmb_playlist_audio_format.itemText(0)
+
+    assert dlg.cmb_playlist_video_container.currentIndex() == 0
+    assert dlg.cmb_playlist_video_container.itemData(0) == "auto"
+    assert "Auto" in dlg.cmb_playlist_video_container.itemText(0)
+
+    # 6. Playlist queue combo exists and defaults to "Main download queue"
+    assert hasattr(dlg, "cmb_playlist_queue")
+    assert dlg.cmb_playlist_queue.currentText() == "Main download queue"
+
+    # 7. Playlist table vertical header is hidden, has 4 columns (Type column removed)
+    assert not dlg.tbl_playlist.verticalHeader().isVisible()
+    assert dlg.tbl_playlist.minimumHeight() >= 160
+    assert dlg.tbl_playlist.columnCount() == 4
+    headers = [dlg.tbl_playlist.horizontalHeaderItem(i).text() for i in range(dlg.tbl_playlist.columnCount())]
+    assert headers == ["Select", "#", "Title", "Duration"]
+    assert "Type" not in headers
+
+    dlg.close()
+
+
+def test_scope_radio_buttons_behavior(qapp):
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    # Both radio buttons are permanently part of UI with concise wording
+    assert hasattr(dlg, "rad_single_video")
+    assert hasattr(dlg, "rad_whole_playlist")
+    assert dlg.rad_single_video.text() == "Single"
+    assert dlg.rad_whole_playlist.text() == "Playlist"
+
+    # Initial state (empty URL): single video checked, playlist disabled
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert not dlg.rad_whole_playlist.isEnabled()
+
+    # Single video URL (no playlist)
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert not dlg.rad_whole_playlist.isEnabled()
+
+    # Playlist URL with video (mixed): defaults to single video while enabling playlist option
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=T4tedh_11hg&list=PLQnZ5f76fyck3278_RFN9RDRvMObdWFbv&index=2")
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert dlg.rad_whole_playlist.isEnabled()
+    assert not dlg.rad_whole_playlist.isChecked()
+
+    # User can switch to playlist
+    dlg.rad_whole_playlist.setChecked(True)
+    qapp.processEvents()
+    assert dlg.rad_whole_playlist.isChecked()
+
+    # Pure playlist URL
+    dlg.txt_url.setText("https://www.youtube.com/playlist?list=PL9bw4S5ePsEGgHMPYsEJQJaKOs9RBKDxs")
+    qapp.processEvents()
+    assert dlg.rad_whole_playlist.isEnabled()
+    assert dlg.rad_whole_playlist.isChecked()
+    assert not dlg.rad_single_video.isEnabled()
+
+    # YouTube Mix (RD) URL: defaults to single video while enabling playlist option
+    mix_url = "https://www.youtube.com/watch?v=6VgBHZJggkA&list=RDGMEMPipJmhsMq3GHGrfqf4WIqA&start_radio=1&rv=QPSAjqjylTc"
+    from core.utils import sanitize_media_url
+    clean_mix = sanitize_media_url(mix_url)
+    assert "list=RDGMEMPipJmhsMq3GHGrfqf4WIqA" in clean_mix
+
+    dlg.txt_url.setText(clean_mix)
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert dlg.rad_single_video.isEnabled()
+    assert dlg.rad_whole_playlist.isEnabled()
+    assert not dlg.rad_whole_playlist.isChecked()
+
+    # User can switch to playlist for Mix URL
+    dlg.rad_whole_playlist.setChecked(True)
+    qapp.processEvents()
+    assert dlg.rad_whole_playlist.isChecked()
+    assert dlg.rad_whole_playlist.isEnabled()
+
+    # Back to single video URL: playlist becomes disabled again
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
+    qapp.processEvents()
+    assert dlg.rad_single_video.isChecked()
+    assert not dlg.rad_whole_playlist.isEnabled()
+
+    dlg.close()
+
+
+def test_playlist_enqueue_parameters(qapp, monkeypatch):
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    captured_calls = []
+
+    class DummyMainWindow:
+        def start_media_download(self, **kwargs):
+            captured_calls.append(kwargs)
+
+        def show(self):
+            pass
+
+        def raise_(self):
+            pass
+
+        def activateWindow(self):
+            pass
+
+        def get_default_download_directory(self, category):
+            return "/tmp"
+
+    dummy_mw = DummyMainWindow()
+    dlg._main_window = dummy_mw
+
+    # Switch to playlist page and set mock playlist data
+    dlg.stack.setCurrentWidget(dlg.page_playlist)
+    dlg._current_playlist_data = {
+        "title": "Test Playlist",
+        "entries": [
+            {"id": "abc123", "title": "Track 1", "url": "https://example.com/1", "duration": 180},
+            {"id": "def456", "title": "Track 2", "url": "https://example.com/2", "duration": 200},
+        ]
+    }
+    dlg._on_playlist_ready(dlg._current_playlist_data)
+    qapp.processEvents()
+
+    assert dlg.tbl_playlist.rowCount() == 2
+
+    # Click download
+    dlg._on_download_clicked()
+
+    assert len(captured_calls) == 2
+    for call in captured_calls:
+        assert call.get("queue_name") == "Main download queue"
+        assert call.get("show_progress_dialog") is False
+        custom_save_dir = call.get("custom_save_dir")
+        assert custom_save_dir is not None
+        assert not custom_save_dir.endswith(".mp4"), f"Playlist folder should not end with .mp4: {custom_save_dir}"
+        assert custom_save_dir.endswith("Test Playlist")
+    dlg.close()
+
+
+def test_single_video_auto_extension_resolution(qapp, monkeypatch):
+    """
+    Verifies that when downloading a single video with all options set to Auto,
+    the filename ends in '.mp4' (never '.auto' or '.best').
+    Also verifies that playlist folders never end in '.mp4'.
+    """
+    from ui.dialogs.media_downloader import MediaDownloaderDialog
+    from core.utils import sanitize_media_filename, sanitize_media_folder_name, get_unique_media_filepath
+
+    # 1. Direct utils verification
+    assert sanitize_media_folder_name("My Test Playlist") == "My Test Playlist"
+    assert sanitize_media_folder_name("My Test Playlist.mp4") == "My Test Playlist"
+    assert sanitize_media_folder_name("Rock / Metal Classics: Best of 80s") == "Rock _ Metal Classics_ Best of 80s"
+    assert sanitize_media_filename("My Test Video", ext=".auto") == "My Test Video.mp4"
+    assert sanitize_media_filename("My Test Video.auto", ext="") == "My Test Video.mp4"
+    assert sanitize_media_filename("My Test Video", ext="auto") == "My Test Video.mp4"
+    assert sanitize_media_filename("My Test Video", ext=".best") == "My Test Video.mp4"
+    assert get_unique_media_filepath("/tmp", "My Test Video.auto").endswith("My Test Video.mp4")
+
+    # 2. MediaDownloaderDialog verification with all Auto settings
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    captured_calls = []
+
+    class DummyMainWindow:
+        def start_media_download(self, **kwargs):
+            captured_calls.append(kwargs)
+
+        def show(self):
+            pass
+
+        def raise_(self):
+            pass
+
+        def activateWindow(self):
+            pass
+
+    dlg._main_window = DummyMainWindow()
+    dlg.close = lambda: None
+
+    # Setup single video data with auto format
+    dlg.stack.setCurrentWidget(dlg.page_video)
+    dlg._current_video_data = {
+        "id": "r2ecLFsdbzI",
+        "title": "Bengali Test Video",
+        "webpage_url": "https://www.youtube.com/watch?v=r2ecLFsdbzI",
+        "formats": [
+            {"format_id": "137", "ext": "mp4", "height": 1080, "is_video": True, "vcodec": "avc1.640028"},
+            {"format_id": "140", "ext": "m4a", "is_audio": True, "acodec": "mp4a.40.2"},
+        ]
+    }
+    # Quality preset is 0 ("Auto / Best"), video format is "auto", audio format is "auto"
+    dlg.cmb_quality_preset.setCurrentIndex(0)
+    dlg.cmb_video_format.setCurrentIndex(0)
+    dlg.cmb_audio_format.setCurrentIndex(0)
+    qapp.processEvents()
+
+    dlg._on_download_clicked()
+
+    assert len(captured_calls) == 1
+    call_args = captured_calls[0]
+    filename = call_args.get("filename")
+    assert filename is not None
+    assert not filename.endswith(".auto"), f"Filename should not end with .auto: {filename}"
+    assert not filename.endswith(".best"), f"Filename should not end with .best: {filename}"
+    assert filename.endswith(".mp4"), f"Filename should end with .mp4: {filename}"
+
+    # 3. Audio-only with Auto format (via preset or radio button)
+    captured_calls.clear()
+    dlg.rad_single_type_audio.setChecked(True)
+    qapp.processEvents()
+    dlg._on_download_clicked()
+    assert len(captured_calls) == 1
+    audio_fn = captured_calls[0].get("filename")
+    assert audio_fn is not None
+    assert not audio_fn.endswith(".auto"), f"Audio filename should not end with .auto: {audio_fn}"
+    assert not audio_fn.endswith(".best"), f"Audio filename should not end with .best: {audio_fn}"
+    assert audio_fn.endswith(".mp3") or audio_fn.endswith(".opus"), f"Audio filename should have audio ext: {audio_fn}"
+    assert captured_calls[0].get("queue_name") == "Main download queue"
+
+    dlg.close()
+
+
+def test_single_video_type_switching_and_dropup_queue(qapp):
+    """
+    Verifies:
+    1. Single video page has dedicated Video and Audio radio buttons.
+    2. Toggling Video shows video options and hides audio options.
+    3. Toggling Audio shows audio options and hides video options.
+    4. Queue selector is a DropUpComboBox in bottom toolbar, used for both single and playlist downloads.
+    """
+    from ui.dialogs.media_downloader import MediaDownloaderDialog, DropUpComboBox
+
+    dlg = MediaDownloaderDialog()
+    dlg.show()
+    qapp.processEvents()
+
+    # 1. DropUpComboBox in bottom-left toolbar
+    assert hasattr(dlg, "cmb_playlist_queue")
+    assert isinstance(dlg.cmb_playlist_queue, DropUpComboBox)
+    assert dlg.cmb_queue == dlg.cmb_playlist_queue
+
+    # 2. Switch to single video page
+    dlg.stack.setCurrentWidget(dlg.page_video)
+    qapp.processEvents()
+
+    assert hasattr(dlg, "rad_single_type_video")
+    assert hasattr(dlg, "rad_single_type_audio")
+    assert dlg.rad_single_type_video.isChecked()
+    assert not dlg.rad_single_type_audio.isChecked()
+    assert dlg.single_video_options_frame.isVisible()
+    assert not dlg.single_audio_options_frame.isVisible()
+    assert dlg.btn_download.text() == "Download"
+
+    # 3. Switch to Audio type
+    dlg.rad_single_type_audio.setChecked(True)
+    qapp.processEvents()
+
+    assert not dlg.rad_single_type_video.isChecked()
+    assert dlg.rad_single_type_audio.isChecked()
+    assert not dlg.single_video_options_frame.isVisible()
+    assert dlg.single_audio_options_frame.isVisible()
+    assert dlg.btn_download.text() == "Download Audio"
+
+    # 4. Switch back to Video type
+    dlg.rad_single_type_video.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.rad_single_type_video.isChecked()
+    assert not dlg.rad_single_type_audio.isChecked()
+    assert dlg.single_video_options_frame.isVisible()
+    assert not dlg.single_audio_options_frame.isVisible()
+    assert dlg.btn_download.text() == "Download"
+
+    dlg.close()
+

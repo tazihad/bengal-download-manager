@@ -60,3 +60,38 @@ def get_autostart_filepath() -> str:
     """Returns the path to the user's autostart .desktop entry."""
     from core.utils import get_autostart_filepath as _utils_get_autostart
     return _utils_get_autostart()
+
+
+def get_desktop_file_name() -> str:
+    """
+    Resolves the canonical desktop file name matching the environment.
+    - Snap: snapd namespaces desktop entries as ${SNAP_INSTANCE_NAME}_${SNAP_APP_NAME}.desktop.
+    - Flatpak: uses FLATPAK_ID (bd.com.zihad.BengalDownloadManager).
+    - Host/Unpackaged: discovers installed desktop entries in XDG_DATA_DIRS
+      or defaults to 'bd.com.zihad.BengalDownloadManager'.
+    """
+    if os.environ.get("SNAP"):
+        snap_instance = os.environ.get("SNAP_INSTANCE_NAME") or os.environ.get("SNAP_NAME", "bengal-download-manager")
+        snap_app = os.environ.get("SNAP_APP_NAME", "bengal-download-manager")
+        return f"{snap_instance}_{snap_app}"
+
+    if os.environ.get("FLATPAK_ID"):
+        return os.environ.get("FLATPAK_ID")
+
+    # If running unpackaged on host, check if an existing desktop entry is installed
+    candidate_ids = [
+        "bd.com.zihad.BengalDownloadManager",
+        "bengal-download-manager",
+        "bengal-download-manager_bengal-download-manager",
+    ]
+    raw_dirs = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
+    search_dirs = [os.path.expanduser("~/.local/share/applications")] + [
+        os.path.join(d, "applications") for d in raw_dirs.split(":") if d
+    ]
+    for cid in candidate_ids:
+        for sdir in search_dirs:
+            if os.path.exists(os.path.join(sdir, f"{cid}.desktop")):
+                return cid
+
+    return "bd.com.zihad.BengalDownloadManager"
+

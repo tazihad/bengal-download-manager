@@ -12,12 +12,13 @@ import logging
 import threading
 import time
 import getpass
+import socketserver
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
-from core.utils import load_extension_config, is_debug_mode
+from core.utils import load_extension_config, is_debug_mode, is_verbose_mode
 
 logger = logging.getLogger("bengal.ipc")
 
@@ -47,6 +48,12 @@ IPCEmitter = SignalEmitter
 class IPCRequestHandler(BaseHTTPRequestHandler):
     """Handles HTTP API requests from browser extension (GET config, POST new download)."""
 
+    _heartbeat_lock = threading.Lock()
+    _last_heartbeat_time = 0.0
+    _heartbeat_count = 0
+    _last_heartbeat_client = None
+    _HEARTBEAT_SUMMARY_INTERVAL = 300.0  # Log summary once every 5 minutes in --debug
+
     def do_OPTIONS(self):
         # Handle CORS preflight from extensions or web integrations
         self.send_response(200)
@@ -56,8 +63,37 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if is_debug_mode():
-            logger.debug("[IPC] Extension ping / GET request from %s on %s", self.client_address[0], self.path)
+        clean_path = self.path.split("?")[0].rstrip("/")
+        is_heartbeat = clean_path in ("", "/")
+        self._is_routine_heartbeat = is_heartbeat
+        client_ip = self.client_address[0] if (hasattr(self, "client_address") and self.client_address) else "127.0.0.1"
+
+        is_verbose = is_verbose_mode() or os.environ.get("BENGAL_VERBOSE_IPC") == "1"
+        if is_debug_mode() or is_verbose:
+            if is_verbose:
+                logger.debug("[IPC] Extension ping / GET request from %s on %s", client_ip, self.path)
+            elif is_heartbeat:
+                now = time.time()
+                with self._heartbeat_lock:
+                    IPCRequestHandler._heartbeat_count += 1
+                    # Log initial connection or client change immediately
+                    if IPCRequestHandler._last_heartbeat_client != client_ip:
+                        IPCRequestHandler._last_heartbeat_client = client_ip
+                        IPCRequestHandler._last_heartbeat_time = now
+                        IPCRequestHandler._heartbeat_count = 1
+                        logger.debug("[IPC] Extension heartbeat connected from %s", client_ip)
+                    elif now - IPCRequestHandler._last_heartbeat_time >= self._HEARTBEAT_SUMMARY_INTERVAL:
+                        elapsed_min = max(1, int((now - IPCRequestHandler._last_heartbeat_time) / 60))
+                        logger.debug(
+                            "[IPC] Extension heartbeat active from %s (%d pings in last %dm)",
+                            client_ip,
+                            IPCRequestHandler._heartbeat_count,
+                            elapsed_min,
+                        )
+                        IPCRequestHandler._last_heartbeat_time = now
+                        IPCRequestHandler._heartbeat_count = 0
+            else:
+                logger.debug("[IPC] GET request from %s on %s", client_ip, self.path)
         ext_data = load_extension_config()
         try:
             from core.version import VERSION
@@ -114,6 +150,45 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b'{"status": "batch_received"}')
                 return
+
+        # Check for media sizes / probe requests (used exclusively by browser extension media popup)
+        if clean_path in ("/media-sizes", "/probe-media", "/media-info"):
+            url = payload.get("url", "") if isinstance(payload, dict) else ""
+            if not url:
+                self.send_response(400)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"success": false, "error": "Missing URL"}')
+                return
+
+            try:
+                from core.media import probe_media_sizes
+                res = probe_media_sizes(
+                    url=url,
+                    heights=payload.get("heights"),
+                    referrer=payload.get("referrer"),
+                    user_agent=payload.get("userAgent"),
+                    cookies=payload.get("cookies"),
+                    cookies_file=payload.get("cookiesFile"),
+                    cookies_browser=payload.get("cookiesBrowser"),
+                    video_container=payload.get("videoContainer", "auto"),
+                    audio_format=payload.get("audioFormat", "auto"),
+                )
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(res).encode('utf-8'))
+            except Exception as e:
+                if is_debug_mode():
+                    logger.warning("[IPC] Failed to probe media sizes: %s", e)
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+            return
 
         # Guard: Only explicit user download submissions on root '/' or '/download' should trigger downloads
         if clean_path not in ("", "/download"):
@@ -185,12 +260,22 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             
     def log_message(self, format, *args):
-        if is_debug_mode():
-            logger.debug("[IPC HTTP] %s - %s", self.client_address[0], format % args)
+        is_verbose = is_verbose_mode() or os.environ.get("BENGAL_VERBOSE_IPC") == "1"
+        if is_debug_mode() or is_verbose:
+            msg = format % args
+            # Suppress routine successful heartbeat GET / pings unless verbose mode is active
+            if not is_verbose:
+                if getattr(self, "_is_routine_heartbeat", False) and ' 200 ' in msg:
+                    return
+                if ('"GET / HTTP/' in msg or '"GET /? ' in msg or '"GET / ' in msg) and ' 200 ' in msg:
+                    return
+            client_ip = self.client_address[0] if (hasattr(self, "client_address") and self.client_address) else "127.0.0.1"
+            logger.debug("[IPC HTTP] %s - %s", client_ip, msg)
 
 
-class ReusableHTTPServer(HTTPServer):
+class ReusableHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
+    daemon_threads = True
 
 
 class TcpListenerThread(QThread):
