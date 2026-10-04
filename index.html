@@ -6,15 +6,89 @@
   <title>Bengal Download Manager — Fast & Modern Desktop Downloader</title>
   
   <!-- SEO & Social Meta -->
-  <meta name="description" content="High-performance, multi-threaded open-source download manager built with PyQt6, KDE Kirigami QML, and Aria2. Accelerate downloads up to 32x with browser integration." />
-  <meta name="keywords" content="download manager, linux download manager, aria2, pyqt6, kde kirigami, multi-threaded downloader, open source, idm linux alternative" />
-  <meta property="og:title" content="Bengal Download Manager — Downloads, Supercharged" />
-  <meta property="og:description" content="Blazing fast multi-threaded download manager with browser extensions, adaptive KDE Breeze themes, and smart categorization." />
+  <meta name="description" content="The best high-performance, open-source download manager for Linux and native IDM alternative. Accelerate downloads up to 32x with Aria2, browser integration, auto-resume, and Flatpak/Snap packages." />
+  <meta name="keywords" content="best download manager linux, idm alternative linux, idm linux, internet download manager alternative, linux download manager, aria2 gui, multi-threaded downloader, open source download accelerator, flatpak download manager, pyqt6 aria2" />
+  <meta property="og:title" content="Bengal Download Manager — Best Linux Download Manager & IDM Alternative" />
+  <meta property="og:description" content="Blazing-fast multi-threaded download manager for Linux. Up to 32x faster downloads, browser extensions, auto-resume, and adaptive KDE Breeze themes." />
   <meta property="og:image" content="assets/posters/poster_classic_hero.jpg" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   
   <link rel="icon" type="image/png" href="assets/logo.png" />
+
+  <!-- Schema.org JSON-LD Structured Data for FAQ SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Why is Bengal Download Manager faster than browser downloads?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Browsers download files through a single continuous TCP stream, which is frequently throttled by servers or choked by packet loss. Bengal Download Manager breaks the requested file into up to 32 parallel chunks simultaneously (powered by Aria2), utilizing your entire network bandwidth."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Bengal Download Manager a good IDM (Internet Download Manager) alternative for Linux?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! Internet Download Manager (IDM) is Windows-only and not available on Linux. Bengal Download Manager is designed as a native Linux IDM alternative, providing up to 32x multi-segment speed acceleration, 1-click browser interception, automatic category sorting, and reliable pause/resume functionality."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What makes Bengal Download Manager the best download manager for Linux?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Bengal Download Manager combines the raw speed of the Aria2 multi-connection engine with a lightweight PyQt6 native desktop UI tailored for KDE Plasma, GNOME, XFCE, and other Linux desktops. It offers system tray integration, clipboard link capture, light/dark theme adaptation, Flatpak/Snap/AppImage distribution, and zero advertisements."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does the browser extension capture links?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The browser add-on monitors download triggers using Manifest V3 APIs for Chrome, Brave, Edge, and Firefox. When a matching file extension or mime-type is detected, it intercepts the download stream and communicates with Bengal Download Manager via a secure local loopback port (56800)."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I pause and resume interrupted downloads?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Bengal Download Manager supports dynamic resume and chunk recovery for all servers supporting HTTP byte-ranges. If your network resets or drops, you can resume downloads without losing previously downloaded progress."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does Bengal Download Manager compare to FDM, XDM, and other downloaders?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Unlike older Java-based or Electron-heavy tools, Bengal Download Manager is a lightweight native desktop application built with Python and Qt. It starts instantly, uses minimal RAM, adheres to the open-source MIT License, does not bundle adware, and natively supports Wayland and X11 display servers."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which Linux distributions are supported?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS via Flatpak, Snap Store, universal AppImage, or standalone binaries for both x86_64 and aarch64."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Bengal Download Manager completely free and open source?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! Bengal Download Manager is 100% free and open source under the permissive MIT License. There are zero subscriptions, zero ads, zero bundled software, and zero telemetry."
+        }
+      }
+    ]
+  }
+  </script>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1399,7 +1473,7 @@
     <!-- FAQ Section -->
     <section id="faq">
       <h2 class="section-title">Frequently Asked Questions</h2>
-      <p class="section-desc">Common questions about Bengal Download Manager.</p>
+      <p class="section-desc">Everything you need to know about Bengal Download Manager for Linux.</p>
 
       <div class="faq-list">
         <div class="faq-card">
@@ -1414,11 +1488,61 @@
 
         <div class="faq-card">
           <button class="faq-q" onclick="toggleFaq(this)">
+            <span>Is Bengal Download Manager a good IDM (Internet Download Manager) alternative for Linux?</span>
+            <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
+          </button>
+          <div class="faq-a">
+            Yes! Internet Download Manager (IDM) is Windows-only and not natively available for Linux. Bengal Download Manager is purpose-built as a native Linux IDM alternative. It provides the same essential capabilities: up to 32-connection multi-segmented acceleration, instant 1-click browser interception, automatic category sorting (Videos, Documents, Music, Compressed, Programs), and reliable pause/resume support.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            <span>What makes Bengal Download Manager the best download manager for Linux?</span>
+            <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
+          </button>
+          <div class="faq-a">
+            Bengal Download Manager pairs the industry-standard Aria2 multi-threaded download engine with a sleek PyQt6 / KDE Kirigami user interface tailored for Linux desktops (KDE Plasma, GNOME, XFCE, Cinnamon, etc.). It features background system tray integration, light/dark theme adaptation, clipboard URL monitoring, Flatpak/Snap/AppImage distribution, and zero ads or telemetry.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <button class="faq-q" onclick="toggleFaq(this)">
             <span>How does the browser extension capture links?</span>
             <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
           </button>
           <div class="faq-a">
-            The browser add-on monitors download triggers using Manifest V3 APIs. When a matching file extension or mime-type is detected, it intercepts the download stream and communicates with Bengal Download Manager via a secure local TCP loopback port (56800).
+            The browser add-on monitors download triggers using modern Manifest V3 APIs across Chrome, Brave, Edge, and Firefox. When a matching file extension or mime-type is detected, it intercepts the download stream and communicates with Bengal Download Manager via a secure local TCP loopback port (56800).
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            <span>Can I pause and resume interrupted downloads?</span>
+            <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
+          </button>
+          <div class="faq-a">
+            Yes. Bengal Download Manager supports dynamic resume and chunk recovery for all servers supporting standard HTTP byte-ranges. If your Wi-Fi disconnects, network drops, or the PC sleeps, you can resume large files without losing previously downloaded progress.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            <span>How does Bengal Download Manager compare to FDM, XDM, and other downloaders?</span>
+            <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
+          </button>
+          <div class="faq-a">
+            Unlike older Java-based or Electron-heavy downloaders, Bengal Download Manager is a lightweight native desktop application built with Python and Qt. It launches instantly, uses minimal RAM, adheres to the open-source MIT License, contains zero bundled adware or analytics, and seamlessly supports Wayland and X11 display servers.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <button class="faq-q" onclick="toggleFaq(this)">
+            <span>Which Linux distributions are supported?</span>
+            <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
+          </button>
+          <div class="faq-a">
+            Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS. It can be installed via Flatpak (1-click <code>.flatpakref</code>), Canonical Snap Store, universal AppImage, or standalone portable binaries for both <code>x86_64</code> (Intel/AMD) and <code>aarch64</code> (ARM64) systems.
           </div>
         </div>
 
@@ -1428,7 +1552,7 @@
             <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
           </button>
           <div class="faq-a">
-            Yes! Bengal Download Manager is licensed under the permissive MIT License. There are zero ads, zero trackers, and zero telemetry. You can audit or build the source code yourself.
+            Yes! Bengal Download Manager is 100% free and open source under the permissive MIT License. There are zero subscriptions, zero ads, zero bundled software, and zero telemetry. You can audit, contribute to, or fork the code directly on GitHub.
           </div>
         </div>
       </div>
