@@ -254,4 +254,28 @@ class TestMediaDependenciesAndPotProvider:
         assert "--plugin-dirs" in args
         assert str(tmp_path) in args
 
+    def test_remove_tool_metadata_when_missing(self, tmp_path, monkeypatch):
+        import json
+        from core.media.dependencies import _remove_tool_metadata, get_tool_version
+        monkeypatch.setattr("core.media.dependencies.BIN_DIR", tmp_path)
+        v_file = tmp_path / ".versions.json"
+        v_file.write_text(json.dumps({
+            "deno_version": "v2.9.7",
+            "deno_mtime": 12345.0,
+            "bgutil-ytdlp-pot-provider_version": "v2.0.1",
+            "bgutil-ytdlp-pot-provider_mtime": 54321.0
+        }))
+
+        # Querying non-existent tool removes it from metadata
+        assert get_tool_version("bgutil-ytdlp-pot-provider") == ""
+        data = json.loads(v_file.read_text())
+        assert "bgutil-ytdlp-pot-provider_version" not in data
+        assert "deno_version" in data
+
+        # Removing tool directly
+        _remove_tool_metadata("deno")
+        data_after = json.loads(v_file.read_text())
+        assert "deno_version" not in data_after
+
+
 

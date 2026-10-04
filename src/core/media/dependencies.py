@@ -183,6 +183,22 @@ def get_tool_path(tool_name: str, allow_system: bool = False) -> str:
     return get_local_tool_path(tool_name)
 
 
+def _remove_tool_metadata(tool_name: str):
+    """Removes a tool from persistent .versions.json metadata when missing or deleted from disk."""
+    v_file = BIN_DIR / ".versions.json"
+    if not v_file.exists():
+        return
+    try:
+        data = json.loads(v_file.read_text(encoding="utf-8"))
+        keys_to_remove = [k for k in data if k.startswith(tool_name) or (tool_name in ("ffmpeg", "ffprobe") and k.startswith("ffmpeg_etag"))]
+        if keys_to_remove:
+            for k in keys_to_remove:
+                data.pop(k, None)
+            v_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 _TOOL_VERSION_CACHE: dict[str, tuple[float, str]] = {}
 
 
@@ -190,11 +206,9 @@ def get_tool_version(tool_name: str, local_only: bool = True) -> str:
     """Queries tool version strictly from XDG data BIN_DIR. Returns empty string if not installed.
     Caches parsed versions using file mtime and persistent .versions.json to prevent UI freeze."""
     path = get_tool_path(tool_name)
-    if not path or not os.path.exists(path):
+    if not path or not os.path.exists(path) or (tool_name != "bgutil-ytdlp-pot-provider" and not os.access(path, os.X_OK)):
         _TOOL_VERSION_CACHE.pop(tool_name, None)
-        return ""
-    if tool_name != "bgutil-ytdlp-pot-provider" and not os.access(path, os.X_OK):
-        _TOOL_VERSION_CACHE.pop(tool_name, None)
+        _remove_tool_metadata(tool_name)
         return ""
 
     try:
@@ -304,6 +318,8 @@ class DependencyManagerWorker(QThread):
                 continue
 
             if not is_local_installed:
+                _remove_tool_metadata(tool)
+                _TOOL_VERSION_CACHE.pop(tool, None)
                 success = self._download_and_install_tool(tool)
                 if success:
                     downloaded_extract_urls.add(tool_url)
@@ -354,6 +370,7 @@ class DependencyManagerWorker(QThread):
         ver_fn = getattr(md, "get_tool_version", get_tool_version) if md else get_tool_version
         local_ver = ver_fn(tool_name, local_only=True)
         if not local_ver:
+            _remove_tool_metadata(tool_name)
             return True, ""
 
         if tool_name == "AtomicParsley":
