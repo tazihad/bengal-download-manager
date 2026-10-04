@@ -84,6 +84,7 @@ runs:
           --repo-dir "$REPO_DIR" \
           --out-dir "$SITE_DIR" \
           --app-id "$APP_ID" \
+          --version "${{ inputs.version }}" \
           --pages-url "$PAGES_URL" \
           $GPG_ARG
 

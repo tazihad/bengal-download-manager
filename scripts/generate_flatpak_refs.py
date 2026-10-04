@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 generate_flatpak_refs.py
-Generates Flathub-standard .flatpakrepo and .flatpakref files with embedded base64 GPG keys.
+Generates Flathub-standard .flatpakrepo and .flatpakref files with embedded base64 GPG keys,
+including versioned aliases matching other release assets.
 """
 
 import argparse
@@ -43,6 +44,7 @@ def main():
     parser.add_argument("--pages-url", default="https://tazihad.github.io/bengal-download-manager", help="Base Pages URL")
     parser.add_argument("--gpg-key", default="", help="GPG Key ID")
     parser.add_argument("--gpg-file", default="", help="Path to exported GPG public key file")
+    parser.add_argument("--version", default="", help="Release version for versioned assets")
     parser.add_argument("--templates-dir", default="flatpak", help="Path to directory containing .in templates")
 
     args = parser.parse_args()
@@ -107,6 +109,22 @@ def main():
 
     print(f"✓ Generated {target_repo_file}")
     print(f"✓ Generated {target_ref_file}")
+
+    # Also generate versioned assets if version is provided
+    version = args.version.lstrip("v")
+    if version:
+        v_repo_bdm = out_dir / f"bengal-download-manager-{version}.flatpakrepo"
+        v_ref_bdm = out_dir / f"bengal-download-manager-{version}.flatpakref"
+        v_repo_id = out_dir / f"{args.app_id}-{version}.flatpakrepo"
+        v_ref_id = out_dir / f"{args.app_id}-{version}.flatpakref"
+
+        v_repo_bdm.write_text(rendered_repo, encoding="utf-8")
+        v_ref_bdm.write_text(rendered_ref, encoding="utf-8")
+        v_repo_id.write_text(rendered_repo, encoding="utf-8")
+        v_ref_id.write_text(rendered_ref, encoding="utf-8")
+
+        print(f"✓ Generated versioned asset: {v_repo_bdm}")
+        print(f"✓ Generated versioned asset: {v_ref_bdm}")
 
     # Also place a copy directly inside repo-dir if different from out_dir
     if repo_dir.exists() and repo_dir != out_dir:

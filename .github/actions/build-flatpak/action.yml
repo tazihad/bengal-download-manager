@@ -161,4 +161,5 @@ runs:
           --repo-dir repo \
           --out-dir dist \
           --app-id "$APP_ID" \
+          --version "$VERSION" \
           ${GPG_KEY:+--gpg-key "$GPG_KEY"}

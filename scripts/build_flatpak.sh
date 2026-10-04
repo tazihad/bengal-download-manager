@@ -215,6 +215,7 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
             --repo-dir "$REPO_DIR" \
             --out-dir dist \
             --app-id "$APP_ID" \
+            --version "$VERSION" \
             ${GPG_KEY:+--gpg-key "$GPG_KEY"} 2>/dev/null || true
 
         echo "✓ Bundle created: dist/bengal-download-manager.flatpak"

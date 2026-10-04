@@ -294,7 +294,7 @@ jobs:
           special_files = {"SHA256SUMS", "SHA256SUMS.sig", "SHA256SUMS.txt"}
           files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files and not f.endswith(".zsync")]
 
-          linux_groups = {"AppImage": [], "Flatpak": [], "Flatpak Ref": [], "Flatpak Repo": [], "Snap": [], ".tar.xz": []}
+          linux_groups = {"AppImage": [], "Flatpak": [], "Snap": [], ".tar.xz": []}
           windows_items = []
           macos_items = []
           extension_items = []
@@ -307,10 +307,6 @@ jobs:
                   linux_groups["AppImage"].append((arch, fname, url))
               elif fname.endswith(".flatpak"):
                   linux_groups["Flatpak"].append((arch, fname, url))
-              elif fname.endswith(".flatpakref"):
-                  linux_groups["Flatpak Ref"].append(("Universal", fname, url))
-              elif fname.endswith(".flatpakrepo"):
-                  linux_groups["Flatpak Repo"].append(("Universal", fname, url))
               elif fname.endswith(".snap"):
                   linux_groups["Snap"].append((arch, fname, url))
               elif fname.endswith(".tar.xz"):
@@ -349,13 +345,11 @@ jobs:
               linux_notes = {
                   "AppImage": "Universal standalone bundle",
                   "Flatpak": "Single-file offline bundle",
-                  "Flatpak Ref": "1-Click auto-updating reference",
-                  "Flatpak Repo": "Flathub-standard remote configuration",
                   "Snap": "Canonical Snap package",
                   ".tar.xz": "Portable tarball archive"
               }
 
-              for pkg in ["AppImage", "Flatpak", "Flatpak Ref", "Flatpak Repo", "Snap", ".tar.xz"]:
+              for pkg in ["AppImage", "Flatpak", "Snap", ".tar.xz"]:
                   items = linux_groups.get(pkg, [])
                   if not items:
                       continue
