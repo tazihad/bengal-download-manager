@@ -1,0 +1,9 @@
+[Flatpak Ref]
+Name=bd.com.zihad.BengalDownloadManager
+Branch=@BRANCH@
+Title=Bengal Download Manager
+Url=@REPO_URL@
+SuggestRemoteName=tazihad
+RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+IsRuntime=false
+@GPG_KEY_ENTRY@

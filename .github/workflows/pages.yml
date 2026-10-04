@@ -33,6 +33,10 @@ jobs:
           cp index.html _site/
           cp -r assets _site/
           touch _site/.nojekyll
+          if [ -d "repo" ]; then
+            cp -r repo _site/
+          fi
+          python3 scripts/generate_flatpak_refs.py --repo-dir _site/repo --out-dir _site 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

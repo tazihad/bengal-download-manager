@@ -1,0 +1,96 @@
+name: 'Publish Flatpak Repository'
+description: 'Merges multi-arch Flatpak OSTree slices, signs repository summary with GPG, and stages GitHub Pages'
+inputs:
+  version:
+    description: 'Release version'
+    required: true
+  app_id:
+    description: 'Application ID'
+    required: false
+    default: 'bd.com.zihad.BengalDownloadManager'
+  slices_pattern:
+    description: 'Directory pattern where arch slices are downloaded'
+    required: false
+    default: 'flatpak-repo-*'
+  site_dir:
+    description: 'Target directory for GitHub Pages staging'
+    required: false
+    default: '_site'
+  gpg_key:
+    description: 'GPG Key ID for signing'
+    required: false
+    default: ''
+  sign:
+    description: 'Whether to sign with GPG'
+    required: false
+    default: 'false'
+  pages_url:
+    description: 'Base URL for GitHub Pages'
+    required: false
+    default: 'https://tazihad.github.io/bengal-download-manager'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Flatpak and OSTree Tools
+      uses: ./.github/actions/setup-apt
+      with:
+        packages: flatpak ostree appstream appstream-compose
+
+    - name: Assemble Flathub-Standard Flatpak Repository
+      shell: bash
+      run: |
+        SITE_DIR="${{ inputs.site_dir }}"
+        REPO_DIR="$SITE_DIR/repo"
+        APP_ID="${{ inputs.app_id }}"
+        PAGES_URL="${{ inputs.pages_url }}"
+        SIGN="${{ inputs.sign }}"
+        GPG_KEY="${{ inputs.gpg_key }}"
+
+        echo "=== Assembling Flathub-Standard OSTree Repository at $REPO_DIR ==="
+        mkdir -p "$SITE_DIR" "$REPO_DIR"
+        ostree init --mode=archive --repo="$REPO_DIR" 2>/dev/null || true
+        mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
+
+        # Pull all downloaded architecture repo slices into the unified repo
+        for slice in ${{ inputs.slices_pattern }}; do
+          if [ -d "$slice" ]; then
+            echo "Preparing OSTree directory structure for slice: $slice"
+            mkdir -p "$slice/refs/heads" "$slice/refs/remotes" "$slice/refs/mirrors" "$slice/objects"
+            
+            echo "Merging architecture slice: $slice -> $REPO_DIR"
+            ostree pull-local --repo="$REPO_DIR" "$slice"
+          fi
+        done
+
+        # Update repository summary and static deltas (with GPG if enabled)
+        if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
+          echo "Signing OSTree repo summary with GPG Key: $GPG_KEY"
+          flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
+          gpg --armor --export "$GPG_KEY" > "$REPO_DIR/$APP_ID.gpg"
+          echo "Exported GPG public key to $REPO_DIR/$APP_ID.gpg"
+        else
+          echo "Updating OSTree repo summary without GPG signing"
+          flatpak build-update-repo --generate-static-deltas "$REPO_DIR"
+        fi
+
+        # Generate Flathub-standard .flatpakrepo and .flatpakref files
+        GPG_ARG=""
+        if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
+          GPG_ARG="--gpg-key $GPG_KEY"
+        fi
+
+        python3 scripts/generate_flatpak_refs.py \
+          --repo-dir "$REPO_DIR" \
+          --out-dir "$SITE_DIR" \
+          --app-id "$APP_ID" \
+          --version "${{ inputs.version }}" \
+          --pages-url "$PAGES_URL" \
+          $GPG_ARG
+
+        # Copy landing page and assets into Pages staging root
+        cp index.html "$SITE_DIR/"
+        cp -r assets "$SITE_DIR/"
+        touch "$SITE_DIR/.nojekyll"
+
+        echo "✓ Flathub-standard Pages staging directory prepared at $SITE_DIR"
