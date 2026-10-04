@@ -173,14 +173,22 @@ def detect_proxy_status(proxy_config: Optional[dict] = None, timeout: float = 6.
 
     # 2. Fallback Attempt: ipwho.is over HTTPS (port 443)
     try:
+        try:
+            ssl_ctx = ssl.create_default_context()
+        except Exception:
+            ssl_ctx = ssl._create_unverified_context()
+
         if proxy_url:
             raw_sock = _connect_via_proxy(proxy_url, "ipwho.is", 443, timeout=timeout)
-            ssl_ctx = ssl.create_default_context()
-            ssl_sock = ssl_ctx.wrap_socket(raw_sock, server_hostname="ipwho.is")
-            conn = http.client.HTTPSConnection("ipwho.is", 443, timeout=timeout)
+            try:
+                ssl_sock = ssl_ctx.wrap_socket(raw_sock, server_hostname="ipwho.is")
+            except Exception:
+                ssl_ctx = ssl._create_unverified_context()
+                ssl_sock = ssl_ctx.wrap_socket(raw_sock, server_hostname="ipwho.is")
+            conn = http.client.HTTPSConnection("ipwho.is", 443, timeout=timeout, context=ssl_ctx)
             conn.sock = ssl_sock
         else:
-            conn = http.client.HTTPSConnection("ipwho.is", 443, timeout=timeout)
+            conn = http.client.HTTPSConnection("ipwho.is", 443, timeout=timeout, context=ssl_ctx)
 
         conn.request(
             "GET",

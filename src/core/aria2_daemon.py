@@ -162,6 +162,7 @@ class Aria2DaemonManager(QObject):
                 f"--split={max_conn}",
                 "--daemon=false",
                 "--no-proxy=127.0.0.1,localhost",
+                "--check-certificate=false",
             ]
             if self._token:
                 cmd.append(f"--rpc-secret={self._token}")

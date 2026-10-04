@@ -178,3 +178,55 @@ class TestYouTubePlayerClientArgs:
         assert get_youtube_player_client_args(cfg_custom) == ["--extractor-args", "youtube:player_client=ios,android"]
         # Config with empty / missing
         assert get_youtube_player_client_args({}) == ["--extractor-args", f"youtube:player_client={DYNAMIC_YOUTUBE_CLIENTS}"]
+
+
+class TestAria2CertificateValidation:
+    def test_aria2_worker_options_check_certificate_false(self, tmp_path, qapp):
+        from core.workers.aria2 import Aria2Worker
+        w = Aria2Worker(
+            url="https://example.com/file.zip",
+            download_id=1,
+            save_dir=str(tmp_path),
+        )
+        called_params = []
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            def fake_call(method, params=None, **kwargs):
+                if method == "aria2.addUri":
+                    called_params.append(params)
+                    return "gid-12345"
+                elif method == "aria2.tellStatus":
+                    w.is_running = False
+                    return {
+                        "status": "complete",
+                        "totalLength": "1024",
+                        "completedLength": "1024",
+                        "downloadSpeed": "0",
+                        "files": [{"path": str(tmp_path / "file.zip")}],
+                    }
+                return {}
+            mock_rpc.side_effect = fake_call
+            w.run()
+
+        assert len(called_params) == 1
+        options = called_params[0][1]
+        assert options.get("check-certificate") == "false"
+
+    def test_aria2_daemon_cmd_check_certificate_false(self):
+        from core.aria2_daemon import Aria2DaemonManager
+        manager = Aria2DaemonManager()
+        with patch("subprocess.Popen") as mock_popen, \
+             patch("core.aria2_daemon.ensure_aria2", return_value="/usr/bin/aria2c"), \
+             patch.object(manager, "stop"), \
+             patch.object(manager, "is_port_active", return_value=False):
+            mock_proc = mock_popen.return_value
+            mock_proc.poll.return_value = None
+            mock_proc.pid = 99999
+            mock_proc.stderr = None
+
+            res = manager.start(port=56801, token="")
+            assert res is True
+            mock_popen.assert_called_once()
+            cmd_args = mock_popen.call_args[0][0]
+            assert "--check-certificate=false" in cmd_args
+            manager._process = None
+

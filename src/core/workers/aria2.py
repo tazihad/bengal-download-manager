@@ -96,7 +96,8 @@ class Aria2Worker(QThread):
             "split": max_conn, 
             "max-connection-per-server": max_conn, 
             "continue": "true" if self.allow_resume else "false",
-            "allow-overwrite": "true"
+            "allow-overwrite": "true",
+            "check-certificate": "false"
         }
 
         
