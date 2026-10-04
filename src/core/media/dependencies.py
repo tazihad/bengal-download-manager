@@ -278,6 +278,9 @@ class DependencyManagerWorker(QThread):
 
     def run(self):
         BIN_DIR.mkdir(parents=True, exist_ok=True)
+        stray_zip = BIN_DIR / "bgutil-ytdlp-pot-provider.zip"
+        if stray_zip.exists():
+            stray_zip.unlink(missing_ok=True)
         tool_names = [self.target_tool] if self.target_tool and self.target_tool in DEPENDENCY_TOOLS else list(DEPENDENCY_TOOLS.keys())
         downloaded_extract_urls = set()
 
@@ -486,13 +489,12 @@ class DependencyManagerWorker(QThread):
                 dest.chmod(0o755)
 
             elif tool_type == "plugin_zip":
-                dest_zip = BIN_DIR / "bgutil-ytdlp-pot-provider.zip"
-                if dest_zip.exists():
-                    dest_zip.unlink()
-                shutil.copyfile(str(tmp_download_path), str(dest_zip))
                 with zipfile.ZipFile(tmp_download_path, "r") as zf:
                     zf.extractall(BIN_DIR)
                 tmp_download_path.unlink(missing_ok=True)
+                stray_zip = BIN_DIR / "bgutil-ytdlp-pot-provider.zip"
+                if stray_zip.exists():
+                    stray_zip.unlink(missing_ok=True)
 
             elif tool_type == "zip":
                 extract_files = tool_info.get("extract_files", [binary_name])
