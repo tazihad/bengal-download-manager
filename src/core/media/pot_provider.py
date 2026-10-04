@@ -102,26 +102,48 @@ def is_pot_provider_available(base_url: str = DEFAULT_POT_PROVIDER_URL, timeout:
 
 def get_pot_plugin_args() -> List[str]:
     """
-    Returns --plugin-dirs arguments if any yt_dlp_plugins package is discoverable in sys.path.
+    Returns --plugin-dirs arguments if any yt_dlp_plugins package is discoverable
+    in BIN_DIR, XDG plugins dir, or sys.path.
     Allows standalone yt-dlp binary to find bgutil-ytdlp-pot-provider and other plugins.
     """
+    plugin_dirs: List[str] = []
     try:
-        for p in sys.path:
-            if p and os.path.isdir(os.path.join(p, "yt_dlp_plugins")):
-                return ["--plugin-dirs", str(p)]
+        from core.media.dependencies import BIN_DIR
+        bin_dir = str(BIN_DIR)
+        if os.path.isdir(os.path.join(bin_dir, "yt_dlp_plugins")):
+            plugin_dirs.append(bin_dir)
     except Exception:
         pass
-    return []
+
+    try:
+        from core.utils import get_data_dir
+        plugins_base = os.path.join(get_data_dir(), "plugins")
+        if os.path.isdir(os.path.join(plugins_base, "yt_dlp_plugins")) and plugins_base not in plugin_dirs:
+            plugin_dirs.append(plugins_base)
+    except Exception:
+        pass
+
+    try:
+        for p in sys.path:
+            if p and os.path.isdir(os.path.join(p, "yt_dlp_plugins")) and p not in plugin_dirs:
+                plugin_dirs.append(str(p))
+    except Exception:
+        pass
+
+    args: List[str] = []
+    for d in plugin_dirs:
+        args.extend(["--plugin-dirs", d])
+    return args
 
 
-DYNAMIC_YOUTUBE_CLIENTS = "mweb,android,ios,web_creator,tv_embedded,visionos,web"
+DYNAMIC_YOUTUBE_CLIENTS = "mweb,android,ios,web_creator,web_embedded,web_safari,tv_embedded,visionos,web"
 
 
 def get_youtube_player_client_args(config: Optional[dict] = None, custom_client: Optional[str] = None) -> List[str]:
     """
     Returns --extractor-args for YouTube player clients.
     If 'dynamic' (default), returns a multi-client priority fallback chain
-    (mweb, android, ios, web_creator, tv_embedded, visionos, web) so yt-dlp automatically
+    (mweb, android, ios, web_creator, web_embedded, web_safari, tv_embedded, visionos, web) so yt-dlp automatically
     tries other clients if one fails or encounters bot verification.
     If an explicit client or client list is given (e.g. 'android,ios', 'mweb'), returns the argument.
     If 'default' or 'raw_default', returns empty list (yt-dlp built-in behavior).

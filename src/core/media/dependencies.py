@@ -99,6 +99,15 @@ DEPENDENCY_TOOLS = {
         "role": "Metadata & Artwork Tagger",
         "icon": "🏷️",
         "desc": "Embeds MP4/M4A thumbnail album art, ID3 tags, and chapters into finished media files."
+    },
+    "bgutil-ytdlp-pot-provider": {
+        "binary_name": "yt_dlp_plugins/extractor/getpot_bgutil.py",
+        "version_cmd": [],
+        "url": "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip",
+        "type": "plugin_zip",
+        "role": "YouTube PO Token Provider",
+        "icon": "🛡️",
+        "desc": "Solves YouTube BotGuard Proof-of-Origin challenges in-process via Deno to bypass bot verification."
     }
 }
 
@@ -148,7 +157,7 @@ def get_tool_url(tool_name: str, channel: Optional[str] = None) -> str:
 
 
 def get_local_tool_path(tool_name: str) -> str:
-    """Returns local executable path in XDG data BIN_DIR if it exists and is executable, else empty string."""
+    """Returns local executable/plugin path in XDG data BIN_DIR if it exists and is valid, else empty string."""
     if tool_name not in DEPENDENCY_TOOLS:
         return ""
     if tool_name == "yt-dlp":
@@ -160,6 +169,10 @@ def get_local_tool_path(tool_name: str) -> str:
         return ""
     binary_name = DEPENDENCY_TOOLS[tool_name]["binary_name"]
     local_bin = BIN_DIR / binary_name
+    if tool_name == "bgutil-ytdlp-pot-provider":
+        if local_bin.exists():
+            return str(local_bin)
+        return ""
     if local_bin.exists() and os.access(local_bin, os.X_OK):
         return str(local_bin)
     return ""
@@ -177,7 +190,10 @@ def get_tool_version(tool_name: str, local_only: bool = True) -> str:
     """Queries tool version strictly from XDG data BIN_DIR. Returns empty string if not installed.
     Caches parsed versions using file mtime and persistent .versions.json to prevent UI freeze."""
     path = get_tool_path(tool_name)
-    if not path or not os.path.exists(path) or not os.access(path, os.X_OK):
+    if not path or not os.path.exists(path):
+        _TOOL_VERSION_CACHE.pop(tool_name, None)
+        return ""
+    if tool_name != "bgutil-ytdlp-pot-provider" and not os.access(path, os.X_OK):
         _TOOL_VERSION_CACHE.pop(tool_name, None)
         return ""
 
@@ -202,22 +218,30 @@ def get_tool_version(tool_name: str, local_only: bool = True) -> str:
         except Exception:
             pass
 
-    import sys
-    md = sys.modules.get("core.media_downloader")
-    subp = getattr(md, "subprocess", subprocess) if md else subprocess
-    try:
-        cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
-        clean_env = get_clean_env(str(BIN_DIR))
-        res = subp.run(cmd, capture_output=True, text=True, timeout=5, env=clean_env)
-        out = (res.stdout + res.stderr).strip()
-        if not out:
+    if tool_name == "bgutil-ytdlp-pot-provider":
+        try:
+            content = Path(path).read_text(encoding="utf-8", errors="ignore")
+            m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
+            ver = f"v{m.group(1)}" if m else "Installed"
+        except Exception:
             ver = "Installed"
-        else:
-            first_line = out.splitlines()[0]
-            m = re.search(r"v?(\d+[\d.a-zA-Z_\-]+)", first_line)
-            ver = f"v{m.group(1)}" if m else first_line[:15]
-    except Exception:
-        ver = "Installed"
+    else:
+        import sys
+        md = sys.modules.get("core.media_downloader")
+        subp = getattr(md, "subprocess", subprocess) if md else subprocess
+        try:
+            cmd = [path] + DEPENDENCY_TOOLS[tool_name]["version_cmd"]
+            clean_env = get_clean_env(str(BIN_DIR))
+            res = subp.run(cmd, capture_output=True, text=True, timeout=5, env=clean_env)
+            out = (res.stdout + res.stderr).strip()
+            if not out:
+                ver = "Installed"
+            else:
+                first_line = out.splitlines()[0]
+                m = re.search(r"v?(\d+[\d.a-zA-Z_\-]+)", first_line)
+                ver = f"v{m.group(1)}" if m else first_line[:15]
+        except Exception:
+            ver = "Installed"
 
     if ver:
         _TOOL_VERSION_CACHE[tool_name] = (mtime, ver)
@@ -254,7 +278,7 @@ class DependencyManagerWorker(QThread):
 
     def run(self):
         BIN_DIR.mkdir(parents=True, exist_ok=True)
-        tool_names = [self.target_tool] if self.target_tool and self.target_tool in DEPENDENCY_TOOLS else ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]
+        tool_names = [self.target_tool] if self.target_tool and self.target_tool in DEPENDENCY_TOOLS else list(DEPENDENCY_TOOLS.keys())
         downloaded_extract_urls = set()
 
         for tool in tool_names:
@@ -263,7 +287,7 @@ class DependencyManagerWorker(QThread):
 
             binary_name = DEPENDENCY_TOOLS[tool]["binary_name"]
             local_bin = BIN_DIR / binary_name
-            is_local_installed = local_bin.exists() and os.access(local_bin, os.X_OK)
+            is_local_installed = local_bin.exists() if tool == "bgutil-ytdlp-pot-provider" else (local_bin.exists() and os.access(local_bin, os.X_OK))
 
             if self.force_download:
                 self.tool_status_signal.emit(tool, f"{tool} (Checking...)", "yellow")
@@ -293,7 +317,7 @@ class DependencyManagerWorker(QThread):
                 ver = get_tool_version(tool, local_only=True) or "Installed"
                 self.tool_status_signal.emit(tool, f"{tool} ({ver})", "green")
                 # Perform light background update check for version-tagged tools
-                if tool in ("yt-dlp", "deno"):
+                if tool in ("yt-dlp", "deno", "bgutil-ytdlp-pot-provider"):
                     try:
                         needs_update, latest_ver = self._is_update_available(tool)
                         if needs_update and latest_ver and latest_ver.lstrip("v") != ver.lstrip("v"):
@@ -355,8 +379,8 @@ class DependencyManagerWorker(QThread):
         except Exception:
             return False, local_ver
 
-        if tool_name in ("yt-dlp", "deno"):
-            m = re.search(r"/releases/download/([^/]+)/", loc)
+        if tool_name in ("yt-dlp", "deno", "bgutil-ytdlp-pot-provider"):
+            m = re.search(r"/releases/(?:download|tag)/([^/]+)", loc)
             if m:
                 remote_tag = m.group(1).lstrip("v")
                 local_clean = local_ver.lstrip("v")
@@ -460,6 +484,15 @@ class DependencyManagerWorker(QThread):
                     dest.unlink()
                 shutil.move(str(tmp_download_path), str(dest))
                 dest.chmod(0o755)
+
+            elif tool_type == "plugin_zip":
+                dest_zip = BIN_DIR / "bgutil-ytdlp-pot-provider.zip"
+                if dest_zip.exists():
+                    dest_zip.unlink()
+                shutil.copyfile(str(tmp_download_path), str(dest_zip))
+                with zipfile.ZipFile(tmp_download_path, "r") as zf:
+                    zf.extractall(BIN_DIR)
+                tmp_download_path.unlink(missing_ok=True)
 
             elif tool_type == "zip":
                 extract_files = tool_info.get("extract_files", [binary_name])

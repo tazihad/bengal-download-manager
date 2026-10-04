@@ -593,7 +593,7 @@ class MediaDownloaderOptionsHub(QFrame):
         layout.addLayout(header_layout)
 
         self.engine_rows = {}
-        for tool in ["yt-dlp", "ffmpeg", "ffprobe", "deno", "AtomicParsley"]:
+        for tool in DEPENDENCY_TOOLS:
             row_widget = EngineRowWidget(tool, on_update_clicked=self.dialog.update_single_dependency, parent=self)
             self.engine_rows[tool] = row_widget
             layout.addWidget(row_widget)

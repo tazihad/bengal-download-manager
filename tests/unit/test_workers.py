@@ -230,3 +230,28 @@ class TestAria2CertificateValidation:
             assert "--check-certificate=false" in cmd_args
             manager._process = None
 
+
+class TestMediaDependenciesAndPotProvider:
+    def test_bgutil_dependency_tool_defined(self):
+        from core.media.dependencies import DEPENDENCY_TOOLS, get_tool_url
+        assert "bgutil-ytdlp-pot-provider" in DEPENDENCY_TOOLS
+        tool = DEPENDENCY_TOOLS["bgutil-ytdlp-pot-provider"]
+        assert tool["type"] == "plugin_zip"
+        assert "Brainicism/bgutil-ytdlp-pot-provider" in tool["url"]
+        assert get_tool_url("bgutil-ytdlp-pot-provider") == tool["url"]
+
+    def test_pot_plugin_args_discovery(self, tmp_path, monkeypatch):
+        from core.media.pot_provider import get_pot_plugin_args
+        monkeypatch.setattr("core.media.dependencies.BIN_DIR", tmp_path)
+        # Without yt_dlp_plugins
+        args_empty = get_pot_plugin_args()
+        assert isinstance(args_empty, list)
+
+        # With yt_dlp_plugins dir
+        plugins_dir = tmp_path / "yt_dlp_plugins"
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        args = get_pot_plugin_args()
+        assert "--plugin-dirs" in args
+        assert str(tmp_path) in args
+
+
