@@ -50,10 +50,14 @@ runs:
         echo "=== Assembling Flathub-Standard OSTree Repository at $REPO_DIR ==="
         mkdir -p "$SITE_DIR" "$REPO_DIR"
         ostree init --mode=archive --repo="$REPO_DIR" 2>/dev/null || true
+        mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
 
         # Pull all downloaded architecture repo slices into the unified repo
         for slice in ${{ inputs.slices_pattern }}; do
           if [ -d "$slice" ]; then
+            echo "Preparing OSTree directory structure for slice: $slice"
+            mkdir -p "$slice/refs/heads" "$slice/refs/remotes" "$slice/refs/mirrors" "$slice/objects"
+            
             echo "Merging architecture slice: $slice -> $REPO_DIR"
             ostree pull-local --repo="$REPO_DIR" "$slice"
           fi
