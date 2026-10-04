@@ -1016,12 +1016,12 @@
               </div>
             </a>
 
-            <!-- Flatpak Custom Store Badge -->
-            <a id="hero-flatpak-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.67/bengal-download-manager-0.2.67-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download Flatpak">
+            <!-- Flatpakref Custom Store Badge -->
+            <a id="hero-flatpak-btn" href="bengal-download-manager.flatpakref" class="custom-store-badge" title="Install via Flatpakref">
               <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
               <div class="text-container">
-                <div class="store-pre-title">DOWNLOAD</div>
-                <div class="store-title" id="hero-flatpak-label">Flatpak (x86_64)</div>
+                <div class="store-pre-title">INSTALL VIA</div>
+                <div class="store-title" id="hero-flatpak-label">Flatpakref</div>
               </div>
             </a>
           </div>
@@ -1356,27 +1356,20 @@
         </div>
       </div>
 
-      <!-- Flatpak Panel (Architecture Dropdown & Dynamic JS Resolver) -->
+      <!-- Flatpak Panel -->
       <div id="tab-flatpak" class="install-body">
         <div style="margin-bottom: 20px;">
-          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Flathub-Standard Flatpak Repository (Recommended)</div>
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Flatpak Repository (Recommended — Auto-Updateable)</div>
           <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">GPG-signed, sandboxed desktop installation with automatic delta updates.</div>
         </div>
 
-        <!-- 1-Click Flatpakref Install -->
+        <!-- Flatpakref Install Badge -->
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
           <a href="bengal-download-manager.flatpakref" class="custom-store-badge" style="text-decoration: none;">
             <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
             <div class="text-container">
               <div class="store-pre-title">INSTALL VIA</div>
-              <div class="store-title">Flatpakref (1-Click)</div>
-            </div>
-          </a>
-          <a href="tazihad.flatpakrepo" class="custom-store-badge" style="text-decoration: none; opacity: 0.9;">
-            <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
-            <div class="text-container">
-              <div class="store-pre-title">ADD REPOSITORY</div>
-              <div class="store-title">.flatpakrepo Config</div>
+              <div class="store-title">Flatpakref</div>
             </div>
           </a>
         </div>
@@ -1392,53 +1385,9 @@
           <button class="copy-btn" onclick="copyCode('flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo', this)">Copy</button>
           <code><span class="cli-prompt">$</span>flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo</code>
         </div>
-        <div class="cli-box font-mono" style="margin-bottom: 24px;">
+        <div class="cli-box font-mono" style="margin-bottom: 20px;">
           <button class="copy-btn" onclick="copyCode('flatpak install --user -y tazihad bd.com.zihad.BengalDownloadManager', this)">Copy</button>
           <code><span class="cli-prompt">$</span>flatpak install --user -y tazihad bd.com.zihad.BengalDownloadManager</code>
-        </div>
-
-        <hr style="border: none; border-top: 1px solid var(--plasma-border); margin: 24px 0 20px 0;" />
-
-        <div style="margin-bottom: 16px;">
-          <div style="font-weight: 700; font-size: 1rem; color: var(--text);">Option 3: Offline Standalone .flatpak Bundle</div>
-          <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;">Direct single-file bundle from GitHub Releases for offline machines.</div>
-        </div>
-
-        <!-- Architecture Selector directly above Download Button -->
-        <div style="margin-bottom: 16px; display: inline-flex; flex-direction: column; gap: 6px;">
-          <label for="arch-flatpak-select" style="font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px;">
-            <span>Select System Architecture:</span>
-          </label>
-          <select id="arch-flatpak-select" onchange="onFlatpakArchChange(this.value)" style="background: var(--plasma-bg); color: var(--text); border: 1px solid var(--plasma-border); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.2s; min-width: 260px;">
-            <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
-            <option value="aarch64">aarch64 (64-bit ARM)</option>
-          </select>
-        </div>
-
-        <!-- KDE Glaxnimate Style Flatpak Store Badge -->
-        <div style="margin-bottom: 20px;">
-          <a id="flatpak-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.67/bengal-download-manager-0.2.67-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge">
-            <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
-            <div class="text-container">
-              <div class="store-pre-title">DOWNLOAD BUNDLE</div>
-              <div class="store-title" id="flatpak-main-label">Flatpak (x86_64)</div>
-            </div>
-          </a>
-        </div>
-
-        <!-- Dynamic Terminal Quick-Start -->
-        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 8px;" id="flatpak-cmd-title">Terminal Quick-Start (x86_64 64-bit Intel / AMD):</div>
-
-        <!-- Step 1: Download -->
-        <div class="cli-box font-mono" style="margin-bottom: 10px;">
-          <button id="copy-flatpak-curl-btn" class="copy-btn" onclick="copyFlatpakCurl(this)">Copy</button>
-          <code id="flatpak-curl-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.2.67-x86_64.flatpak https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.67/bengal-download-manager-0.2.67-x86_64.flatpak</code>
-        </div>
-
-        <!-- Step 2: Install -->
-        <div class="cli-box font-mono" style="margin-bottom: 18px;">
-          <button id="copy-flatpak-run-btn" class="copy-btn" onclick="copyFlatpakRun(this)">Copy</button>
-          <code id="flatpak-run-cmd"><span class="cli-prompt">$</span>flatpak install --user bengal-download-manager-0.2.67-x86_64.flatpak</code>
         </div>
 
         <div style="font-size: 13px; color: var(--text-dim); margin-top: 10px;">
@@ -1516,18 +1465,6 @@
       }
     };
 
-    let flatpakData = {
-      version: "v0.2.67",
-      x86_64: {
-        filename: "bengal-download-manager-0.2.67-x86_64.flatpak",
-        url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.67/bengal-download-manager-0.2.67-x86_64.flatpak"
-      },
-      aarch64: {
-        filename: "bengal-download-manager-0.2.67-aarch64.flatpak",
-        url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.67/bengal-download-manager-0.2.67-aarch64.flatpak"
-      }
-    };
-
     function renderAppImageUI(arch) {
       const current = appImageData[arch] || appImageData.x86_64;
       const btn = document.getElementById("appimage-main-btn");
@@ -1547,36 +1484,14 @@
       }
     }
 
-    function renderFlatpakUI(arch) {
-      const current = flatpakData[arch] || flatpakData.x86_64;
-      const btn = document.getElementById("flatpak-main-btn");
-      const label = document.getElementById("flatpak-main-label");
-      const title = document.getElementById("flatpak-cmd-title");
-      const curlCmd = document.getElementById("flatpak-curl-cmd");
-      const runCmd = document.getElementById("flatpak-run-cmd");
-
-      if (btn) btn.href = current.url;
-      if (label) label.textContent = "Flatpak (" + arch + ")";
-      if (title) title.textContent = "Terminal Quick-Start (" + (arch === "x86_64" ? "x86_64 64-bit Intel / AMD" : "aarch64 64-bit ARM") + "):";
-      if (curlCmd) {
-        curlCmd.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url;
-      }
-      if (runCmd) {
-        runCmd.innerHTML = '<span class="cli-prompt">$</span>flatpak install --user ' + current.filename;
-      }
-    }
-
     function onGlobalArchChange(arch) {
       const heroSel = document.getElementById("hero-arch-select");
       const appSel = document.getElementById("arch-select");
-      const flatSel = document.getElementById("arch-flatpak-select");
 
       if (heroSel && heroSel.value !== arch) heroSel.value = arch;
       if (appSel && appSel.value !== arch) appSel.value = arch;
-      if (flatSel && flatSel.value !== arch) flatSel.value = arch;
 
       renderAppImageUI(arch);
-      renderFlatpakUI(arch);
       updateHeroBadges(arch);
     }
 
@@ -1588,21 +1503,9 @@
         heroAppImageBtn.href = currentApp.url;
         if (heroAppImageLabel) heroAppImageLabel.textContent = "AppImage (" + arch + ")";
       }
-
-      const currentFlat = flatpakData[arch] || flatpakData.x86_64;
-      const heroFlatpakBtn = document.getElementById("hero-flatpak-btn");
-      const heroFlatpakLabel = document.getElementById("hero-flatpak-label");
-      if (heroFlatpakBtn && currentFlat) {
-        heroFlatpakBtn.href = currentFlat.url;
-        if (heroFlatpakLabel) heroFlatpakLabel.textContent = "Flatpak (" + arch + ")";
-      }
     }
 
     function onArchChange(arch) {
-      onGlobalArchChange(arch);
-    }
-
-    function onFlatpakArchChange(arch) {
       onGlobalArchChange(arch);
     }
 
@@ -1620,29 +1523,14 @@
       copyCode("chmod +x " + current.filename + " && ./" + current.filename, btn);
     }
 
-    function copyFlatpakCurl(btn) {
-      const archSelect = document.getElementById("arch-flatpak-select");
-      const arch = archSelect ? archSelect.value : "x86_64";
-      const current = flatpakData[arch] || flatpakData.x86_64;
-      copyCode("curl -L -o " + current.filename + " " + current.url, btn);
-    }
-
-    function copyFlatpakRun(btn) {
-      const archSelect = document.getElementById("arch-flatpak-select");
-      const arch = archSelect ? archSelect.value : "x86_64";
-      const current = flatpakData[arch] || flatpakData.x86_64;
-      copyCode("flatpak install --user " + current.filename, btn);
-    }
-
-    // Dynamic GitHub Releases Auto-Resolver for AppImage & Flatpak
+    // Dynamic GitHub Releases Auto-Resolver for AppImage
     (async function resolveReleases() {
       try {
         const res = await fetch("https://api.github.com/repos/tazihad/bengal-download-manager/releases/latest");
         if (!res.ok) return;
         const data = await res.json();
-        const tag = data.tag_name || "v0.2.28";
+        const tag = data.tag_name || "v0.2.67";
         appImageData.version = tag;
-        flatpakData.version = tag;
 
         // Resolve AppImage assets
         const assetAppImageX86 = data.assets && data.assets.find(a => 
@@ -1662,27 +1550,6 @@
           appImageData.aarch64 = {
             filename: assetAppImageArm.name,
             url: assetAppImageArm.browser_download_url
-          };
-        }
-
-        // Resolve Flatpak assets
-        const assetFlatpakX86 = data.assets && data.assets.find(a => 
-          a.name.endsWith(".flatpak") && (a.name.includes("x86_64") || a.name.includes("amd64"))
-        );
-        const assetFlatpakArm = data.assets && data.assets.find(a => 
-          a.name.endsWith(".flatpak") && (a.name.includes("aarch64") || a.name.includes("arm64"))
-        );
-
-        if (assetFlatpakX86) {
-          flatpakData.x86_64 = {
-            filename: assetFlatpakX86.name,
-            url: assetFlatpakX86.browser_download_url
-          };
-        }
-        if (assetFlatpakArm) {
-          flatpakData.aarch64 = {
-            filename: assetFlatpakArm.name,
-            url: assetFlatpakArm.browser_download_url
           };
         }
 
