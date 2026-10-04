@@ -8,34 +8,50 @@ cd "$ROOT_DIR"
 
 APP_ID="bd.com.zihad.BengalDownloadManager"
 BUILD_DIR="flatpak_app_dir"
+REPO_DIR="repo"
 
 DO_RUN=0
 DO_BUNDLE=1
+GPG_KEY="${GPG_KEY:-}"
 EXTRA_APP_ARGS=()
 
-for arg in "$@"; do
-    case "$arg" in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --run)
             DO_RUN=1
+            shift
             ;;
         --no-bundle)
             DO_BUNDLE=0
+            shift
             ;;
         --bundle)
             DO_BUNDLE=1
+            shift
+            ;;
+        --gpg-key)
+            GPG_KEY="$2"
+            shift 2
+            ;;
+        --repo-dir)
+            REPO_DIR="$2"
+            shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [app_arguments...]"
+            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [--gpg-key KEY_ID] [--repo-dir DIR] [app_arguments...]"
             echo ""
             echo "Options:"
-            echo "  --run        Launch the built application after assembly"
-            echo "  --no-bundle  Skip creating the .flatpak single-file bundle"
-            echo "  --bundle     Create .flatpak single-file bundle in dist/ (default)"
-            echo "  --help, -h   Show this help message"
+            echo "  --run              Launch the built application after assembly"
+            echo "  --no-bundle        Skip creating the .flatpak single-file bundle"
+            echo "  --bundle           Create .flatpak single-file bundle in dist/ (default)"
+            echo "  --gpg-key KEY_ID   GPG key ID for signing OSTree repo commits"
+            echo "  --repo-dir DIR     OSTree repository directory (default: repo)"
+            echo "  --help, -h         Show this help message"
             exit 0
             ;;
         *)
-            EXTRA_APP_ARGS+=("$arg")
+            EXTRA_APP_ARGS+=("$1")
+            shift
             ;;
     esac
 done
@@ -89,7 +105,7 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --noconfirm src/main.py
 
 echo "=== 2. Assembling Flatpak Package Structure ($BUILD_DIR) ==="
-rm -rf "$BUILD_DIR" repo
+rm -rf "$BUILD_DIR" "$REPO_DIR"
 mkdir -p "$BUILD_DIR/files/bin" \
         "$BUILD_DIR/files/lib/bengal-download-manager" \
         "$BUILD_DIR/files/share/applications" \
@@ -178,12 +194,29 @@ EOF
 if [ "$DO_BUNDLE" -eq 1 ]; then
     if command -v flatpak >/dev/null 2>&1; then
         echo "=== 3. Exporting Flatpak Repository & Bundle ==="
-        mkdir -p dist
+        mkdir -p dist "$REPO_DIR"
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
-        flatpak build-export --update-appstream repo "$BUILD_DIR"
-        flatpak build-update-repo --generate-static-deltas repo
-        flatpak build-bundle repo "dist/bengal-download-manager.flatpak" "$APP_ID"
+        
+        if [ -n "$GPG_KEY" ]; then
+            echo "Signing Flatpak OSTree with GPG ($GPG_KEY)..."
+            flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR"
+            flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
+        else
+            flatpak build-export --update-appstream "$REPO_DIR" "$BUILD_DIR"
+            flatpak build-update-repo --generate-static-deltas "$REPO_DIR"
+        fi
+
+        flatpak build-bundle "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID"
         cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
+        cp "dist/bengal-download-manager.flatpak" "dist/${APP_ID}-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
+
+        # Generate Flathub-standard .flatpakrepo and .flatpakref files in dist/
+        $PY_BIN scripts/generate_flatpak_refs.py \
+            --repo-dir "$REPO_DIR" \
+            --out-dir dist \
+            --app-id "$APP_ID" \
+            ${GPG_KEY:+--gpg-key "$GPG_KEY"} 2>/dev/null || true
+
         echo "✓ Bundle created: dist/bengal-download-manager.flatpak"
     else
         echo "WARNING: 'flatpak' binary not installed. Flatpak app directory prepared in '$BUILD_DIR', but bundle export skipped."
@@ -194,4 +227,3 @@ if [ "$DO_RUN" -eq 1 ]; then
     echo "=== 4. Launching Application from Flatpak App Structure ==="
     "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager" "${EXTRA_APP_ARGS[@]}"
 fi
-

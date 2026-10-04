@@ -153,6 +153,14 @@ jobs:
         with:
           version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
+          sign: ${{ env.HAS_GPG == 'true' }}
+          gpg_key: ${{ steps.import_gpg.outputs.keyid }}
+
+      - name: Upload Flatpak OSTree Slice Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-repo-${{ matrix.arch }}
+          path: repo/
 
       - name: Build Snap Package
         uses: ./.github/actions/build-snap
@@ -180,19 +188,23 @@ jobs:
           path: release_artifacts/*
 
   release:
-    name: Publish Release
+    name: Publish Release & Flatpak Repository
     needs: [test, prepare, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
       id-token: write
       attestations: write
+      pages: write
     env:
       HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -200,12 +212,11 @@ jobs:
           merge-multiple: true
           path: release_dist
 
-      - name: Generate SHA256SUMS Checksums
-        run: |
-          cd release_dist
-          rm -f SHA256SUMS SHA256SUMS.sig SHA256SUMS.txt
-          sha256sum * > SHA256SUMS
-          cd ..
+      - name: Download Flatpak OSTree Slice Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: flatpak-repo-*
+          path: downloaded_slices
 
       - name: Import GPG Key for Release Signing
         if: env.HAS_GPG == 'true'
@@ -214,6 +225,43 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Publish Flathub-Standard Flatpak Repository
+        uses: ./.github/actions/publish-flatpak-repo
+        with:
+          version: ${{ needs.prepare.outputs.version }}
+          app_id: 'bd.com.zihad.BengalDownloadManager'
+          slices_pattern: 'downloaded_slices/*'
+          site_dir: '_site'
+          sign: ${{ env.HAS_GPG == 'true' }}
+          gpg_key: ${{ steps.import_gpg.outputs.keyid }}
+          pages_url: 'https://tazihad.github.io/bengal-download-manager'
+
+      - name: Copy Flatpak Repo and Ref to Release Dist
+        run: |
+          cp _site/*.flatpakrepo release_dist/ 2>/dev/null || true
+          cp _site/*.flatpakref release_dist/ 2>/dev/null || true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Generate SHA256SUMS Checksums
+        run: |
+          cd release_dist
+          rm -f SHA256SUMS SHA256SUMS.sig SHA256SUMS.txt
+          sha256sum * > SHA256SUMS
+          cd ..
 
       - name: Sign SHA256SUMS (GPG Detached Signature)
         if: env.HAS_GPG == 'true'
@@ -246,7 +294,7 @@ jobs:
           special_files = {"SHA256SUMS", "SHA256SUMS.sig", "SHA256SUMS.txt"}
           files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files and not f.endswith(".zsync")]
 
-          linux_groups = {"AppImage": [], "Flatpak": [], "Snap": [], ".tar.xz": []}
+          linux_groups = {"AppImage": [], "Flatpak": [], "Flatpak Ref": [], "Flatpak Repo": [], "Snap": [], ".tar.xz": []}
           windows_items = []
           macos_items = []
           extension_items = []
@@ -259,6 +307,10 @@ jobs:
                   linux_groups["AppImage"].append((arch, fname, url))
               elif fname.endswith(".flatpak"):
                   linux_groups["Flatpak"].append((arch, fname, url))
+              elif fname.endswith(".flatpakref"):
+                  linux_groups["Flatpak Ref"].append(("Universal", fname, url))
+              elif fname.endswith(".flatpakrepo"):
+                  linux_groups["Flatpak Repo"].append(("Universal", fname, url))
               elif fname.endswith(".snap"):
                   linux_groups["Snap"].append((arch, fname, url))
               elif fname.endswith(".tar.xz"):
@@ -297,11 +349,13 @@ jobs:
               linux_notes = {
                   "AppImage": "Universal standalone bundle",
                   "Flatpak": "Single-file offline bundle",
+                  "Flatpak Ref": "1-Click auto-updating reference",
+                  "Flatpak Repo": "Flathub-standard remote configuration",
                   "Snap": "Canonical Snap package",
                   ".tar.xz": "Portable tarball archive"
               }
 
-              for pkg in ["AppImage", "Flatpak", "Snap", ".tar.xz"]:
+              for pkg in ["AppImage", "Flatpak", "Flatpak Ref", "Flatpak Repo", "Snap", ".tar.xz"]:
                   items = linux_groups.get(pkg, [])
                   if not items:
                       continue

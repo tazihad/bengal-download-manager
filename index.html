@@ -1358,9 +1358,50 @@
 
       <!-- Flatpak Panel (Architecture Dropdown & Dynamic JS Resolver) -->
       <div id="tab-flatpak" class="install-body">
-        <div style="margin-bottom: 18px;">
-          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Direct Flatpak Bundle Download (Latest Release)</div>
-          <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">Sandboxed desktop bundle. Installs cleanly on all Flatpak-enabled distributions.</div>
+        <div style="margin-bottom: 20px;">
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Flathub-Standard Flatpak Repository (Recommended)</div>
+          <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">GPG-signed, sandboxed desktop installation with automatic delta updates.</div>
+        </div>
+
+        <!-- 1-Click Flatpakref Install -->
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+          <a href="bd.com.zihad.BengalDownloadManager.flatpakref" class="custom-store-badge" style="text-decoration: none;">
+            <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
+            <div class="text-container">
+              <div class="store-pre-title">INSTALL VIA</div>
+              <div class="store-title">Flatpakref (1-Click)</div>
+            </div>
+          </a>
+          <a href="bd.com.zihad.BengalDownloadManager.flatpakrepo" class="custom-store-badge" style="text-decoration: none; opacity: 0.9;">
+            <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
+            <div class="text-container">
+              <div class="store-pre-title">ADD REPOSITORY</div>
+              <div class="store-title">.flatpakrepo Config</div>
+            </div>
+          </a>
+        </div>
+
+        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 8px;">Option 1: One-Command Online Install (.flatpakref)</div>
+        <div class="cli-box font-mono" style="margin-bottom: 16px;">
+          <button class="copy-btn" onclick="copyCode('flatpak install --user https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakref', this)">Copy</button>
+          <code><span class="cli-prompt">$</span>flatpak install --user https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakref</code>
+        </div>
+
+        <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 8px;">Option 2: Add Repository Remote (Auto-Updates via flatpak update)</div>
+        <div class="cli-box font-mono" style="margin-bottom: 10px;">
+          <button class="copy-btn" onclick="copyCode('flatpak remote-add --user --if-not-exists bengal-download-manager https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakrepo', this)">Copy</button>
+          <code><span class="cli-prompt">$</span>flatpak remote-add --user --if-not-exists bengal-download-manager https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakrepo</code>
+        </div>
+        <div class="cli-box font-mono" style="margin-bottom: 24px;">
+          <button class="copy-btn" onclick="copyCode('flatpak install --user -y bengal-download-manager bd.com.zihad.BengalDownloadManager', this)">Copy</button>
+          <code><span class="cli-prompt">$</span>flatpak install --user -y bengal-download-manager bd.com.zihad.BengalDownloadManager</code>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--plasma-border); margin: 24px 0 20px 0;" />
+
+        <div style="margin-bottom: 16px;">
+          <div style="font-weight: 700; font-size: 1rem; color: var(--text);">Option 3: Offline Standalone .flatpak Bundle</div>
+          <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;">Direct single-file bundle from GitHub Releases for offline machines.</div>
         </div>
 
         <!-- Architecture Selector directly above Download Button -->
@@ -1375,11 +1416,11 @@
         </div>
 
         <!-- KDE Glaxnimate Style Flatpak Store Badge -->
-        <div style="margin-bottom: 24px;">
+        <div style="margin-bottom: 20px;">
           <a id="flatpak-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.66/bengal-download-manager-0.2.66-x86_64.flatpak" target="_blank" rel="noopener noreferrer" class="custom-store-badge">
             <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
             <div class="text-container">
-              <div class="store-pre-title">DOWNLOAD</div>
+              <div class="store-pre-title">DOWNLOAD BUNDLE</div>
               <div class="store-title" id="flatpak-main-label">Flatpak (x86_64)</div>
             </div>
           </a>

@@ -89,9 +89,19 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 | Format | Supported Architectures | Quick Command / Link |
 | :--- | :--- | :--- |
 | **Snap Store** | `x86_64`, `arm64` | `sudo snap install bengal-download-manager` / [Snapcraft](https://snapcraft.io/bengal-download-manager) |
+| **Flatpak (Repository)** | `x86_64`, `aarch64` | `flatpak install https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakref` |
 | **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
-| **Flatpak** | `x86_64`, `aarch64` | `flatpak install bd.com.zihad.BengalDownloadManager.flatpak` |
 | **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
+
+#### Flatpak Quick Start (Online Repository & Auto-Updates)
+```bash
+# 1-Click / One-Command Install via Flatpakref
+flatpak install --user https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakref
+
+# Or Add Flathub-Standard Remote Repository
+flatpak remote-add --user --if-not-exists bengal-download-manager https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakrepo
+flatpak install --user bengal-download-manager bd.com.zihad.BengalDownloadManager
+```
 
 #### AppImage Quick Start
 ```bash

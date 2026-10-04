@@ -1,5 +1,5 @@
 name: 'Build Flatpak'
-description: 'Builds the Flatpak bundle for the application with compiled AppStream catalog'
+description: 'Builds the Flatpak bundle and exports OSTree repository slice with compiled AppStream catalog'
 inputs:
   version:
     description: 'Version string (without leading v)'
@@ -9,6 +9,14 @@ inputs:
     description: 'Target architecture (x86_64 or aarch64)'
     required: false
     default: 'x86_64'
+  sign:
+    description: 'Sign OSTree repository with GPG (true/false)'
+    required: false
+    default: 'false'
+  gpg_key:
+    description: 'GPG key ID to sign with'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -16,14 +24,16 @@ runs:
     - name: Install Flatpak Dependencies
       uses: ./.github/actions/setup-apt
       with:
-        packages: flatpak appstream appstream-compose librsvg2-common
+        packages: flatpak ostree appstream appstream-compose librsvg2-common
 
-    - name: Build Flatpak Bundle
+    - name: Build Flatpak Bundle and Export OSTree Slice
       shell: bash
       run: |
         APP_ID="bd.com.zihad.BengalDownloadManager"
         BUILD_DIR="flatpak_app_dir"
         ARCH="${{ inputs.arch }}"
+        SIGN="${{ inputs.sign }}"
+        GPG_KEY="${{ inputs.gpg_key }}"
 
         # Dynamically determine version exactly like About dialog (core.version / git / env)
         VERSION="${{ inputs.version }}"
@@ -31,7 +41,7 @@ runs:
           VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
         fi
         VERSION="${VERSION#v}"
-        echo "Building Flatpak bundle for version: $VERSION ($ARCH)"
+        echo "Building Flatpak bundle and repo slice for version: $VERSION ($ARCH)"
 
         # Create standard directory layout
         mkdir -p "$BUILD_DIR/files/bin" \
@@ -128,9 +138,27 @@ runs:
         QT_QPA_PLATFORMTHEME=xdgdesktopportal
         EOF
 
-        mkdir -p dist
+        mkdir -p dist repo
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
-        flatpak build-export --update-appstream repo "$BUILD_DIR"
-        flatpak build-update-repo --generate-static-deltas repo
-        flatpak build-bundle repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak $APP_ID
+
+        if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
+          echo "Exporting Flatpak OSTree with GPG signature ($GPG_KEY)..."
+          flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream repo "$BUILD_DIR"
+          flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas repo
+        else
+          echo "Exporting Flatpak OSTree (unsigned)..."
+          flatpak build-export --update-appstream repo "$BUILD_DIR"
+          flatpak build-update-repo --generate-static-deltas repo
+        fi
+
+        # Generate Flathub-standard .flatpak bundle
+        flatpak build-bundle repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID"
         cp dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak dist/bengal-download-manager.flatpak 2>/dev/null || true
+        cp dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak dist/${APP_ID}-${VERSION}-${ARCH}.flatpak 2>/dev/null || true
+
+        # Generate standard repo ref files alongside bundle
+        python3 scripts/generate_flatpak_refs.py \
+          --repo-dir repo \
+          --out-dir dist \
+          --app-id "$APP_ID" \
+          ${GPG_KEY:+--gpg-key "$GPG_KEY"}
