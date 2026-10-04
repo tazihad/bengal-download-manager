@@ -204,11 +204,11 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
 
         if [ -n "$GPG_KEY" ]; then
             echo "Signing Flatpak OSTree with GPG ($GPG_KEY) to branch $BRANCH..."
-            flatpak build-export --branch="$BRANCH" --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR"
+            flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR" "$BRANCH"
             flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
         else
             echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH..."
-            flatpak build-export --branch="$BRANCH" --update-appstream "$REPO_DIR" "$BUILD_DIR"
+            flatpak build-export --update-appstream "$REPO_DIR" "$BUILD_DIR" "$BRANCH"
             flatpak build-update-repo --generate-static-deltas "$REPO_DIR"
         fi
 
