@@ -99,8 +99,8 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 flatpak install --user https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakref
 
 # Or Add Flathub-Standard Remote Repository
-flatpak remote-add --user --if-not-exists bengal-download-manager https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakrepo
-flatpak install --user bengal-download-manager bd.com.zihad.BengalDownloadManager
+flatpak remote-add --user --if-not-exists tazihad https://tazihad.github.io/bengal-download-manager/bd.com.zihad.BengalDownloadManager.flatpakrepo
+flatpak install --user tazihad bd.com.zihad.BengalDownloadManager
 ```
 
 #### AppImage Quick Start
