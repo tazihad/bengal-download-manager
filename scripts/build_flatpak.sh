@@ -197,16 +197,22 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
         mkdir -p dist "$REPO_DIR"
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
         
+        BRANCH="stable"
+        if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
+            BRANCH="${BASH_REMATCH[1]}"
+        fi
+
         if [ -n "$GPG_KEY" ]; then
-            echo "Signing Flatpak OSTree with GPG ($GPG_KEY)..."
-            flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR"
+            echo "Signing Flatpak OSTree with GPG ($GPG_KEY) to branch $BRANCH..."
+            flatpak build-export --branch="$BRANCH" --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR"
             flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
         else
-            flatpak build-export --update-appstream "$REPO_DIR" "$BUILD_DIR"
+            echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH..."
+            flatpak build-export --branch="$BRANCH" --update-appstream "$REPO_DIR" "$BUILD_DIR"
             flatpak build-update-repo --generate-static-deltas "$REPO_DIR"
         fi
 
-        flatpak build-bundle "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID"
+        flatpak build-bundle "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID" "$BRANCH"
         cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
         cp "dist/bengal-download-manager.flatpak" "dist/${APP_ID}-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
 
@@ -216,6 +222,8 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
             --out-dir dist \
             --app-id "$APP_ID" \
             --version "$VERSION" \
+            --branch "$BRANCH" \
+            --only-versioned \
             ${GPG_KEY:+--gpg-key "$GPG_KEY"} 2>/dev/null || true
 
         echo "✓ Bundle created: dist/bengal-download-manager.flatpak"

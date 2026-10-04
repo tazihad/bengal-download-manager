@@ -1,6 +1,6 @@
 [Flatpak Ref]
 Name=bd.com.zihad.BengalDownloadManager
-Branch=stable
+Branch=@BRANCH@
 Title=Bengal Download Manager
 Url=@REPO_URL@
 SuggestRemoteName=bengal-download-manager

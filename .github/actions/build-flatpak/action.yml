@@ -41,7 +41,13 @@ runs:
           VERSION=$(python3 -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.1.20")
         fi
         VERSION="${VERSION#v}"
-        echo "Building Flatpak bundle and repo slice for version: $VERSION ($ARCH)"
+
+        # Determine channel branch (stable, alpha, beta, rc) for track isolation
+        BRANCH="stable"
+        if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
+          BRANCH="${BASH_REMATCH[1]}"
+        fi
+        echo "Building Flatpak bundle and repo slice for version: $VERSION ($ARCH, branch: $BRANCH)"
 
         # Create standard directory layout
         mkdir -p "$BUILD_DIR/files/bin" \
@@ -142,24 +148,25 @@ runs:
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
 
         if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
-          echo "Exporting Flatpak OSTree with GPG signature ($GPG_KEY)..."
-          flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream repo "$BUILD_DIR"
+          echo "Exporting Flatpak OSTree with GPG signature ($GPG_KEY) to branch $BRANCH..."
+          flatpak build-export --branch="$BRANCH" --gpg-sign="$GPG_KEY" --update-appstream repo "$BUILD_DIR"
           flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas repo
         else
-          echo "Exporting Flatpak OSTree (unsigned)..."
-          flatpak build-export --update-appstream repo "$BUILD_DIR"
+          echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH..."
+          flatpak build-export --branch="$BRANCH" --update-appstream repo "$BUILD_DIR"
           flatpak build-update-repo --generate-static-deltas repo
         fi
 
-        # Generate Flathub-standard .flatpak bundle
-        flatpak build-bundle repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID"
+        # Generate Flathub-standard .flatpak bundle for this specific branch
+        flatpak build-bundle repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID" "$BRANCH"
         cp dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak dist/bengal-download-manager.flatpak 2>/dev/null || true
-        cp dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak dist/${APP_ID}-${VERSION}-${ARCH}.flatpak 2>/dev/null || true
 
-        # Generate standard repo ref files alongside bundle
+        # Generate only versioned repo ref files alongside bundle in dist/
         python3 scripts/generate_flatpak_refs.py \
           --repo-dir repo \
           --out-dir dist \
           --app-id "$APP_ID" \
           --version "$VERSION" \
+          --branch "$BRANCH" \
+          --only-versioned \
           ${GPG_KEY:+--gpg-key "$GPG_KEY"}

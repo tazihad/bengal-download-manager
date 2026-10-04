@@ -239,8 +239,9 @@ jobs:
 
       - name: Copy Flatpak Repo and Ref to Release Dist
         run: |
-          cp _site/*.flatpakrepo release_dist/ 2>/dev/null || true
-          cp _site/*.flatpakref release_dist/ 2>/dev/null || true
+          cp _site/bengal-download-manager-${{ needs.prepare.outputs.version }}.flatpakrepo release_dist/ 2>/dev/null || true
+          cp _site/bengal-download-manager-${{ needs.prepare.outputs.version }}.flatpakref release_dist/ 2>/dev/null || true
+          rm -f release_dist/bd.com.zihad.*.flatpakrepo release_dist/bd.com.zihad.*.flatpakref 2>/dev/null || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
