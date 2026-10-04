@@ -128,28 +128,31 @@ def main():
     if not args.only_versioned:
         target_repo_file = out_dir / f"{args.app_id}.flatpakrepo"
         target_ref_file = out_dir / f"{args.app_id}.flatpakref"
+        web_repo_file = out_dir / "tazihad.flatpakrepo"
+        web_ref_file = out_dir / "bengal-download-manager.flatpakref"
 
         target_repo_file.write_text(rendered_repo, encoding="utf-8")
         target_ref_file.write_text(rendered_ref, encoding="utf-8")
+        web_repo_file.write_text(rendered_repo, encoding="utf-8")
+        web_ref_file.write_text(rendered_ref, encoding="utf-8")
 
         print(f"✓ Generated canonical {target_repo_file} (Branch: {branch})")
         print(f"✓ Generated canonical {target_ref_file} (Branch: {branch})")
+        print(f"✓ Generated web repo: {web_repo_file}")
+        print(f"✓ Generated web ref: {web_ref_file}")
 
     # Generate versioned release assets matching other release binaries
     if version:
-        v_repo = out_dir / f"bengal-download-manager-{version}.flatpakrepo"
         v_ref = out_dir / f"bengal-download-manager-{version}.flatpakref"
-
-        v_repo.write_text(rendered_repo, encoding="utf-8")
         v_ref.write_text(rendered_ref, encoding="utf-8")
-
-        print(f"✓ Generated versioned asset: {v_repo}")
         print(f"✓ Generated versioned asset: {v_ref}")
 
     # Mirror canonical files into repo_dir if different from out_dir
     if repo_dir.exists() and repo_dir != out_dir and not args.only_versioned:
         (repo_dir / f"{args.app_id}.flatpakrepo").write_text(rendered_repo, encoding="utf-8")
         (repo_dir / f"{args.app_id}.flatpakref").write_text(rendered_ref, encoding="utf-8")
+        (repo_dir / "tazihad.flatpakrepo").write_text(rendered_repo, encoding="utf-8")
+        (repo_dir / "bengal-download-manager.flatpakref").write_text(rendered_ref, encoding="utf-8")
         print(f"✓ Mirrored into {repo_dir}")
 
 

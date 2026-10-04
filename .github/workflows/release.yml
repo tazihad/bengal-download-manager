@@ -240,11 +240,10 @@ jobs:
           gpg_key: ${{ steps.import_gpg.outputs.keyid }}
           pages_url: 'https://tazihad.github.io/bengal-download-manager'
 
-      - name: Copy Flatpak Repo and Ref to Release Dist
+      - name: Copy Flatpak Ref to Release Dist
         run: |
-          cp _site/bengal-download-manager-${{ needs.prepare.outputs.version }}.flatpakrepo release_dist/ 2>/dev/null || true
           cp _site/bengal-download-manager-${{ needs.prepare.outputs.version }}.flatpakref release_dist/ 2>/dev/null || true
-          rm -f release_dist/bd.com.zihad.*.flatpakrepo release_dist/bd.com.zihad.*.flatpakref 2>/dev/null || true
+          rm -f release_dist/*.flatpakrepo 2>/dev/null || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
