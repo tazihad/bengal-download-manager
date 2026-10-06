@@ -21,10 +21,26 @@
 ### Get App
 
 [![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/bengal-download-manager)
+<a id="hero-appimage-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.2.71/bengal-download-manager-0.2.71-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download AppImage">
+  <img src="assets/badges/appimage.svg" alt="AppImage Logo" class="store-badge-icon" />
+  <div class="text-container">
+    <div class="store-pre-title">DOWNLOAD</div>
+    <div class="store-title" id="hero-appimage-label">AppImage (x86_64)</div>
+  </div>
+</a>
+<a id="hero-flatpak-btn" href="bengal-download-manager.flatpakref" class="custom-store-badge" title="Install via Flatpak">
+  <img src="assets/badges/flatpak.svg" alt="Flatpak Logo" class="store-badge-icon" />
+  <div class="text-container">
+    <div class="store-pre-title">INSTALL VIA</div>
+    <div class="store-title" id="hero-flatpak-label">Flatpak</div>
+  </div>
+</a>
 
 ### Get Addon
 
-[![Firefox](https://img.shields.io/badge/-Firefox-orange?logo=firefox-browser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module)
+[![Get the Firefox Add-on](https://img.shields.io/badge/Firefox-Get_the_Add--on-ff7139?style=for-the-badge&logo=firefox-browser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Store-Upcoming-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](#browser-extensions)
+[![GitHub Extension Package](https://img.shields.io/badge/GitHub-Extension_Package-24292e?style=for-the-badge&logo=github&logoColor=white)](https://github.com/tazihad/bengal-download-manager/releases/latest)
 
 </div>
 
