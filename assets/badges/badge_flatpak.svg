@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="56" viewBox="0 0 160 56">
+  <rect x="0.5" y="0.5" width="159" height="55" rx="8" fill="#232629" stroke="#3d444b" stroke-width="1"/>
+  <g transform="translate(18, 14) scale(0.55937)" fill="#3daee9">
+    <path d="M42.69 13.414v23.228L22.573 48.256V25.028z"/>
+    <path d="M22.574 25.028V1.801L2.458 13.414z"/>
+    <path d="M3.358 10.056A6.709 6.709 0 000 15.873v18.31A6.709 6.709 0 003.358 40l15.858 9.155a6.71 6.71 0 006.716 0L41.79 40a6.709 6.709 0 003.358-5.816V15.873a6.709 6.709 0 00-3.358-5.817L25.932.901a6.71 6.71 0 00-6.716 0zM23.474 5.16l15.857 9.155c.555.32.9.919.9 1.559v18.31c0 .64-.345 1.24-.9 1.56l-15.857 9.155c-.555.32-1.246.32-1.8 0L5.816 35.742c-.554-.32-.9-.918-.9-1.558V15.873c0-.64.346-1.239.9-1.559L21.674 5.16a1.807 1.807 0 011.8 0z"/>
+  </g>
+  <text x="56" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="700" fill="#bdc3c7" letter-spacing="0.8">INSTALL VIA</text>
+  <text x="56" y="43" font-family="-apple-system, BlinkMacSystemFont, 'Outfit', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff">Flatpak</text>
+</svg>

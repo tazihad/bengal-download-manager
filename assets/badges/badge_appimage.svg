@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="172" height="56" viewBox="0 0 172 56">
+  <defs>
+    <linearGradient id="linearGradient2975" gradientUnits="userSpaceOnUse" x1="24.3125" y1="22.96875" x2="24.3125" y2="41.03125">
+      <stop offset="0" style="stop-color:#ffffff;stop-opacity:1"/>
+      <stop offset="1" style="stop-color:#ffffff;stop-opacity:0"/>
+    </linearGradient>
+    <linearGradient id="linearGradient2979" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,0.3704967,-0.3617496,0,33.508315,6.1670925)" x1="7.6485429" y1="26.437023" x2="41.861729" y2="26.437023">
+      <stop offset="0" style="stop-color:#ffffff;stop-opacity:1"/>
+      <stop offset="1" style="stop-color:#ffffff;stop-opacity:0"/>
+    </linearGradient>
+    <linearGradient id="linearGradient2982" gradientUnits="userSpaceOnUse" gradientTransform="translate(0,0.9999987)" x1="23.99999" y1="4.999989" x2="23.99999" y2="43">
+      <stop offset="0" style="stop-color:#ffffff;stop-opacity:1"/>
+      <stop offset="1" style="stop-color:#ffffff;stop-opacity:0"/>
+    </linearGradient>
+    <radialGradient id="radialGradient2985" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,1.0262008,-1.6561124,9.4072203e-4,-56.097482,-45.332325)" cx="48.42384" cy="-48.027504" fx="48.42384" fy="-48.027504" r="38.212933">
+      <stop offset="0" style="stop-color:#fafafa;stop-opacity:1"/>
+      <stop offset="1" style="stop-color:#e6e6e6;stop-opacity:1"/>
+    </radialGradient>
+    <radialGradient id="radialGradient2990" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,2.0478765,-2.7410544,-8.6412258e-8,47.161382,-8.837436)" cx="9.3330879" cy="8.4497671" fx="9.3330879" fy="8.4497671" r="19.99999">
+      <stop offset="0" style="stop-color:#a3c0d0;stop-opacity:1"/>
+      <stop offset="1" style="stop-color:#427da1;stop-opacity:1"/>
+    </radialGradient>
+    <linearGradient id="linearGradient2992" gradientUnits="userSpaceOnUse" gradientTransform="translate(0,0.9674382)" x1="14.048676" y1="44.137306" x2="14.048676" y2="4.0000005">
+      <stop offset="0" style="stop-color:#2e4a5a;stop-opacity:1"/>
+      <stop offset="1" style="stop-color:#6e8796;stop-opacity:1"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="171" height="55" rx="8" fill="#232629" stroke="#3d444b" stroke-width="1"/>
+
+  <g transform="translate(16, 13) scale(0.625)">
+    <rect style="fill:url(#radialGradient2990);fill-opacity:1;stroke:url(#linearGradient2992);stroke-width:1;stroke-linecap:round;stroke-linejoin:round" y="5.4674392" x="4.5" ry="2.2322156" rx="2.2322156" height="39" width="39"/>
+    <path style="fill:url(#radialGradient2985);fill-opacity:1;stroke:none" d="M 21,8.9999996 21,15 17.8125,15 24,22 30.1875,15 27,15 l 0,-6.0000004 -6,0 z M 23.21875,23 c -0.172892,0 -0.28125,0.294922 -0.28125,0.65625 l 0,2.28125 C 22.24145,26.095996 21.585954,26.379869 21,26.75 l -1.625,-1.625 c -0.255498,-0.255497 -0.533998,-0.372253 -0.65625,-0.25 l -1.53125,1.53125 c -0.122254,0.122254 -0.0055,0.400753 0.25,0.65625 l 1.625,1.625 c -0.37013,0.585953 -0.654003,1.24145 -0.8125,1.9375 l -2.28125,0 c -0.361328,0 -0.65625,0.108357 -0.65625,0.28125 l 0,2.1875 c 0,0.172892 0.294922,0.28125 0.65625,0.28125 l 2.28125,0 c 0.158497,0.69605 0.44237,1.351546 0.8125,1.9375 l -1.625,1.625 c -0.255497,0.255498 -0.372254,0.533997 -0.25,0.65625 l 1.53125,1.53125 c 0.122252,0.122254 0.400752,0.0055 0.65625,-0.25 L 21,37.25 c 0.585954,0.37013 1.24145,0.654002 1.9375,0.8125 l 0,2.28125 C 22.9375,40.705077 23.045858,41 23.21875,41 l 2.1875,0 c 0.172893,0 0.28125,-0.294924 0.28125,-0.65625 l 0,-2.28125 c 0.69605,-0.158498 1.351546,-0.44237 1.9375,-0.8125 l 1.625,1.625 c 0.255498,0.255497 0.533997,0.372254 0.65625,0.25 l 1.53125,-1.53125 c 0.122254,-0.122252 0.0055,-0.400752 -0.25,-0.65625 l -1.625,-1.625 c 0.370129,-0.585954 0.654003,-1.24145 0.8125,-1.9375 l 2.28125,0 c 0.361329,0 0.65625,-0.108358 0.65625,-0.28125 l 0,-2.1875 c 0,-0.172893 -0.294921,-0.28125 -0.65625,-0.28125 l -2.28125,0 c -0.158497,-0.69605 -0.442371,-1.351547 -0.8125,-1.9375 l 1.625,-1.625 c 0.255497,-0.255497 0.372254,-0.533997 0.25,-0.65625 L 29.90625,24.875 C 29.783997,24.752745 29.505498,24.8695 29.25,25.125 l -1.625,1.625 c -0.585954,-0.370131 -1.24145,-0.654004 -1.9375,-0.8125 l 0,-2.28125 C 25.6875,23.294922 25.579143,23 25.40625,23 l -2.1875,0 z m 1.09375,6.21875 c 1.528616,0 2.78125,1.252635 2.78125,2.78125 0,1.528615 -1.252634,2.78125 -2.78125,2.78125 -1.528614,0 -2.78125,-1.252635 -2.78125,-2.78125 0,-1.528615 1.252636,-2.78125 2.78125,-2.78125 z"/>
+    <rect style="opacity:0.4;fill:none;stroke:url(#linearGradient2982);stroke-width:1;stroke-linecap:round;stroke-linejoin:round" y="6.4999886" x="5.4999981" ry="1.365193" rx="1.365193" height="37.000011" width="36.999985"/>
+  </g>
+
+  <text x="56" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="700" fill="#bdc3c7" letter-spacing="0.8">DOWNLOAD</text>
+  <text x="56" y="43" font-family="-apple-system, BlinkMacSystemFont, 'Outfit', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff">AppImage</text>
+</svg>
