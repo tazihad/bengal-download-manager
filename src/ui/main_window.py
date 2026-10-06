@@ -917,11 +917,11 @@ class MainWindow(QMainWindow):
             }
             QTreeWidget::item:hover {
                 background-color: palette(highlight);
-                color: #111111;
+                color: palette(highlighted-text);
             }
             QTreeWidget::item:selected {
                 background-color: palette(highlight);
-                color: #111111;
+                color: palette(highlighted-text);
                 font-weight: 600;
             }
             QTreeWidget::item:disabled {

@@ -147,3 +147,26 @@ def test_handle_media_fetch_complete_safety(monkeypatch):
     assert len(started) == 1
     assert started[0]["url"] == "https://www.youtube.com/watch?v=u_wB6byrl5k"
 
+
+def test_properties_dialog_missing_file_warning(monkeypatch):
+    """Verify PropertiesDialog.on_open displays QMessageBox warning on missing file without NameError."""
+    from PyQt6.QtWidgets import QApplication, QMessageBox
+    app = QApplication.instance() or QApplication(["-platform", "offscreen"])
+    from ui.dialogs.properties import PropertiesDialog
+
+    dlg = PropertiesDialog({"filename": "ghost_file.iso", "path": "/nonexistent/ghost_file.iso", "status": "Error"})
+
+    warning_shown = []
+    def mock_warning(parent, title, message):
+        warning_shown.append((title, message))
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "warning", mock_warning)
+    dlg.on_open()
+
+    assert len(warning_shown) == 1
+    assert warning_shown[0][0] == "Error"
+    assert "File does not exist" in warning_shown[0][1]
+    dlg.close()
+
+
