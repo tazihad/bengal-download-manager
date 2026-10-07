@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QFrame, QWidget, QSizePolicy
 )
-from PyQt6.QtGui import QIcon, QColor, QPalette, QFont, QFontMetrics
+from PyQt6.QtGui import QIcon, QColor, QPalette, QFont, QFontMetrics, QKeySequence
 from PyQt6.QtCore import Qt, QEvent, QObject, QTimer, pyqtSignal
 
 from ui.icons import get_monochrome_icon, get_colorful_icon
@@ -202,6 +202,27 @@ class MicroInspectorCard(QFrame):
         self.lbl_icon.setPixmap(get_monochrome_icon("all_downloads", size=22).pixmap(22, 22))
 
 
+class AddUrlLineEdit(QLineEdit):
+    """
+    Custom QLineEdit for Add URL dialog ensuring cursor resets to start (index 0)
+    and deselects text whenever content is pasted.
+    """
+    def paste(self):
+        super().paste()
+        self.setCursorPosition(0)
+        self.deselect()
+        QTimer.singleShot(0, lambda: (self.setCursorPosition(0), self.deselect()))
+
+    def keyPressEvent(self, event):
+        if event.matches(QKeySequence.StandardKey.Paste):
+            super().keyPressEvent(event)
+            self.setCursorPosition(0)
+            self.deselect()
+            QTimer.singleShot(0, lambda: (self.setCursorPosition(0), self.deselect()))
+            return
+        super().keyPressEvent(event)
+
+
 class AddUrlDialog(QDialog):
     """
     Modern Essential Streamline Add URL Dialog.
@@ -258,7 +279,7 @@ class AddUrlDialog(QDialog):
         input_layout = QHBoxLayout()
         input_layout.setSpacing(8)
 
-        self.url_input = QLineEdit()
+        self.url_input = AddUrlLineEdit()
         self.url_input.setPlaceholderText("https://")
         self.url_input.setFixedHeight(32)
         self.url_input.setToolTip("Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)")
@@ -348,6 +369,10 @@ class AddUrlDialog(QDialog):
             if clipboard_text:
                 self.url_input.setText(clipboard_text)
                 self.url_input.setCursorPosition(0)
+                self.url_input.deselect()
+                QTimer.singleShot(0, lambda: (self.url_input.setCursorPosition(0), self.url_input.deselect()))
+                if clipboard_text.startswith(("http://", "https://", "ftp://")) and not "*" in clipboard_text and len(clipboard_text.split("\n")) == 1:
+                    self._start_background_prefetch()
 
         self._check_url_type()
 
@@ -521,6 +546,8 @@ class AddUrlDialog(QDialog):
         text = clipboard.text().strip()
         self.url_input.setText(text)
         self.url_input.setCursorPosition(0)
+        self.url_input.deselect()
+        QTimer.singleShot(0, lambda: (self.url_input.setCursorPosition(0), self.url_input.deselect()))
         if text.startswith(("http://", "https://", "ftp://")) and not "*" in text and len(text.split("\n")) == 1:
             self._start_background_prefetch()
 
@@ -530,6 +557,14 @@ class AddUrlDialog(QDialog):
     def get_prefetched_info(self) -> dict:
         """Returns pre-flight metadata if available."""
         return self._prefetched_info
+
+    def showEvent(self, event):
+        """Ensures cursor is at the beginning of the text when shown."""
+        super().showEvent(event)
+        if self.url_input.text():
+            self.url_input.setCursorPosition(0)
+            self.url_input.deselect()
+            QTimer.singleShot(0, lambda: (self.url_input.setCursorPosition(0), self.url_input.deselect()))
 
     def reject(self):
         """Gracefully aborts background worker when dialog is cancelled or Esc is pressed."""

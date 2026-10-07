@@ -164,13 +164,32 @@ class TestAddUrlDialog:
         QApplication.clipboard().setText("https://example.com/explicit_paste.iso")
         dlg = AddUrlDialog(paste_clipboard=True)
         assert dlg.get_url() == "https://example.com/explicit_paste.iso"
+        assert dlg.url_input.cursorPosition() == 0
         dlg.close()
 
-    def test_manual_paste_url_button(self, qapp):
+    def test_manual_paste_url_button_resets_cursor_to_start(self, qapp):
         QApplication.clipboard().setText("https://example.com/manual_paste.tar.gz")
         dlg = AddUrlDialog(paste_clipboard=False)
         assert dlg.get_url() == ""
         dlg.paste_url()
         assert dlg.get_url() == "https://example.com/manual_paste.tar.gz"
+        assert dlg.url_input.cursorPosition() == 0
         dlg.close()
+
+    def test_lineedit_paste_resets_cursor_to_start(self, qapp):
+        from ui.dialogs.add_url import AddUrlLineEdit
+        from PyQt6.QtGui import QKeyEvent
+        from PyQt6.QtCore import Qt, QEvent
+
+        line_edit = AddUrlLineEdit()
+        QApplication.clipboard().setText("https://example.com/lineedit_paste.zip")
+        line_edit.paste()
+        assert line_edit.text() == "https://example.com/lineedit_paste.zip"
+        assert line_edit.cursorPosition() == 0
+
+        # Test Ctrl+V key event
+        key_event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+        line_edit.keyPressEvent(key_event)
+        assert line_edit.cursorPosition() == 0
+
 
