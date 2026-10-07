@@ -342,14 +342,12 @@ class AddUrlDialog(QDialog):
         # Hook text changes
         self.url_input.textChanged.connect(self._on_url_text_changed)
 
-        # Auto-paste from clipboard if requested or if valid link is on clipboard
-        clipboard_text = QApplication.clipboard().text().strip()
-        if paste_clipboard and clipboard_text:
-            self.url_input.setText(clipboard_text)
-            self.url_input.setCursorPosition(0)
-        elif clipboard_text.startswith(("http://", "https://", "ftp://", "magnet:")):
-            self.url_input.setText(clipboard_text)
-            self.url_input.setCursorPosition(0)
+        # Paste from clipboard only if explicitly requested (e.g. from 'Paste URL' action)
+        if paste_clipboard:
+            clipboard_text = QApplication.clipboard().text().strip()
+            if clipboard_text:
+                self.url_input.setText(clipboard_text)
+                self.url_input.setCursorPosition(0)
 
         self._check_url_type()
 

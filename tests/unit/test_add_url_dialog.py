@@ -149,3 +149,27 @@ class TestAddUrlDialog:
         assert dlg._active_fetcher is None
         assert dlg.micro_inspector.lbl_filename.text() == "Enter or paste download address"
         dlg.close()
+
+    def test_no_auto_paste_by_default(self, qapp):
+        # Set clipboard with a valid URL
+        QApplication.clipboard().setText("https://example.com/some_file.zip")
+        # AddUrlDialog default is paste_clipboard=False
+        dlg = AddUrlDialog()
+        assert dlg.get_url() == ""
+        assert dlg.url_input.text() == ""
+        dlg.close()
+
+    def test_paste_clipboard_when_requested(self, qapp):
+        QApplication.clipboard().setText("https://example.com/explicit_paste.iso")
+        dlg = AddUrlDialog(paste_clipboard=True)
+        assert dlg.get_url() == "https://example.com/explicit_paste.iso"
+        dlg.close()
+
+    def test_manual_paste_url_button(self, qapp):
+        QApplication.clipboard().setText("https://example.com/manual_paste.tar.gz")
+        dlg = AddUrlDialog(paste_clipboard=False)
+        assert dlg.get_url() == ""
+        dlg.paste_url()
+        assert dlg.get_url() == "https://example.com/manual_paste.tar.gz"
+        dlg.close()
+
