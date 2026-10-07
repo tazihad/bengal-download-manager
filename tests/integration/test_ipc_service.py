@@ -90,6 +90,7 @@ class TestTcpListenerThread:
             sock.close()
             assert len(received_urls) >= 0
         finally:
+            thread.stop()
             thread.quit()
             thread.wait(2000)
 
