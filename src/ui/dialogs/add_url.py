@@ -236,10 +236,10 @@ class AddUrlDialog(QDialog):
             "Video": [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]
         }
 
-        # 250ms Debouncer for pre-flight probing
+        # 150ms Debouncer for pre-flight probing
         self._debounce_timer = QTimer(self)
         self._debounce_timer.setSingleShot(True)
-        self._debounce_timer.setInterval(250)
+        self._debounce_timer.setInterval(150)
         self._debounce_timer.timeout.connect(self._start_background_prefetch)
 
         # Layout Setup
@@ -516,8 +516,11 @@ class AddUrlDialog(QDialog):
 
     def paste_url(self):
         clipboard = QApplication.clipboard()
-        self.url_input.setText(clipboard.text().strip())
+        text = clipboard.text().strip()
+        self.url_input.setText(text)
         self.url_input.setCursorPosition(0)
+        if text.startswith(("http://", "https://", "ftp://")) and not "*" in text and len(text.split("\n")) == 1:
+            self._start_background_prefetch()
 
     def get_url(self):
         return self.url_input.text().strip()
