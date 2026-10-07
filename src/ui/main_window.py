@@ -4322,7 +4322,11 @@ class MainWindow(QMainWindow):
             if getattr(dialog, "is_media_mode", False):
                 self.open_media_downloader(url=url, auto_analyze=True)
             else:
-                self.process_incoming_url(url)
+                prefetched = getattr(dialog, "get_prefetched_info", lambda: None)()
+                if prefetched and isinstance(prefetched, dict) and prefetched.get("url") == url and not prefetched.get("error"):
+                    self.on_file_info_fetched(prefetched)
+                else:
+                    self.process_incoming_url(url)
 
     def open_batch_pattern(self, initial_url: str = None):
         """Opens the Batch Pattern Dialog to generate wildcard URLs.

@@ -21,8 +21,13 @@ class FileInfoFetcherWorker(QThread):
         self.user_agent = user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         self.cookies = cookies
         self.cookie_jar = http.cookiejar.CookieJar()
+        self._is_cancelled = False
         if is_debug_mode():
             logger.debug("[Fetcher] Initialized for URL: %s", self.url)
+    
+    def cancel(self):
+        """Signals the worker to cancel ongoing requests and suppress result emission."""
+        self._is_cancelled = True
     
     def create_opener(self):
         """Standard opener with cookie support and redirect handling."""
@@ -46,6 +51,7 @@ class FileInfoFetcherWorker(QThread):
         result = {
             "url": self.url,
             "filename": initial_filename,
+            "content_type": "",
             "size_str": "Unknown",
             "size_bytes": 0,
             "user_agent": self.user_agent,
@@ -55,6 +61,8 @@ class FileInfoFetcherWorker(QThread):
         }
         
         try:
+            if self._is_cancelled:
+                return
             # --- FULL BROWSER HEADERS (Avoid Cloudflare/WAF blocks) ---
             headers = {
                 'User-Agent': self.user_agent,
@@ -81,11 +89,16 @@ class FileInfoFetcherWorker(QThread):
             max_redirects = 10
             
             for hop in range(max_redirects):
+                if self._is_cancelled:
+                    return
                 req = urllib.request.Request(current_url, headers=headers)
                 with opener.open(req, timeout=15) as resp:
+                    if self._is_cancelled:
+                        return
                     final_url = resp.geturl()
                     final_headers = resp.headers
                     content_type = final_headers.get("Content-Type", "").lower()
+                    result["content_type"] = content_type
                     if is_debug_mode():
                         logger.debug("[Fetcher] Hop %d: %s -> %s (Content-Type: %s)", hop + 1, current_url, final_url, content_type)
                     
@@ -98,7 +111,8 @@ class FileInfoFetcherWorker(QThread):
                         result["error"] = "Target is a webpage, not a file. Redirected to landing page."
                         if is_debug_mode():
                             logger.debug("[Fetcher] Target is webpage without attachment header: %s", final_url)
-                        self.finished_signal.emit(result)
+                        if not self._is_cancelled:
+                            self.finished_signal.emit(result)
                         return
 
                     # We found a binary or an explicit attachment!
@@ -115,7 +129,8 @@ class FileInfoFetcherWorker(QThread):
                         logger.debug("[Fetcher] Successfully resolved: filename=%s, size=%s (%d bytes)",
                                      result["filename"], result["size_str"], result["size_bytes"])
                     resp.close()
-                    self.finished_signal.emit(result)
+                    if not self._is_cancelled:
+                        self.finished_signal.emit(result)
                     return
 
             result["error"] = "Too many redirects. Could not find direct file link."
@@ -127,7 +142,8 @@ class FileInfoFetcherWorker(QThread):
             if is_debug_mode():
                 logger.error("[Fetcher] Error probing %s: %s", self.url, e)
             
-        self.finished_signal.emit(result)
+        if not self._is_cancelled:
+            self.finished_signal.emit(result)
         
     def format_bytes(self, size, precision=2, pad=False):
         power = 1024
