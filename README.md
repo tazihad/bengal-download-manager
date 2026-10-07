@@ -44,6 +44,18 @@
 
 Bengal Download Manager is a high-performance download management tool built with PyQt6, KDE Kirigami QML, and Aria2 to accelerate and simplify your download workflow.
 
+## 🎬 Feature Tour & App Demo
+
+<p align="center">
+  <a href="assets/demo/bengal_demo.mp4">
+    <img width="100%" alt="Bengal Download Manager Feature Walkthrough & Demo" src="assets/demo/bengal_demo_preview.gif" />
+  </a>
+</p>
+
+<p align="center">
+  🎥 <b><a href="assets/demo/bengal_demo.mp4">Watch Full HD 1080p Walkthrough Video (MP4)</a></b>
+</p>
+
 ## Screenshots & Product Posters
 
 ### Main Application (Dark & Light Mode)
