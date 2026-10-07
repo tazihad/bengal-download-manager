@@ -322,11 +322,11 @@ class AddUrlDialog(QDialog):
         btn_layout.addWidget(self.lbl_batch_status)
         btn_layout.addStretch()
 
-        self.btn_download = QPushButton("Download")
+        self.btn_download = QPushButton("Add URL")
         self.btn_download.setDefault(True)
         self.btn_download.setFixedWidth(90)
         self.btn_download.setFixedHeight(30)
-        self.btn_download.setToolTip("Start downloading this file")
+        self.btn_download.setToolTip("Add download URL")
         self.btn_download.clicked.connect(self.accept)
 
         self.btn_cancel = QPushButton("Cancel")

@@ -52,6 +52,7 @@ class TestAddUrlDialog:
         assert dlg.url_input is not None
         assert dlg.btn_paste is not None
         assert dlg.btn_download is not None
+        assert dlg.btn_download.text() == "Add URL"
         assert dlg.btn_cancel is not None
         assert dlg.micro_inspector is not None
         dlg.close()
