@@ -50,6 +50,7 @@ class FileInfoFetcherWorker(QThread):
         
         result = {
             "url": self.url,
+            "original_url": self.url,
             "filename": initial_filename,
             "content_type": "",
             "size_str": "Unknown",

@@ -259,7 +259,7 @@ class AddUrlDialog(QDialog):
         input_layout.setSpacing(8)
 
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("http://")
+        self.url_input.setPlaceholderText("https://")
         self.url_input.setFixedHeight(32)
         self.url_input.setToolTip("Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)")
         input_layout.addWidget(self.url_input)
@@ -390,7 +390,11 @@ class AddUrlDialog(QDialog):
 
     def _on_prefetch_complete(self, result: dict):
         """Callback when pre-flight background probing returns."""
-        if not result or result.get("url") != self.get_url():
+        if not result:
+            return
+
+        current_url = self.get_url()
+        if result.get("original_url") != current_url and result.get("url") != current_url:
             return
 
         self._prefetched_info = result
