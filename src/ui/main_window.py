@@ -2317,6 +2317,8 @@ class MainWindow(QMainWindow):
                 self._scheduler_dlg._refresh_files_table(self._scheduler_dlg._selected_index)
 
     def update_ui_states(self):
+        if sip.isdeleted(self) or getattr(self, "download_table", None) is None or sip.isdeleted(self.download_table):
+            return
         selected_rows = self.download_table.selectedItems()
         has_selection = len(selected_rows) > 0
         
@@ -2407,6 +2409,8 @@ class MainWindow(QMainWindow):
         Called when a DownloadProgressDialog is closed (either by completion,
         cancellation, or manual closing).
         """
+        if sip.isdeleted(self) or getattr(self, "download_table", None) is None or sip.isdeleted(self.download_table):
+            return
         self.save_data() # Save status changes
         self.update_ui_states()
         
