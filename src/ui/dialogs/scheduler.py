@@ -90,14 +90,14 @@ class SchedulerDialog(QDialog):
             }
             QMenu::item:selected, QMenu::item:hover {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QMenu::item:disabled {
-                color: #888888;
+                color: palette(placeholder-text);
                 background-color: transparent;
             }
             QMenu::item:disabled:selected, QMenu::item:disabled:hover {
-                color: #888888;
+                color: palette(placeholder-text);
                 background-color: transparent;
             }
             QMenu::separator {
@@ -182,11 +182,11 @@ class SchedulerDialog(QDialog):
             }
             QListWidget::item:hover {
                 background-color: palette(highlight);
-                color: #111111;
+                color: palette(highlighted-text);
             }
             QListWidget::item:selected {
                 background-color: palette(highlight);
-                color: #111111;
+                color: palette(highlighted-text);
                 font-weight: 600;
             }
             QListWidget::item:disabled {

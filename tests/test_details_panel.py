@@ -491,3 +491,26 @@ def test_eta_and_speed_formatting_and_alignment(qapp):
     assert panel.prog_speed_label.width() > 0 or panel.prog_speed_label.maximumWidth() == 100
     assert panel.prog_eta_label.width() > 0 or panel.prog_eta_label.maximumWidth() == 140
 
+
+def test_details_panel_worker_progress_updates_segments_stat(qapp):
+    """Verify that _on_worker_progress updates segment and active stats without NameError."""
+    panel = DetailsPanel()
+    panel.show()
+    panel.set_download_data({
+        "filename": "test_video.mp4",
+        "url": "https://example.com/test_video.mp4",
+        "num_connections": 8,
+        "status": "Receiving data..."
+    })
+
+    # data tuple: (filename, size_str, status_str, time_left, speed_str, dl_bytes, total_bytes, raw_speed, generation)
+    progress_data = ("test_video.mp4", "100.00 MB", "Receiving data...", "10 sec", "5.00 MB/s", 50 * 1024 * 1024, 100 * 1024 * 1024, 5 * 1024 * 1024, 1)
+    panel._on_worker_progress(0, progress_data)
+
+    assert "Segments:" in panel.prog_segments_stat.text()
+    assert "Active:" in panel.prog_active_stat.text()
+    assert panel.prog_active_stat.text() == "Active: 8"
+    assert panel.prog_segments_stat.text() == "Segments: 4 / 8"
+    panel.close()
+
+

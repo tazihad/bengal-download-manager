@@ -182,7 +182,7 @@ def test_about_dialog_formatting(qtbot):
     from ui.dialogs.about import AboutDialog
     from ui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     # 1. Dev build opens immediately without verified badge
@@ -214,7 +214,7 @@ def test_help_menu_homepage_url(qtbot):
     from PyQt6.QtGui import QDesktopServices
     from ui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     with patch.object(QDesktopServices, "openUrl") as mock_open:
@@ -230,7 +230,7 @@ def test_about_verified_source_hover_tooltip(qtbot):
     from ui.dialogs.about import AboutDialog
     from ui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     with patch.object(sys, "frozen", True, create=True), \
@@ -252,7 +252,7 @@ def test_about_dialog_offline_warning(qtbot):
     from ui.dialogs.about import AboutDialog
     from ui.main_window import MainWindow
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     with patch.object(sys, "frozen", True, create=True), \
@@ -279,7 +279,7 @@ def test_main_window_show_about(qtbot):
     from ui.main_window import MainWindow
     from ui.dialogs.about import AboutDialog
 
-    window = MainWindow()
+    window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     with patch.object(AboutDialog, "exec") as mock_exec:

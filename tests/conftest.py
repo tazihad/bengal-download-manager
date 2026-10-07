@@ -47,6 +47,13 @@ def _flush_deferred_deletes(qapp):
 
 def flush_deferred_deletes(app):
     import gc
+    for w in app.topLevelWidgets():
+        try:
+            if hasattr(w, "listener_thread") and w.listener_thread:
+                w.listener_thread.stop(timeout_ms=500)
+                w.listener_thread = None
+        except Exception:
+            pass
     gc.collect()
     app.processEvents()
     app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

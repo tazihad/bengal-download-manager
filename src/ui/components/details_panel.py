@@ -1013,6 +1013,7 @@ class DetailsPanel(QFrame):
             self.prog_bytes_label.setText(f"{dl_str} / {total_str}")
             self.prog_speed_label.setText(format_speed_string(speed))
             self.prog_eta_label.setText(format_eta_string(time_left, is_comp))
+            num_conn = (self.current_download_data or {}).get("num_connections") or getattr(self._attached_worker, "max_connections", 8) or 8
             is_act = not is_comp and status_str not in ["Paused", "Cancelled", "Error"]
             act_count = num_conn if is_act else 0
             comp_count = num_conn if is_comp else int(round((pct / 100.0) * num_conn))

@@ -1,7 +1,7 @@
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QGroupBox, QGridLayout, QApplication
+    QGroupBox, QGridLayout, QApplication, QMessageBox
 )
 
 from PyQt6.QtGui import QFont

@@ -501,7 +501,7 @@ def get_month_daily_usage(month_str: Optional[str] = None, db_path: Optional[str
                 WHERE status IN ('Complete', 'Finished')
             """)
             dl_rows = cur.fetchall()
-            from core.services.theme_service import parse_size_to_bytes
+            from core.categories import parse_size_to_bytes
             dl_by_date: Dict[str, Dict[str, int]] = {}
             for dl in dl_rows:
                 ts_str = dl["last_try"] or dl["date_added"]

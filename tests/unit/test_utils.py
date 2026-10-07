@@ -237,3 +237,11 @@ class TestUniqueMediaFilepath:
         (tmp_path / "video.mp4").write_text("x")
         result = get_unique_media_filepath(str(tmp_path), "video.mp4")
         assert result != str(tmp_path / "video.mp4")
+
+
+class TestUtilsModuleImports:
+    def test_time_imported_in_utils(self):
+        import core.utils as utils
+        assert hasattr(utils, "time")
+        assert callable(utils.time.time)
+
