@@ -147,7 +147,7 @@ class TestAddUrlDialog:
         from ui.dialogs.add_url import AddUrlDialog
         dlg = AddUrlDialog()
         assert dlg.url_input is not None
-        assert dlg.url_input.placeholderText() == "http://"
+        assert dlg.url_input.placeholderText() == "https://"
         dlg.close()
 
     def test_url_input_settable(self, qapp):

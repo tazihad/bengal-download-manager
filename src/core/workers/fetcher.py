@@ -21,8 +21,13 @@ class FileInfoFetcherWorker(QThread):
         self.user_agent = user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         self.cookies = cookies
         self.cookie_jar = http.cookiejar.CookieJar()
+        self._is_cancelled = False
         if is_debug_mode():
             logger.debug("[Fetcher] Initialized for URL: %s", self.url)
+    
+    def cancel(self):
+        """Signals the worker to cancel ongoing requests and suppress result emission."""
+        self._is_cancelled = True
     
     def create_opener(self):
         """Standard opener with cookie support and redirect handling."""
@@ -45,7 +50,9 @@ class FileInfoFetcherWorker(QThread):
         
         result = {
             "url": self.url,
+            "original_url": self.url,
             "filename": initial_filename,
+            "content_type": "",
             "size_str": "Unknown",
             "size_bytes": 0,
             "user_agent": self.user_agent,
@@ -55,6 +62,8 @@ class FileInfoFetcherWorker(QThread):
         }
         
         try:
+            if self._is_cancelled:
+                return
             # --- FULL BROWSER HEADERS (Avoid Cloudflare/WAF blocks) ---
             headers = {
                 'User-Agent': self.user_agent,
@@ -75,60 +84,124 @@ class FileInfoFetcherWorker(QThread):
                 headers['Referer'] = f"{parsed_orig.scheme}://{parsed_orig.netloc}/"
 
             opener = self.create_opener()
-            
-            # Follow redirects manually to inspect each stage
             current_url = self.url
             max_redirects = 10
-            
+
+            # --- TIER 1: ULTRA-FAST HTTP HEAD REQUEST (0 Body Bytes, 1 TCP Round-Trip) ---
+            head_success = False
             for hop in range(max_redirects):
-                req = urllib.request.Request(current_url, headers=headers)
-                with opener.open(req, timeout=15) as resp:
-                    final_url = resp.geturl()
-                    final_headers = resp.headers
-                    content_type = final_headers.get("Content-Type", "").lower()
-                    if is_debug_mode():
-                        logger.debug("[Fetcher] Hop %d: %s -> %s (Content-Type: %s)", hop + 1, current_url, final_url, content_type)
-                    
-                    # If we hit an HTML page with no attachment header, it's NOT the file.
-                    if "text/html" in content_type and not final_headers.get("Content-Disposition"):
-                        if final_url != current_url:
-                            current_url = final_url
-                            continue
-                        
-                        result["error"] = "Target is a webpage, not a file. Redirected to landing page."
-                        if is_debug_mode():
-                            logger.debug("[Fetcher] Target is webpage without attachment header: %s", final_url)
-                        self.finished_signal.emit(result)
-                        return
-
-                    # We found a binary or an explicit attachment!
-                    result["url"] = final_url
-                    result["referer"] = self.url if final_url != self.url else (self.referrer or self.url)
-                    result["filename"] = resolve_filename(final_url, final_headers)
-                    
-                    content_length = final_headers.get("Content-Length")
-                    if content_length and content_length.isdigit():
-                        result["size_bytes"] = int(content_length)
-                        result["size_str"] = self.format_bytes(result["size_bytes"])
-                    
-                    if is_debug_mode():
-                        logger.debug("[Fetcher] Successfully resolved: filename=%s, size=%s (%d bytes)",
-                                     result["filename"], result["size_str"], result["size_bytes"])
-                    resp.close()
-                    self.finished_signal.emit(result)
+                if self._is_cancelled:
                     return
+                try:
+                    head_req = urllib.request.Request(current_url, headers=headers, method="HEAD")
+                    with opener.open(head_req, timeout=8) as resp:
+                        if self._is_cancelled:
+                            return
+                        final_url = resp.geturl()
+                        final_headers = resp.headers
+                        content_type = final_headers.get("Content-Type", "").lower()
+                        result["content_type"] = content_type
 
-            result["error"] = "Too many redirects. Could not find direct file link."
-            if is_debug_mode():
-                logger.warning("[Fetcher] Exceeded %d redirects for %s", max_redirects, self.url)
-                    
+                        # If redirected to an HTML landing page without attachment header, follow location
+                        if "text/html" in content_type and not final_headers.get("Content-Disposition"):
+                            if final_url != current_url:
+                                current_url = final_url
+                                continue
+                            result["error"] = "Target is a webpage, not a file. Redirected to landing page."
+                            if not self._is_cancelled:
+                                self.finished_signal.emit(result)
+                            return
+
+                        result["url"] = final_url
+                        result["referer"] = self.url if final_url != self.url else (self.referrer or self.url)
+                        result["filename"] = resolve_filename(final_url, final_headers)
+
+                        content_length = final_headers.get("Content-Length")
+                        if content_length and content_length.isdigit() and int(content_length) > 0:
+                            result["size_bytes"] = int(content_length)
+                            result["size_str"] = self.format_bytes(result["size_bytes"])
+                            head_success = True
+                            if is_debug_mode():
+                                logger.debug("[Fetcher] [Tier 1 HEAD Fast Success] %s: %s (%d bytes)",
+                                             result["filename"], result["size_str"], result["size_bytes"])
+                            resp.close()
+                            if not self._is_cancelled:
+                                self.finished_signal.emit(result)
+                            return
+                        resp.close()
+                except Exception as head_err:
+                    if is_debug_mode():
+                        logger.debug("[Fetcher] HEAD request failed or unsupported (%s), falling back to Tier 2 Range request.", head_err)
+                    break
+
+            # --- TIER 2: RANGE BYTES=0-0 (1 Byte transfer to read Content-Range total size) ---
+            if not head_success:
+                range_headers = headers.copy()
+                range_headers['Range'] = 'bytes=0-0'
+                current_url = result.get("url") or self.url
+
+                for hop in range(max_redirects):
+                    if self._is_cancelled:
+                        return
+                    req = urllib.request.Request(current_url, headers=range_headers)
+                    with opener.open(req, timeout=10) as resp:
+                        if self._is_cancelled:
+                            return
+                        final_url = resp.geturl()
+                        final_headers = resp.headers
+                        content_type = final_headers.get("Content-Type", "").lower()
+                        result["content_type"] = content_type
+
+                        if "text/html" in content_type and not final_headers.get("Content-Disposition"):
+                            if final_url != current_url:
+                                current_url = final_url
+                                continue
+                            result["error"] = "Target is a webpage, not a file. Redirected to landing page."
+                            if not self._is_cancelled:
+                                self.finished_signal.emit(result)
+                            return
+
+                        result["url"] = final_url
+                        result["referer"] = self.url if final_url != self.url else (self.referrer or self.url)
+                        result["filename"] = resolve_filename(final_url, final_headers)
+
+                        # Check Content-Range: bytes 0-0/TOTAL
+                        content_range = final_headers.get("Content-Range", "")
+                        if content_range:
+                            import re
+                            m_range = re.search(r"bytes\s+\d+-\d+/(\d+)", content_range, re.IGNORECASE)
+                            if m_range and m_range.group(1).isdigit():
+                                result["size_bytes"] = int(m_range.group(1))
+                                result["size_str"] = self.format_bytes(result["size_bytes"])
+
+                        # Fallback to Content-Length if Content-Range was absent (full 200 response)
+                        if result["size_bytes"] == 0:
+                            content_length = final_headers.get("Content-Length")
+                            if content_length and content_length.isdigit():
+                                result["size_bytes"] = int(content_length)
+                                result["size_str"] = self.format_bytes(result["size_bytes"])
+
+                        if is_debug_mode():
+                            logger.debug("[Fetcher] [Tier 2 Range Success] %s: %s (%d bytes)",
+                                         result["filename"], result["size_str"], result["size_bytes"])
+                        # Read only 1 byte and close socket immediately
+                        try:
+                            resp.read(1)
+                        except Exception:
+                            pass
+                        resp.close()
+                        if not self._is_cancelled:
+                            self.finished_signal.emit(result)
+                        return
+            result["error"] = "Could not resolve file size."
         except Exception as e:
             result["error"] = str(e)
             if is_debug_mode():
                 logger.error("[Fetcher] Error probing %s: %s", self.url, e)
-            
-        self.finished_signal.emit(result)
-        
+
+        if not self._is_cancelled:
+            self.finished_signal.emit(result)
+
     def format_bytes(self, size, precision=2, pad=False):
         power = 1024
         n = 0
