@@ -278,4 +278,68 @@ class TestMediaDependenciesAndPotProvider:
         assert "deno_version" not in data_after
 
 
+class TestFileInfoFetcherWorker:
+    def test_tier1_head_fast_probing(self, qapp):
+        from core.workers.fetcher import FileInfoFetcherWorker
+        worker = FileInfoFetcherWorker("https://example.com/test_image.iso")
+
+        mock_resp = MagicMock()
+        mock_resp.geturl.return_value = "https://example.com/test_image.iso"
+        mock_resp.headers = {
+            "Content-Type": "application/x-iso9660-image",
+            "Content-Length": "6128382976",
+            "Content-Disposition": 'attachment; filename="ubuntu-24.04.iso"'
+        }
+
+        with patch.object(worker, "create_opener") as mock_opener:
+            mock_opener_instance = MagicMock()
+            mock_opener.return_value = mock_opener_instance
+            mock_opener_instance.open.return_value.__enter__.return_value = mock_resp
+
+            results = []
+            worker.finished_signal.connect(results.append)
+            worker.run()
+
+            assert len(results) == 1
+            res = results[0]
+            assert res["filename"] == "ubuntu-24.04.iso"
+            assert res["size_bytes"] == 6128382976
+            assert "5.71  GB" in res["size_str"]
+
+    def test_tier2_range_bytes_fallback(self, qapp):
+        from core.workers.fetcher import FileInfoFetcherWorker
+        import urllib.error
+
+        worker = FileInfoFetcherWorker("https://example.com/stream_chunk.mkv")
+
+        mock_range_resp = MagicMock()
+        mock_range_resp.geturl.return_value = "https://example.com/stream_chunk.mkv"
+        mock_range_resp.headers = {
+            "Content-Type": "video/x-matroska",
+            "Content-Range": "bytes 0-0/104857600"
+        }
+
+        def mock_open(req, timeout=10):
+            if req.get_method() == "HEAD":
+                raise urllib.error.HTTPError(req.get_full_url(), 405, "Method Not Allowed", {}, None)
+            ctx = MagicMock()
+            ctx.__enter__.return_value = mock_range_resp
+            return ctx
+
+        with patch.object(worker, "create_opener") as mock_opener:
+            mock_opener_instance = MagicMock()
+            mock_opener.return_value = mock_opener_instance
+            mock_opener_instance.open.side_effect = mock_open
+
+            results = []
+            worker.finished_signal.connect(results.append)
+            worker.run()
+
+            assert len(results) == 1
+            res = results[0]
+            assert res["size_bytes"] == 104857600
+            assert "100.00  MB" in res["size_str"]
+            assert res["content_type"] == "video/x-matroska"
+
+
 

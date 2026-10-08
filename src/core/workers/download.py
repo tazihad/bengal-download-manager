@@ -149,7 +149,7 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, **kwargs):
+    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, prefetch=False, **kwargs):
         super().__init__()
         self.url = url
         self.download_id = kwargs.get("row_index", download_id)
@@ -160,6 +160,7 @@ class DownloadWorker(QThread):
         self.cookies = cookies
         self.referrer = referrer
         self.allow_resume = allow_resume
+        self.prefetch = prefetch  # Prefetch mode: single connection, temp file, no final move
         self.is_running = True
         self.is_paused = False
         self.mutex = QMutex()
@@ -185,7 +186,11 @@ class DownloadWorker(QThread):
             try: os.makedirs(self.working_dir, exist_ok=True)
             except: self.working_dir = self.save_dir
 
-        self.save_path = os.path.join(self.working_dir, self.filename + ".tmpbdm")
+        # Prefetch mode uses .bdpart suffix, normal mode uses .tmpbdm
+        if self.prefetch:
+            self.save_path = os.path.join(self.working_dir, self.filename + ".bdpart")
+        else:
+            self.save_path = os.path.join(self.working_dir, self.filename + ".tmpbdm")
         self.state_file = self.save_path + ".bdmx"
         self.workers = []
         self.segment_stats = {} 
@@ -309,13 +314,36 @@ class DownloadWorker(QThread):
                 except Exception as e:
                     self.log_signal.emit(f"State file corrupted, starting fresh: {e}")
             
+            # Also check for prefetch .bdpart file if not resuming and not in prefetch mode
+            if not is_resuming and not self.prefetch:
+                bdpart_path = os.path.join(self.working_dir, self.filename + ".bdpart")
+                bdpart_state = bdpart_path + ".bdmx"
+                if os.path.exists(bdpart_path) and os.path.exists(bdpart_state):
+                    try:
+                        with open(bdpart_state, 'r') as f:
+                            state_data = json.load(f)
+                            if state_data.get("total_size") == total_size:
+                                segments_info = state_data.get("segments", [])
+                                num_threads = len(segments_info)
+                                is_resuming = True
+                                self.save_path = bdpart_path  # Switch to .bdpart file for resuming
+                                self.state_file = bdpart_state
+                                self.log_signal.emit("Resuming from prefetch download...")
+                    except Exception as e:
+                        if is_debug_mode():
+                            logger.debug("[DownloadWorker] Could not resume from prefetch: %s", e)
+            
             if not is_resuming:
                 if accept_ranges == 'none' or total_size < 1024 * 1024: 
                     num_threads = 1
                     self.log_signal.emit("Using 1 connection.")
                 else:
-
-                    self.log_signal.emit(f"Splitting into {num_threads} connections.")
+                    if self.prefetch:
+                        # Prefetch mode: use only 1 connection
+                        num_threads = 1
+                        self.log_signal.emit("Prefetch: using 1 connection.")
+                    else:
+                        self.log_signal.emit(f"Splitting into {num_threads} connections.")
 
                 with open(self.save_path, "wb") as f:
                     f.truncate(total_size) 
@@ -407,37 +435,56 @@ class DownloadWorker(QThread):
             if self.is_running:
                 self.log_signal.emit("File assembled. Verifying...")
                 
-                try:
-                    self.log_signal.emit(f"Finalizing: Moving file to {self.save_dir}")
-                    if os.path.exists(self.target_path):
-                         os.remove(self.target_path) 
-                    shutil.move(self.save_path, self.target_path)
-                    
+                if self.prefetch:
+                    # Prefetch mode: keep .bdpart file and state file for resuming
+                    # Don't move to final location, don't remove state file
+                    self.final_status = "Prefetch Complete"
                     if is_debug_mode():
-                        logger.debug("[DownloadWorker] Download finalized successfully: %s (%d bytes)", self.target_path, total_size)
-                    self.log_signal.emit("Download completed.")
-                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size, 0))
-                    self.finished_signal.emit(self.row_index, "Complete")
-                    
-                    if os.path.exists(self.state_file):
-                        os.remove(self.state_file)
-                except Exception as e:
-                    logger.error("[DownloadWorker] Error finalizing file: %s", e)
-                    self.log_signal.emit(f"Error finalizing file: {e}")
-                    self.finished_signal.emit(self.row_index, "Error")
+                        logger.debug("[DownloadWorker] Prefetch completed: %s (%d bytes)", self.save_path, total_size)
+                    self.log_signal.emit("Prefetch completed. Waiting for confirmation...")
+                    self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Prefetch Complete", "", "", total_size, total_size, 0))
+                    self.finished_signal.emit(self.row_index, "Prefetch Complete")
+                else:
+                    # Normal mode: move to final location
+                    try:
+                        self.log_signal.emit(f"Finalizing: Moving file to {self.save_dir}")
+                        if os.path.exists(self.target_path):
+                            os.remove(self.target_path) 
+                        shutil.move(self.save_path, self.target_path)
+                        
+                        if is_debug_mode():
+                            logger.debug("[DownloadWorker] Download finalized successfully: %s (%d bytes)", self.target_path, total_size)
+                        self.log_signal.emit("Download completed.")
+                        self.main_progress_signal.emit(self.row_index, (self.filename, self.format_bytes(total_size, precision=2, pad=False) if total_size > 0 else "Unknown", "Complete", "", "", total_size, total_size, 0))
+                        self.finished_signal.emit(self.row_index, "Complete")
+                        
+                        if os.path.exists(self.state_file):
+                            os.remove(self.state_file)
+                    except Exception as e:
+                        logger.error("[DownloadWorker] Error finalizing file: %s", e)
+                        self.log_signal.emit(f"Error finalizing file: {e}")
+                        self.finished_signal.emit(self.row_index, "Error")
             else:
                 self.save_state(total_size) 
                 
                 if self.is_paused:
                     if is_debug_mode():
                         logger.debug("[DownloadWorker] Download paused for row %d", self.row_index)
-                    self.log_signal.emit("Download paused.")
-                    self.finished_signal.emit(self.row_index, "Paused")
+                    if self.prefetch:
+                        self.log_signal.emit("Prefetch paused.")
+                        self.finished_signal.emit(self.row_index, "Prefetch Paused")
+                    else:
+                        self.log_signal.emit("Download paused.")
+                        self.finished_signal.emit(self.row_index, "Paused")
                 else:
                     if is_debug_mode():
                         logger.debug("[DownloadWorker] Download stopped/cancelled for row %d", self.row_index)
-                    self.log_signal.emit("Download stopped/cancelled.")
-                    self.finished_signal.emit(self.row_index, "Cancelled")
+                    if self.prefetch:
+                        self.log_signal.emit("Prefetch cancelled.")
+                        self.finished_signal.emit(self.row_index, "Prefetch Cancelled")
+                    else:
+                        self.log_signal.emit("Download stopped/cancelled.")
+                        self.finished_signal.emit(self.row_index, "Cancelled")
 
         except Exception as e:
             logger.error("[DownloadWorker] Critical error on row %d: %s", self.row_index, e, exc_info=True)
