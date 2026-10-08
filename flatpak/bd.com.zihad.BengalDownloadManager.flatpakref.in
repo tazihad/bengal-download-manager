@@ -7,3 +7,4 @@ SuggestRemoteName=tazihad
 RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
 IsRuntime=false
 @GPG_KEY_ENTRY@
+@COLLECTION_ID_ENTRY@

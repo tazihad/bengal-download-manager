@@ -20,6 +20,10 @@ inputs:
     description: 'GPG Key ID for signing'
     required: false
     default: ''
+  collection_id:
+    description: 'OSTree Collection ID (defaults to bd.com.zihad.<Branch>)'
+    required: false
+    default: ''
   sign:
     description: 'Whether to sign with GPG'
     required: false
@@ -43,13 +47,24 @@ runs:
         SITE_DIR="${{ inputs.site_dir }}"
         REPO_DIR="$SITE_DIR/repo"
         APP_ID="${{ inputs.app_id }}"
+        VERSION="${{ inputs.version }}"
         PAGES_URL="${{ inputs.pages_url }}"
         SIGN="${{ inputs.sign }}"
         GPG_KEY="${{ inputs.gpg_key }}"
 
-        echo "=== Assembling Flathub-Standard OSTree Repository at $REPO_DIR ==="
+        BRANCH="stable"
+        if [[ "${VERSION,,}" =~ (alpha|beta|rc|dev) ]]; then
+          BRANCH="${BASH_REMATCH[1]}"
+        fi
+        BRANCH_CAP="$(tr '[:lower:]' '[:upper:]' <<< ${BRANCH:0:1})${BRANCH:1}"
+        DEFAULT_COLLECTION_ID="bd.com.zihad.${BRANCH_CAP}"
+        COLLECTION_ID="${{ inputs.collection_id }}"
+        COLLECTION_ID="${COLLECTION_ID:-$DEFAULT_COLLECTION_ID}"
+
+        echo "=== Assembling Flathub-Standard OSTree Repository at $REPO_DIR (Collection: $COLLECTION_ID) ==="
         mkdir -p "$SITE_DIR" "$REPO_DIR"
-        ostree init --mode=archive --repo="$REPO_DIR" 2>/dev/null || true
+        ostree init --mode=archive --repo="$REPO_DIR" --collection-id="$COLLECTION_ID" 2>/dev/null || true
+        ostree config --repo="$REPO_DIR" set "core.collection-id" "$COLLECTION_ID" 2>/dev/null || true
         mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
 
         # Pull all downloaded architecture repo slices into the unified repo
@@ -65,13 +80,13 @@ runs:
 
         # Update repository summary and static deltas (with GPG if enabled)
         if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
-          echo "Signing OSTree repo summary with GPG Key: $GPG_KEY"
-          flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
+          echo "Signing OSTree repo summary with GPG Key: $GPG_KEY (Collection: $COLLECTION_ID)"
+          flatpak build-update-repo --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
           gpg --armor --export "$GPG_KEY" > "$REPO_DIR/$APP_ID.gpg"
           echo "Exported GPG public key to $REPO_DIR/$APP_ID.gpg"
         else
-          echo "Updating OSTree repo summary without GPG signing"
-          flatpak build-update-repo --generate-static-deltas "$REPO_DIR"
+          echo "Updating OSTree repo summary without GPG signing (Collection: $COLLECTION_ID)"
+          flatpak build-update-repo --collection-id="$COLLECTION_ID" --generate-static-deltas "$REPO_DIR"
         fi
 
         # Generate Flathub-standard .flatpakrepo and .flatpakref files
@@ -84,7 +99,9 @@ runs:
           --repo-dir "$REPO_DIR" \
           --out-dir "$SITE_DIR" \
           --app-id "$APP_ID" \
-          --version "${{ inputs.version }}" \
+          --version "$VERSION" \
+          --branch "$BRANCH" \
+          --collection-id "$COLLECTION_ID" \
           --pages-url "$PAGES_URL" \
           $GPG_ARG
 

@@ -6,3 +6,4 @@ Comment=High-performance desktop applications by tazihad
 Description=Official Flatpak repository for tazihad applications
 Icon=@ICON_URL@
 @GPG_KEY_ENTRY@
+@COLLECTION_ID_ENTRY@

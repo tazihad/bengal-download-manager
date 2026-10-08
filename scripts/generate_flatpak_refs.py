@@ -62,6 +62,7 @@ def main():
     parser.add_argument("--gpg-file", default="", help="Path to exported GPG public key file")
     parser.add_argument("--version", default="", help="Release version for versioned assets")
     parser.add_argument("--branch", default="", help="Channel branch (stable, alpha, beta, rc)")
+    parser.add_argument("--collection-id", default="", help="OSTree Collection ID (defaults to bd.com.zihad.<Branch>)")
     parser.add_argument("--only-versioned", action="store_true", help="Only generate versioned asset files")
     parser.add_argument("--templates-dir", default="flatpak", help="Path to directory containing .in templates")
 
@@ -80,6 +81,8 @@ def main():
 
     # Determine channel branch for track isolation
     branch = detect_branch(args.version, args.branch)
+    collection_id = args.collection_id or f"bd.com.zihad.{branch.capitalize()}"
+    collection_entry = f"CollectionID={collection_id}" if collection_id else ""
 
     # Look for GPG key file if not explicitly specified
     gpg_file = args.gpg_file
@@ -114,12 +117,13 @@ def main():
             .replace("@ICON_URL@", icon_url)
             .replace("@BRANCH@", branch)
             .replace("@GPG_KEY_ENTRY@", gpg_entry)
+            .replace("@COLLECTION_ID_ENTRY@", collection_entry)
         )
 
     rendered_repo = substitute(repo_template)
     rendered_ref = substitute(ref_template)
 
-    # Clean up empty lines from empty GPG_KEY_ENTRY
+    # Clean up empty lines from empty entries
     rendered_repo = "\n".join(line for line in rendered_repo.splitlines() if line.strip()) + "\n"
     rendered_ref = "\n".join(line for line in rendered_ref.splitlines() if line.strip()) + "\n"
 

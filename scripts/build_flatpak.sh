@@ -13,6 +13,7 @@ REPO_DIR="repo"
 DO_RUN=0
 DO_BUNDLE=1
 GPG_KEY="${GPG_KEY:-}"
+COLLECTION_ID="${COLLECTION_ID:-}"
 EXTRA_APP_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -33,20 +34,25 @@ while [[ $# -gt 0 ]]; do
             GPG_KEY="$2"
             shift 2
             ;;
+        --collection-id)
+            COLLECTION_ID="$2"
+            shift 2
+            ;;
         --repo-dir)
             REPO_DIR="$2"
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [--gpg-key KEY_ID] [--repo-dir DIR] [app_arguments...]"
+            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [--gpg-key KEY_ID] [--collection-id ID] [--repo-dir DIR] [app_arguments...]"
             echo ""
             echo "Options:"
-            echo "  --run              Launch the built application after assembly"
-            echo "  --no-bundle        Skip creating the .flatpak single-file bundle"
-            echo "  --bundle           Create .flatpak single-file bundle in dist/ (default)"
-            echo "  --gpg-key KEY_ID   GPG key ID for signing OSTree repo commits"
-            echo "  --repo-dir DIR     OSTree repository directory (default: repo)"
-            echo "  --help, -h         Show this help message"
+            echo "  --run                Launch the built application after assembly"
+            echo "  --no-bundle          Skip creating the .flatpak single-file bundle"
+            echo "  --bundle             Create .flatpak single-file bundle in dist/ (default)"
+            echo "  --gpg-key KEY_ID     GPG key ID for signing OSTree repo commits"
+            echo "  --collection-id ID   OSTree Collection ID (e.g. bd.com.zihad.Stable)"
+            echo "  --repo-dir DIR       OSTree repository directory (default: repo)"
+            echo "  --help, -h           Show this help message"
             exit 0
             ;;
         *)
@@ -202,17 +208,20 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
             BRANCH="${BASH_REMATCH[1]}"
         fi
 
+        BRANCH_CAP="$(tr '[:lower:]' '[:upper:]' <<< ${BRANCH:0:1})${BRANCH:1}"
+        COLLECTION_ID="${COLLECTION_ID:-bd.com.zihad.${BRANCH_CAP}}"
+
         if [ -n "$GPG_KEY" ]; then
-            echo "Signing Flatpak OSTree with GPG ($GPG_KEY) to branch $BRANCH..."
-            flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR" "$BRANCH"
-            flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
+            echo "Signing Flatpak OSTree with GPG ($GPG_KEY) to branch $BRANCH (Collection: $COLLECTION_ID)..."
+            flatpak build-export --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --update-appstream "$REPO_DIR" "$BUILD_DIR" "$BRANCH"
+            flatpak build-update-repo --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
         else
-            echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH..."
-            flatpak build-export --update-appstream "$REPO_DIR" "$BUILD_DIR" "$BRANCH"
-            flatpak build-update-repo --generate-static-deltas "$REPO_DIR"
+            echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH (Collection: $COLLECTION_ID)..."
+            flatpak build-export --collection-id="$COLLECTION_ID" --update-appstream "$REPO_DIR" "$BUILD_DIR" "$BRANCH"
+            flatpak build-update-repo --collection-id="$COLLECTION_ID" --generate-static-deltas "$REPO_DIR"
         fi
 
-        flatpak build-bundle "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID" "$BRANCH"
+        flatpak build-bundle --collection-id="$COLLECTION_ID" "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID" "$BRANCH"
         cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
         cp "dist/bengal-download-manager.flatpak" "dist/${APP_ID}-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
 
@@ -223,6 +232,7 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
             --app-id "$APP_ID" \
             --version "$VERSION" \
             --branch "$BRANCH" \
+            --collection-id "$COLLECTION_ID" \
             --only-versioned \
             ${GPG_KEY:+--gpg-key "$GPG_KEY"} 2>/dev/null || true
 
