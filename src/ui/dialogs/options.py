@@ -593,6 +593,11 @@ class OptionsDialog(QDialog):
         self.chk_show_start_dialog.setChecked(_get_setting("show_start_dialog", True))
         vbox_dialogs.addWidget(self.chk_show_start_dialog)
 
+        self.chk_prefetch_download = QCheckBox("Start downloading immediately while showing start dialog (early download)")
+        self.chk_prefetch_download.setToolTip("Begin downloading the file in the background while the start dialog is open (like IDM). If you cancel, the partial file is deleted.")
+        self.chk_prefetch_download.setChecked(_get_setting("prefetch_download", True))
+        vbox_dialogs.addWidget(self.chk_prefetch_download)
+
         self.chk_show_progress_dialog = QCheckBox("Show download progress dialog")
         self.chk_show_progress_dialog.setToolTip("Show popup progress dialog during active file transfer")
         self.chk_show_progress_dialog.setChecked(_get_setting("show_progress_dialog", True))
@@ -628,6 +633,10 @@ class OptionsDialog(QDialog):
 
             self.chk_show_complete_dialog.setEnabled(not silent)
             self.chk_show_queue_complete_dialog.setEnabled(not silent)
+            
+            # Prefetch download is only relevant when start dialog is shown (not silent, start dialog enabled)
+            prefetch_enabled = start_enabled and self.chk_show_start_dialog.isChecked()
+            self.chk_prefetch_download.setEnabled(prefetch_enabled)
 
         self.chk_silent_download.toggled.connect(lambda _: _update_dialog_checkbox_states())
         self.chk_show_start_dialog.toggled.connect(lambda _: _update_dialog_checkbox_states())
@@ -2007,12 +2016,14 @@ class OptionsDialog(QDialog):
             show_prog = self.chk_show_progress_dialog.isChecked() if hasattr(self, "chk_show_progress_dialog") else True
             show_comp = self.chk_show_complete_dialog.isChecked() if hasattr(self, "chk_show_complete_dialog") else True
             show_q_comp = self.chk_show_queue_complete_dialog.isChecked() if hasattr(self, "chk_show_queue_complete_dialog") else False
+            prefetch_dl = self.chk_prefetch_download.isChecked() if hasattr(self, "chk_prefetch_download") else True
 
             setattr(self.main_win, "silent_download", silent_dl)
             setattr(self.main_win, "show_start_dialog", show_start)
             setattr(self.main_win, "show_progress_dialog", show_prog)
             setattr(self.main_win, "show_complete_dialog", show_comp)
             setattr(self.main_win, "show_queue_complete_dialog", show_q_comp)
+            setattr(self.main_win, "prefetch_download", prefetch_dl)
 
             if hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
                 self.main_win.settings["ui_scale"] = new_scale
@@ -2028,6 +2039,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["show_progress_dialog"] = show_prog
                 self.main_win.settings["show_complete_dialog"] = show_comp
                 self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
+                self.main_win.settings["prefetch_download"] = prefetch_dl
                 self.main_win.settings["precheck_delete_files_from_disk"] = precheck_delete
 
             if lang_changed:

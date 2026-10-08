@@ -3358,6 +3358,7 @@ class MainWindow(QMainWindow):
                 "show_complete_dialog": getattr(self, "settings", {}).get("show_complete_dialog", True),
                 "show_queue_complete_dialog": getattr(self, "settings", {}).get("show_queue_complete_dialog", False),
                 "show_details_panel": show_details,
+                "prefetch_download": getattr(self, "settings", {}).get("prefetch_download", True),
                 "details_panel_tab": self.details_panel.stacked_widget.currentIndex() if hasattr(self, "details_panel") and hasattr(self.details_panel, "stacked_widget") else 0,
                 "table_details_splitter_sizes": splitter_sizes,
                 "selected_download": selected_download,
@@ -3767,6 +3768,7 @@ class MainWindow(QMainWindow):
         settings["table_details_splitter_sizes"] = settings.get("table_details_splitter_sizes", [])
         settings["precheck_delete_files_from_disk"] = settings.get("precheck_delete_files_from_disk", False)
         self.precheck_delete_files_from_disk = settings["precheck_delete_files_from_disk"]
+        settings["prefetch_download"] = settings.get("prefetch_download", True)
 
         apply_app_theme(
             settings["theme"],
@@ -5241,6 +5243,8 @@ class MainWindow(QMainWindow):
     def on_file_info_fetched(self, file_info):
         silent = getattr(self, "settings", {}).get("silent_download", False)
         show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
+        prefetch_enabled = getattr(self, "settings", {}).get("prefetch_download", True)
+        
         if silent or not show_start:
             # Bypass FileInfoDialog: auto-start immediately
             filename = file_info.get("filename") or resolve_filename(file_info.get("url"), {})
@@ -5292,7 +5296,7 @@ class MainWindow(QMainWindow):
                 if sp:
                     existing_paths.add(os.path.normpath(sp))
 
-        # Top-level window (parent=None) sharing app WM_CLASS so it stacks under single app launcher icon
+        # Create the dialog
         dialog = DownloadFileInfoDialog(
             file_info,
             parent=None,
@@ -5301,41 +5305,43 @@ class MainWindow(QMainWindow):
             main_window=self
         )
         
-        # Add to list but don't start downloading yet (wait for user confirmation)
-        results = dialog.get_results()
-        item_ref = self.start_download(
-            url=file_info["url"], 
-            custom_filename=results["filename"],
-            custom_save_dir=os.path.dirname(results["save_path"]),
-            size_data=(results["size_str"], results["size_bytes"]),
-            start_paused=True,
-            show_dialog=False,
-            user_agent=file_info.get("user_agent"),
-            cookies=file_info.get("cookies"),
-            referer=file_info.get("referer") or file_info.get("url")
-        )
+        # PREFETCH: Start downloading to temp file in background (no table entry)
+        # This happens BEFORE showing the dialog, so the file starts downloading immediately
+        prefetch_worker = None
+        prefetch_key = None
+        if prefetch_enabled and not silent and show_start:
+            # Start prefetch download directly (single connection, temp .bdpart file)
+            # We create the worker manually to avoid adding to the table
+            prefetch_worker, prefetch_key = self._start_prefetch_download(
+                url=file_info["url"],
+                filename=file_info.get("filename") or resolve_filename(file_info.get("url"), {}),
+                custom_save_dir=os.path.dirname(file_info.get("save_path", "")) if file_info.get("save_path") else None,
+                size_data=(file_info.get("size_str", "?"), file_info.get("size_bytes", 0)),
+                user_agent=file_info.get("user_agent"),
+                cookies=file_info.get("cookies"),
+                referer=file_info.get("referer") or file_info.get("url")
+            )
+            
+            # Store the prefetch worker reference on the dialog for later handling
+            dialog._prefetch_worker = prefetch_worker
+            dialog._prefetch_key = prefetch_key
         
         # Track the dialog to prevent garbage collection and allow cleanup
-        dialog_id = self._get_item_key(item_ref)
+        dialog_id = prefetch_key if prefetch_key else str(id(dialog))
         self.active_file_info_dialogs[dialog_id] = dialog
         dialog.finished.connect(lambda *_, d_id=dialog_id: self.active_file_info_dialogs.pop(d_id, None))
 
         # Connect signals to handle the dialog result
-        dialog.accepted.connect(lambda: self._handle_download_dialog_accepted(dialog, file_info, item_ref))
-        dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_ref))
+        dialog.accepted.connect(lambda: self._handle_download_dialog_accepted(dialog, file_info, prefetch_worker, prefetch_key))
+        dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(prefetch_worker, prefetch_key))
         
         # Show and bring to foreground without stealing focus for the main app
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
 
-    def _handle_download_dialog_accepted(self, dialog, file_info, item_ref):
-        if not self._is_item_valid(item_ref):
-            return
+    def _handle_download_dialog_accepted(self, dialog, file_info, prefetch_worker, prefetch_key):
         results = dialog.get_results()
-        key = self._get_item_key(item_ref)
-        if key:
-            self.active_file_info_dialogs.pop(key, None)
         
         if results.get("dont_show_again"):
             if hasattr(self, "settings") and isinstance(self.settings, dict):
@@ -5345,49 +5351,184 @@ class MainWindow(QMainWindow):
             if hasattr(self, "_options_dlg") and MemoryGuard.is_widget_alive(self._options_dlg):
                 if hasattr(self._options_dlg, "chk_show_start_dialog"):
                     self._options_dlg.chk_show_start_dialog.setChecked(False)
-
-        # Update filename and path in case user changed them in the dialog
-        item_ref.setText(results["filename"])
-        item_ref.setToolTip(results["filename"])
-        item_ref.setData(Qt.ItemDataRole.UserRole + 1, results["save_path"])
         
-        # Ensure it's in the table
-        row = self.download_table.row(item_ref)
-        if row == -1: return
-
-        # If "Start Download" was clicked, initiate the worker
+        # Remove dialog from tracking
+        if prefetch_key and prefetch_key in self.active_file_info_dialogs:
+            self.active_file_info_dialogs.pop(prefetch_key, None)
+        
+        # If "Start Download" was clicked
         if results["action"] == 'start':
-            self._set_status_text(row, "Starting...")
             show_prog = getattr(self, "settings", {}).get("show_progress_dialog", True)
-            self._start_download_worker(
-                file_info["url"], 
-                item_ref, 
-                resume_filename=results["filename"],
+            
+            if prefetch_worker:
+                # Get the worker state
+                logic_status = getattr(prefetch_worker, 'final_status', '')
+                
+                # Use the worker's save_path (points to temp/cache directory for prefetch)
+                bdpart_path = getattr(prefetch_worker, 'save_path', '')
+                if not bdpart_path:
+                    config = load_category_config()
+                    temp_dir = config.get("temp_dir") or os.path.join(get_cache_dir(), "downloads")
+                    fn = getattr(prefetch_worker, 'filename', '') or results["filename"]
+                    bdpart_path = os.path.join(temp_dir, fn + ".bdpart")
+                
+                bdpart_state = bdpart_path + ".bdmx"
+                bdpart_aria2 = bdpart_path + ".aria2"
+                
+                expected_size = results.get("size_bytes", 0) or getattr(prefetch_worker, 'total_bytes', 0)
+                actual_size = os.path.getsize(bdpart_path) if bdpart_path and os.path.exists(bdpart_path) else 0
+                
+                # Check if prefetch completed:
+                # 1) Worker explicitly finished with "Prefetch Complete"
+                # 2) Or file exists, reached expected size, and has no active .aria2 control file
+                # 3) Or worker thread already finished, actual size > 0, and no .aria2 control file
+                bdpart_complete = False
+                if logic_status == "Prefetch Complete":
+                    bdpart_complete = True
+                elif bdpart_path and os.path.exists(bdpart_path) and not os.path.exists(bdpart_aria2):
+                    if expected_size > 0 and actual_size >= expected_size:
+                        bdpart_complete = True
+                    elif getattr(prefetch_worker, 'is_running', True) is False and actual_size > 0:
+                        bdpart_complete = True
+                
+                if bdpart_complete:
+                    # Prefetch already finished - instant complete like IDM
+                    try:
+                        final_path = results["save_path"]
+                        final_dir = os.path.dirname(final_path)
+                        if final_dir:
+                            os.makedirs(final_dir, exist_ok=True)
+                        if os.path.exists(final_path):
+                            os.remove(final_path)
+                        # Move from cache/temp to final destination
+                        shutil.move(bdpart_path, final_path)
+                        # Remove state and control files
+                        for extra in [bdpart_state, bdpart_aria2]:
+                            if os.path.exists(extra):
+                                try: os.remove(extra)
+                                except Exception: pass
+                        
+                        # Stop and wait on prefetch worker before adding to table
+                        if hasattr(prefetch_worker, 'stop'):
+                            prefetch_worker.stop()
+                            if hasattr(prefetch_worker, 'wait'):
+                                prefetch_worker.wait(500)
+                        if prefetch_key and prefetch_key in self.active_downloads:
+                            self.active_downloads.pop(prefetch_key, None)
+                        
+                        # Add to table as COMPLETED
+                        self._add_completed_download(
+                            url=file_info["url"],
+                            filename=results["filename"],
+                            save_path=final_path,
+                            size_str=results["size_str"],
+                            size_bytes=actual_size or expected_size,
+                            category=results["category"],
+                            referer=file_info.get("referer") or file_info.get("url"),
+                            user_agent=file_info.get("user_agent"),
+                            cookies=file_info.get("cookies")
+                        )
+                        return  # Don't start a new worker or duplicate row
+                    except Exception as e:
+                        if is_debug_mode():
+                            logger.error("[MainWindow] Error finalizing prefetch download: %s", e, exc_info=True)
+                
+                # Stop the prefetch worker so regular worker can resume it
+                if hasattr(prefetch_worker, 'stop'):
+                    prefetch_worker.stop()
+                    if hasattr(prefetch_worker, 'wait'):
+                        prefetch_worker.wait(1000)
+                elif hasattr(prefetch_worker, 'is_running'):
+                    prefetch_worker.is_running = False
+                
+                # Remove from active downloads
+                if prefetch_key and prefetch_key in self.active_downloads:
+                    self.active_downloads.pop(prefetch_key, None)
+            
+            # Start normal download (will resume from .bdpart if it exists)
+            self.start_download(
+                url=file_info["url"],
+                custom_filename=results["filename"],
                 custom_save_dir=os.path.dirname(results["save_path"]),
+                size_data=(results["size_str"], results["size_bytes"]),
+                start_paused=False,
                 show_dialog=show_prog,
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
-                referrer=file_info.get("referer") or item_ref.data(Qt.ItemDataRole.UserRole + 15)
+                referer=file_info.get("referer") or file_info.get("url")
             )
         elif results["action"] == 'later':
-            self._set_status_text(row, "Paused")
+            # "Download Later" - stop prefetch worker, keep partial files for resume, add to table as Paused
+            if prefetch_worker:
+                if hasattr(prefetch_worker, 'stop'):
+                    prefetch_worker.stop()
+                    if hasattr(prefetch_worker, 'wait'):
+                        prefetch_worker.wait(1000)
+                elif hasattr(prefetch_worker, 'is_running'):
+                    prefetch_worker.is_running = False
+                
+                if prefetch_key and prefetch_key in self.active_downloads:
+                    self.active_downloads.pop(prefetch_key, None)
+            
+            # Add to table as Paused - the existing .bdpart file will be resumed later
+            self.start_download(
+                url=file_info["url"],
+                custom_filename=results["filename"],
+                custom_save_dir=os.path.dirname(results["save_path"]),
+                size_data=(results["size_str"], results["size_bytes"]),
+                start_paused=True,
+                show_dialog=False,
+                user_agent=file_info.get("user_agent"),
+                cookies=file_info.get("cookies"),
+                referer=file_info.get("referer") or file_info.get("url")
+            )
 
-    def _handle_download_dialog_rejected(self, item_ref):
-        if not self._is_item_valid(item_ref):
-            return
-        key = self._get_item_key(item_ref)
-        if key:
-            self.active_file_info_dialogs.pop(key, None)
-        # User cancelled - remove the proposed download from the table
-        row = self.download_table.row(item_ref)
-        if row != -1:
-            self.download_table.removeRow(row)
-        self.save_data()
+    def _handle_download_dialog_rejected(self, prefetch_worker, prefetch_key):
+        # Remove dialog from tracking
+        if prefetch_key and prefetch_key in self.active_file_info_dialogs:
+            self.active_file_info_dialogs.pop(prefetch_key, None)
+        
+        # Prefetch mode: cancel the download and clean up temp files
+        if prefetch_worker:
+            # Stop the worker and wait for it to finish
+            if hasattr(prefetch_worker, 'stop'):
+                prefetch_worker.stop()
+                if hasattr(prefetch_worker, 'wait'):
+                    prefetch_worker.wait(1000)
+            elif hasattr(prefetch_worker, 'is_running'):
+                prefetch_worker.is_running = False
+            
+            # Remove from active downloads
+            if prefetch_key and prefetch_key in self.active_downloads:
+                self.active_downloads.pop(prefetch_key, None)
+            
+            filename = getattr(prefetch_worker, 'filename', '')
+            temp_dir = getattr(prefetch_worker, 'working_dir', None)
+            if not temp_dir:
+                config = load_category_config()
+                temp_dir = config.get("temp_dir") or os.path.join(get_cache_dir(), "downloads")
+            
+            if filename and temp_dir:
+                for variant in [
+                    filename,
+                    filename + ".aria2",
+                    filename + ".tmpbdm",
+                    filename + ".tmpbdm.bdmx",
+                    filename + ".bdpart",
+                    filename + ".bdpart.bdmx",
+                    filename + ".bdpart.aria2",
+                ]:
+                    p = os.path.join(temp_dir, variant)
+                    if os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False):
         if is_debug_mode():
-            logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s",
-                         url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name)
+            logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s, prefetch=%s",
+                         url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name, prefetch)
 
         if show_dialog is None:
             silent = getattr(self, "settings", {}).get("silent_download", False)
@@ -5426,6 +5567,9 @@ class MainWindow(QMainWindow):
         if queue_name:
             item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Mark as active queue execution
         item_name.setData(Qt.ItemDataRole.UserRole + 15, referer or url)  # Referer
+        # Mark as prefetch if applicable
+        if prefetch:
+            item_name.setData(Qt.ItemDataRole.UserRole + 21, True)  # Prefetch flag
         
         # Determine explicit metadata bindings
         size_str = size_data[0] if size_data else "?"
@@ -5434,6 +5578,8 @@ class MainWindow(QMainWindow):
         self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
         
         status_txt = "Paused" if start_paused else "Pending..."
+        if prefetch:
+            status_txt = "Prefetching..."
         self._set_status_text(row, status_txt)
         
         self._set_sortable_item(row, 3, "", parse_time_to_sec) if start_paused else self._set_sortable_item(row, 3, "...", parse_time_to_sec)
@@ -5466,7 +5612,7 @@ class MainWindow(QMainWindow):
             queue_max = self._get_queue_max_concurrent(target_queue)
             active_in_queue = self._get_active_count_for_queue(target_queue)
             if active_in_queue < queue_max:
-                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url)
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch)
             else:
                 # Slot full for this queue — mark as queued; _try_start_queued will pick it up
                 self._set_status_text(row, "Queued")
@@ -5475,7 +5621,166 @@ class MainWindow(QMainWindow):
         self.save_data()
         return item_name
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True):
+    def _start_prefetch_download(self, url, filename, custom_save_dir=None, size_data=None, user_agent=None, cookies=None, referer=None):
+        """Start a prefetch download in background (no table entry, single connection, .bdpart file).
+        Returns (worker, key) tuple."""
+        config = load_category_config()
+        categories = config.get("categories", {})
+        ext = os.path.splitext(filename)[1].replace(".", "").lower()
+        
+        final_category = "General"
+        for cat_name, cat_data in categories.items():
+            if ext in cat_data.get("extensions", "").split():
+                final_category = cat_name
+                break
+        
+        save_dir = custom_save_dir if custom_save_dir else categories[final_category]["path"]
+        if not os.path.exists(save_dir):
+            try: os.makedirs(save_dir)
+            except: save_dir = get_user_downloads_dir()
+        
+        temp_dir = config.get("temp_dir") or os.path.join(get_cache_dir(), "downloads")
+        if not os.path.exists(temp_dir):
+            try: os.makedirs(temp_dir, exist_ok=True)
+            except Exception: pass
+        
+        # Determine engine (Aria2 preferred)
+        use_aria2 = True
+        try:
+            from core.aria2_daemon import get_aria2_daemon_manager
+            mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+            use_aria2 = mgr.is_running()
+        except Exception:
+            use_aria2 = False
+        
+        if use_aria2:
+            if is_debug_mode():
+                logger.debug("[MainWindow] Prefetch routing to Aria2Worker")
+            worker = Aria2Worker(
+                url, 0, save_dir, filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referer or url,
+                allow_resume=True,
+                prefetch=True
+            )
+        else:
+            if is_debug_mode():
+                logger.debug("[MainWindow] Prefetch routing to DownloadWorker")
+            worker = DownloadWorker(
+                url, 0, save_dir, filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referer or url,
+                allow_resume=True,
+                prefetch=True
+            )
+        
+        # Generate unique key for tracking
+        key = f"prefetch_{id(worker)}"
+        worker.generation = 1
+        
+        # Store worker in active_downloads for tracking
+        self.active_downloads[key] = worker
+        
+        # Connect finished signal to capture final status
+        def on_prefetch_finished(_, status):
+            worker.final_status = status
+        
+        worker.finished_signal.connect(on_prefetch_finished)
+        
+        # Start the worker
+        worker.start()
+        
+        return worker, key
+
+    def _add_completed_download(self, url, filename, save_path, size_str, size_bytes, category, referer, user_agent, cookies):
+        """Add a completed download to the table (for instant prefetch completion)."""
+        sorting_was_enabled = self.download_table.isSortingEnabled()
+        self.download_table.setSortingEnabled(False)
+        
+        current_ts = str(time.time())
+        if not size_str or size_str == "?":
+            if size_bytes > 0:
+                size_str = format_bytes(size_bytes)
+            else:
+                size_str = "Unknown"
+        
+        # Check if URL already exists in table to prevent duplicate rows
+        for r in range(self.download_table.rowCount()):
+            it = self.download_table.item(r, 0)
+            if it and it.data(Qt.ItemDataRole.UserRole) == url:
+                it.setText(filename)
+                it.setToolTip(filename)
+                it.setIcon(get_file_icon(filename))
+                it.setData(Qt.ItemDataRole.UserRole + 1, save_path)
+                it.setData(Qt.ItemDataRole.UserRole + 2, current_ts)
+                self._set_sortable_item(r, 1, size_str, parse_size_to_bytes)
+                self._set_status_text(r, "Complete")
+                self._set_sortable_item(r, 3, "", parse_time_to_sec)
+                self._set_sortable_item(r, 4, "", parse_size_to_bytes)
+                self._set_row_bold(r, False)
+                self.download_table.setSortingEnabled(sorting_was_enabled)
+                self.save_data()
+                self.update_ui_states()
+                self.update_status_bar_items()
+                if getattr(self, "settings", {}).get("show_complete_dialog", True):
+                    from ui.dialogs.complete import DownloadCompleteDialog
+                    file_data = {
+                        "url": url,
+                        "path": save_path,
+                        "size": size_str
+                    }
+                    dialog = DownloadCompleteDialog(file_data, parent=None, main_window=self)
+                    key = self._get_item_key(it)
+                    self.active_complete_dialogs[key] = dialog
+                    dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
+                    dialog.show()
+                return
+        
+        row = 0
+        self.download_table.insertRow(row)
+        
+        item_name = QTableWidgetItem(filename)
+        item_name.setToolTip(filename)
+        item_name.setData(Qt.ItemDataRole.UserRole, url)
+        item_name.setIcon(get_file_icon(filename))
+        
+        item_name.setData(Qt.ItemDataRole.UserRole + 3, current_ts)  # Date Added
+        item_name.setData(Qt.ItemDataRole.UserRole + 2, current_ts)  # Last Try
+        item_name.setData(Qt.ItemDataRole.UserRole + 4, user_agent)  # User-Agent
+        item_name.setData(Qt.ItemDataRole.UserRole + 5, cookies)     # Cookies
+        item_name.setData(Qt.ItemDataRole.UserRole + 8, "Main download queue")
+        item_name.setData(Qt.ItemDataRole.UserRole + 15, referer)    # Referer
+        item_name.setData(Qt.ItemDataRole.UserRole + 1, save_path)   # Full path
+        
+        self.download_table.setItem(row, 0, item_name)
+        self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
+        self._set_status_text(row, "Complete")
+        self._set_sortable_item(row, 3, "", parse_time_to_sec)
+        self._set_sortable_item(row, 4, "", parse_size_to_bytes)
+        self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
+        self._set_timestamp_item(row, 6, format_timestamp_relative(current_ts, max_relative_seconds=30))
+        self._set_row_bold(row, False)
+        
+        self.download_table.setSortingEnabled(sorting_was_enabled)
+        self.save_data()
+        self.update_ui_states()
+        self.update_status_bar_items()
+        
+        # Show complete dialog if enabled
+        if getattr(self, "settings", {}).get("show_complete_dialog", True):
+            from ui.dialogs.complete import DownloadCompleteDialog
+            file_data = {
+                "url": url,
+                "path": save_path,
+                "size": size_str
+            }
+            dialog = DownloadCompleteDialog(file_data, parent=None, main_window=self)
+            key = self._get_item_key(item_name)
+            self.active_complete_dialogs[key] = dialog
+            dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
+            dialog.show()
+
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False):
         silent = getattr(self, "settings", {}).get("silent_download", False)
         pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
         pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
@@ -5483,6 +5788,10 @@ class MainWindow(QMainWindow):
             should_show_progress = (not silent) and pref_show_progress
         else:
             should_show_progress = bool(show_dialog) and (not silent) and pref_show_progress
+
+        # Get prefetch flag from item data if not explicitly passed
+        if not prefetch:
+            prefetch = bool(item_ref.data(Qt.ItemDataRole.UserRole + 21))
 
         format_spec = item_ref.data(Qt.ItemDataRole.UserRole + 6)
         if format_spec is not None:
@@ -5608,7 +5917,8 @@ class MainWindow(QMainWindow):
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
                 referrer=referrer,
-                allow_resume=allow_resume
+                allow_resume=allow_resume,
+                prefetch=prefetch
             )
         else:
             if is_debug_mode():
@@ -5618,7 +5928,8 @@ class MainWindow(QMainWindow):
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
                 referrer=referrer,
-                allow_resume=allow_resume
+                allow_resume=allow_resume,
+                prefetch=prefetch
             )
 
         
@@ -6017,69 +6328,56 @@ class MainWindow(QMainWindow):
             return
 
     def _stop_worker_entry(self, entry):
-        """Stop either a ProgressDialog (has .worker) or a bare YtDlpDownloadWorker thread."""
+        """Stop either a ProgressDialog (has .worker) or a bare worker thread (Aria2Worker, DownloadWorker, YtDlpDownloadWorker)."""
         if entry is None:
             return
         try:
-            from core.media_downloader import YtDlpDownloadWorker
-            if isinstance(entry, YtDlpDownloadWorker):
-                try:
-                    entry.main_progress_signal.disconnect()
-                except Exception:
-                    pass
-                try:
-                    entry.finished_signal.disconnect()
-                except Exception:
-                    pass
-                try:
-                    if hasattr(entry, 'pause'):
-                        entry.pause()
-                    else:
-                        entry.stop()
-                    entry.requestInterruption()
-                    entry.quit()
-                    entry.wait(2000)
-                    if entry.isRunning():
-                        entry.terminate()
-                        entry.wait(2000)
-                except Exception:
-                    pass
-            else:
-                # ProgressDialog path - protect against deleted C++ object
-                worker = None
-                try:
-                    worker = getattr(entry, 'worker', None)
-                except (RuntimeError, AttributeError, Exception):
-                    pass
+            worker = getattr(entry, 'worker', None)
+            is_dialog = worker is not None or hasattr(entry, 'reject')
+            if worker is None:
+                worker = entry
 
-                if worker:
-                    try:
-                        worker.main_progress_signal.disconnect()
-                    except Exception:
-                        pass
-                    try:
-                        worker.finished_signal.disconnect()
-                    except Exception:
-                        pass
-                    try:
-                        worker.stop()
-                    except Exception:
-                        pass
-                    try:
-                        worker.quit()
-                        worker.wait(1000)
-                    except Exception:
-                        pass
-
+            if is_dialog:
                 try:
                     if hasattr(entry, 'finished'):
                         entry.finished.disconnect()
-                except (RuntimeError, AttributeError, Exception):
+                except Exception:
                     pass
-
                 try:
                     entry.reject()
-                except (RuntimeError, AttributeError, Exception):
+                except Exception:
+                    pass
+
+            if worker:
+                try:
+                    if hasattr(worker, 'main_progress_signal'):
+                        worker.main_progress_signal.disconnect()
+                except Exception:
+                    pass
+                try:
+                    if hasattr(worker, 'finished_signal'):
+                        worker.finished_signal.disconnect()
+                except Exception:
+                    pass
+                try:
+                    if hasattr(worker, 'stop'):
+                        worker.stop()
+                    elif hasattr(worker, 'pause'):
+                        worker.pause()
+                except Exception:
+                    pass
+                try:
+                    if hasattr(worker, 'requestInterruption'):
+                        worker.requestInterruption()
+                    if hasattr(worker, 'quit'):
+                        worker.quit()
+                    if hasattr(worker, 'wait'):
+                        worker.wait(1000)
+                    if hasattr(worker, 'isRunning') and worker.isRunning():
+                        if hasattr(worker, 'terminate'):
+                            worker.terminate()
+                            worker.wait(1000)
+                except Exception:
                     pass
         except (RuntimeError, Exception):
             pass
@@ -6167,6 +6465,7 @@ class MainWindow(QMainWindow):
         rows = sorted(set(item.row() for item in self.download_table.selectedItems()), reverse=True)
         if not rows: return
         
+        config = load_category_config()
         for row in rows:
             item_name = self.download_table.item(row, 0)
             if item_name:
@@ -6182,14 +6481,8 @@ class MainWindow(QMainWindow):
                     self.active_file_info_dialogs.pop(key, None)
                 if hasattr(self, "active_complete_dialogs"):
                     self.active_complete_dialogs.pop(key, None)
-                # Clean up cached video thumbnail
-                path = item_name.data(Qt.ItemDataRole.UserRole + 1)
-                if path:
-                    try:
-                        from core.video_thumbnail import delete_thumbnail
-                        delete_thumbnail(path)
-                    except Exception:
-                        pass
+                # Clean up cache files
+                self._clear_cache_files(item_name, config)
             self.download_table.removeRow(row)
         self.save_data()
         self.update_ui_states()
@@ -6242,6 +6535,8 @@ class MainWindow(QMainWindow):
 
     def _clear_cache_files(self, item_name, config):
         """Helper to remove temporary/cache files associated with a download item."""
+        if not item_name:
+            return
         filename = item_name.text()
         filepath = item_name.data(Qt.ItemDataRole.UserRole + 1)
         if filepath:
@@ -6251,33 +6546,67 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-        temp_dir = config.get("temp_dir")
-        if not temp_dir: return
-
-        # 1. Aria2 files
-        aria_temp = os.path.join(temp_dir, filename)
-        aria_control = aria_temp + ".aria2"
-        if os.path.exists(aria_temp):
-            try: os.remove(aria_temp)
-            except: pass
-        if os.path.exists(aria_control):
-            try: os.remove(aria_control)
-            except: pass
+        temp_dir = config.get("temp_dir") or os.path.join(get_cache_dir(), "downloads")
         
-        # 2. Internal downloader files
-        internal_temp = os.path.join(temp_dir, filename + ".tmpbdm")
-        internal_state = internal_temp + ".bdmx"
-        if os.path.exists(internal_temp):
-            try: os.remove(internal_temp)
-            except: pass
-        if os.path.exists(internal_state):
-            try: os.remove(internal_state)
-            except: pass
+        candidates = set()
+        if filename:
+            candidates.add(filename)
+            if filename.endswith(".bdpart"):
+                candidates.add(filename[:-7])
+        if filepath:
+            fb = os.path.basename(filepath)
+            if fb:
+                candidates.add(fb)
+                if fb.endswith(".bdpart"):
+                    candidates.add(fb[:-7])
+
+        save_dir = os.path.dirname(filepath) if filepath else None
+
+        # 1. Clean all temp and partial file variations in temp_dir
+        if temp_dir and os.path.exists(temp_dir):
+            for name in candidates:
+                if not name:
+                    continue
+                file_variants = [
+                    name,
+                    name + ".aria2",
+                    name + ".tmpbdm",
+                    name + ".tmpbdm.bdmx",
+                    name + ".bdpart",
+                    name + ".bdpart.bdmx",
+                    name + ".bdpart.aria2",
+                ]
+                for var in file_variants:
+                    target = os.path.join(temp_dir, var)
+                    if os.path.exists(target):
+                        try:
+                            os.remove(target)
+                        except Exception:
+                            pass
+
+        # 2. If save_dir is different from temp_dir, clean partial/temp files in save_dir
+        if save_dir and os.path.exists(save_dir) and (not temp_dir or os.path.normpath(save_dir) != os.path.normpath(temp_dir)):
+            for name in candidates:
+                if not name:
+                    continue
+                partial_variants = [
+                    name + ".aria2",
+                    name + ".tmpbdm",
+                    name + ".tmpbdm.bdmx",
+                    name + ".bdpart",
+                    name + ".bdpart.bdmx",
+                    name + ".bdpart.aria2",
+                ]
+                for var in partial_variants:
+                    target = os.path.join(save_dir, var)
+                    if os.path.exists(target):
+                        try:
+                            os.remove(target)
+                        except Exception:
+                            pass
 
         # 3. yt-dlp partial and fragment files (.part, .ytdl, fragments)
         clean_base = os.path.splitext(filename)[0] if filename else ""
-        saved_path = item_name.data(Qt.ItemDataRole.UserRole + 1)
-        save_dir = os.path.dirname(saved_path) if saved_path else None
         dirs_to_clean = [d for d in [temp_dir, save_dir] if d and os.path.exists(d)]
         for d in dirs_to_clean:
             try:
@@ -6294,10 +6623,10 @@ class MainWindow(QMainWindow):
                 pass
 
         # 4. Video thumbnail cache file
-        if saved_path:
+        if filepath:
             try:
                 from core.video_thumbnail import delete_thumbnail
-                delete_thumbnail(saved_path)
+                delete_thumbnail(filepath)
             except Exception:
                 pass
 
@@ -6356,6 +6685,32 @@ class MainWindow(QMainWindow):
         self.update_status_bar_items()
         self.update_status_bar_speed()
         MemoryGuard.clean_and_trim()
+    
+    def _update_prefetch_dialog(self, dialog, data):
+        """Update the prefetch dialog with progress data from the worker."""
+        try:
+            if not dialog or not MemoryGuard.is_widget_alive(dialog):
+                return
+            # data tuple: (filename, size_str, status, time_left, speed_str, downloaded, total, speed, generation)
+            if len(data) >= 8:
+                downloaded = data[5] if data[5] is not None else 0
+                total = data[6] if data[6] is not None else 0
+                speed = data[7] if data[7] is not None else 0
+                status = data[2] if len(data) > 2 else ""
+                dialog.update_prefetch_progress(downloaded, total, speed, status)
+        except Exception:
+            pass
+    
+    def _update_prefetch_dialog_bar(self, dialog, done, total):
+        """Update the prefetch dialog progress bar directly."""
+        try:
+            if not dialog or not MemoryGuard.is_widget_alive(dialog):
+                return
+            dialog.progress_bar.setMaximum(total if total > 0 else 100)
+            dialog.progress_bar.setValue(done)
+        except Exception:
+            pass
+
     def update_download_row(self, item_ref, data):
         if not self._is_item_valid(item_ref):
             return

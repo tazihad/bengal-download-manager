@@ -79,6 +79,8 @@ def load_category_config():
                     else:
                         cat_path = loaded["categories"][cat].get("path", "")
                         loaded["categories"][cat]["path"] = _normalize_snap_path(cat_path)
+                if "temp_dir" not in loaded or not loaded["temp_dir"]:
+                    loaded["temp_dir"] = os.path.join(get_cache_dir(), "downloads")
                 return loaded
         except:
             pass

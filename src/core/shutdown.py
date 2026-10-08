@@ -360,6 +360,37 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
 
     cleanup_tasks.append(("memory_trim_and_gc", cleanup_mem))
 
+    def cleanup_prefetch_temp_files(window):
+        """Clean up background prefetch workers and temp files that were never confirmed by the user."""
+        try:
+            if hasattr(window, "active_file_info_dialogs"):
+                for dlg in list(window.active_file_info_dialogs.values()):
+                    w = getattr(dlg, "_prefetch_worker", None)
+                    if w:
+                        try:
+                            if hasattr(w, "stop"):
+                                w.stop()
+                            if hasattr(w, "wait"):
+                                w.wait(500)
+                        except Exception:
+                            pass
+                        fn = getattr(w, "filename", "")
+                        td = getattr(w, "working_dir", None)
+                        if fn and td:
+                            for ext in [fn + ".bdpart", fn + ".bdpart.aria2", fn + ".bdpart.bdmx"]:
+                                p = os.path.join(td, ext)
+                                if os.path.exists(p):
+                                    try:
+                                        os.remove(p)
+                                    except Exception:
+                                        pass
+        except Exception:
+            pass
+
+    if window is not None:
+        import os
+        cleanup_tasks.append(("cleanup_prefetch_temp_files", lambda: cleanup_prefetch_temp_files(window)))
+
     coordinator.execute_phase(ShutdownPhase.CLEANUP, cleanup_tasks)
 
     return coordinator.finish()
