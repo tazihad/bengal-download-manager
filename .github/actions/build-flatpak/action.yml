@@ -17,6 +17,10 @@ inputs:
     description: 'GPG key ID to sign with'
     required: false
     default: ''
+  collection_id:
+    description: 'OSTree Collection ID (defaults to bd.com.zihad.<Branch>)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -44,10 +48,15 @@ runs:
 
         # Determine channel branch (stable, alpha, beta, rc) for track isolation
         BRANCH="stable"
-        if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
+        if [[ "${VERSION,,}" =~ (alpha|beta|rc|dev) ]]; then
           BRANCH="${BASH_REMATCH[1]}"
         fi
-        echo "Building Flatpak bundle and repo slice for version: $VERSION ($ARCH, branch: $BRANCH)"
+        BRANCH_CAP="$(tr '[:lower:]' '[:upper:]' <<< ${BRANCH:0:1})${BRANCH:1}"
+        DEFAULT_COLLECTION_ID="bd.com.zihad.${BRANCH_CAP}"
+        COLLECTION_ID="${{ inputs.collection_id }}"
+        COLLECTION_ID="${COLLECTION_ID:-$DEFAULT_COLLECTION_ID}"
+
+        echo "Building Flatpak bundle and repo slice for version: $VERSION ($ARCH, branch: $BRANCH, collection: $COLLECTION_ID)"
 
         # Create standard directory layout
         mkdir -p "$BUILD_DIR/files/bin" \
@@ -148,17 +157,17 @@ runs:
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
 
         if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
-          echo "Exporting Flatpak OSTree with GPG signature ($GPG_KEY) to branch $BRANCH..."
-          flatpak build-export --gpg-sign="$GPG_KEY" --update-appstream repo "$BUILD_DIR" "$BRANCH"
-          flatpak build-update-repo --gpg-sign="$GPG_KEY" --generate-static-deltas repo
+          echo "Exporting Flatpak OSTree with GPG signature ($GPG_KEY) to branch $BRANCH (Collection: $COLLECTION_ID)..."
+          flatpak build-export --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --update-appstream repo "$BUILD_DIR" "$BRANCH"
+          flatpak build-update-repo --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --generate-static-deltas repo
         else
-          echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH..."
-          flatpak build-export --update-appstream repo "$BUILD_DIR" "$BRANCH"
-          flatpak build-update-repo --generate-static-deltas repo
+          echo "Exporting Flatpak OSTree (unsigned) to branch $BRANCH (Collection: $COLLECTION_ID)..."
+          flatpak build-export --collection-id="$COLLECTION_ID" --update-appstream repo "$BUILD_DIR" "$BRANCH"
+          flatpak build-update-repo --collection-id="$COLLECTION_ID" --generate-static-deltas repo
         fi
 
         # Generate Flathub-standard .flatpak bundle for this specific branch
-        flatpak build-bundle repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID" "$BRANCH"
+        flatpak build-bundle --collection-id="$COLLECTION_ID" repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID" "$BRANCH"
         cp dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak dist/bengal-download-manager.flatpak 2>/dev/null || true
 
         # Generate only versioned repo ref files alongside bundle in dist/
@@ -168,5 +177,6 @@ runs:
           --app-id "$APP_ID" \
           --version "$VERSION" \
           --branch "$BRANCH" \
+          --collection-id "$COLLECTION_ID" \
           --only-versioned \
           ${GPG_KEY:+--gpg-key "$GPG_KEY"}
