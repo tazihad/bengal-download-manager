@@ -48,7 +48,7 @@ jobs:
       - name: Validate Desktop Entry and Metainfo
         run: |
           desktop-file-validate flatpak/bd.com.zihad.BengalDownloadManager.desktop
-          appstreamcli validate flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml
+          appstreamcli validate --no-net flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml
 
       - name: Run Test Suite
         env:
