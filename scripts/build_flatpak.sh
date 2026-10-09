@@ -221,7 +221,7 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
             flatpak build-update-repo --collection-id="$COLLECTION_ID" --generate-static-deltas "$REPO_DIR"
         fi
 
-        flatpak build-bundle --collection-id="$COLLECTION_ID" "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID" "$BRANCH"
+        flatpak build-bundle "$REPO_DIR" "dist/bengal-download-manager.flatpak" "$APP_ID" "$BRANCH"
         cp "dist/bengal-download-manager.flatpak" "dist/bengal-download-manager-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
         cp "dist/bengal-download-manager.flatpak" "dist/${APP_ID}-${VERSION}-${ARCH_NAME}.flatpak" 2>/dev/null || true
 

@@ -167,7 +167,7 @@ runs:
         fi
 
         # Generate Flathub-standard .flatpak bundle for this specific branch
-        flatpak build-bundle --collection-id="$COLLECTION_ID" repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID" "$BRANCH"
+        flatpak build-bundle repo dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak "$APP_ID" "$BRANCH"
         cp dist/bengal-download-manager-${VERSION}-${ARCH}.flatpak dist/bengal-download-manager.flatpak 2>/dev/null || true
 
         # Generate only versioned repo ref files alongside bundle in dist/
