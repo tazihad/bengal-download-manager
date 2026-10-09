@@ -227,14 +227,20 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
                 echo "Pulling existing branch history from $PULL_REMOTE_URL to establish parent commit..."
                 ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PULL_REMOTE_URL" 2>/dev/null || true
                 if ostree pull --repo="$REPO_DIR" origin-remote "app/$APP_ID/$ARCH_NAME/$BRANCH" 2>/dev/null; then
-                    PARENT_COMMIT=$(ostree --repo="$REPO_DIR" rev-parse origin-remote:"app/$APP_ID/$ARCH_NAME/$BRANCH" 2>/dev/null || true)
+                    PARENT_COMMIT=$(ostree --repo="$REPO_DIR" rev-parse "origin-remote:app/$APP_ID/$ARCH_NAME/$BRANCH" 2>/dev/null || true)
                     if [ -n "$PARENT_COMMIT" ]; then
-                        ostree --repo="$REPO_DIR" reset "app/$APP_ID/$ARCH_NAME/$BRANCH" "$PARENT_COMMIT" 2>/dev/null || true
+                        TARGET_REF="app/$APP_ID/$ARCH_NAME/$BRANCH"
+                        mkdir -p "$REPO_DIR/refs/heads/$(dirname "$TARGET_REF")"
+                        echo "$PARENT_COMMIT" > "$REPO_DIR/refs/heads/$TARGET_REF"
+                        if [ -n "$COLLECTION_ID" ]; then
+                            mkdir -p "$REPO_DIR/refs/mirrors/$COLLECTION_ID/$(dirname "$TARGET_REF")"
+                            echo "$PARENT_COMMIT" > "$REPO_DIR/refs/mirrors/$COLLECTION_ID/$TARGET_REF"
+                        fi
                         echo "✓ Successfully chained previous parent commit ($PARENT_COMMIT)"
                     fi
                 fi
                 ostree remote delete --repo="$REPO_DIR" origin-remote 2>/dev/null || true
-                rm -rf "$REPO_DIR"/refs/remotes/* "$REPO_DIR"/refs/mirrors/*
+                rm -rf "$REPO_DIR"/refs/remotes/*
                 mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors"
             fi
         fi

@@ -174,16 +174,21 @@ runs:
           echo "Attempting to pull existing ref $TARGET_REF from $PAGES_URL/repo to establish OSTree parent commit history..."
           ostree remote add --repo=repo --no-gpg-verify origin-remote "$PAGES_URL/repo" 2>/dev/null || true
           if ostree pull --repo=repo origin-remote "$TARGET_REF" 2>/dev/null; then
-            PARENT_COMMIT=$(ostree --repo=repo rev-parse origin-remote:"$TARGET_REF" 2>/dev/null || true)
+            PARENT_COMMIT=$(ostree --repo=repo rev-parse "origin-remote:$TARGET_REF" 2>/dev/null || true)
             if [ -n "$PARENT_COMMIT" ]; then
-              ostree --repo=repo reset "$TARGET_REF" "$PARENT_COMMIT" 2>/dev/null || true
+              mkdir -p "repo/refs/heads/$(dirname "$TARGET_REF")"
+              echo "$PARENT_COMMIT" > "repo/refs/heads/$TARGET_REF"
+              if [ -n "$COLLECTION_ID" ]; then
+                mkdir -p "repo/refs/mirrors/$COLLECTION_ID/$(dirname "$TARGET_REF")"
+                echo "$PARENT_COMMIT" > "repo/refs/mirrors/$COLLECTION_ID/$TARGET_REF"
+              fi
               echo "✓ Successfully chained previous parent commit ($PARENT_COMMIT) for $TARGET_REF"
             fi
           else
             echo "ℹ No existing remote ref found or unreachable; will create initial root commit."
           fi
           ostree remote delete --repo=repo origin-remote 2>/dev/null || true
-          rm -rf repo/refs/remotes/* repo/refs/mirrors/*
+          rm -rf repo/refs/remotes/*
           mkdir -p repo/refs/heads repo/refs/remotes repo/refs/mirrors
         fi
 
