@@ -73,13 +73,15 @@ runs:
           ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PAGES_URL/repo" 2>/dev/null || true
           ostree pull --repo="$REPO_DIR" --mirror origin-remote 2>/dev/null || ostree pull --repo="$REPO_DIR" origin-remote 2>/dev/null || true
           ostree remote delete --repo="$REPO_DIR" origin-remote 2>/dev/null || true
+          rm -rf "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors"
         fi
 
         # Pull all downloaded architecture repo slices into the unified repo
         for slice in ${{ inputs.slices_pattern }}; do
           if [ -d "$slice" ]; then
             echo "Preparing OSTree directory structure for slice: $slice"
-            mkdir -p "$slice/refs/heads" "$slice/refs/remotes" "$slice/refs/mirrors" "$slice/objects"
+            rm -rf "$slice/refs/remotes" "$slice/refs/mirrors"
+            mkdir -p "$slice/refs/heads" "$slice/objects"
             
             echo "Merging architecture slice: $slice -> $REPO_DIR"
             ostree pull-local --repo="$REPO_DIR" "$slice"

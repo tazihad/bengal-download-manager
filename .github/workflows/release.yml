@@ -188,17 +188,16 @@ jobs:
           name: release-assets-${{ matrix.arch }}
           path: release_artifacts/*
 
-  release:
-    name: Publish Release & Flatpak Repository
+  publish-flatpak:
+    name: Publish Flatpak Repository
     needs: [test, prepare, build]
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     permissions:
-      contents: write
+      contents: read
       id-token: write
-      attestations: write
       pages: write
     env:
       HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
@@ -208,13 +207,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-assets-*
-          merge-multiple: true
-          path: release_dist
 
       - name: Download Flatpak OSTree Slice Artifacts
         uses: actions/download-artifact@v4
@@ -239,12 +231,7 @@ jobs:
           site_dir: '_site'
           sign: ${{ env.HAS_GPG == 'true' }}
           gpg_key: ${{ steps.import_gpg.outputs.keyid }}
-          pages_url: 'https://tazihad.github.io/bengal-download-manager'
-
-      - name: Copy Flatpak Ref to Release Dist
-        run: |
-          cp _site/bengal-download-manager-${{ needs.prepare.outputs.version }}.flatpakref release_dist/ 2>/dev/null || true
-          rm -f release_dist/*.flatpakrepo 2>/dev/null || true
+          pages_url: 'https://zihad.com.bd/bengal-download-manager'
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -259,6 +246,48 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  release:
+    name: Publish GitHub Release
+    needs: [test, prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          merge-multiple: true
+          path: release_dist
+
+      - name: Generate Flatpak Ref for Release
+        run: |
+          python3 scripts/generate_flatpak_refs.py \
+            --out-dir release_dist \
+            --app-id 'bd.com.zihad.BengalDownloadManager' \
+            --version '${{ needs.prepare.outputs.version }}' \
+            --only-versioned \
+            --pages-url 'https://zihad.com.bd/bengal-download-manager' 2>/dev/null || true
+          rm -f release_dist/*.flatpakrepo 2>/dev/null || true
+
+      - name: Import GPG Key for Release Signing
+        if: env.HAS_GPG == 'true'
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Generate SHA256SUMS Checksums
         run: |
