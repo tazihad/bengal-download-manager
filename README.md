@@ -20,9 +20,9 @@
 
 ### Get App
 
-[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/bengal-download-manager)
-[![Download AppImage](assets/badges/badge_appimage.svg)](https://github.com/tazihad/bengal-download-manager/releases/latest)
-[![Install via Flatpak](assets/badges/badge_flatpak.svg)](https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref)
+<a href="https://snapcraft.io/bengal-download-manager"><img src="https://snapcraft.io/en/dark/install.svg" alt="Get it from the Snap Store" height="48" /></a>
+<a href="https://github.com/tazihad/bengal-download-manager/releases/latest"><img src="assets/badges/badge_appimage.svg" alt="Download AppImage" height="48" /></a>
+<a href="https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref"><img src="assets/badges/badge_flatpak.svg" alt="Install via Flatpak" height="48" /></a>
 
 ### Get Addon
 
