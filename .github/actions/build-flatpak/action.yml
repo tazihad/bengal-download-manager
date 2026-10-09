@@ -183,7 +183,8 @@ runs:
             echo "ℹ No existing remote ref found or unreachable; will create initial root commit."
           fi
           ostree remote delete --repo=repo origin-remote 2>/dev/null || true
-          rm -rf repo/refs/remotes repo/refs/mirrors
+          rm -rf repo/refs/remotes/* repo/refs/mirrors/*
+          mkdir -p repo/refs/heads repo/refs/remotes repo/refs/mirrors
         fi
 
         if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then

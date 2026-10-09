@@ -234,6 +234,8 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
                     fi
                 fi
                 ostree remote delete --repo="$REPO_DIR" origin-remote 2>/dev/null || true
+                rm -rf "$REPO_DIR"/refs/remotes/* "$REPO_DIR"/refs/mirrors/*
+                mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors"
             fi
         fi
 
