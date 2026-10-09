@@ -14,6 +14,7 @@ DO_RUN=0
 DO_BUNDLE=1
 GPG_KEY="${GPG_KEY:-}"
 COLLECTION_ID="${COLLECTION_ID:-}"
+PULL_REMOTE_URL="${PULL_REMOTE_URL:-}"
 EXTRA_APP_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -38,12 +39,16 @@ while [[ $# -gt 0 ]]; do
             COLLECTION_ID="$2"
             shift 2
             ;;
+        --pull-remote)
+            PULL_REMOTE_URL="${2:-https://zihad.com.bd/bengal-download-manager/repo}"
+            shift 2
+            ;;
         --repo-dir)
             REPO_DIR="$2"
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [--gpg-key KEY_ID] [--collection-id ID] [--repo-dir DIR] [app_arguments...]"
+            echo "Usage: $0 [--run] [--no-bundle] [--bundle] [--gpg-key KEY_ID] [--collection-id ID] [--pull-remote URL] [--repo-dir DIR] [app_arguments...]"
             echo ""
             echo "Options:"
             echo "  --run                Launch the built application after assembly"
@@ -51,6 +56,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --bundle             Create .flatpak single-file bundle in dist/ (default)"
             echo "  --gpg-key KEY_ID     GPG key ID for signing OSTree repo commits"
             echo "  --collection-id ID   OSTree Collection ID (e.g. bd.com.zihad.Stable)"
+            echo "  --pull-remote URL    Pull existing ref history from remote OSTree repo before export"
             echo "  --repo-dir DIR       OSTree repository directory (default: repo)"
             echo "  --help, -h           Show this help message"
             exit 0
@@ -210,6 +216,26 @@ if [ "$DO_BUNDLE" -eq 1 ]; then
 
         BRANCH_CAP="$(tr '[:lower:]' '[:upper:]' <<< ${BRANCH:0:1})${BRANCH:1}"
         COLLECTION_ID="${COLLECTION_ID:-bd.com.zihad.${BRANCH_CAP}}"
+
+        # Initialize OSTree repo structure with collection-id
+        if command -v ostree >/dev/null 2>&1; then
+            ostree init --mode=archive --repo="$REPO_DIR" --collection-id="$COLLECTION_ID" 2>/dev/null || true
+            ostree config --repo="$REPO_DIR" set "core.collection-id" "$COLLECTION_ID" 2>/dev/null || true
+            mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
+
+            if [ -n "$PULL_REMOTE_URL" ]; then
+                echo "Pulling existing branch history from $PULL_REMOTE_URL to establish parent commit..."
+                ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PULL_REMOTE_URL" 2>/dev/null || true
+                if ostree pull --repo="$REPO_DIR" origin-remote "app/$APP_ID/$ARCH_NAME/$BRANCH" 2>/dev/null; then
+                    PARENT_COMMIT=$(ostree --repo="$REPO_DIR" rev-parse origin-remote:"app/$APP_ID/$ARCH_NAME/$BRANCH" 2>/dev/null || true)
+                    if [ -n "$PARENT_COMMIT" ]; then
+                        ostree --repo="$REPO_DIR" reset "app/$APP_ID/$ARCH_NAME/$BRANCH" "$PARENT_COMMIT" 2>/dev/null || true
+                        echo "✓ Successfully chained previous parent commit ($PARENT_COMMIT)"
+                    fi
+                fi
+                ostree remote delete --repo="$REPO_DIR" origin-remote 2>/dev/null || true
+            fi
+        fi
 
         if [ -n "$GPG_KEY" ]; then
             echo "Signing Flatpak OSTree with GPG ($GPG_KEY) to branch $BRANCH (Collection: $COLLECTION_ID)..."

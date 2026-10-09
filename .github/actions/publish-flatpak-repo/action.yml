@@ -67,6 +67,14 @@ runs:
         ostree config --repo="$REPO_DIR" set "core.collection-id" "$COLLECTION_ID" 2>/dev/null || true
         mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
 
+        # Pull existing history from live remote repository so that delta history and parent commits are retained
+        if [ -n "$PAGES_URL" ]; then
+          echo "Pulling existing repository history from $PAGES_URL/repo into $REPO_DIR..."
+          ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PAGES_URL/repo" 2>/dev/null || true
+          ostree pull --repo="$REPO_DIR" --mirror origin-remote 2>/dev/null || ostree pull --repo="$REPO_DIR" origin-remote 2>/dev/null || true
+          ostree remote delete --repo="$REPO_DIR" origin-remote 2>/dev/null || true
+        fi
+
         # Pull all downloaded architecture repo slices into the unified repo
         for slice in ${{ inputs.slices_pattern }}; do
           if [ -d "$slice" ]; then

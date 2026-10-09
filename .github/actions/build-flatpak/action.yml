@@ -21,6 +21,10 @@ inputs:
     description: 'OSTree Collection ID (defaults to bd.com.zihad.<Branch>)'
     required: false
     default: ''
+  pages_url:
+    description: 'Base URL for GitHub Pages / remote OSTree repository'
+    required: false
+    default: 'https://zihad.com.bd/bengal-download-manager'
 
 runs:
   using: "composite"
@@ -155,6 +159,31 @@ runs:
 
         mkdir -p dist repo
         flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
+
+        PAGES_URL="${{ inputs.pages_url }}"
+        PAGES_URL="${PAGES_URL:-https://zihad.com.bd/bengal-download-manager}"
+        TARGET_REF="app/$APP_ID/$ARCH/$BRANCH"
+
+        # Initialize OSTree repo structure with collection-id
+        ostree init --mode=archive --repo=repo --collection-id="$COLLECTION_ID" 2>/dev/null || true
+        ostree config --repo=repo set "core.collection-id" "$COLLECTION_ID" 2>/dev/null || true
+        mkdir -p repo/refs/heads repo/refs/remotes repo/refs/mirrors repo/objects
+
+        # Pull existing ref from live remote repository to establish parent commit history
+        if [ -n "$PAGES_URL" ]; then
+          echo "Attempting to pull existing ref $TARGET_REF from $PAGES_URL/repo to establish OSTree parent commit history..."
+          ostree remote add --repo=repo --no-gpg-verify origin-remote "$PAGES_URL/repo" 2>/dev/null || true
+          if ostree pull --repo=repo origin-remote "$TARGET_REF" 2>/dev/null; then
+            PARENT_COMMIT=$(ostree --repo=repo rev-parse origin-remote:"$TARGET_REF" 2>/dev/null || true)
+            if [ -n "$PARENT_COMMIT" ]; then
+              ostree --repo=repo reset "$TARGET_REF" "$PARENT_COMMIT" 2>/dev/null || true
+              echo "✓ Successfully chained previous parent commit ($PARENT_COMMIT) for $TARGET_REF"
+            fi
+          else
+            echo "ℹ No existing remote ref found or unreachable; will create initial root commit."
+          fi
+          ostree remote delete --repo=repo origin-remote 2>/dev/null || true
+        fi
 
         if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
           echo "Exporting Flatpak OSTree with GPG signature ($GPG_KEY) to branch $BRANCH (Collection: $COLLECTION_ID)..."
