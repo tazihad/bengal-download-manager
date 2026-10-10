@@ -185,15 +185,12 @@ command=bengal-download-manager
 
 [Context]
 shared=network;ipc;
-sockets=x11;fallback-x11;wayland;pulseaudio;
-filesystems=host;xdg-download;xdg-config/kdeglobals:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;xdg-data/icons:ro;~/.icons:ro;~/.local/share/icons:ro;
+sockets=fallback-x11;wayland;
+filesystems=xdg-download;
 devices=dri;
 
 [Session Bus Policy]
 org.freedesktop.FileManager1=talk
-org.freedesktop.portal.Desktop=talk
-org.freedesktop.portal.Settings=talk
-org.freedesktop.Notifications=talk
 org.kde.StatusNotifierWatcher=talk
 org.freedesktop.StatusNotifierWatcher=talk
 org.kde.StatusNotifierItem.*=own
