@@ -58,6 +58,7 @@ class FileInfoFetcherWorker(QThread):
             "user_agent": self.user_agent,
             "cookies": self.cookies,
             "referer": self.referrer or self.url,
+            "supports_range": True,
             "error": None
         }
         
@@ -117,13 +118,19 @@ class FileInfoFetcherWorker(QThread):
                         result["filename"] = resolve_filename(final_url, final_headers)
 
                         content_length = final_headers.get("Content-Length")
+                        accept_ranges = final_headers.get("Accept-Ranges", "").strip().lower()
+                        if accept_ranges == "none":
+                            result["supports_range"] = False
+                        elif accept_ranges == "bytes":
+                            result["supports_range"] = True
+
                         if content_length and content_length.isdigit() and int(content_length) > 0:
                             result["size_bytes"] = int(content_length)
                             result["size_str"] = self.format_bytes(result["size_bytes"])
                             head_success = True
                             if is_debug_mode():
-                                logger.debug("[Fetcher] [Tier 1 HEAD Fast Success] %s: %s (%d bytes)",
-                                             result["filename"], result["size_str"], result["size_bytes"])
+                                logger.debug("[Fetcher] [Tier 1 HEAD Fast Success] %s: %s (%d bytes, supports_range=%s)",
+                                             result["filename"], result["size_str"], result["size_bytes"], result["supports_range"])
                             resp.close()
                             if not self._is_cancelled:
                                 self.finished_signal.emit(result)
@@ -167,12 +174,20 @@ class FileInfoFetcherWorker(QThread):
 
                         # Check Content-Range: bytes 0-0/TOTAL
                         content_range = final_headers.get("Content-Range", "")
+                        accept_ranges = final_headers.get("Accept-Ranges", "").strip().lower()
                         if content_range:
                             import re
                             m_range = re.search(r"bytes\s+\d+-\d+/(\d+)", content_range, re.IGNORECASE)
                             if m_range and m_range.group(1).isdigit():
                                 result["size_bytes"] = int(m_range.group(1))
                                 result["size_str"] = self.format_bytes(result["size_bytes"])
+                            result["supports_range"] = True
+                        else:
+                            # Range: bytes=0-0 was requested, but server omitted Content-Range (e.g. HTTP 200 stream)
+                            if accept_ranges == "bytes":
+                                result["supports_range"] = True
+                            else:
+                                result["supports_range"] = False
 
                         # Fallback to Content-Length if Content-Range was absent (full 200 response)
                         if result["size_bytes"] == 0:
@@ -182,8 +197,8 @@ class FileInfoFetcherWorker(QThread):
                                 result["size_str"] = self.format_bytes(result["size_bytes"])
 
                         if is_debug_mode():
-                            logger.debug("[Fetcher] [Tier 2 Range Success] %s: %s (%d bytes)",
-                                         result["filename"], result["size_str"], result["size_bytes"])
+                            logger.debug("[Fetcher] [Tier 2 Range Success] %s: %s (%d bytes, supports_range=%s)",
+                                         result["filename"], result["size_str"], result["size_bytes"], result["supports_range"])
                         # Read only 1 byte and close socket immediately
                         try:
                             resp.read(1)

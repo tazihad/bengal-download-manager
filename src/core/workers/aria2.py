@@ -18,7 +18,7 @@ class Aria2Worker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, prefetch=False, **kwargs):
+    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, prefetch=False, supports_range=True, **kwargs):
         super().__init__()
         self.url = url
         self.download_id = kwargs.get("row_index", download_id)
@@ -29,6 +29,7 @@ class Aria2Worker(QThread):
         self.cookies = cookies
         self.referrer = referrer
         self.allow_resume = allow_resume
+        self.supports_range = supports_range
         self.prefetch = prefetch  # Prefetch mode: single connection, temp file, no final move
         self.is_running = True
         self.gid = None
@@ -78,7 +79,7 @@ class Aria2Worker(QThread):
         if not self.allow_resume:
             for d in [self.working_dir, self.save_dir]:
                 if d and os.path.exists(d):
-                    for fn in [self.filename, f"{self.filename}.aria2"]:
+                    for fn in [self.filename, f"{self.filename}.aria2", f"{self.filename}.bdpart", f"{self.filename}.bdpart.aria2"]:
                         fp = os.path.join(d, fn)
                         if os.path.exists(fp):
                             try: os.remove(fp)
@@ -93,10 +94,14 @@ class Aria2Worker(QThread):
         if not isinstance(max_conn_val, int) or max_conn_val < 1:
             max_conn_val = 8 # Fallback to default if invalid or 0
         
-        # Prefetch mode: use only 1 connection
-        if self.prefetch:
+        # Prefetch mode or unsupported range: use only 1 connection
+        if self.prefetch or not self.supports_range:
             max_conn_val = 1
-            self.log_signal.emit("Prefetch: using 1 connection.")
+            if not self.supports_range:
+                self.allow_resume = False
+                self.log_signal.emit("Server does not support range requests: using 1 connection.")
+            else:
+                self.log_signal.emit("Prefetch: using 1 connection.")
         
         max_conn = str(max_conn_val)
         
@@ -111,7 +116,7 @@ class Aria2Worker(QThread):
         
         if self.prefetch:
             download_filename = self.filename + ".bdpart"
-        elif not self.prefetch and os.path.exists(bdpart_path) and (os.path.exists(bdpart_control) or (self.allow_resume and os.path.exists(bdpart_path))):
+        elif not self.prefetch and self.allow_resume and os.path.exists(bdpart_path) and os.path.exists(bdpart_control):
             # Resume from prefetch .bdpart file
             download_filename = self.filename + ".bdpart"
             self.log_signal.emit("Resuming from prefetch download...")
@@ -375,43 +380,44 @@ class Aria2Worker(QThread):
                     # Normal mode: move to final location
                     self.log_signal.emit("Aria2 download completed successfully.")
                     
-                    # Check if we resumed from a prefetch .bdpart file
-                    bdpart_path = os.path.join(self.working_dir, self.filename + ".bdpart")
-                    resumed_from_prefetch = (download_filename == self.filename + ".bdpart") or os.path.exists(bdpart_path)
-                    
-                    if resumed_from_prefetch and os.path.exists(bdpart_path):
-                        try:
-                            self.log_signal.emit(f"Finalizing: Moving file to {self.save_dir}")
-                            if os.path.exists(self.target_path):
-                                os.remove(self.target_path)
-                            shutil.move(bdpart_path, self.target_path)
-                            control_file = bdpart_path + ".aria2"
-                            if os.path.exists(control_file):
-                                os.remove(control_file)
-                        except Exception as e:
-                            logger.error("[Aria2Worker] Error moving file to final destination: %s", e)
-                            self.log_signal.emit(f"Error moving file to final destination: {e}")
-                            self.finished_signal.emit(self.row_index, "Error")
-                            break
-                    elif self.working_dir != self.save_dir:
-                        try:
-                            temp_path = os.path.join(self.working_dir, self.filename)
-                            if os.path.exists(temp_path):
+                    # Determine actual downloaded file
+                    source_path = os.path.join(self.working_dir, download_filename)
+                    if not os.path.exists(source_path):
+                        # Fallback check
+                        alt_target = os.path.join(self.working_dir, self.filename)
+                        if os.path.exists(alt_target):
+                            source_path = alt_target
+
+                    if os.path.exists(source_path):
+                        if os.path.normpath(source_path) != os.path.normpath(self.target_path):
+                            try:
                                 self.log_signal.emit(f"Finalizing: Moving file to {self.save_dir}")
-                                # Remove existing target if any
                                 if os.path.exists(self.target_path):
                                     os.remove(self.target_path)
-                                shutil.move(temp_path, self.target_path)
-                                
-                                # Cleanup .aria2 control file in temp
-                                control_file = temp_path + ".aria2"
-                                if os.path.exists(control_file):
-                                    os.remove(control_file)
-                        except Exception as e:
-                            logger.error("[Aria2Worker] Error moving file to final destination: %s", e)
-                            self.log_signal.emit(f"Error moving file to final destination: {e}")
-                            self.finished_signal.emit(self.row_index, "Error")
-                            break
+                                shutil.move(source_path, self.target_path)
+                            except Exception as e:
+                                logger.error("[Aria2Worker] Error moving file to final destination: %s", e)
+                                self.log_signal.emit(f"Error moving file to final destination: {e}")
+                                self.finished_signal.emit(self.row_index, "Error")
+                                break
+
+                    # Cleanup control files
+                    for ctrl in [source_path + ".aria2", os.path.join(self.working_dir, self.filename + ".aria2")]:
+                        if os.path.exists(ctrl):
+                            try:
+                                os.remove(ctrl)
+                            except Exception:
+                                pass
+
+                    # If this download was not resuming from .bdpart, clean up any stale .bdpart files
+                    if download_filename != self.filename + ".bdpart":
+                        stale_bdpart = os.path.join(self.working_dir, self.filename + ".bdpart")
+                        for extra in [stale_bdpart, stale_bdpart + ".aria2"]:
+                            if os.path.exists(extra):
+                                try:
+                                    os.remove(extra)
+                                except Exception:
+                                    pass
 
                     if is_debug_mode():
                         logger.debug("[Aria2Worker] Finalized target file: %s", self.target_path)
@@ -430,10 +436,60 @@ class Aria2Worker(QThread):
                     self.finished_signal.emit(self.row_index, "Complete")
                     break
             elif state in ["error", "removed"]:
-                err_code = status.get("errorCode", "unknown") if status else "unknown"
+                err_code = str(status.get("errorCode", "unknown")) if status else "unknown"
                 err_msg = status.get("errorMessage", "") if status else ""
                 logger.error("[Aria2Worker] GID %s stopped with state=%s (errorCode=%s, errorMsg=%s)",
                              self.gid, state, err_code, err_msg)
+
+                # Check for Range error (errorCode=8: "Invalid range header")
+                is_range_error = (err_code == "8" or "invalid range header" in err_msg.lower())
+                if is_range_error and (max_conn_int > 1 or self.allow_resume) and self.is_running:
+                    logger.warning("[Aria2Worker] GID %s encountered range error (errorCode=8). "
+                                   "Falling back to single connection without resume...", self.gid)
+                    self.log_signal.emit("Server does not support multi-connection download. Retrying in single connection...")
+
+                    # Clean up failed download from aria2
+                    try:
+                        self.call_rpc("aria2.removeDownloadResult", [self.gid])
+                    except Exception:
+                        pass
+
+                    # Clean up partial / control files to start clean
+                    for fn in [download_filename, f"{download_filename}.aria2"]:
+                        fp = os.path.join(self.working_dir, fn)
+                        if os.path.exists(fp):
+                            try:
+                                os.remove(fp)
+                            except Exception:
+                                pass
+
+                    # Reconfigure for single connection without resume
+                    max_conn_int = 1
+                    max_conn_val = 1
+                    self.allow_resume = False
+                    self.supports_range = False
+                    self.init_segments_signal.emit(1)
+                    simulated_dls = [0]
+                    simulated_speeds = [0]
+                    active_indices = []
+
+                    options = options.copy()
+                    options["split"] = "1"
+                    options["max-connection-per-server"] = "1"
+                    options["continue"] = "false"
+                    params = [[self.url], options]
+
+                    new_gid = self.call_rpc("aria2.addUri", params)
+                    if new_gid:
+                        self.gid = new_gid
+                        logger.info("[Aria2Worker] Retrying download with single connection, new GID %s", self.gid)
+                        self.log_signal.emit(f"Retrying via Aria2 single connection (GID: {self.gid[:6]})")
+                        consecutive_failures = 0
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        logger.error("[Aria2Worker] Failed to re-add URL with single connection")
+
                 if self.prefetch:
                     self.log_signal.emit(f"Prefetch stopped: {state}")
                     self.finished_signal.emit(self.row_index, "Prefetch Error" if state == "error" else "Prefetch Cancelled")

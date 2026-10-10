@@ -340,6 +340,202 @@ class TestFileInfoFetcherWorker:
             assert res["size_bytes"] == 104857600
             assert "100.00  MB" in res["size_str"]
             assert res["content_type"] == "video/x-matroska"
+            assert res["supports_range"] is True
+
+
+class TestAria2RangeFallback:
+    def test_aria2_worker_supports_range_false_initializes_single_conn(self, tmp_path, qapp):
+        from core.workers.aria2 import Aria2Worker
+
+        w = Aria2Worker(
+            url="https://codeload.github.com/repo/tar.gz",
+            download_id=0,
+            save_dir=str(tmp_path),
+            supports_range=False
+        )
+
+        called_params = []
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            def fake_call(method, params=None, **kwargs):
+                if method == "aria2.addUri":
+                    called_params.append(params)
+                    return "gid-single-1"
+                elif method == "aria2.tellStatus":
+                    w.is_running = False
+                    return {
+                        "status": "complete",
+                        "totalLength": "2048",
+                        "completedLength": "2048",
+                        "downloadSpeed": "0",
+                        "files": [{"path": str(tmp_path / "tar.gz")}],
+                    }
+                return {}
+
+            mock_rpc.side_effect = fake_call
+            w.run()
+
+        assert len(called_params) == 1
+        options = called_params[0][1]
+        assert options.get("split") == "1"
+        assert options.get("max-connection-per-server") == "1"
+        assert options.get("continue") == "false"
+
+    def test_aria2_worker_recovers_from_error_code_8(self, tmp_path, qapp):
+        from core.workers.aria2 import Aria2Worker
+
+        w = Aria2Worker(
+            url="https://codeload.github.com/repo/tar.gz",
+            download_id=0,
+            save_dir=str(tmp_path),
+            supports_range=True
+        )
+
+        add_calls = []
+        remove_results = []
+        statuses = [
+            # First status check for gid-1: fails with errorCode=8
+            {
+                "status": "error",
+                "errorCode": "8",
+                "errorMessage": "Invalid range header. Request: 11534336-14680063/21110236, Response: 0-21110235/21110236",
+            },
+            # Second status check for gid-2: completes
+            {
+                "status": "complete",
+                "totalLength": "21110236",
+                "completedLength": "21110236",
+                "downloadSpeed": "0",
+                "files": [{"path": str(tmp_path / "tar.gz")}],
+            }
+        ]
+
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc, \
+             patch("core.workers.aria2.load_extension_config", return_value={"max_connections": 8}):
+            def fake_call(method, params=None, **kwargs):
+                if method == "aria2.addUri":
+                    add_calls.append(params)
+                    return f"gid-{len(add_calls)}"
+                elif method == "aria2.removeDownloadResult":
+                    remove_results.append(params)
+                    return "OK"
+                elif method == "aria2.tellStatus":
+                    if statuses:
+                        return statuses.pop(0)
+                    return {"status": "complete", "totalLength": "0", "completedLength": "0"}
+                return {}
+
+            mock_rpc.side_effect = fake_call
+
+            finished_events = []
+            w.finished_signal.connect(lambda row, status: finished_events.append((row, status)))
+            w.run()
+
+        # Should have called addUri twice: first multi-connection, then single-connection fallback
+        assert len(add_calls) == 2
+        # First call used multi-connection (split 8)
+        assert add_calls[0][1].get("split") == "8"
+        # Second call used single connection fallback (split 1, continue false)
+        assert add_calls[1][1].get("split") == "1"
+        assert add_calls[1][1].get("max-connection-per-server") == "1"
+        assert add_calls[1][1].get("continue") == "false"
+
+        # Checked that removeDownloadResult was called for the failed gid-1
+        assert len(remove_results) == 1
+        assert remove_results[0] == ["gid-1"]
+
+        # Verified that the download completed successfully instead of erroring out
+        assert finished_events == [(0, "Complete")]
+
+    def test_fetcher_detects_supports_range_false_when_range_ignored(self, qapp):
+        from core.workers.fetcher import FileInfoFetcherWorker
+        import urllib.error
+
+        worker = FileInfoFetcherWorker("https://codeload.github.com/repo/archive.tar.gz")
+
+        mock_resp = MagicMock()
+        mock_resp.geturl.return_value = "https://codeload.github.com/repo/archive.tar.gz"
+        # Server ignores Range: bytes=0-0 and returns full 200 without Content-Range
+        mock_resp.headers = {
+            "Content-Type": "application/x-gzip",
+            "Content-Length": "21110236",
+        }
+
+        def mock_open(req, timeout=10):
+            if req.get_method() == "HEAD":
+                raise urllib.error.HTTPError(req.get_full_url(), 405, "Method Not Allowed", {}, None)
+            ctx = MagicMock()
+            ctx.__enter__.return_value = mock_resp
+            return ctx
+
+        with patch.object(worker, "create_opener") as mock_opener:
+            mock_opener_instance = MagicMock()
+            mock_opener.return_value = mock_opener_instance
+            mock_opener_instance.open.side_effect = mock_open
+
+            results = []
+            worker.finished_signal.connect(results.append)
+            worker.run()
+
+            assert len(results) == 1
+            res = results[0]
+            assert res["size_bytes"] == 21110236
+            assert res["supports_range"] is False
+
+    def test_aria2_worker_does_not_overwrite_with_stale_bdpart(self, tmp_path, qapp):
+        from core.workers.aria2 import Aria2Worker
+
+        save_dir = tmp_path / "save"
+        save_dir.mkdir()
+        temp_dir = tmp_path / "cache"
+        temp_dir.mkdir()
+
+        filename = "bengal-0.2.79.tar.gz"
+        # Stale 256KB bdpart file leftover from prefetch
+        stale_bdpart = temp_dir / (filename + ".bdpart")
+        stale_bdpart.write_bytes(b"X" * 262144)
+
+        # Real 20MB file downloaded by Aria2 to filename
+        full_file = temp_dir / filename
+        full_file.write_bytes(b"Y" * 21111276)
+
+        w = Aria2Worker(
+            url="https://codeload.github.com/repo/tar.gz",
+            download_id=0,
+            save_dir=str(save_dir),
+            temp_dir=str(temp_dir),
+            resume_filename=filename,
+            allow_resume=False,
+            supports_range=False
+        )
+
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc, \
+             patch("core.workers.aria2.load_extension_config", return_value={"max_connections": 1}):
+            def fake_call(method, params=None, **kwargs):
+                if method == "aria2.addUri":
+                    full_file.write_bytes(b"Y" * 21111276)
+                    return "gid-complete-1"
+                elif method == "aria2.tellStatus":
+                    w.is_running = False
+                    return {
+                        "status": "complete",
+                        "totalLength": "21111276",
+                        "completedLength": "21111276",
+                        "downloadSpeed": "0",
+                        "files": [{"path": str(full_file)}],
+                    }
+                return {}
+
+            mock_rpc.side_effect = fake_call
+            w.run()
+
+        # The finalized target file in save_dir must be the full 21MB file, NOT the 256KB stale bdpart
+        target_path = save_dir / filename
+        assert target_path.exists()
+        assert target_path.stat().st_size == 21111276
+        # The stale bdpart should have been cleaned up
+        assert not stale_bdpart.exists()
+
+
 
 
 

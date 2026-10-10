@@ -5261,7 +5261,8 @@ class MainWindow(QMainWindow):
                 show_dialog=show_prog,
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
-                referer=file_info.get("referer") or file_info.get("url")
+                referer=file_info.get("referer") or file_info.get("url"),
+                supports_range=file_info.get("supports_range", True)
             )
             return
 
@@ -5323,7 +5324,8 @@ class MainWindow(QMainWindow):
                 size_data=(file_info.get("size_str", "?"), file_info.get("size_bytes", 0)),
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
-                referer=file_info.get("referer") or file_info.get("url")
+                referer=file_info.get("referer") or file_info.get("url"),
+                supports_range=file_info.get("supports_range", True)
             )
             
             # Store the prefetch worker reference on the dialog for later handling
@@ -5385,14 +5387,11 @@ class MainWindow(QMainWindow):
                 # Check if prefetch completed:
                 # 1) Worker explicitly finished with "Prefetch Complete"
                 # 2) Or file exists, reached expected size, and has no active .aria2 control file
-                # 3) Or worker thread already finished, actual size > 0, and no .aria2 control file
                 bdpart_complete = False
                 if logic_status == "Prefetch Complete":
                     bdpart_complete = True
                 elif bdpart_path and os.path.exists(bdpart_path) and not os.path.exists(bdpart_aria2):
                     if expected_size > 0 and actual_size >= expected_size:
-                        bdpart_complete = True
-                    elif getattr(prefetch_worker, 'is_running', True) is False and actual_size > 0:
                         bdpart_complete = True
                 
                 if bdpart_complete:
@@ -5448,6 +5447,15 @@ class MainWindow(QMainWindow):
                 # Remove from active downloads
                 if prefetch_key and prefetch_key in self.active_downloads:
                     self.active_downloads.pop(prefetch_key, None)
+
+                # Clean up partial prefetch files if server does not support range/resume
+                if not file_info.get("supports_range", True):
+                    for extra in [bdpart_path, bdpart_state, bdpart_aria2]:
+                        if extra and os.path.exists(extra):
+                            try:
+                                os.remove(extra)
+                            except Exception:
+                                pass
             
             # Start normal download (will resume from .bdpart if it exists)
             self.start_download(
@@ -5459,7 +5467,8 @@ class MainWindow(QMainWindow):
                 show_dialog=show_prog,
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
-                referer=file_info.get("referer") or file_info.get("url")
+                referer=file_info.get("referer") or file_info.get("url"),
+                supports_range=file_info.get("supports_range", True)
             )
         elif results["action"] == 'later':
             # "Download Later" - stop prefetch worker, keep partial files for resume, add to table as Paused
@@ -5529,10 +5538,10 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True):
         if is_debug_mode():
-            logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s, prefetch=%s",
-                         url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name, prefetch)
+            logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s, prefetch=%s, supports_range=%s",
+                         url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name, prefetch, supports_range)
 
         if show_dialog is None:
             silent = getattr(self, "settings", {}).get("silent_download", False)
@@ -5574,6 +5583,7 @@ class MainWindow(QMainWindow):
         # Mark as prefetch if applicable
         if prefetch:
             item_name.setData(Qt.ItemDataRole.UserRole + 21, True)  # Prefetch flag
+        item_name.setData(Qt.ItemDataRole.UserRole + 22, supports_range) # Range support flag
         
         # Determine explicit metadata bindings
         size_str = size_data[0] if size_data else "?"
@@ -5616,7 +5626,7 @@ class MainWindow(QMainWindow):
             queue_max = self._get_queue_max_concurrent(target_queue)
             active_in_queue = self._get_active_count_for_queue(target_queue)
             if active_in_queue < queue_max:
-                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch)
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range)
             else:
                 # Slot full for this queue — mark as queued; _try_start_queued will pick it up
                 self._set_status_text(row, "Queued")
@@ -5625,7 +5635,7 @@ class MainWindow(QMainWindow):
         self.save_data()
         return item_name
 
-    def _start_prefetch_download(self, url, filename, custom_save_dir=None, size_data=None, user_agent=None, cookies=None, referer=None):
+    def _start_prefetch_download(self, url, filename, custom_save_dir=None, size_data=None, user_agent=None, cookies=None, referer=None, supports_range=True):
         """Start a prefetch download in background (no table entry, single connection, .bdpart file).
         Returns (worker, key) tuple."""
         config = load_category_config()
@@ -5659,23 +5669,25 @@ class MainWindow(QMainWindow):
         
         if use_aria2:
             if is_debug_mode():
-                logger.debug("[MainWindow] Prefetch routing to Aria2Worker")
+                logger.debug("[MainWindow] Prefetch routing to Aria2Worker (supports_range=%s)", supports_range)
             worker = Aria2Worker(
                 url, 0, save_dir, filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
                 referrer=referer or url,
                 allow_resume=True,
-                prefetch=True
+                prefetch=True,
+                supports_range=supports_range
             )
         else:
             if is_debug_mode():
-                logger.debug("[MainWindow] Prefetch routing to DownloadWorker")
+                logger.debug("[MainWindow] Prefetch routing to DownloadWorker (supports_range=%s)", supports_range)
             worker = DownloadWorker(
                 url, 0, save_dir, filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
                 referrer=referer or url,
                 allow_resume=True,
-                prefetch=True
+                prefetch=True,
+                supports_range=supports_range
             )
         
         # Generate unique key for tracking
@@ -5784,7 +5796,7 @@ class MainWindow(QMainWindow):
             dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
             dialog.show()
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None):
         silent = getattr(self, "settings", {}).get("silent_download", False)
         pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
         pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
@@ -5796,6 +5808,10 @@ class MainWindow(QMainWindow):
         # Get prefetch flag from item data if not explicitly passed
         if not prefetch:
             prefetch = bool(item_ref.data(Qt.ItemDataRole.UserRole + 21))
+
+        if supports_range is None:
+            raw_supports_range = item_ref.data(Qt.ItemDataRole.UserRole + 22)
+            supports_range = True if raw_supports_range is None else bool(raw_supports_range)
 
         format_spec = item_ref.data(Qt.ItemDataRole.UserRole + 6)
         if format_spec is not None:
@@ -5916,24 +5932,27 @@ class MainWindow(QMainWindow):
 
         if use_aria2:
             if is_debug_mode():
-                logger.debug("[MainWindow] Routing '%s' to Aria2Worker engine (save_dir=%s)", resume_filename or target_filename, save_dir)
+                logger.debug("[MainWindow] Routing '%s' to Aria2Worker engine (save_dir=%s, supports_range=%s)",
+                             resume_filename or target_filename, save_dir, supports_range)
             worker = Aria2Worker(
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
                 referrer=referrer,
                 allow_resume=allow_resume,
-                prefetch=prefetch
+                prefetch=prefetch,
+                supports_range=supports_range
             )
         else:
             if is_debug_mode():
-                logger.debug("[MainWindow] Routing '%s' to Python DownloadWorker engine (save_dir=%s, is_aria2_live=%s)",
-                             resume_filename or target_filename, save_dir, is_aria2_live)
+                logger.debug("[MainWindow] Routing '%s' to Python DownloadWorker engine (save_dir=%s, is_aria2_live=%s, supports_range=%s)",
+                             resume_filename or target_filename, save_dir, is_aria2_live, supports_range)
             worker = DownloadWorker(
                 url, item_ref.row(), save_dir, resume_filename,
                 user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
                 referrer=referrer,
                 allow_resume=allow_resume,
-                prefetch=prefetch
+                prefetch=prefetch,
+                supports_range=supports_range
             )
 
         

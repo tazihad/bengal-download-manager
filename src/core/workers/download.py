@@ -149,7 +149,7 @@ class DownloadWorker(QThread):
     segment_update_signal = pyqtSignal(int, object, object, float, str) 
     init_segments_signal = pyqtSignal(int) 
 
-    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, prefetch=False, **kwargs):
+    def __init__(self, url, download_id=0, save_dir="", resume_filename=None, user_agent=None, cookies=None, temp_dir=None, referrer=None, allow_resume=True, prefetch=False, supports_range=True, **kwargs):
         super().__init__()
         self.url = url
         self.download_id = kwargs.get("row_index", download_id)
@@ -160,6 +160,7 @@ class DownloadWorker(QThread):
         self.cookies = cookies
         self.referrer = referrer
         self.allow_resume = allow_resume
+        self.supports_range = supports_range
         self.prefetch = prefetch  # Prefetch mode: single connection, temp file, no final move
         self.is_running = True
         self.is_paused = False
@@ -254,7 +255,7 @@ class DownloadWorker(QThread):
             if not self.allow_resume:
                 for d in [self.working_dir, self.save_dir]:
                     if d and os.path.exists(d):
-                        for fn in [self.filename, f"{self.filename}.tmpbdm", f"{self.filename}.tmpbdm.bdmx"]:
+                        for fn in [self.filename, f"{self.filename}.tmpbdm", f"{self.filename}.tmpbdm.bdmx", f"{self.filename}.bdpart", f"{self.filename}.bdpart.bdmx"]:
                             fp = os.path.join(d, fn)
                             if os.path.exists(fp):
                                 try: os.remove(fp)
@@ -315,7 +316,7 @@ class DownloadWorker(QThread):
                     self.log_signal.emit(f"State file corrupted, starting fresh: {e}")
             
             # Also check for prefetch .bdpart file if not resuming and not in prefetch mode
-            if not is_resuming and not self.prefetch:
+            if not is_resuming and not self.prefetch and self.allow_resume:
                 bdpart_path = os.path.join(self.working_dir, self.filename + ".bdpart")
                 bdpart_state = bdpart_path + ".bdmx"
                 if os.path.exists(bdpart_path) and os.path.exists(bdpart_state):
@@ -334,7 +335,7 @@ class DownloadWorker(QThread):
                             logger.debug("[DownloadWorker] Could not resume from prefetch: %s", e)
             
             if not is_resuming:
-                if accept_ranges == 'none' or total_size < 1024 * 1024: 
+                if not self.supports_range or accept_ranges == 'none' or total_size < 1024 * 1024: 
                     num_threads = 1
                     self.log_signal.emit("Using 1 connection.")
                 else:
