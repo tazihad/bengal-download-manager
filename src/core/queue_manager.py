@@ -33,6 +33,7 @@ DEFAULT_QUEUES: List[Dict] = [
         "sync_hours": 2,
         "sync_minutes": 0,
         "max_concurrent": 4,
+        "show_notification": False,
         "files": [],
     },
     {
@@ -53,6 +54,7 @@ DEFAULT_QUEUES: List[Dict] = [
         "sync_hours": 2,
         "sync_minutes": 0,
         "max_concurrent": 4,
+        "show_notification": False,
         "files": [],
     },
 ]
@@ -78,6 +80,7 @@ def make_default_queue(name: str) -> Dict:
         "sync_hours": 2,
         "sync_minutes": 0,
         "max_concurrent": 4,
+        "show_notification": False,
         "files": [],
     }
 

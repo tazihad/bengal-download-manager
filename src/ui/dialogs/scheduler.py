@@ -316,6 +316,7 @@ class SchedulerDialog(QDialog):
         self.time_stop_at.timeChanged.connect(self._mark_dirty)
         self.chk_retries.toggled.connect(self._mark_dirty)
         self.spin_retries.valueChanged.connect(self._mark_dirty)
+        self.chk_show_notification.toggled.connect(self._mark_dirty)
 
         self.spin_concurrent.valueChanged.connect(self._mark_dirty)
 
@@ -490,6 +491,11 @@ class SchedulerDialog(QDialog):
         layout.addLayout(retries_row)
         self.chk_retries.toggled.connect(self.spin_retries.setEnabled)
 
+        # Show notification on completion (for custom queues)
+        self.chk_show_notification = QCheckBox("Show notification when download completes")
+        self.chk_show_notification.setToolTip("Show desktop system notification when downloads in this queue finish")
+        layout.addWidget(self.chk_show_notification)
+
         layout.addStretch()
 
     def _build_files_tab(self):
@@ -608,6 +614,10 @@ class SchedulerDialog(QDialog):
             self.chk_retries.setChecked(q.get("retries_enabled", False))
             self.spin_retries.setValue(q.get("retries_count", 10))
 
+            # Show notification (applies to custom queues, main queue uses Options setting)
+            self.chk_show_notification.setVisible(not is_main)
+            self.chk_show_notification.setChecked(q.get("show_notification", False) if not is_main else False)
+
             # Concurrent downloads spinbox
             self.spin_concurrent.setValue(q.get("max_concurrent", 4))
 
@@ -632,6 +642,7 @@ class SchedulerDialog(QDialog):
             return
 
         q = self.queues[index]
+        is_main = q.get("name") == "Main download queue"
         q["mode"] = "sync" if self.radio_sync.isChecked() else "onetime"
         q["start_on_startup"] = self.chk_startup.isChecked()
         q["start_at_enabled"] = self.chk_start_at.isChecked()
@@ -656,6 +667,8 @@ class SchedulerDialog(QDialog):
 
         q["retries_enabled"] = self.chk_retries.isChecked()
         q["retries_count"] = self.spin_retries.value()
+
+        q["show_notification"] = self.chk_show_notification.isChecked() if not is_main else False
 
         q["max_concurrent"] = self.spin_concurrent.value()
 
