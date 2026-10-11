@@ -6,7 +6,19 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-APP_ID="bd.com.zihad.BengalDownloadManager"
+# Extract top-level attributes from canonical manifest to keep single source of truth
+eval "$(python3 -c "
+import re
+with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+    text = f.read()
+
+keys = {'app-id': 'APP_ID', 'runtime': 'RUNTIME', 'runtime-version': 'RUNTIME_VERSION', 'sdk': 'SDK', 'command': 'COMMAND'}
+for k, v in keys.items():
+    m = re.search(rf'^{k}:\s*[\'\"]?([^\'\"\n]+)[\'\"]?', text, re.M)
+    if m:
+        print(f'{v}=\"{m.group(1)}\"')
+")"
+APP_ID="${APP_ID:-bd.com.zihad.BengalDownloadManager}"
 BUILD_DIR="flatpak_app_dir"
 REPO_DIR="repo"
 
@@ -195,16 +207,16 @@ with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]
 name=$APP_ID
-runtime=org.kde.Platform/${ARCH_NAME}/6.11
-sdk=org.kde.Sdk/${ARCH_NAME}/6.11
-command=bengal-download-manager
+runtime=${RUNTIME}/${ARCH_NAME}/${RUNTIME_VERSION}
+sdk=${SDK}/${ARCH_NAME}/${RUNTIME_VERSION}
+command=${COMMAND}
 EOF
 
 if [ "$DO_BUNDLE" -eq 1 ]; then
     if command -v flatpak >/dev/null 2>&1; then
         echo "=== 3. Exporting Flatpak Repository & Bundle ==="
         mkdir -p dist "$REPO_DIR"
-        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager "${FINISH_ARGS[@]}"
+        flatpak build-finish "$BUILD_DIR" --command="${COMMAND}" "${FINISH_ARGS[@]}"
         
         BRANCH="stable"
         if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then

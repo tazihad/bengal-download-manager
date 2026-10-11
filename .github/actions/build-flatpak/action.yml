@@ -37,7 +37,19 @@ runs:
     - name: Build Flatpak Bundle and Export OSTree Slice
       shell: bash
       run: |
-        APP_ID="bd.com.zihad.BengalDownloadManager"
+        # Extract top-level attributes from canonical manifest to keep single source of truth
+        eval "$(python3 -c "
+        import re
+        with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+            text = f.read()
+
+        keys = {'app-id': 'APP_ID', 'runtime': 'RUNTIME', 'runtime-version': 'RUNTIME_VERSION', 'sdk': 'SDK', 'command': 'COMMAND'}
+        for k, v in keys.items():
+            m = re.search(rf'^{k}:\s*[\'\"]?([^\'\"\n]+)[\'\"]?', text, re.M)
+            if m:
+                print(f'{v}=\"{m.group(1)}\"')
+        ")"
+        APP_ID="${APP_ID:-bd.com.zihad.BengalDownloadManager}"
         BUILD_DIR="flatpak_app_dir"
         ARCH="${{ inputs.arch }}"
         SIGN="${{ inputs.sign }}"
@@ -132,30 +144,30 @@ runs:
 
         # Extract finish-args from canonical manifest to keep permissions unified
         readarray -t FINISH_ARGS < <(python3 -c "
-in_fa = False
-with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
-    for line in f:
-        s = line.strip()
-        if s.startswith('finish-args:'):
-            in_fa = True
-            continue
-        if in_fa:
-            if s.startswith('- '):
-                print(s[2:].strip().strip('\'\"'))
-            elif s and not s.startswith('#'):
-                break
-")
+        in_fa = False
+        with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith('finish-args:'):
+                    in_fa = True
+                    continue
+                if in_fa:
+                    if s.startswith('- '):
+                        print(s[2:].strip().strip('\'\"'))
+                    elif s and not s.startswith('#'):
+                        break
+        ")
 
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
         name=$APP_ID
-        runtime=org.kde.Platform/${ARCH}/6.11
-        sdk=org.kde.Sdk/${ARCH}/6.11
-        command=bengal-download-manager
+        runtime=${RUNTIME}/${ARCH}/${RUNTIME_VERSION}
+        sdk=${SDK}/${ARCH}/${RUNTIME_VERSION}
+        command=${COMMAND}
         EOF
 
         mkdir -p dist repo
-        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager "${FINISH_ARGS[@]}"
+        flatpak build-finish "$BUILD_DIR" --command="${COMMAND}" "${FINISH_ARGS[@]}"
 
         PAGES_URL="${{ inputs.pages_url }}"
         PAGES_URL="${PAGES_URL:-https://zihad.com.bd/bengal-download-manager}"
