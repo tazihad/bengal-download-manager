@@ -651,6 +651,7 @@ class OptionsDialog(QDialog):
         vbox_notif.setContentsMargins(10, 10, 10, 10)
         vbox_notif.setSpacing(8)
 
+        hbox_notif = QHBoxLayout()
         self.chk_system_notifications = QCheckBox("Show system notification when download completes")
         current_notif = False
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
@@ -659,7 +660,23 @@ class OptionsDialog(QDialog):
             current_notif = bool(getattr(self.main_win, "system_notifications", False))
         self.chk_system_notifications.setChecked(current_notif)
         self.chk_system_notifications.setToolTip("Send an XDG standard desktop notification when a download completes")
-        vbox_notif.addWidget(self.chk_system_notifications)
+        hbox_notif.addWidget(self.chk_system_notifications)
+        hbox_notif.addStretch()
+
+        self.btn_test_notification = QPushButton("Test Notification")
+        self.btn_test_notification.setFixedHeight(30)
+        self.btn_test_notification.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_test_notification.setStyleSheet("""
+            QPushButton {
+                padding: 4px 12px;
+                font-weight: 500;
+            }
+        """)
+        self.btn_test_notification.setToolTip("Trigger a test notification to verify desktop notification delivery")
+        self.btn_test_notification.clicked.connect(self._on_test_notification_clicked)
+        hbox_notif.addWidget(self.btn_test_notification)
+
+        vbox_notif.addLayout(hbox_notif)
 
         grp_notif.setLayout(vbox_notif)
         layout.addWidget(grp_notif)
@@ -1775,6 +1792,19 @@ class OptionsDialog(QDialog):
                 self.lbl_proxy_ip.setToolTip("")
         if hasattr(self, "_proxy_debounce_timer"):
             self._proxy_debounce_timer.start(750)
+
+    def _on_test_notification_clicked(self):
+        try:
+            from core.notifications import send_system_notification
+            send_system_notification(
+                title="Bengal Download Manager",
+                message="System notifications are working properly!",
+                app_name="Bengal Download Manager",
+                icon_name="bd.com.zihad.BengalDownloadManager",
+                tray_icon=getattr(self.main_win, "tray_icon", None) if self.main_win else None
+            )
+        except Exception:
+            pass
 
     def trigger_proxy_detection(self, force: bool = False):
         if not hasattr(self, "rb_manual") or not self.rb_manual.isChecked():

@@ -3344,7 +3344,7 @@ class MainWindow(QMainWindow):
                 "title_bar": getattr(self, "settings", {}).get("title_bar", "Automatic"),
                 "language": getattr(self, "settings", {}).get("language", "system"),
                 "table_style": getattr(self, "table_style", "classic"),
-                "system_notifications": getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)),
+                "system_notifications": bool(getattr(self, "system_notifications", self.settings.get("system_notifications", False) if isinstance(getattr(self, "settings", None), dict) else False)),
                 "show_status_bar": not self.statusBar().isHidden() if self.statusBar() else True,
                 "show_toolbar": not self.findChild(QToolBar, "MainToolbar").isHidden() if self.findChild(QToolBar, "MainToolbar") else True,
                 "hide_categories": (
