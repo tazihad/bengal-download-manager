@@ -96,8 +96,29 @@ from ui.components import (
 from ui.main_window import MainWindow
 
 
+def set_linux_process_name(name: str = "bengal-download") -> None:
+    """Sets the process comm name in /proc/self/comm (visible in top, ps, and task managers)."""
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            # PR_SET_NAME = 15 (sets /proc/self/comm, max 15 characters + null byte)
+            name_bytes = name[:15].encode("utf-8")
+            libc.prctl(15, ctypes.c_char_p(name_bytes), 0, 0, 0)
+        except Exception:
+            pass
+        try:
+            import setproctitle
+            setproctitle.setproctitle(name)
+        except Exception:
+            pass
+
+
 def main():
     """Application entry point and lifecycle manager."""
+    # Ensure process identifies as bengal-download-manager in Linux process monitors
+    set_linux_process_name("bengal-download")
+
     # UI scale factor configuration
     try:
         cfg_path = os.path.join(get_config_dir(), "settings.json")
@@ -167,8 +188,16 @@ def main():
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
     app.setApplicationName("bengal-download-manager")
-    app.setDesktopFileName(get_desktop_file_name())
+    desktop_file_name = get_desktop_file_name()
+    app.setDesktopFileName(desktop_file_name)
     app.setQuitOnLastWindowClosed(False)
+
+    # Initialize and set global application icon immediately for task managers & window managers
+    app_icon = get_app_icon()
+    if app_icon.isNull():
+        app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
+    app.setWindowIcon(app_icon)
+    app.setProperty("applicationIcon", app_icon)
 
     # --- SINGLE INSTANCE ENFORCEMENT ---
     if "--no-single-instance" not in sys.argv:
@@ -199,12 +228,6 @@ def main():
     from core.services.language_service import apply_language
     apply_language(app, saved_language)
     app.setFont(init_app_font())
-    
-    # Initialize and set global application icon
-    app_icon = get_app_icon()
-    if app_icon.isNull():
-        app_icon = app.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon)
-    app.setWindowIcon(app_icon)
 
     # Warm up build info and release verification asynchronously
     try:

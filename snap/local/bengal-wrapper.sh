@@ -51,11 +51,11 @@ elif [ -f "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" ]; then
     chmod +x "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" 2>/dev/null || true
 fi
 
-# 5. Execute Python application
+# 5. Execute Python application with branded process identity
 if [ -x "$SNAP/usr/bin/python3" ]; then
-    exec "$SNAP/usr/bin/python3" "$SNAP_APP_ROOT/src/main.py" "$@"
+    exec -a "bengal-download-manager" "$SNAP/usr/bin/python3" "$SNAP_APP_ROOT/src/main.py" "$@"
 elif [ -x "$SNAP/bin/python3" ]; then
-    exec "$SNAP/bin/python3" "$SNAP_APP_ROOT/src/main.py" "$@"
+    exec -a "bengal-download-manager" "$SNAP/bin/python3" "$SNAP_APP_ROOT/src/main.py" "$@"
 else
-    exec python3 "$SNAP_APP_ROOT/src/main.py" "$@"
+    exec -a "bengal-download-manager" python3 "$SNAP_APP_ROOT/src/main.py" "$@"
 fi
