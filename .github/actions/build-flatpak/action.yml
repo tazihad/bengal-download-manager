@@ -130,31 +130,32 @@ runs:
           --icons-dir="$BUILD_DIR/files/share/app-info/icons/flatpak" \
           "$BUILD_DIR/files" 2>/dev/null || true
 
+        # Extract finish-args from canonical manifest to keep permissions unified
+        readarray -t FINISH_ARGS < <(python3 -c "
+in_fa = False
+with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+    for line in f:
+        s = line.strip()
+        if s.startswith('finish-args:'):
+            in_fa = True
+            continue
+        if in_fa:
+            if s.startswith('- '):
+                print(s[2:].strip().strip('\'\"'))
+            elif s and not s.startswith('#'):
+                break
+")
+
         cat << EOF > "$BUILD_DIR/metadata"
         [Application]
         name=$APP_ID
         runtime=org.kde.Platform/${ARCH}/6.11
         sdk=org.kde.Sdk/${ARCH}/6.11
         command=bengal-download-manager
-
-        [Context]
-        shared=network;ipc;
-        sockets=fallback-x11;wayland;
-        filesystems=xdg-download;
-        devices=dri;
-
-        [Session Bus Policy]
-        org.freedesktop.FileManager1=talk
-        org.kde.StatusNotifierWatcher=talk
-        org.freedesktop.StatusNotifierWatcher=talk
-        org.freedesktop.Notifications=talk
-
-        [Environment]
-        QT_QPA_PLATFORMTHEME=xdgdesktopportal
         EOF
 
         mkdir -p dist repo
-        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
+        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager "${FINISH_ARGS[@]}"
 
         PAGES_URL="${{ inputs.pages_url }}"
         PAGES_URL="${PAGES_URL:-https://zihad.com.bd/bengal-download-manager}"

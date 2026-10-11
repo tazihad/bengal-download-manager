@@ -176,34 +176,35 @@ if command -v appstreamcli >/dev/null 2>&1; then
       "$BUILD_DIR/files" 2>/dev/null || true
 fi
 
+# Extract finish-args from canonical manifest to keep permissions unified
+readarray -t FINISH_ARGS < <(python3 -c "
+in_fa = False
+with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+    for line in f:
+        s = line.strip()
+        if s.startswith('finish-args:'):
+            in_fa = True
+            continue
+        if in_fa:
+            if s.startswith('- '):
+                print(s[2:].strip().strip('\'\"'))
+            elif s and not s.startswith('#'):
+                break
+")
+
 cat << EOF > "$BUILD_DIR/metadata"
 [Application]
 name=$APP_ID
 runtime=org.kde.Platform/${ARCH_NAME}/6.11
 sdk=org.kde.Sdk/${ARCH_NAME}/6.11
 command=bengal-download-manager
-
-[Context]
-shared=network;ipc;
-sockets=fallback-x11;wayland;
-filesystems=xdg-download;
-devices=dri;
-
-[Session Bus Policy]
-org.freedesktop.FileManager1=talk
-org.kde.StatusNotifierWatcher=talk
-org.freedesktop.StatusNotifierWatcher=talk
-org.freedesktop.Notifications=talk
-
-[Environment]
-QT_QPA_PLATFORMTHEME=xdgdesktopportal
 EOF
 
 if [ "$DO_BUNDLE" -eq 1 ]; then
     if command -v flatpak >/dev/null 2>&1; then
         echo "=== 3. Exporting Flatpak Repository & Bundle ==="
         mkdir -p dist "$REPO_DIR"
-        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager
+        flatpak build-finish "$BUILD_DIR" --command=bengal-download-manager "${FINISH_ARGS[@]}"
         
         BRANCH="stable"
         if [[ "$VERSION" =~ (alpha|beta|rc|dev) ]]; then
