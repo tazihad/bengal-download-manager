@@ -50,10 +50,40 @@ class TestNotifications:
                 title="Test",
                 message="Message",
                 app_name="Bengal Download Manager",
-                icon_str="download"
+                icon_str="download",
+                desktop_entry="bd.com.zihad.BengalDownloadManager"
             )
             assert result is True
             assert mock_bus.call.called
+            call_arg = mock_bus.call.call_args[0][0]
+            args = call_arg.arguments()
+            assert args[0] == "Bengal Download Manager"
+            assert args[2] == "download"
+            # Hints dict must include desktop-entry for GNOME Shell
+            hints = args[6]
+            assert "desktop-entry" in hints
+            val = hints["desktop-entry"].value() if hasattr(hints["desktop-entry"], "value") else hints["desktop-entry"]
+            assert val == "bd.com.zihad.BengalDownloadManager"
+
+    def test_send_freedesktop_notification_formats_file_uri_for_local_path(self, tmp_path):
+        dummy_icon = tmp_path / "test_icon.png"
+        dummy_icon.write_bytes(b"dummy")
+        with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
+            mock_bus = MagicMock()
+            mock_bus.isConnected.return_value = True
+            mock_reply = MagicMock()
+            from PyQt6.QtDBus import QDBusMessage
+            mock_reply.type.return_value = QDBusMessage.MessageType.ReplyMessage
+            mock_bus.call.return_value = mock_reply
+            mock_bus_func.return_value = mock_bus
+
+            _send_freedesktop_notification("T", "M", icon_str=str(dummy_icon))
+            call_arg = mock_bus.call.call_args[0][0]
+            args = call_arg.arguments()
+            assert args[2] == f"file://{dummy_icon}"
+            assert "image-path" in args[6]
+            img_val = args[6]["image-path"].value() if hasattr(args[6]["image-path"], "value") else args[6]["image-path"]
+            assert img_val == f"file://{dummy_icon}"
 
     def test_send_freedesktop_notification_not_connected(self):
         with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
@@ -209,4 +239,33 @@ class TestNotifications:
         dlg.chk_show_notification.setChecked(True)
         dlg._save_ui_to_queue(1)
         assert dlg.queues[1]["show_notification"] is True
+
+    def test_ensure_desktop_integration_skipped_in_dev(self, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        monkeypatch.delenv("APPDIR", raising=False)
+        monkeypatch.delenv("APPIMAGE", raising=False)
+        monkeypatch.delenv("BDM_FORCE_DESKTOP_INTEGRATION", raising=False)
+        monkeypatch.setattr(sys, "frozen", False, raising=False)
+        # Should cleanly return without error or file creation
+        ensure_desktop_integration()
+
+    def test_ensure_desktop_integration_forced_creates_entries(self, tmp_path, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("BDM_FORCE_DESKTOP_INTEGRATION", "1")
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+        monkeypatch.delenv("BDM_TESTING", raising=False)
+        monkeypatch.delenv("BDM_SKIP_DESKTOP_INTEGRATION", raising=False)
+
+        ensure_desktop_integration()
+
+        desktop_file = fake_home / ".local" / "share" / "applications" / "bd.com.zihad.BengalDownloadManager.desktop"
+        assert desktop_file.exists()
+        content = desktop_file.read_text(encoding="utf-8")
+        assert "StartupWMClass=bd.com.zihad.BengalDownloadManager" in content
+        assert "X-GNOME-UsesNotifications=true" in content
+        assert "Icon=bd.com.zihad.BengalDownloadManager" in content
 

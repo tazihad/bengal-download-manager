@@ -78,11 +78,14 @@ def _send_freedesktop_notification(
     app_name: str = "Bengal Download Manager",
     icon_str: str = "bd.com.zihad.BengalDownloadManager",
     timeout_ms: int = 5000,
+    desktop_entry: str = "bd.com.zihad.BengalDownloadManager",
+    file_path: Optional[str] = None,
 ) -> bool:
     """
     Sends notification via standard FreeDesktop Desktop Notifications Specification
     (org.freedesktop.Notifications.Notify) using PyQt6 QtDBus.
     Supported natively by KDE Plasma (plasmashell), GNOME Shell, XFCE, MATE, Cinnamon, Dunst, etc.
+    Includes the desktop-entry hint to ensure GNOME Shell correctly maps and displays notifications.
     """
     try:
         from PyQt6.QtDBus import QDBusConnection, QDBusMessage
@@ -110,14 +113,31 @@ def _send_freedesktop_notification(
         v_actions = QVariant([])
         v_actions.convert(QMetaType(QMetaType.Type.QStringList.value))
 
+        # Format icon parameter:
+        # Per specification, app_icon can be an icon theme name or a file:// URI
+        if icon_str and os.path.isabs(icon_str) and os.path.exists(icon_str):
+            icon_arg = f"file://{icon_str}"
+        else:
+            icon_arg = icon_str or "bd.com.zihad.BengalDownloadManager"
+
+        # Parameter 7: hints (dict of variant)
+        hints = {
+            "desktop-entry": QVariant(desktop_entry),
+            "urgency": QVariant(1),
+        }
+        if file_path and os.path.isabs(file_path) and os.path.exists(file_path):
+            hints["image-path"] = QVariant(f"file://{file_path}")
+        elif icon_str and os.path.isabs(icon_str) and os.path.exists(icon_str):
+            hints["image-path"] = QVariant(f"file://{icon_str}")
+
         msg.setArguments([
             app_name,
             v_replaces,
-            icon_str,
+            icon_arg,
             title,
             message,
             v_actions,
-            {},
+            hints,
             int(timeout_ms)
         ])
 
@@ -133,18 +153,21 @@ def _send_gdbus_cli(
     app_name: str = "Bengal Download Manager",
     icon_str: str = "bd.com.zihad.BengalDownloadManager",
     timeout_ms: int = 5000,
+    desktop_entry: str = "bd.com.zihad.BengalDownloadManager",
 ) -> bool:
     """Fallback using standard GLib gdbus CLI calling org.freedesktop.Notifications."""
     if not shutil.which("gdbus"):
         return False
     try:
+        icon_arg = f"file://{icon_str}" if (icon_str and os.path.isabs(icon_str)) else icon_str
+        hints_arg = f"{{'desktop-entry': <'{desktop_entry}'>}}"
         res = subprocess.run(
             [
                 "gdbus", "call", "--session",
                 "--dest", "org.freedesktop.Notifications",
                 "--object-path", "/org/freedesktop/Notifications",
                 "--method", "org.freedesktop.Notifications.Notify",
-                app_name, "0", icon_str, title, message, "[]", "{}", str(timeout_ms)
+                app_name, "0", icon_arg, title, message, "[]", hints_arg, str(timeout_ms)
             ],
             timeout=3,
             check=False,
@@ -182,11 +205,12 @@ def _send_portal_notification(
         if not portal.isValid():
             return False
 
+        portal_icon = app_id if (not icon_name or os.path.isabs(icon_name)) else icon_name
         notification_id = f"bengal_dl_{int(time.time() * 1000)}"
         details = {
             "title": title,
             "body": message,
-            "icon": icon_name,
+            "icon": portal_icon,
             "priority": "normal"
         }
         reply = portal.call("AddNotification", notification_id, details)
@@ -199,20 +223,30 @@ def _send_notify_send_cli(
     title: str,
     message: str,
     app_name: str = "Bengal Download Manager",
-    icon_name: str = "bd.com.zihad.BengalDownloadManager"
+    icon_name: str = "bd.com.zihad.BengalDownloadManager",
+    desktop_entry: str = "bd.com.zihad.BengalDownloadManager",
 ) -> bool:
     """Fallback using notify-send command line tool if available."""
     if not shutil.which("notify-send"):
         return False
     try:
         res = subprocess.run(
+            ["notify-send", "-a", app_name, "-i", icon_name, f"--hint=string:desktop-entry:{desktop_entry}", title, message],
+            timeout=3,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        if res.returncode == 0:
+            return True
+        res2 = subprocess.run(
             ["notify-send", "-a", app_name, "-i", icon_name, title, message],
             timeout=3,
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-        return res.returncode == 0
+        return res2.returncode == 0
     except Exception:
         return False
 
@@ -240,7 +274,7 @@ def send_system_notification(
         if is_flatpak:
             if _send_portal_notification(title, message, resolved_icon, "bd.com.zihad.BengalDownloadManager"):
                 return
-            if _send_freedesktop_notification(title, message, app_name, resolved_icon):
+            if _send_freedesktop_notification(title, message, app_name, resolved_icon, file_path=file_path):
                 return
             if _send_notify_send_cli(title, message, app_name, resolved_icon):
                 return
@@ -249,7 +283,7 @@ def send_system_notification(
         # use the native FreeDesktop Notifications Specification directly
         else:
             # 1. Native FreeDesktop D-Bus Notification (Primary for KDE, GNOME, etc.)
-            if _send_freedesktop_notification(title, message, app_name, resolved_icon):
+            if _send_freedesktop_notification(title, message, app_name, resolved_icon, file_path=file_path):
                 return
 
             # 2. GLib gdbus CLI fallback

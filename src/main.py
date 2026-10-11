@@ -96,7 +96,7 @@ from ui.components import (
 from ui.main_window import MainWindow
 
 
-def set_linux_process_name(name: str = "bengal-download") -> None:
+def set_linux_process_name(name: str = "bengal-download-manager") -> None:
     """Sets the process comm name in /proc/self/comm (visible in top, ps, and task managers)."""
     if sys.platform.startswith("linux"):
         try:
@@ -117,7 +117,7 @@ def set_linux_process_name(name: str = "bengal-download") -> None:
 def main():
     """Application entry point and lifecycle manager."""
     # Ensure process identifies as bengal-download-manager in Linux process monitors
-    set_linux_process_name("bengal-download")
+    set_linux_process_name("bengal-download-manager")
 
     # UI scale factor configuration
     try:
@@ -182,13 +182,15 @@ def main():
         threading.excepthook = thread_exception_hook
     qInstallMessageHandler(qt_message_handler)
 
-    from core.desktop import get_desktop_file_name
+    from core.desktop import get_desktop_file_name, ensure_desktop_integration
+    ensure_desktop_integration()
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setOrganizationName("bengal-download-manager")
-    app.setApplicationName("bengal-download-manager")
     desktop_file_name = get_desktop_file_name()
+    app.setApplicationName(desktop_file_name)
+    app.setApplicationDisplayName("Bengal Download Manager")
     app.setDesktopFileName(desktop_file_name)
     app.setQuitOnLastWindowClosed(False)
 
