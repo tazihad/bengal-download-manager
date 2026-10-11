@@ -193,8 +193,6 @@ devices=dri;
 org.freedesktop.FileManager1=talk
 org.kde.StatusNotifierWatcher=talk
 org.freedesktop.StatusNotifierWatcher=talk
-org.kde.StatusNotifierItem.*=own
-org.freedesktop.StatusNotifierItem.*=own
 
 [Environment]
 QT_QPA_PLATFORMTHEME=xdgdesktopportal
