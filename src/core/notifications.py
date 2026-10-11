@@ -12,6 +12,18 @@ def _is_running_in_flatpak() -> bool:
     return os.path.exists("/.flatpak-info")
 
 
+def _has_installed_desktop_entry(desktop_entry: Optional[str]) -> bool:
+    """Checks whether a valid desktop entry file is installed in standard XDG application dirs."""
+    if not desktop_entry:
+        return False
+    entry_filename = desktop_entry if desktop_entry.endswith(".desktop") else f"{desktop_entry}.desktop"
+    raw_dirs = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
+    search_dirs = [os.path.expanduser("~/.local/share/applications")] + [
+        os.path.join(d, "applications") for d in raw_dirs.split(":") if d
+    ]
+    return any(os.path.exists(os.path.join(sdir, entry_filename)) for sdir in search_dirs)
+
+
 def _resolve_notification_icon(icon_name: str = "bd.com.zihad.BengalDownloadManager") -> str:
     """
     Resolves the most appropriate icon identifier or file path for desktop notifications.
@@ -29,7 +41,8 @@ def _resolve_notification_icon(icon_name: str = "bd.com.zihad.BengalDownloadMana
     except Exception:
         pass
 
-    # 3. Check local bundled asset icons (dev, pyinstaller, snap, etc.)
+    # 3. Check local bundled asset icons (AppImage, PyInstaller, dev, snap, flatpak, etc.)
+    _appdir = os.environ.get("APPDIR")
     _meipass = getattr(sys, "_MEIPASS", None)
     _argv0_src = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else None
     _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else None
@@ -38,18 +51,37 @@ def _resolve_notification_icon(icon_name: str = "bd.com.zihad.BengalDownloadMana
 
     candidate_locations = [
         *([
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "512x512", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "scalable", "apps", "bd.com.zihad.BengalDownloadManager.svg"),
+            os.path.join(_appdir, "usr", "share", "icons", "hicolor", "256x256", "apps", "bengal-download-manager.png"),
+            os.path.join(_appdir, "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(_appdir, "bengal-download-manager.png"),
+            os.path.join(_appdir, "usr", "share", "bengal-download-manager", "assets", "icons", "256x256.png"),
+            os.path.join(_appdir, "usr", "share", "bengal-download-manager", "assets", "logo.png"),
+            os.path.join(_appdir, "assets", "icons", "256x256.png"),
+            os.path.join(_appdir, "assets", "logo.png"),
+        ] if _appdir else []),
+        *([
             os.path.join(_meipass, "assets", "icons", "256x256.png"),
             os.path.join(_meipass, "assets", "logo.png"),
+            os.path.join(_meipass, "_internal", "assets", "icons", "256x256.png"),
+            os.path.join(_meipass, "_internal", "assets", "logo.png"),
         ] if _meipass else []),
         "/app/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
         "/app/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
         "/usr/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
         "/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
+        "/usr/local/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
         os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png"),
         *([
+            os.path.join(_argv0_src, "assets", "icons", "256x256.png"),
+            os.path.join(_argv0_src, "_internal", "assets", "icons", "256x256.png"),
+            os.path.join(_argv0_src, "assets", "logo.png"),
+            os.path.join(_argv0_src, "_internal", "assets", "logo.png"),
             os.path.join(_argv0_root, "assets", "icons", "256x256.png"),
             os.path.join(_argv0_root, "assets", "logo.png"),
-        ] if _argv0_root else []),
+        ] if _argv0_src else []),
         *([
             os.path.join(_module_root, "assets", "icons", "256x256.png"),
             os.path.join(_module_root, "assets", "logo.png"),
@@ -78,7 +110,7 @@ def _send_freedesktop_notification(
     app_name: str = "Bengal Download Manager",
     icon_str: str = "bd.com.zihad.BengalDownloadManager",
     timeout_ms: int = 5000,
-    desktop_entry: str = "bd.com.zihad.BengalDownloadManager",
+    desktop_entry: Optional[str] = "bd.com.zihad.BengalDownloadManager",
     file_path: Optional[str] = None,
 ) -> bool:
     """
@@ -122,9 +154,11 @@ def _send_freedesktop_notification(
 
         # Parameter 7: hints (dict of variant)
         hints = {
-            "desktop-entry": QVariant(desktop_entry),
             "urgency": QVariant(1),
         }
+        if desktop_entry:
+            hints["desktop-entry"] = QVariant(desktop_entry)
+
         if file_path and os.path.isabs(file_path) and os.path.exists(file_path):
             hints["image-path"] = QVariant(f"file://{file_path}")
         elif icon_str and os.path.isabs(icon_str) and os.path.exists(icon_str):
@@ -153,14 +187,14 @@ def _send_gdbus_cli(
     app_name: str = "Bengal Download Manager",
     icon_str: str = "bd.com.zihad.BengalDownloadManager",
     timeout_ms: int = 5000,
-    desktop_entry: str = "bd.com.zihad.BengalDownloadManager",
+    desktop_entry: Optional[str] = "bd.com.zihad.BengalDownloadManager",
 ) -> bool:
     """Fallback using standard GLib gdbus CLI calling org.freedesktop.Notifications."""
     if not shutil.which("gdbus"):
         return False
     try:
         icon_arg = f"file://{icon_str}" if (icon_str and os.path.isabs(icon_str)) else icon_str
-        hints_arg = f"{{'desktop-entry': <'{desktop_entry}'>}}"
+        hints_arg = f"{{'desktop-entry': <'{desktop_entry}'>}}" if desktop_entry else "{}"
         res = subprocess.run(
             [
                 "gdbus", "call", "--session",
@@ -224,14 +258,18 @@ def _send_notify_send_cli(
     message: str,
     app_name: str = "Bengal Download Manager",
     icon_name: str = "bd.com.zihad.BengalDownloadManager",
-    desktop_entry: str = "bd.com.zihad.BengalDownloadManager",
+    desktop_entry: Optional[str] = "bd.com.zihad.BengalDownloadManager",
 ) -> bool:
     """Fallback using notify-send command line tool if available."""
     if not shutil.which("notify-send"):
         return False
     try:
+        cmd = ["notify-send", "-a", app_name, "-i", icon_name]
+        if desktop_entry:
+            cmd.append(f"--hint=string:desktop-entry:{desktop_entry}")
+        cmd.extend([title, message])
         res = subprocess.run(
-            ["notify-send", "-a", app_name, "-i", icon_name, f"--hint=string:desktop-entry:{desktop_entry}", title, message],
+            cmd,
             timeout=3,
             check=False,
             stdout=subprocess.DEVNULL,
@@ -257,7 +295,8 @@ def send_system_notification(
     app_name: str = "Bengal Download Manager",
     icon_name: str = "bd.com.zihad.BengalDownloadManager",
     file_path: Optional[str] = None,
-    tray_icon = None
+    tray_icon = None,
+    desktop_entry: Optional[str] = None,
 ) -> None:
     """
     Dispatches an XDG-compliant desktop notification asynchronously.
@@ -270,28 +309,40 @@ def send_system_notification(
     def _worker():
         is_flatpak = _is_running_in_flatpak()
 
+        # Resolve desktop_entry: only forward desktop-entry hint if installed on host or in sandbox
+        target_desktop_entry = desktop_entry
+        if target_desktop_entry is None:
+            try:
+                from core.desktop import get_desktop_file_name
+                canonical_id = get_desktop_file_name()
+                if is_flatpak or os.environ.get("SNAP") or _has_installed_desktop_entry(canonical_id):
+                    target_desktop_entry = canonical_id
+            except Exception:
+                pass
+
         # In Flatpak container sandbox, XDG Desktop Portal is the primary interface
         if is_flatpak:
-            if _send_portal_notification(title, message, resolved_icon, "bd.com.zihad.BengalDownloadManager"):
+            flatpak_app_id = target_desktop_entry or "bd.com.zihad.BengalDownloadManager"
+            if _send_portal_notification(title, message, resolved_icon, flatpak_app_id):
                 return
-            if _send_freedesktop_notification(title, message, app_name, resolved_icon, file_path=file_path):
+            if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
                 return
-            if _send_notify_send_cli(title, message, app_name, resolved_icon):
+            if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry):
                 return
 
         # On host environments (KDE Plasma, GNOME Shell, XFCE, etc.),
         # use the native FreeDesktop Notifications Specification directly
         else:
             # 1. Native FreeDesktop D-Bus Notification (Primary for KDE, GNOME, etc.)
-            if _send_freedesktop_notification(title, message, app_name, resolved_icon, file_path=file_path):
+            if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
                 return
 
             # 2. GLib gdbus CLI fallback
-            if _send_gdbus_cli(title, message, app_name, resolved_icon):
+            if _send_gdbus_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry):
                 return
 
             # 3. notify-send CLI fallback
-            if _send_notify_send_cli(title, message, app_name, resolved_icon):
+            if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry):
                 return
 
             # 4. QSystemTrayIcon if visible
@@ -304,7 +355,8 @@ def send_system_notification(
                     pass
 
             # 5. XDG Desktop Portal (Last resort fallback for host)
-            if _send_portal_notification(title, message, resolved_icon, "bd.com.zihad.BengalDownloadManager"):
+            portal_id = target_desktop_entry or "bd.com.zihad.BengalDownloadManager"
+            if _send_portal_notification(title, message, resolved_icon, portal_id):
                 return
 
     # Run in background daemon thread so UI is never blocked

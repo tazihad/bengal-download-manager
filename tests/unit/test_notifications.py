@@ -36,6 +36,40 @@ class TestNotifications:
         # Should either resolve to a local bundled path or a fallback theme name
         assert len(resolved) > 0
 
+    def test_resolve_notification_icon_appdir_bundle(self, tmp_path, monkeypatch):
+        mock_appdir = tmp_path / "appdir"
+        icon_dir = mock_appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+        icon_dir.mkdir(parents=True)
+        mock_icon = icon_dir / "bd.com.zihad.BengalDownloadManager.png"
+        mock_icon.write_bytes(b"dummy_png")
+
+        monkeypatch.setenv("APPDIR", str(mock_appdir))
+        resolved = _resolve_notification_icon("nonexistent_icon")
+        assert resolved == str(mock_icon)
+
+    def test_resolve_notification_icon_pyinstaller_internal(self, tmp_path, monkeypatch):
+        mock_meipass = tmp_path / "dist"
+        internal_icons = mock_meipass / "_internal" / "assets" / "icons"
+        internal_icons.mkdir(parents=True)
+        mock_icon = internal_icons / "256x256.png"
+        mock_icon.write_bytes(b"dummy_png")
+
+        monkeypatch.delenv("APPDIR", raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(mock_meipass), raising=False)
+        resolved = _resolve_notification_icon("nonexistent_icon")
+        assert resolved == str(mock_icon)
+
+    def test_has_installed_desktop_entry(self, tmp_path, monkeypatch):
+        from core.notifications import _has_installed_desktop_entry
+        fake_apps = tmp_path / "applications"
+        fake_apps.mkdir()
+        monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path))
+
+        assert _has_installed_desktop_entry("my-app") is False
+
+        (fake_apps / "my-app.desktop").write_text("[Desktop Entry]\nName=App\n", encoding="utf-8")
+        assert _has_installed_desktop_entry("my-app") is True
+
     def test_send_freedesktop_notification_success(self):
         with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
             mock_bus = MagicMock()
