@@ -132,3 +132,81 @@ class TestNotifications:
             import time
             time.sleep(0.1)
             assert mock_portal.called
+
+    def test_should_send_notification_for_item_main_queue(self):
+        from PyQt6.QtCore import Qt
+        mock_win = MagicMock()
+        mock_win.system_notifications = True
+        mock_win.settings = {"system_notifications": True}
+        from ui.main_window import MainWindow
+        mock_win._should_send_notification_for_item = MainWindow._should_send_notification_for_item.__get__(mock_win)
+        mock_win._get_queue_config = MainWindow._get_queue_config.__get__(mock_win)
+
+        mock_item = MagicMock()
+        # Not a batch item, not a queue run, queue is Main download queue
+        mock_item.data.side_effect = lambda role: {
+            Qt.ItemDataRole.UserRole + 18: False,
+            Qt.ItemDataRole.UserRole + 14: False,
+            Qt.ItemDataRole.UserRole + 8: "Main download queue"
+        }.get(role, None)
+
+        assert mock_win._should_send_notification_for_item(mock_item) is True
+
+        # When global setting is False
+        mock_win.system_notifications = False
+        mock_win.settings = {"system_notifications": False}
+        assert mock_win._should_send_notification_for_item(mock_item) is False
+
+    def test_should_send_notification_for_custom_queue(self):
+        from PyQt6.QtCore import Qt
+        mock_win = MagicMock()
+        mock_win.system_notifications = True  # Main queue setting should NOT affect custom queue
+        mock_win._queues_data = [
+            {"name": "Custom Queue", "show_notification": False},
+            {"name": "Notified Queue", "show_notification": True}
+        ]
+        from ui.main_window import MainWindow
+        mock_win._should_send_notification_for_item = MainWindow._should_send_notification_for_item.__get__(mock_win)
+        mock_win._get_queue_config = MainWindow._get_queue_config.__get__(mock_win)
+
+        mock_item_unmarked = MagicMock()
+        mock_item_unmarked.data.side_effect = lambda role: {
+            Qt.ItemDataRole.UserRole + 18: False,
+            Qt.ItemDataRole.UserRole + 8: "Custom Queue"
+        }.get(role, None)
+
+        # Unmarked custom queue should NOT notify
+        assert mock_win._should_send_notification_for_item(mock_item_unmarked) is False
+
+        mock_item_marked = MagicMock()
+        mock_item_marked.data.side_effect = lambda role: {
+            Qt.ItemDataRole.UserRole + 18: False,
+            Qt.ItemDataRole.UserRole + 8: "Notified Queue"
+        }.get(role, None)
+
+        # Marked custom queue SHOULD notify
+        assert mock_win._should_send_notification_for_item(mock_item_marked) is True
+
+    def test_scheduler_dialog_queue_notifications(self, qapp):
+        from ui.dialogs.scheduler import SchedulerDialog
+        from core.queue_manager import DEFAULT_QUEUES, make_default_queue
+
+        queues = [
+            dict(DEFAULT_QUEUES[0]),
+            make_default_queue("Custom Queue")
+        ]
+        dlg = SchedulerDialog(initial_queues=queues)
+        # Main queue: checkbox hidden
+        dlg._load_queue_to_ui(0)
+        assert dlg.chk_show_notification.isHidden() is True
+
+        # Custom queue: checkbox visible, unmarked by default
+        dlg._load_queue_to_ui(1)
+        assert dlg.chk_show_notification.isHidden() is False
+        assert dlg.chk_show_notification.isChecked() is False
+
+        # Mark and save
+        dlg.chk_show_notification.setChecked(True)
+        dlg._save_ui_to_queue(1)
+        assert dlg.queues[1]["show_notification"] is True
+

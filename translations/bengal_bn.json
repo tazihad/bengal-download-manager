@@ -971,8 +971,6 @@
   "Notifications": "বিজ্ঞপ্তি",
   "Show notification when download completes": "ডাউনলোড সম্পন্ন হলে বিজ্ঞপ্তি দেখান",
   "Show notification on download error": "ডাউনলোড ত্রুটি হলে বিজ্ঞপ্তি দেখান",
-  "Test Notification": "বিজ্ঞপ্তি পরীক্ষা করুন",
-  "System notifications are working properly!": "সিস্টেম বিজ্ঞপ্তি সঠিকভাবে কাজ করছে!",
   "Export Stellar Backup": "স্টেলার ব্যাকআপ এক্সপোর্ট",
   "Import Stellar Backup": "স্টেলার ব্যাকআপ ইম্পোর্ট",
   "Backup Complete": "ব্যাকআপ সম্পূর্ণ",

@@ -2723,6 +2723,49 @@ class MainWindow(QMainWindow):
             self._set_status_text(r, "Paused", logic_status="Paused")
             self._set_row_bold(r, False)
 
+    def _get_queue_config(self, queue_name: str):
+        """Returns the dictionary configuration for the specified queue."""
+        target = queue_name or "Main download queue"
+        queues = getattr(self, "_queues_data", None)
+        if queues:
+            for q in queues:
+                if isinstance(q, dict) and q.get("name") == target:
+                    return q
+        if hasattr(self, "queue_manager") and self.queue_manager:
+            for q in self.queue_manager.get_queues():
+                if isinstance(q, dict) and q.get("name") == target:
+                    return q
+        try:
+            from core.database import get_all_queues
+            for q in (get_all_queues() or []):
+                if isinstance(q, dict) and q.get("name") == target:
+                    return q
+        except Exception:
+            pass
+        return None
+
+    def _should_send_notification_for_item(self, item_ref) -> bool:
+        """
+        Determines whether a desktop system notification should be dispatched when an item completes.
+        - For 'Main download queue' (and standalone downloads): uses the global Options setting 'system_notifications'.
+        - For other custom queues: uses the queue's specific 'show_notification' setting (unmarked/False by default).
+        """
+        if not item_ref:
+            return False
+        is_batch_item = bool(item_ref.data(Qt.ItemDataRole.UserRole + 18))
+        if is_batch_item:
+            return False
+
+        queue_name = item_ref.data(Qt.ItemDataRole.UserRole + 8) or "Main download queue"
+        if queue_name == "Main download queue":
+            is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14))
+            if is_queue_run:
+                return False
+            return bool(getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)))
+        else:
+            q_config = self._get_queue_config(queue_name)
+            return bool(q_config and q_config.get("show_notification", False))
+
     def _get_queue_max_concurrent(self, queue_name: str) -> int:
         """Returns the configured max_concurrent value for the specified queue."""
         target = queue_name or "Main download queue"
@@ -6886,10 +6929,8 @@ class MainWindow(QMainWindow):
                     except Exception:
                         pass
 
-                is_batch_item = bool(item_ref.data(Qt.ItemDataRole.UserRole + 18)) if item_ref else False
-                is_queue_run = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14)) if item_ref else False
-                # Dispatch XDG system notification if enabled (suppressed for batch/queue runs)
-                if not is_batch_item and not is_queue_run and (getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False))):
+                # Dispatch XDG system notification if enabled for this item's queue
+                if self._should_send_notification_for_item(item_ref):
                     try:
                         from core.notifications import send_system_notification
                         filename = item_ref.text() if item_ref else "File"
@@ -7635,8 +7676,8 @@ class MainWindow(QMainWindow):
                     except Exception:
                         pass
 
-                    # Dispatch XDG system notification if enabled
-                    if getattr(self, "system_notifications", False) or (isinstance(getattr(self, "settings", {}), dict) and self.settings.get("system_notifications", False)):
+                    # Dispatch XDG system notification if enabled for this item's queue
+                    if self._should_send_notification_for_item(item_ref):
                         try:
                             from core.notifications import send_system_notification
                             size_str = self.download_table.item(row, 1).text() if self.download_table.item(row, 1) else ""
