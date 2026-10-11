@@ -288,6 +288,8 @@ class TcpListenerThread(QThread):
         self.server = None
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-ipc")
         try:
             if is_debug_mode():
                 logger.debug("[IPC] Starting extension TCP listener thread on 127.0.0.1:%s", self.port)

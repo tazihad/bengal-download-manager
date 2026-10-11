@@ -84,6 +84,8 @@ class MediaExtractorWorker(QThread):
                 pass
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-extract")
         temp_cookies_file = None
         try:
             self.status_signal.emit("Checking yt-dlp engine...")
@@ -1045,6 +1047,8 @@ class MediaInfoFetcherWorker(QThread):
                 pass
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-info")
         temp_cookies_file = None
         try:
             yt_dlp_bin = YtDlpManager.ensure_binary()

@@ -74,6 +74,8 @@ class Aria2Worker(QThread):
         return call_aria2_rpc(method, params=params, port=self.rpc_port, token=self.rpc_token)
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-aria2")
         self.log_signal.emit("Connecting to Aria2 engine...")
 
         if not self.allow_resume:

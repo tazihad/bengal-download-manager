@@ -64,6 +64,24 @@ def setup_logging(debug=False, verbose=False):
     return logger
 
 
+def set_linux_process_name(name: str = "bengal-download") -> None:
+    """Sets the process or thread comm name in /proc/self/comm (visible in top, htop, and task managers)."""
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            # PR_SET_NAME = 15 (sets /proc/self/comm, max 15 characters + null byte)
+            name_bytes = name[:15].encode("utf-8")
+            libc.prctl(15, ctypes.c_char_p(name_bytes), 0, 0, 0)
+        except Exception:
+            pass
+        try:
+            import setproctitle
+            setproctitle.setproctitle(name)
+        except Exception:
+            pass
+
+
 def format_bytes(size: float, precision: int = 2) -> str:
     """Format bytes into human readable string (B, KB, MB, GB, TB)."""
     try:

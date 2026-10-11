@@ -38,6 +38,8 @@ class SegmentWorker(QThread):
         self.speed_limit = limit
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-segment")
         try:
             if self.downloaded >= self.total_size:
                 if is_debug_mode():
@@ -248,6 +250,8 @@ class DownloadWorker(QThread):
                 w.set_speed_limit(0)
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-download")
         try:
             self.log_signal.emit("Connecting to server...")
             self.log_signal.emit(f"Target file: {self.filename}")

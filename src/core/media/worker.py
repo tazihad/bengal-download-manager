@@ -418,6 +418,8 @@ class YtDlpDownloadWorker(QThread):
         return None
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-ytdlp")
         temp_cookies_file = None
         try:
             bin_path = YtDlpManager.ensure_binary()

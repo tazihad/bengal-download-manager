@@ -43,6 +43,8 @@ class FileInfoFetcherWorker(QThread):
         return opener
 
     def run(self):
+        from core.utils import set_linux_process_name
+        set_linux_process_name("bengal-fetcher")
         # Initial guess before network request
         initial_filename = resolve_filename(self.url, {})
         if is_debug_mode():
