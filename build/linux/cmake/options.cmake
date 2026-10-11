@@ -62,8 +62,40 @@ add_custom_target(
     DEPENDS "${DIST_DIR}/${EXECUTABLE_NAME}"
 )
 
-# Install target
+# Install target for application binary
 install(PROGRAMS "${DIST_DIR}/${EXECUTABLE_NAME}" DESTINATION bin)
+
+# Standard App ID for desktop and metainfo assets
+set(FLATPAK_ID "bd.com.zihad.BengalDownloadManager")
+
+# Install desktop entry
+if(EXISTS "${ROOT_DIR}/flatpak/${FLATPAK_ID}.desktop")
+    install(FILES "${ROOT_DIR}/flatpak/${FLATPAK_ID}.desktop"
+            DESTINATION share/applications)
+endif()
+
+# Install AppStream metadata
+if(EXISTS "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml")
+    install(FILES "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml"
+            DESTINATION share/metainfo)
+    install(FILES "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml"
+            DESTINATION share/appdata)
+endif()
+
+# Install hicolor icons
+foreach(s 16 32 64 128 256 512)
+    if(EXISTS "${ROOT_DIR}/assets/icons/${s}x${s}.png")
+        install(FILES "${ROOT_DIR}/assets/icons/${s}x${s}.png"
+                DESTINATION "share/icons/hicolor/${s}x${s}/apps"
+                RENAME "${FLATPAK_ID}.png")
+    endif()
+endforeach()
+
+if(EXISTS "${ROOT_DIR}/assets/logo.svg")
+    install(FILES "${ROOT_DIR}/assets/logo.svg"
+            DESTINATION share/icons/hicolor/scalable/apps
+            RENAME "${FLATPAK_ID}.svg")
+endif()
 
 # Optional packaging targets
 add_custom_target(build_linux_appimage
