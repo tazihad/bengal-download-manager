@@ -83,7 +83,7 @@ if(EXISTS "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml")
 endif()
 
 # Install hicolor icons
-foreach(s 16 32 64 128 256 512)
+foreach(s 16 32 48 64 128 256 512)
     if(EXISTS "${ROOT_DIR}/assets/icons/${s}x${s}.png")
         install(FILES "${ROOT_DIR}/assets/icons/${s}x${s}.png"
                 DESTINATION "share/icons/hicolor/${s}x${s}/apps"

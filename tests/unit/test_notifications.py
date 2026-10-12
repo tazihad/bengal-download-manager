@@ -36,6 +36,43 @@ class TestNotifications:
         # Should either resolve to a local bundled path or a fallback theme name
         assert len(resolved) > 0
 
+    def test_resolve_notification_icon_appdir_bundle(self, tmp_path, monkeypatch):
+        mock_appdir = tmp_path / "appdir"
+        icon_dir = mock_appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+        icon_dir.mkdir(parents=True)
+        mock_icon = icon_dir / "bd.com.zihad.BengalDownloadManager.png"
+        mock_icon.write_bytes(b"dummy_png")
+
+        monkeypatch.setenv("APPDIR", str(mock_appdir))
+        resolved = _resolve_notification_icon("nonexistent_icon")
+        assert resolved == str(mock_icon)
+
+    def test_resolve_notification_icon_pyinstaller_internal(self, tmp_path, monkeypatch):
+        mock_meipass = tmp_path / "dist"
+        internal_icons = mock_meipass / "_internal" / "assets" / "icons"
+        internal_icons.mkdir(parents=True)
+        mock_icon = internal_icons / "256x256.png"
+        mock_icon.write_bytes(b"dummy_png")
+
+        monkeypatch.delenv("APPDIR", raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(mock_meipass), raising=False)
+        resolved = _resolve_notification_icon("nonexistent_icon")
+        assert resolved == str(mock_icon)
+
+    def test_has_installed_desktop_entry(self, tmp_path, monkeypatch):
+        from core.notifications import _has_installed_desktop_entry
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        fake_apps = tmp_path / "applications"
+        fake_apps.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path))
+
+        assert _has_installed_desktop_entry("my-app") is False
+
+        (fake_apps / "my-app.desktop").write_text("[Desktop Entry]\nName=App\n", encoding="utf-8")
+        assert _has_installed_desktop_entry("my-app") is True
+
     def test_send_freedesktop_notification_success(self):
         with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
             mock_bus = MagicMock()
@@ -50,10 +87,40 @@ class TestNotifications:
                 title="Test",
                 message="Message",
                 app_name="Bengal Download Manager",
-                icon_str="download"
+                icon_str="download",
+                desktop_entry="bd.com.zihad.BengalDownloadManager"
             )
             assert result is True
             assert mock_bus.call.called
+            call_arg = mock_bus.call.call_args[0][0]
+            args = call_arg.arguments()
+            assert args[0] == "Bengal Download Manager"
+            assert args[2] == "download"
+            # Hints dict must include desktop-entry for GNOME Shell
+            hints = args[6]
+            assert "desktop-entry" in hints
+            val = hints["desktop-entry"].value() if hasattr(hints["desktop-entry"], "value") else hints["desktop-entry"]
+            assert val == "bd.com.zihad.BengalDownloadManager"
+
+    def test_send_freedesktop_notification_formats_file_uri_for_local_path(self, tmp_path):
+        dummy_icon = tmp_path / "test_icon.png"
+        dummy_icon.write_bytes(b"dummy")
+        with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
+            mock_bus = MagicMock()
+            mock_bus.isConnected.return_value = True
+            mock_reply = MagicMock()
+            from PyQt6.QtDBus import QDBusMessage
+            mock_reply.type.return_value = QDBusMessage.MessageType.ReplyMessage
+            mock_bus.call.return_value = mock_reply
+            mock_bus_func.return_value = mock_bus
+
+            _send_freedesktop_notification("T", "M", icon_str=str(dummy_icon))
+            call_arg = mock_bus.call.call_args[0][0]
+            args = call_arg.arguments()
+            assert args[2] == f"file://{dummy_icon}"
+            assert "image-path" in args[6]
+            img_val = args[6]["image-path"].value() if hasattr(args[6]["image-path"], "value") else args[6]["image-path"]
+            assert img_val == f"file://{dummy_icon}"
 
     def test_send_freedesktop_notification_not_connected(self):
         with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
@@ -119,11 +186,21 @@ class TestNotifications:
 
     def test_send_system_notification_calls_freedesktop_on_host(self):
         with patch("core.notifications._is_running_in_flatpak", return_value=False), \
+             patch("core.notifications._has_installed_desktop_entry", return_value=True), \
              patch("core.notifications._send_freedesktop_notification", return_value=True) as mock_fdo:
             send_system_notification("Title", "Message")
             import time
             time.sleep(0.1)
             assert mock_fdo.called
+
+    def test_send_system_notification_uninstalled_calls_gdbus(self):
+        with patch("core.notifications._is_running_in_flatpak", return_value=False), \
+             patch("core.notifications._has_installed_desktop_entry", return_value=False), \
+             patch("core.notifications._send_gdbus_cli", return_value=True) as mock_gdbus:
+            send_system_notification("Title", "Message")
+            import time
+            time.sleep(0.1)
+            assert mock_gdbus.called
 
     def test_send_system_notification_calls_portal_in_flatpak(self):
         with patch("core.notifications._is_running_in_flatpak", return_value=True), \
@@ -209,4 +286,111 @@ class TestNotifications:
         dlg.chk_show_notification.setChecked(True)
         dlg._save_ui_to_queue(1)
         assert dlg.queues[1]["show_notification"] is True
+
+    def test_ensure_desktop_integration_skipped_in_dev(self, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        monkeypatch.delenv("APPDIR", raising=False)
+        monkeypatch.delenv("APPIMAGE", raising=False)
+        monkeypatch.delenv("BDM_FORCE_DESKTOP_INTEGRATION", raising=False)
+        monkeypatch.setattr(sys, "frozen", False, raising=False)
+        # Should cleanly return without error or file creation
+        ensure_desktop_integration()
+
+    def test_ensure_desktop_integration_forced_creates_entries(self, tmp_path, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("BDM_FORCE_DESKTOP_INTEGRATION", "1")
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+        monkeypatch.delenv("BDM_TESTING", raising=False)
+        monkeypatch.delenv("BDM_SKIP_DESKTOP_INTEGRATION", raising=False)
+
+        ensure_desktop_integration()
+
+        desktop_file = fake_home / ".local" / "share" / "applications" / "bd.com.zihad.BengalDownloadManager.desktop"
+        assert desktop_file.exists()
+        content = desktop_file.read_text(encoding="utf-8")
+        assert "StartupWMClass=bd.com.zihad.BengalDownloadManager" in content
+        assert "X-GNOME-UsesNotifications=true" in content
+        assert "Icon=bd.com.zihad.BengalDownloadManager" in content
+
+    def test_ensure_desktop_integration_appimage_creates_entries(self, tmp_path, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("APPIMAGE", "/tmp/BengalDownloadManager.AppImage")
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+        monkeypatch.delenv("BDM_TESTING", raising=False)
+        monkeypatch.delenv("BDM_SKIP_DESKTOP_INTEGRATION", raising=False)
+        # sys.modules has "pytest", so BDM_FORCE_DESKTOP_INTEGRATION ensures test runs
+        monkeypatch.setenv("BDM_FORCE_DESKTOP_INTEGRATION", "1")
+
+        ensure_desktop_integration()
+
+        desktop_file = fake_home / ".local" / "share" / "applications" / "bd.com.zihad.BengalDownloadManager.desktop"
+        assert desktop_file.exists()
+        content = desktop_file.read_text(encoding="utf-8")
+        assert "StartupWMClass=bd.com.zihad.BengalDownloadManager" in content
+        assert "X-GNOME-UsesNotifications=true" in content
+        assert "Icon=bd.com.zihad.BengalDownloadManager" in content
+        assert 'Exec="/tmp/BengalDownloadManager.AppImage" %u' in content
+
+    def test_ensure_desktop_integration_appimage_clean_by_default(self, tmp_path, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("APPIMAGE", "/tmp/BengalDownloadManager.AppImage")
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+        monkeypatch.delenv("BDM_TESTING", raising=False)
+        monkeypatch.delenv("BDM_SKIP_DESKTOP_INTEGRATION", raising=False)
+        monkeypatch.delenv("BDM_FORCE_DESKTOP_INTEGRATION", raising=False)
+
+        ensure_desktop_integration()
+
+        desktop_file = fake_home / ".local" / "share" / "applications" / "bd.com.zihad.BengalDownloadManager.desktop"
+        assert not desktop_file.exists()
+
+    def test_is_image_file(self):
+        from core.notifications import _is_image_file
+        assert _is_image_file("/path/to/image.png") is True
+        assert _is_image_file("/path/to/photo.JPG") is True
+        assert _is_image_file("/path/to/logo.svg") is True
+        assert _is_image_file("/path/to/app.flatpak") is False
+        assert _is_image_file("/path/to/archive.zip") is False
+        assert _is_image_file("") is False
+        assert _is_image_file(None) is False
+
+    def test_appimage_manager_desktop_discovery(self, tmp_path, monkeypatch):
+        from core.desktop import get_desktop_file_name
+        from core.notifications import _has_installed_desktop_entry
+
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        apps_dir = tmp_path / "applications"
+        apps_dir.mkdir()
+        monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path))
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+
+        # Before AppImage manager integrates
+        assert get_desktop_file_name() == "bd.com.zihad.BengalDownloadManager"
+        assert _has_installed_desktop_entry("bd.com.zihad.BengalDownloadManager") is False
+
+        # AppImageLauncher creates appimagekit_<hash>-bd.com.zihad.BengalDownloadManager.desktop
+        managed_file = apps_dir / "appimagekit_abc123-bd.com.zihad.BengalDownloadManager.desktop"
+        managed_file.write_text("[Desktop Entry]\nName=Bengal Download Manager\nStartupWMClass=bd.com.zihad.BengalDownloadManager\n", encoding="utf-8")
+
+        # After integration, discovered automatically
+        assert get_desktop_file_name() == "appimagekit_abc123-bd.com.zihad.BengalDownloadManager"
+        assert _has_installed_desktop_entry("bd.com.zihad.BengalDownloadManager") is True
+
+
+
 

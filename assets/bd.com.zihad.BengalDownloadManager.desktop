@@ -9,3 +9,4 @@ Categories=Network;FileTransfer;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 Keywords=download;manager;aria2;multithread;
 StartupWMClass=bd.com.zihad.BengalDownloadManager
+X-GNOME-UsesNotifications=true

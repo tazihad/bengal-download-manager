@@ -93,5 +93,158 @@ def get_desktop_file_name() -> str:
             if os.path.exists(os.path.join(sdir, f"{cid}.desktop")):
                 return cid
 
+    # Check for third-party AppImage manager desktop files (AppImageLauncher, Gear Lever, etc.)
+    for sdir in search_dirs:
+        if not os.path.isdir(sdir):
+            continue
+        try:
+            for fname in os.listdir(sdir):
+                if not fname.endswith(".desktop"):
+                    continue
+                fname_lower = fname.lower()
+                # If created by AppImageLauncher / Gear Lever with our app ID in filename
+                if "bd.com.zihad.bengaldownloadmanager" in fname_lower:
+                    return fname[:-8]
+                if "bengal" in fname_lower and "download" in fname_lower:
+                    return fname[:-8]
+                # Check contents of desktop file for StartupWMClass match
+                fpath = os.path.join(sdir, fname)
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read(2048)
+                        if "StartupWMClass=bd.com.zihad.BengalDownloadManager" in content:
+                            return fname[:-8]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     return "bd.com.zihad.BengalDownloadManager"
+
+
+def ensure_desktop_integration() -> None:
+    """
+    On Linux (outside Snap and Flatpak), ensures a valid .desktop file and hicolor icons
+    are installed in ~/.local/share/applications/ and ~/.local/share/icons/hicolor/.
+    This ensures GNOME Shell (Ubuntu Wayland/X11), KDE, and other desktop environments
+    can immediately resolve the application name, high-res icon in docks/panels,
+    and associate system notifications.
+    Only executed for AppImage, frozen binaries, or when BDM_FORCE_DESKTOP_INTEGRATION=1.
+    """
+    import sys
+    if sys.platform != "linux":
+        return
+    # In Snap or Flatpak, the packaging container manages desktop entries and icons
+    if os.environ.get("SNAP") or os.environ.get("FLATPAK_ID"):
+        return
+    # AppImage and portable builds must remain clean and portable by default without
+    # writing desktop or icon files to ~/.local unless explicitly requested via BDM_FORCE_DESKTOP_INTEGRATION=1.
+    if os.environ.get("BDM_FORCE_DESKTOP_INTEGRATION") != "1":
+        return
+
+    try:
+        import shutil
+        home = os.path.expanduser("~")
+        apps_dir = os.path.join(home, ".local", "share", "applications")
+        desktop_file = os.path.join(apps_dir, "bd.com.zihad.BengalDownloadManager.desktop")
+
+        _meipass = getattr(sys, "_MEIPASS", None)
+        _appdir = os.environ.get("APPDIR")
+        _argv0_src = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else None
+        _argv0_root = os.path.dirname(_argv0_src) if _argv0_src else None
+        _module_dir = os.path.dirname(os.path.abspath(__file__)) if __file__ else None
+        _module_root = os.path.dirname(os.path.dirname(_module_dir)) if _module_dir else None
+
+        assets_candidates = [
+            os.path.join(_meipass, "assets") if _meipass else None,
+            os.path.join(_appdir, "usr", "share", "bengal-download-manager", "assets") if _appdir else None,
+            os.path.join(_appdir, "assets") if _appdir else None,
+            os.path.join(_argv0_root, "assets") if _argv0_root else None,
+            os.path.join(_module_root, "assets") if _module_root else None,
+            "/usr/share/bengal-download-manager/assets",
+            "/usr/local/share/bengal-download-manager/assets",
+        ]
+        assets_dir = next((d for d in assets_candidates if d and os.path.isdir(d)), None)
+        if not assets_dir:
+            return
+
+        # 1. Install hicolor application icons if not present or updated
+        icons_base = os.path.join(home, ".local", "share", "icons", "hicolor")
+        icons_copied = False
+        for size in [16, 32, 48, 64, 128, 256, 512]:
+            src_png = os.path.join(assets_dir, "icons", f"{size}x{size}.png")
+            dst_dir = os.path.join(icons_base, f"{size}x{size}", "apps")
+            dst_png = os.path.join(dst_dir, "bd.com.zihad.BengalDownloadManager.png")
+            if os.path.exists(src_png) and not os.path.exists(dst_png):
+                os.makedirs(dst_dir, exist_ok=True)
+                shutil.copy2(src_png, dst_png)
+                icons_copied = True
+
+        src_svg = os.path.join(assets_dir, "logo.svg")
+        dst_svg_dir = os.path.join(icons_base, "scalable", "apps")
+        dst_svg = os.path.join(dst_svg_dir, "bd.com.zihad.BengalDownloadManager.svg")
+        if os.path.exists(src_svg) and not os.path.exists(dst_svg):
+            os.makedirs(dst_svg_dir, exist_ok=True)
+            shutil.copy2(src_svg, dst_svg)
+            icons_copied = True
+
+        # 2. Determine Exec target
+        if os.environ.get("APPIMAGE"):
+            exec_cmd = f'"{os.environ["APPIMAGE"]}" %u'
+        elif getattr(sys, "frozen", False):
+            exec_cmd = f'"{sys.executable}" %u'
+        else:
+            script_path = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
+            if script_path and os.path.isfile(script_path):
+                exec_cmd = f'"{sys.executable}" "{script_path}" %u'
+            else:
+                exec_cmd = f'"{sys.executable}" -m bengal_download_manager %u'
+
+        need_write = not os.path.exists(desktop_file)
+        if not need_write:
+            try:
+                with open(desktop_file, "r", encoding="utf-8") as f:
+                    content_existing = f.read()
+                if (
+                    "StartupWMClass=bd.com.zihad.BengalDownloadManager" not in content_existing
+                    or "Icon=bd.com.zihad.BengalDownloadManager" not in content_existing
+                    or "X-GNOME-UsesNotifications=true" not in content_existing
+                    or f"Exec={exec_cmd}" not in content_existing
+                ):
+                    need_write = True
+            except Exception:
+                need_write = True
+
+        if need_write:
+            os.makedirs(apps_dir, exist_ok=True)
+            content = f"""[Desktop Entry]
+Name=Bengal Download Manager
+GenericName=Download Manager
+Comment=Fast multi-threaded download manager powered by Aria2 and PyQt6
+Exec={exec_cmd}
+Icon=bd.com.zihad.BengalDownloadManager
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+Keywords=download;manager;aria2;multithread;
+StartupWMClass=bd.com.zihad.BengalDownloadManager
+X-GNOME-UsesNotifications=true
+"""
+            with open(desktop_file, "w", encoding="utf-8") as f:
+                f.write(content)
+            try:
+                import subprocess
+                subprocess.run(["update-desktop-database", apps_dir], capture_output=True, timeout=2)
+            except Exception:
+                pass
+
+        if icons_copied:
+            try:
+                import subprocess
+                subprocess.run(["gtk-update-icon-cache", "-q", "-t", icons_base], capture_output=True, timeout=2)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
