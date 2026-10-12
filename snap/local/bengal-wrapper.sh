@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Bengal Download Manager - Snap Execution Wrapper
 # Sets up architecture-agnostic paths, library fallbacks, and launches Bengal DM.
 
@@ -51,11 +51,18 @@ elif [ -f "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" ]; then
     chmod +x "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" 2>/dev/null || true
 fi
 
-# 5. Execute Python application with branded process identity
-if [ -x "$SNAP/usr/bin/python3" ]; then
-    exec -a "bengal-download-manager" "$SNAP/usr/bin/python3" "$SNAP_APP_ROOT/src/main.py" "$@"
-elif [ -x "$SNAP/bin/python3" ]; then
-    exec -a "bengal-download-manager" "$SNAP/bin/python3" "$SNAP_APP_ROOT/src/main.py" "$@"
+# 5. Resolve Python executable
+if [ -x "$SNAP/bin/python3" ]; then
+    PYTHON_BIN="$SNAP/bin/python3"
+elif [ -x "$SNAP/usr/bin/python3" ]; then
+    PYTHON_BIN="$SNAP/usr/bin/python3"
 else
-    exec -a "bengal-download-manager" python3 "$SNAP_APP_ROOT/src/main.py" "$@"
+    PYTHON_BIN="python3"
+fi
+
+# 6. Execute Python application with branded process identity
+if [ -n "$BASH_VERSION" ]; then
+    exec -a "bengal-download-manager" "$PYTHON_BIN" "$SNAP_APP_ROOT/src/main.py" "$@"
+else
+    exec "$PYTHON_BIN" "$SNAP_APP_ROOT/src/main.py" "$@"
 fi

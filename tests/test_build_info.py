@@ -296,3 +296,29 @@ def test_about_dialog_and_verification_instantaneous():
     t1 = time.perf_counter()
     assert (t1 - t0) < 0.05
 
+
+def test_snap_wrapper_script_syntax_and_compatibility():
+    import subprocess
+    wrapper_path = os.path.join(os.path.dirname(__file__), "..", "snap", "local", "bengal-wrapper.sh")
+    assert os.path.exists(wrapper_path)
+
+    with open(wrapper_path, "r", encoding="utf-8") as f:
+        first_line = f.readline().strip()
+    # Shebang must be bash so bash builtins like 'exec -a' work natively
+    assert first_line == "#!/bin/bash"
+
+    # Syntax check in bash
+    res_bash = subprocess.run(["bash", "-n", wrapper_path], capture_output=True, text=True)
+    assert res_bash.returncode == 0, res_bash.stderr
+
+    # Fallback compatibility check if invoked via /bin/sh (e.g. dash)
+    # Must NOT fail with 'exec: -a: not found'
+    res_sh = subprocess.run(
+        ["sh", wrapper_path, "--test-nonexistent-flag"],
+        env={**os.environ, "SNAP": "/nonexistent", "SNAP_APP_ROOT": "/nonexistent"},
+        capture_output=True,
+        text=True,
+    )
+    assert "-a: not found" not in res_sh.stderr
+
+
