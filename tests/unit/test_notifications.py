@@ -303,3 +303,27 @@ class TestNotifications:
         assert "X-GNOME-UsesNotifications=true" in content
         assert "Icon=bd.com.zihad.BengalDownloadManager" in content
 
+    def test_ensure_desktop_integration_appimage_creates_entries(self, tmp_path, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("APPIMAGE", "/tmp/BengalDownloadManager.AppImage")
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+        monkeypatch.delenv("BDM_TESTING", raising=False)
+        monkeypatch.delenv("BDM_SKIP_DESKTOP_INTEGRATION", raising=False)
+        # sys.modules has "pytest", so BDM_FORCE_DESKTOP_INTEGRATION ensures test runs
+        monkeypatch.setenv("BDM_FORCE_DESKTOP_INTEGRATION", "1")
+
+        ensure_desktop_integration()
+
+        desktop_file = fake_home / ".local" / "share" / "applications" / "bd.com.zihad.BengalDownloadManager.desktop"
+        assert desktop_file.exists()
+        content = desktop_file.read_text(encoding="utf-8")
+        assert "StartupWMClass=bd.com.zihad.BengalDownloadManager" in content
+        assert "X-GNOME-UsesNotifications=true" in content
+        assert "Icon=bd.com.zihad.BengalDownloadManager" in content
+        assert 'Exec="/tmp/BengalDownloadManager.AppImage" %u' in content
+
+

@@ -111,9 +111,15 @@ def ensure_desktop_integration() -> None:
     # In Snap or Flatpak, the packaging container manages desktop entries and icons
     if os.environ.get("SNAP") or os.environ.get("FLATPAK_ID"):
         return
-    # AppImage and portable builds must remain clean and portable by default without
-    # writing desktop or icon files to ~/.local unless explicitly requested via BDM_FORCE_DESKTOP_INTEGRATION=1.
+    # Skip during automated testing unless explicitly forced
     if os.environ.get("BDM_FORCE_DESKTOP_INTEGRATION") != "1":
+        if "pytest" in sys.modules or os.environ.get("BDM_TESTING") == "1" or os.environ.get("BDM_SKIP_DESKTOP_INTEGRATION") == "1":
+            return
+
+    is_appimage = bool(os.environ.get("APPDIR") or os.environ.get("APPIMAGE"))
+    is_frozen = getattr(sys, "frozen", False)
+    if not (is_appimage or is_frozen or os.environ.get("BDM_FORCE_DESKTOP_INTEGRATION") == "1"):
+        # Development / raw git checkout: do not create local desktop entries
         return
 
     try:

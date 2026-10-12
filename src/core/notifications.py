@@ -315,7 +315,13 @@ def send_system_notification(
             try:
                 from core.desktop import get_desktop_file_name
                 canonical_id = get_desktop_file_name()
-                if is_flatpak or os.environ.get("SNAP") or _has_installed_desktop_entry(canonical_id):
+                if (
+                    is_flatpak
+                    or os.environ.get("SNAP")
+                    or os.environ.get("APPDIR")
+                    or os.environ.get("APPIMAGE")
+                    or _has_installed_desktop_entry(canonical_id)
+                ):
                     target_desktop_entry = canonical_id
             except Exception:
                 pass
