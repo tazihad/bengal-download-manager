@@ -93,6 +93,32 @@ def get_desktop_file_name() -> str:
             if os.path.exists(os.path.join(sdir, f"{cid}.desktop")):
                 return cid
 
+    # Check for third-party AppImage manager desktop files (AppImageLauncher, Gear Lever, etc.)
+    for sdir in search_dirs:
+        if not os.path.isdir(sdir):
+            continue
+        try:
+            for fname in os.listdir(sdir):
+                if not fname.endswith(".desktop"):
+                    continue
+                fname_lower = fname.lower()
+                # If created by AppImageLauncher / Gear Lever with our app ID in filename
+                if "bd.com.zihad.bengaldownloadmanager" in fname_lower:
+                    return fname[:-8]
+                if "bengal" in fname_lower and "download" in fname_lower:
+                    return fname[:-8]
+                # Check contents of desktop file for StartupWMClass match
+                fpath = os.path.join(sdir, fname)
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read(2048)
+                        if "StartupWMClass=bd.com.zihad.BengalDownloadManager" in content:
+                            return fname[:-8]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     return "bd.com.zihad.BengalDownloadManager"
 
 
@@ -111,15 +137,9 @@ def ensure_desktop_integration() -> None:
     # In Snap or Flatpak, the packaging container manages desktop entries and icons
     if os.environ.get("SNAP") or os.environ.get("FLATPAK_ID"):
         return
-    # Skip during automated testing unless explicitly forced
+    # AppImage and portable builds must remain clean and portable by default without
+    # writing desktop or icon files to ~/.local unless explicitly requested via BDM_FORCE_DESKTOP_INTEGRATION=1.
     if os.environ.get("BDM_FORCE_DESKTOP_INTEGRATION") != "1":
-        if "pytest" in sys.modules or os.environ.get("BDM_TESTING") == "1" or os.environ.get("BDM_SKIP_DESKTOP_INTEGRATION") == "1":
-            return
-
-    is_appimage = bool(os.environ.get("APPDIR") or os.environ.get("APPIMAGE"))
-    is_frozen = getattr(sys, "frozen", False)
-    if not (is_appimage or is_frozen or os.environ.get("BDM_FORCE_DESKTOP_INTEGRATION") == "1"):
-        # Development / raw git checkout: do not create local desktop entries
         return
 
     try:

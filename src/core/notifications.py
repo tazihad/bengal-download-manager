@@ -21,7 +21,30 @@ def _has_installed_desktop_entry(desktop_entry: Optional[str]) -> bool:
     search_dirs = [os.path.expanduser("~/.local/share/applications")] + [
         os.path.join(d, "applications") for d in raw_dirs.split(":") if d
     ]
-    return any(os.path.exists(os.path.join(sdir, entry_filename)) for sdir in search_dirs)
+    if any(os.path.exists(os.path.join(sdir, entry_filename)) for sdir in search_dirs):
+        return True
+
+    # If checking canonical name, also verify if an AppImage-managed entry exists
+    if desktop_entry in ("bd.com.zihad.BengalDownloadManager", "bengal-download-manager"):
+        try:
+            from core.desktop import get_desktop_file_name
+            discovered = get_desktop_file_name()
+            if discovered and discovered != desktop_entry:
+                discovered_fname = f"{discovered}.desktop"
+                if any(os.path.exists(os.path.join(sdir, discovered_fname)) for sdir in search_dirs):
+                    return True
+        except Exception:
+            pass
+
+    return False
+
+
+def _is_image_file(path: Optional[str]) -> bool:
+    """Returns True if the given path has a recognized image extension."""
+    if not path:
+        return False
+    ext = os.path.splitext(path)[1].lower()
+    return ext in {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".bmp", ".ico", ".tiff"}
 
 
 def _resolve_notification_icon(icon_name: str = "bd.com.zihad.BengalDownloadManager") -> str:
@@ -74,6 +97,19 @@ def _resolve_notification_icon(icon_name: str = "bd.com.zihad.BengalDownloadMana
         "/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
         "/usr/local/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
         os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png"),
+        # Check ~/.local/share/icons for third-party AppImage-manager extracted icons
+        *([
+            os.path.join(sdir, f)
+            for sdir in [
+                os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps"),
+                os.path.expanduser("~/.local/share/icons/hicolor/512x512/apps"),
+                os.path.expanduser("~/.local/share/icons/hicolor/scalable/apps"),
+                os.path.expanduser("~/.local/share/icons"),
+            ]
+            if os.path.isdir(sdir)
+            for f in os.listdir(sdir)
+            if ("bengal" in f.lower() or "bd.com.zihad" in f.lower()) and f.endswith((".png", ".svg"))
+        ]),
         *([
             os.path.join(_argv0_src, "assets", "icons", "256x256.png"),
             os.path.join(_argv0_src, "_internal", "assets", "icons", "256x256.png"),
@@ -159,10 +195,12 @@ def _send_freedesktop_notification(
         if desktop_entry:
             hints["desktop-entry"] = QVariant(desktop_entry)
 
-        if file_path and os.path.isabs(file_path) and os.path.exists(file_path):
+        if file_path and os.path.isabs(file_path) and os.path.exists(file_path) and _is_image_file(file_path):
             hints["image-path"] = QVariant(f"file://{file_path}")
         elif icon_str and os.path.isabs(icon_str) and os.path.exists(icon_str):
             hints["image-path"] = QVariant(f"file://{icon_str}")
+        elif icon_str:
+            hints["image-path"] = QVariant(icon_str)
 
         msg.setArguments([
             app_name,
@@ -188,13 +226,23 @@ def _send_gdbus_cli(
     icon_str: str = "bd.com.zihad.BengalDownloadManager",
     timeout_ms: int = 5000,
     desktop_entry: Optional[str] = "bd.com.zihad.BengalDownloadManager",
+    file_path: Optional[str] = None,
 ) -> bool:
     """Fallback using standard GLib gdbus CLI calling org.freedesktop.Notifications."""
     if not shutil.which("gdbus"):
         return False
     try:
         icon_arg = f"file://{icon_str}" if (icon_str and os.path.isabs(icon_str)) else icon_str
-        hints_arg = f"{{'desktop-entry': <'{desktop_entry}'>}}" if desktop_entry else "{}"
+        hints_items = []
+        if desktop_entry:
+            hints_items.append(f"'desktop-entry': <'{desktop_entry}'>")
+        if file_path and os.path.isabs(file_path) and os.path.exists(file_path) and _is_image_file(file_path):
+            hints_items.append(f"'image-path': <'file://{file_path}'>")
+        elif icon_str and os.path.isabs(icon_str) and os.path.exists(icon_str):
+            hints_items.append(f"'image-path': <'file://{icon_str}'>")
+        elif icon_str:
+            hints_items.append(f"'image-path': <'{icon_str}'>")
+        hints_arg = f"{{{', '.join(hints_items)}}}" if hints_items else "{}"
         res = subprocess.run(
             [
                 "gdbus", "call", "--session",
@@ -259,6 +307,7 @@ def _send_notify_send_cli(
     app_name: str = "Bengal Download Manager",
     icon_name: str = "bd.com.zihad.BengalDownloadManager",
     desktop_entry: Optional[str] = "bd.com.zihad.BengalDownloadManager",
+    file_path: Optional[str] = None,
 ) -> bool:
     """Fallback using notify-send command line tool if available."""
     if not shutil.which("notify-send"):
@@ -267,6 +316,12 @@ def _send_notify_send_cli(
         cmd = ["notify-send", "-a", app_name, "-i", icon_name]
         if desktop_entry:
             cmd.append(f"--hint=string:desktop-entry:{desktop_entry}")
+        if file_path and os.path.isabs(file_path) and os.path.exists(file_path) and _is_image_file(file_path):
+            cmd.append(f"--hint=string:image-path:file://{file_path}")
+        elif icon_name and os.path.isabs(icon_name) and os.path.exists(icon_name):
+            cmd.append(f"--hint=string:image-path:file://{icon_name}")
+        elif icon_name:
+            cmd.append(f"--hint=string:image-path:{icon_name}")
         cmd.extend([title, message])
         res = subprocess.run(
             cmd,
@@ -315,13 +370,7 @@ def send_system_notification(
             try:
                 from core.desktop import get_desktop_file_name
                 canonical_id = get_desktop_file_name()
-                if (
-                    is_flatpak
-                    or os.environ.get("SNAP")
-                    or os.environ.get("APPDIR")
-                    or os.environ.get("APPIMAGE")
-                    or _has_installed_desktop_entry(canonical_id)
-                ):
+                if is_flatpak or os.environ.get("SNAP") or _has_installed_desktop_entry(canonical_id):
                     target_desktop_entry = canonical_id
             except Exception:
                 pass
@@ -333,23 +382,40 @@ def send_system_notification(
                 return
             if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
                 return
-            if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry):
+            if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
                 return
 
         # On host environments (KDE Plasma, GNOME Shell, XFCE, etc.),
         # use the native FreeDesktop Notifications Specification directly
         else:
-            # 1. Native FreeDesktop D-Bus Notification (Primary for KDE, GNOME, etc.)
-            if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
-                return
+            has_desktop = bool(target_desktop_entry and _has_installed_desktop_entry(target_desktop_entry))
 
-            # 2. GLib gdbus CLI fallback
-            if _send_gdbus_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry):
-                return
+            # When running without an installed host .desktop entry (e.g. portable AppImage):
+            # Calling Notify directly from the GUI process causes GNOME Shell's ShellWindowTracker
+            # to match the window by PID, see that it lacks a .desktop entry, and force the fallback
+            # "application-x-executable" generic icon in the header (while ignoring app_icon).
+            # By dispatching via a windowless CLI subprocess (gdbus / notify-send), GNOME Shell's
+            # FdoNotificationDaemon does not associate the notification with the untracked window,
+            # and cleanly uses app_icon and image-path to display the application logo in both header & body.
+            if not has_desktop:
+                if _send_gdbus_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
+                    return
+                if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
+                    return
+                if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
+                    return
+            else:
+                # 1. Native FreeDesktop D-Bus Notification (Primary when desktop file is installed)
+                if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
+                    return
 
-            # 3. notify-send CLI fallback
-            if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry):
-                return
+                # 2. GLib gdbus CLI fallback
+                if _send_gdbus_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
+                    return
+
+                # 3. notify-send CLI fallback
+                if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
+                    return
 
             # 4. QSystemTrayIcon if visible
             if tray_icon and hasattr(tray_icon, "showMessage") and hasattr(tray_icon, "isVisible") and tray_icon.isVisible():

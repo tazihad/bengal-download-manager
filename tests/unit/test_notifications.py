@@ -61,8 +61,11 @@ class TestNotifications:
 
     def test_has_installed_desktop_entry(self, tmp_path, monkeypatch):
         from core.notifications import _has_installed_desktop_entry
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
         fake_apps = tmp_path / "applications"
         fake_apps.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
         monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path))
 
         assert _has_installed_desktop_entry("my-app") is False
@@ -183,11 +186,21 @@ class TestNotifications:
 
     def test_send_system_notification_calls_freedesktop_on_host(self):
         with patch("core.notifications._is_running_in_flatpak", return_value=False), \
+             patch("core.notifications._has_installed_desktop_entry", return_value=True), \
              patch("core.notifications._send_freedesktop_notification", return_value=True) as mock_fdo:
             send_system_notification("Title", "Message")
             import time
             time.sleep(0.1)
             assert mock_fdo.called
+
+    def test_send_system_notification_uninstalled_calls_gdbus(self):
+        with patch("core.notifications._is_running_in_flatpak", return_value=False), \
+             patch("core.notifications._has_installed_desktop_entry", return_value=False), \
+             patch("core.notifications._send_gdbus_cli", return_value=True) as mock_gdbus:
+            send_system_notification("Title", "Message")
+            import time
+            time.sleep(0.1)
+            assert mock_gdbus.called
 
     def test_send_system_notification_calls_portal_in_flatpak(self):
         with patch("core.notifications._is_running_in_flatpak", return_value=True), \
@@ -325,5 +338,59 @@ class TestNotifications:
         assert "X-GNOME-UsesNotifications=true" in content
         assert "Icon=bd.com.zihad.BengalDownloadManager" in content
         assert 'Exec="/tmp/BengalDownloadManager.AppImage" %u' in content
+
+    def test_ensure_desktop_integration_appimage_clean_by_default(self, tmp_path, monkeypatch):
+        from core.desktop import ensure_desktop_integration
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("APPIMAGE", "/tmp/BengalDownloadManager.AppImage")
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+        monkeypatch.delenv("BDM_TESTING", raising=False)
+        monkeypatch.delenv("BDM_SKIP_DESKTOP_INTEGRATION", raising=False)
+        monkeypatch.delenv("BDM_FORCE_DESKTOP_INTEGRATION", raising=False)
+
+        ensure_desktop_integration()
+
+        desktop_file = fake_home / ".local" / "share" / "applications" / "bd.com.zihad.BengalDownloadManager.desktop"
+        assert not desktop_file.exists()
+
+    def test_is_image_file(self):
+        from core.notifications import _is_image_file
+        assert _is_image_file("/path/to/image.png") is True
+        assert _is_image_file("/path/to/photo.JPG") is True
+        assert _is_image_file("/path/to/logo.svg") is True
+        assert _is_image_file("/path/to/app.flatpak") is False
+        assert _is_image_file("/path/to/archive.zip") is False
+        assert _is_image_file("") is False
+        assert _is_image_file(None) is False
+
+    def test_appimage_manager_desktop_discovery(self, tmp_path, monkeypatch):
+        from core.desktop import get_desktop_file_name
+        from core.notifications import _has_installed_desktop_entry
+
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        apps_dir = tmp_path / "applications"
+        apps_dir.mkdir()
+        monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path))
+        monkeypatch.delenv("SNAP", raising=False)
+        monkeypatch.delenv("FLATPAK_ID", raising=False)
+
+        # Before AppImage manager integrates
+        assert get_desktop_file_name() == "bd.com.zihad.BengalDownloadManager"
+        assert _has_installed_desktop_entry("bd.com.zihad.BengalDownloadManager") is False
+
+        # AppImageLauncher creates appimagekit_<hash>-bd.com.zihad.BengalDownloadManager.desktop
+        managed_file = apps_dir / "appimagekit_abc123-bd.com.zihad.BengalDownloadManager.desktop"
+        managed_file.write_text("[Desktop Entry]\nName=Bengal Download Manager\nStartupWMClass=bd.com.zihad.BengalDownloadManager\n", encoding="utf-8")
+
+        # After integration, discovered automatically
+        assert get_desktop_file_name() == "appimagekit_abc123-bd.com.zihad.BengalDownloadManager"
+        assert _has_installed_desktop_entry("bd.com.zihad.BengalDownloadManager") is True
+
+
 
 
