@@ -1,0 +1,38 @@
+[package]
+name = "bengal-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bengal Download Manager desktop application and bdm CLI"
+
+[[bin]]
+name = "bengal-download-manager"
+path = "src/main.rs"
+
+[dependencies]
+tigris = { workspace = true }
+bengal-core = { workspace = true }
+bengal-db = { workspace = true }
+bengal-ipc = { workspace = true }
+bengal-media = { workspace = true }
+bengal-grabber = { workspace = true }
+eframe = { workspace = true }
+egui_extras = { workspace = true }
+rfd = { workspace = true }
+open = { workspace = true }
+notify-rust = { workspace = true }
+percent-encoding = { workspace = true }
+ring = { workspace = true }
+arboard = { workspace = true }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+clap_complete = { workspace = true }
+indicatif = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+chrono = { workspace = true }

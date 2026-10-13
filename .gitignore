@@ -12,12 +12,14 @@ __pycache__/
 
 # Distribution / Packaging
 dist/
+target/
+build/
+build-*/
+bdm
+bengal-download-manager
 .pyinstaller-build/
 build_output/
 build/*/output/
-build/*-release/
-build/*-debug/
-!build/
 *.egg-info/
 
 # Jupyter Notebook checkpoints

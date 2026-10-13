@@ -1,0 +1,22 @@
+[package]
+name = "tigris"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "High-performance multi-threaded segmented download engine with multi-proxy transport"
+
+[dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+bytes = { workspace = true }
+futures-util = { workspace = true }
+tokio-socks = { workspace = true }
+base64 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+percent-encoding = { workspace = true }
+libc = { workspace = true }

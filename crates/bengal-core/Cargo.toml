@@ -1,0 +1,16 @@
+[package]
+name = "bengal-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core path resolution, domain types, and process management for Bengal Download Manager"
+
+[dependencies]
+dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+libc = { workspace = true }
