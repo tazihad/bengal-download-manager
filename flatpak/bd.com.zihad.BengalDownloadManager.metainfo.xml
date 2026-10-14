@@ -20,6 +20,25 @@
     </p>
   </description>
 
+  <screenshots>
+    <screenshot type="default">
+      <caption>Bengal Download Manager in dark mode</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/main-app.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Bengal Download Manager in light mode</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/main-app-light-mode.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Custom theme configuration</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/main-app-different-theme.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Media downloader tool</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/media-downloader.png</image>
+    </screenshot>
+  </screenshots>
+
   <releases>
     <release version="0.2.89" date="2026-10-14"/>
   </releases>
