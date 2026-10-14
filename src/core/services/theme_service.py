@@ -512,6 +512,9 @@ def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
     for c in candidates:
         if c.startswith("/") and os.path.isfile(c):
             return default_name, c
+    return default_name, default_name
+
+
 class _KdeWaylandPaletteManager:
     """
     Communicates safely with KDE KWin compositor via Wayland protocol:
