@@ -79,7 +79,6 @@ runs:
                 "$BUILD_DIR/files/share/applications" \
                 "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
                 "$BUILD_DIR/files/share/metainfo" \
-                "$BUILD_DIR/files/share/appdata" \
                 "$BUILD_DIR/files/share/app-info/xmls" \
                 "$BUILD_DIR/files/share/app-info/icons/flatpak"
 
@@ -130,8 +129,6 @@ runs:
         content = re.sub(r'<releases>.*?</releases>', new_release, content, flags=re.DOTALL)
         with open(path, 'w') as f: f.write(content)
         " "$VERSION" "$TODAY" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
-
-        cp "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
 
         # Compose AppStream catalog
         appstreamcli compose \

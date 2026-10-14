@@ -78,8 +78,6 @@ endif()
 if(EXISTS "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml")
     install(FILES "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml"
             DESTINATION share/metainfo)
-    install(FILES "${ROOT_DIR}/flatpak/${FLATPAK_ID}.metainfo.xml"
-            DESTINATION share/appdata)
 endif()
 
 # Install hicolor icons

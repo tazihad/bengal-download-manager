@@ -135,7 +135,6 @@ mkdir -p "$BUILD_DIR/files/bin" \
         "$BUILD_DIR/files/share/applications" \
         "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
         "$BUILD_DIR/files/share/metainfo" \
-        "$BUILD_DIR/files/share/appdata" \
         "$BUILD_DIR/files/share/app-info/xmls" \
         "$BUILD_DIR/files/share/app-info/icons/flatpak"
 
@@ -174,8 +173,6 @@ content = re.sub(r"<releases>.*?</releases>", new_release, content, flags=re.DOT
 with open(path, "w") as f:
     f.write(content)
 ' "$VERSION" "$TODAY" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
-
-cp "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml" "$BUILD_DIR/files/share/appdata/$APP_ID.appdata.xml"
 
 # Compose AppStream catalog metadata if appstreamcli is present
 if command -v appstreamcli >/dev/null 2>&1; then
