@@ -27,7 +27,7 @@ finish-args:
   - --env=QT_QPA_PLATFORMTHEME=xdgdesktopportal
 
 modules:
-  - python3-requirements.yaml
+  - python3-requirements.yml
 
   - name: bengal-download-manager
     buildsystem: cmake
