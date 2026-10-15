@@ -184,6 +184,67 @@ class TestNotifications:
             result = _send_portal_notification("Test", "Message", "download")
             assert result is True
 
+    def _mock_portal_reply(self, message_type_name="ReplyMessage"):
+        """Starts patches for QDBusInterface + sessionBus and returns (mocks, context)."""
+        from PyQt6.QtDBus import QDBusMessage
+        bus_patch = patch("PyQt6.QtDBus.QDBusConnection.sessionBus")
+        iface_patch = patch("PyQt6.QtDBus.QDBusInterface")
+        mock_bus_func = bus_patch.start()
+        mock_iface_cls = iface_patch.start()
+        mock_bus = MagicMock()
+        mock_bus.isConnected.return_value = True
+        mock_bus_func.return_value = mock_bus
+        mock_portal = MagicMock()
+        mock_portal.isValid.return_value = True
+        mock_reply = MagicMock()
+        mock_reply.type.return_value = getattr(QDBusMessage.MessageType, message_type_name)
+        mock_portal.call.return_value = mock_reply
+        mock_iface_cls.return_value = mock_portal
+        return mock_portal, (bus_patch, iface_patch)
+
+    def test_send_portal_notification_marshals_variant_details(self):
+        from PyQt6.QtCore import QVariant
+        mock_portal, patches = self._mock_portal_reply()
+        try:
+            result = _send_portal_notification("Title", "Body", "download", "my.app.Id")
+        finally:
+            for p in patches:
+                p.stop()
+
+        assert result is True
+        method, notification_id, details = mock_portal.call.call_args[0]
+        assert method == "AddNotification"
+        assert isinstance(notification_id, str) and notification_id
+        assert isinstance(details, dict)
+        assert details["title"].value() == "Title"
+        assert details["body"].value() == "Body"
+        assert details["icon"].value() == "download"
+        assert details["priority"].value() == "normal"
+        # Values must be wrapped as variants for the a{sv} D-Bus signature
+        assert all(isinstance(v, QVariant) for v in details.values())
+
+    def test_send_portal_notification_absolute_icon_falls_back_to_app_id(self, tmp_path):
+        icon_path = tmp_path / "logo.png"
+        icon_path.write_bytes(b"x")
+        mock_portal, patches = self._mock_portal_reply()
+        try:
+            _send_portal_notification("T", "B", str(icon_path), "my.app.Id")
+        finally:
+            for p in patches:
+                p.stop()
+
+        details = mock_portal.call.call_args[0][2]
+        assert details["icon"].value() == "my.app.Id"
+
+    def test_send_portal_notification_error_reply_returns_false(self):
+        mock_portal, patches = self._mock_portal_reply(message_type_name="ErrorMessage")
+        try:
+            result = _send_portal_notification("T", "B", "download")
+        finally:
+            for p in patches:
+                p.stop()
+        assert result is False
+
     def test_send_system_notification_calls_freedesktop_on_host(self):
         with patch("core.notifications._is_running_in_flatpak", return_value=False), \
              patch("core.notifications._has_installed_desktop_entry", return_value=True), \
