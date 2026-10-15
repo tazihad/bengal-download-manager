@@ -262,3 +262,34 @@ class TestTitlebarGnomeTheming:
         apply_titlebar_theme("Automatic", window=dlg)
         assert getattr(dlg, "_csd_titlebar", None) is None
 
+
+class TestTitlebarKdeTheming:
+    def test_kde_plasma_no_csd_and_sets_kde_palette(self, monkeypatch):
+        import os
+        from core.services.theme_service import apply_titlebar_theme, is_gnome_desktop
+        from PyQt6.QtWidgets import QDialog
+
+        monkeypatch.setenv("XDG_CURRENT_DESKTOP", "KDE")
+        monkeypatch.setenv("DESKTOP_SESSION", "plasma")
+        assert is_gnome_desktop() is False
+
+        dlg = QDialog()
+
+        # Light mode: No CSD, sets BreezeLight scheme path
+        apply_titlebar_theme("Light", window=dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is None
+        light_scheme = dlg.property("KDE_COLOR_SCHEME_PATH")
+        assert "BreezeLight" in str(light_scheme)
+
+        # Dark mode: No CSD, sets BreezeDark scheme path
+        apply_titlebar_theme("Dark", window=dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is None
+        dark_scheme = dlg.property("KDE_COLOR_SCHEME_PATH")
+        assert "BreezeDark" in str(dark_scheme)
+
+        # Automatic mode: No CSD, clears custom scheme path
+        apply_titlebar_theme("Automatic", window=dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is None
+        auto_scheme = dlg.property("KDE_COLOR_SCHEME_PATH")
+        assert auto_scheme in ("", None)
+

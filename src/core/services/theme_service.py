@@ -491,27 +491,39 @@ def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
     """
     Returns (scheme_name, scheme_path_or_name)
     """
+    search_dirs = [
+        Path("/usr/share/color-schemes"),
+        Path("/usr/local/share/color-schemes"),
+        Path("/run/host/usr/share/color-schemes"),
+        Path("/app/share/color-schemes"),
+        xdg_data_home() / "color-schemes",
+    ]
+    for d in common_system_data_dirs():
+        p = d / "color-schemes"
+        if p not in search_dirs:
+            search_dirs.append(p)
+
     if is_dark:
-        candidates = [
-            "/usr/share/color-schemes/BreezeDark.colors",
-            "/usr/local/share/color-schemes/BreezeDark.colors",
-            str(xdg_data_home() / "color-schemes" / "BreezeDark.colors"),
-            "BreezeDark"
-        ]
+        file_candidates = ["BreezeDark.colors", "Breeze.colors", "BreezeDark"]
         default_name = "BreezeDark"
     else:
-        candidates = [
-            "/usr/share/color-schemes/BreezeLight.colors",
-            "/usr/share/color-schemes/BreezeClassic.colors",
-            "/usr/local/share/color-schemes/BreezeLight.colors",
-            str(xdg_data_home() / "color-schemes" / "BreezeLight.colors"),
-            "BreezeLight"
-        ]
+        file_candidates = ["BreezeLight.colors", "BreezeClassic.colors", "BreezeLight"]
         default_name = "BreezeLight"
 
-    for c in candidates:
-        if c.startswith("/") and os.path.isfile(c):
-            return default_name, c
+    for d in search_dirs:
+        for fname in file_candidates:
+            target = d / fname
+            if target.is_file():
+                return default_name, str(target)
+
+    fallbacks = [
+        "/usr/share/color-schemes/BreezeDark.colors" if is_dark else "/usr/share/color-schemes/BreezeLight.colors",
+        "/usr/share/color-schemes/BreezeClassic.colors" if not is_dark else "/usr/share/color-schemes/Breeze.colors",
+    ]
+    for fb in fallbacks:
+        if os.path.isfile(fb):
+            return default_name, fb
+
     return default_name, default_name
 
 
@@ -888,22 +900,30 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
         if w and w.isWindow() and isinstance(w, (QMainWindow, QDialog)) and w.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog) and w not in all_windows:
             all_windows.append(w)
 
-    scheme_name, scheme_path = _find_kde_color_scheme(is_dark)
+    if mode in ("Auto", "Automatic"):
+        scheme_target = ""
+        prop_path = ""
+        prop_name = ""
+    else:
+        scheme_name, scheme_path = _find_kde_color_scheme(is_dark)
+        scheme_target = scheme_path if (scheme_path and os.path.exists(scheme_path)) else scheme_name
+        prop_path = scheme_target
+        prop_name = scheme_name
 
     # Dynamic Qt/KDE application and window properties
     try:
-        app.setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
-        app.setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+        app.setProperty("KDE_COLOR_SCHEME_PATH", prop_path)
+        app.setProperty("_KDE_NET_WM_COLOR_SCHEME", prop_name)
     except Exception:
         pass
 
     for w in all_windows:
         try:
-            w.setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
-            w.setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+            w.setProperty("KDE_COLOR_SCHEME_PATH", prop_path)
+            w.setProperty("_KDE_NET_WM_COLOR_SCHEME", prop_name)
             if hasattr(w, "windowHandle") and w.windowHandle():
-                w.windowHandle().setProperty("KDE_COLOR_SCHEME_PATH", scheme_path)
-                w.windowHandle().setProperty("_KDE_NET_WM_COLOR_SCHEME", scheme_name)
+                w.windowHandle().setProperty("KDE_COLOR_SCHEME_PATH", prop_path)
+                w.windowHandle().setProperty("_KDE_NET_WM_COLOR_SCHEME", prop_name)
         except Exception:
             pass
 
@@ -949,10 +969,16 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
                             ["xprop", "-id", str(wid), "-f", "_GTK_THEME_VARIANT", "8s", "-set", "_GTK_THEME_VARIANT", variant],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
                         )
-                        subprocess.run(
-                            ["xprop", "-id", str(wid), "-f", "_KDE_NET_WM_COLOR_SCHEME", "8s", "-set", "_KDE_NET_WM_COLOR_SCHEME", scheme_name],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
-                        )
+                        if mode in ("Auto", "Automatic"):
+                            subprocess.run(
+                                ["xprop", "-id", str(wid), "-remove", "_KDE_NET_WM_COLOR_SCHEME"],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
+                            )
+                        else:
+                            subprocess.run(
+                                ["xprop", "-id", str(wid), "-f", "_KDE_NET_WM_COLOR_SCHEME", "8s", "-set", "_KDE_NET_WM_COLOR_SCHEME", scheme_target],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=0.5
+                            )
                     except Exception:
                         pass
         except Exception:
@@ -1007,6 +1033,7 @@ class _TitleBarEventFilter(QObject):
                             if mode in ("Light", "Dark"):
                                 apply_titlebar_theme(mode, window=watched)
                             else:
+                                apply_titlebar_theme("Automatic", window=watched)
                                 # Automatic mode: Window inherits app-level styleHints & GTK_THEME automatically.
                                 # Ensure no leftover custom CSD is attached.
                                 if getattr(watched, "_csd_titlebar", None) is not None:
