@@ -23,12 +23,12 @@ class DownloadProgressDialog(QDialog):
         
         self.fixed_width = 520
         self.base_height = 236
-        self.setFixedSize(self.fixed_width, self.base_height)
-        
         self.is_expanded = False
+        self._details_height = 229
         self.segment_bars = []
         self.current_bytes = 0
         self.total_bytes = 0
+        self.update_window_size()
         
         self.worker.log_signal.connect(self.append_log)
         self.worker.main_bar_signal.connect(self.update_progress)
@@ -72,6 +72,27 @@ class DownloadProgressDialog(QDialog):
         if percent_str:
             return f"{percent_str} - {display_name}"
         return display_name
+
+    def _get_titlebar_height(self) -> int:
+        tb = getattr(self, "_csd_titlebar", None)
+        if tb is not None:
+            return tb.height() if tb.height() > 0 else 46
+        return 0
+
+    def update_window_size(self):
+        tb_offset = self._get_titlebar_height()
+        target_height = self.base_height + (self._details_height if self.is_expanded else 0) + tb_offset
+        self.setFixedSize(self.fixed_width, target_height)
+
+    def on_csd_attached(self, titlebar_height: int = 46):
+        self.update_window_size()
+
+    def on_csd_detached(self):
+        self.update_window_size()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update_window_size()
 
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)
@@ -353,7 +374,8 @@ class DownloadProgressDialog(QDialog):
             show_in_folder(self.worker.target_path)
 
     def toggle_details(self, checked):
-        if checked:
+        self.is_expanded = bool(checked)
+        if self.is_expanded:
             self.details_frame.show()
             self.btn_details.setText("Details <<")
             row_height = 20
@@ -364,13 +386,12 @@ class DownloadProgressDialog(QDialog):
             self.seg_table.setFixedHeight(table_height)
             
             # Expand window vertically while keeping width 520
-            details_height = table_height + 42
-            self.setFixedSize(self.fixed_width, self.base_height + details_height)
+            self._details_height = table_height + 42
         else:
             self.details_frame.hide()
             self.btn_details.setText("Details >>")
-            # Restore to base IDM size 520x236
-            self.setFixedSize(self.fixed_width, self.base_height)
+
+        self.update_window_size()
 
     def init_segment_table(self, num_segments):
         # Aria2 backend (which has 'gid') or workers with supports_resume support resume
@@ -412,6 +433,15 @@ class DownloadProgressDialog(QDialog):
                 self.seg_table.setItem(i, 1, QTableWidgetItem("-")) 
                 self.seg_table.setItem(i, 2, QTableWidgetItem("-"))
                 self.seg_table.setItem(i, 3, QTableWidgetItem("Unused"))
+
+        if self.is_expanded:
+            row_height = 20
+            header_height = 25
+            visible_rows = min(8, self.seg_table.rowCount())
+            table_height = header_height + (row_height * visible_rows) + 2
+            self.seg_table.setFixedHeight(table_height)
+            self._details_height = table_height + 42
+            self.update_window_size()
 
     def update_segment_row(self, index, dl, total, speed, status):
         if index < len(self.segment_bars):

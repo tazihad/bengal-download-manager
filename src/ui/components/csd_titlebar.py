@@ -142,15 +142,20 @@ class CsdResizeFilter(QObject):
         h = self._window.height()
         m = self._margin
 
-        if x < m:
-            edges |= Qt.Edge.LeftEdge
-        elif x >= w - m:
-            edges |= Qt.Edge.RightEdge
+        can_resize_h = self._window.minimumWidth() < self._window.maximumWidth()
+        can_resize_v = self._window.minimumHeight() < self._window.maximumHeight()
 
-        if y < m:
-            edges |= Qt.Edge.TopEdge
-        elif y >= h - m:
-            edges |= Qt.Edge.BottomEdge
+        if can_resize_h:
+            if x < m:
+                edges |= Qt.Edge.LeftEdge
+            elif x >= w - m:
+                edges |= Qt.Edge.RightEdge
+
+        if can_resize_v:
+            if y < m:
+                edges |= Qt.Edge.TopEdge
+            elif y >= h - m:
+                edges |= Qt.Edge.BottomEdge
 
         return edges
 
@@ -358,6 +363,7 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
     is_main_window = isinstance(window, QMainWindow)
 
     titlebar = CsdTitleBar(window, is_dark=is_dark, is_dialog=is_dialog)
+    titlebar.show()
     window._csd_titlebar = titlebar
 
     if is_main_window:
@@ -403,21 +409,39 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
             lay.addWidget(titlebar)
             lay.addWidget(content_widget, 1)
 
+    tb_h = titlebar.height() or 46
+    if hasattr(window, "on_csd_attached"):
+        try:
+            window.on_csd_attached(tb_h)
+        except Exception:
+            pass
+    elif is_dialog:
+        is_fixed_h = (window.minimumHeight() == window.maximumHeight() and window.maximumHeight() < 16777215)
+        if is_fixed_h:
+            window._csd_added_height = tb_h
+            window.setFixedHeight(window.height() + tb_h)
+        elif window.minimumHeight() > 0:
+            window._csd_added_height = tb_h
+            window.setMinimumHeight(window.minimumHeight() + tb_h)
+            window.resize(window.width(), window.height() + tb_h)
+
     resize_filter = CsdResizeFilter(window)
     window._csd_resize_filter = resize_filter
     window.installEventFilter(resize_filter)
 
+    is_vis = window.isVisible()
+    is_max = window.isMaximized()
+    geo = window.geometry()
     if not bool(window.windowFlags() & Qt.WindowType.FramelessWindowHint):
-        is_vis = window.isVisible()
-        is_max = window.isMaximized()
-        geo = window.geometry()
         window.setWindowFlags(window.windowFlags() | Qt.WindowType.FramelessWindowHint)
         if is_vis:
-            window.setGeometry(geo)
+            window.setGeometry(geo.x(), geo.y(), window.width(), window.height())
             if is_max:
                 window.showMaximized()
             else:
                 window.show()
+    elif is_vis:
+        window.resize(window.width(), window.height())
 
 
 def detach_csd(window: QWidget):
@@ -482,6 +506,20 @@ def detach_csd(window: QWidget):
                     del window._csd_orig_margins
         window._csd_titlebar = None
 
+    if hasattr(window, "on_csd_detached"):
+        try:
+            window.on_csd_detached()
+        except Exception:
+            pass
+    elif getattr(window, "_csd_added_height", 0) > 0:
+        added = window._csd_added_height
+        if window.minimumHeight() == window.maximumHeight():
+            window.setFixedHeight(max(10, window.height() - added))
+        elif window.minimumHeight() >= added:
+            window.setMinimumHeight(window.minimumHeight() - added)
+            window.resize(window.width(), max(window.minimumHeight(), window.height() - added))
+        del window._csd_added_height
+
     resize_filter = getattr(window, "_csd_resize_filter", None)
     if resize_filter is not None:
         window.removeEventFilter(resize_filter)
@@ -492,7 +530,7 @@ def detach_csd(window: QWidget):
     geo = window.geometry()
     window.setWindowFlags(window.windowFlags() & ~Qt.WindowType.FramelessWindowHint)
     if is_vis:
-        window.setGeometry(geo)
+        window.setGeometry(geo.x(), geo.y(), window.width(), window.height())
         if is_max:
             window.showMaximized()
         else:
