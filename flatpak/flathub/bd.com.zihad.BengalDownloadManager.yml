@@ -23,7 +23,6 @@ finish-args:
   - --talk-name=org.freedesktop.FileManager1
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.StatusNotifierWatcher
-  - --talk-name=org.freedesktop.Notifications
 
 modules:
   - python3-requirements.yml
