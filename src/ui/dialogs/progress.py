@@ -75,8 +75,8 @@ class DownloadProgressDialog(QDialog):
 
     def _get_titlebar_height(self) -> int:
         tb = getattr(self, "_csd_titlebar", None)
-        if tb is not None and not tb.isHidden():
-            return tb.height() or 46
+        if tb is not None:
+            return tb.height() if tb.height() > 0 else 46
         return 0
 
     def update_window_size(self):

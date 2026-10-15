@@ -77,3 +77,30 @@ class TestDownloadProgressDialog:
         detach_csd(dlg)
         assert dlg.height() == 236
         dlg.close()
+
+    def test_csd_show_event_integration(self, qapp, monkeypatch):
+        from core.services.theme_service import apply_titlebar_theme
+        monkeypatch.setenv("BDM_FORCE_CSD", "1")
+
+        worker = MockWorker()
+        dlg = DownloadProgressDialog(worker)
+        apply_titlebar_theme("Light", window=dlg)
+        dlg.show()
+        qapp.processEvents()
+
+        # Check that after show, CSD is attached and height is 282
+        assert dlg.height() == 282
+        assert hasattr(dlg, "_csd_titlebar") and dlg._csd_titlebar is not None
+        assert dlg._csd_titlebar.height() == 46
+        assert dlg._csd_content_widget.height() == 236
+
+        # Toggle details
+        dlg.btn_details.click()
+        qapp.processEvents()
+        assert dlg.height() == 511
+
+        dlg.btn_details.click()
+        qapp.processEvents()
+        assert dlg.height() == 282
+
+        dlg.close()

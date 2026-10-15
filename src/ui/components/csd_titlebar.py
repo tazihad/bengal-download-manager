@@ -363,6 +363,7 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
     is_main_window = isinstance(window, QMainWindow)
 
     titlebar = CsdTitleBar(window, is_dark=is_dark, is_dialog=is_dialog)
+    titlebar.show()
     window._csd_titlebar = titlebar
 
     if is_main_window:
