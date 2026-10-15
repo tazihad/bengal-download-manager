@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bengal Download Manager - Update Flatpak Python Dependencies
 # Uses flatpak-pip-generator (https://github.com/flatpak/flatpak-builder-tools/tree/master/pip)
-# to generate offline, hash-pinned modules for both internal and Flathub manifests.
+# to generate offline, hash-pinned modules for the Flatpak manifest.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [packages...]"
             echo ""
             echo "Updates Flatpak offline Python dependencies (python3-requirements.yaml)"
-            echo "for both internal (flatpak/) and Flathub (flatpak/flathub/) manifests."
+            echo "for the flatpak/ manifest."
             echo ""
             echo "Default packages: ${DEFAULT_PACKAGES[*]}"
             exit 0
@@ -96,12 +96,9 @@ print(f'✓ Validated YAML with {len(data[\"modules\"])} submodules')
 "
 
 INTERNAL_DEST="flatpak/python3-requirements.yaml"
-FLATHUB_DEST="flatpak/flathub/python3-requirements.yaml"
 
-mkdir -p "flatpak" "flatpak/flathub"
+mkdir -p "flatpak"
 cp "$CLEAN_OUTPUT" "$INTERNAL_DEST"
-cp "$CLEAN_OUTPUT" "$FLATHUB_DEST"
 
 echo "✓ Successfully updated:"
 echo "  - $INTERNAL_DEST"
-echo "  - $FLATHUB_DEST"

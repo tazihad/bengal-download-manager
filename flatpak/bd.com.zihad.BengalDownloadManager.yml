@@ -20,7 +20,6 @@ finish-args:
   - --share=network
   - --device=dri
   - --filesystem=xdg-download
-  - --talk-name=org.freedesktop.FileManager1
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.StatusNotifierWatcher
   - --talk-name=org.freedesktop.Notifications

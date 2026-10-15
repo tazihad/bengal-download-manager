@@ -1170,12 +1170,75 @@ def _dbus_filemanager_show(path, is_dir=False, clean_env=None):
     return False
 
 
-def _portal_open_directory(dir_path, clean_env=None):
-    """Opens directory via XDG Desktop Portal OpenDirectory method using file descriptor passing."""
-    if not shutil.which("gdbus") or not os.path.isdir(dir_path):
+def _is_sandboxed() -> bool:
+    """True when running inside a Flatpak sandbox (where the portal is the sanctioned path)."""
+    return os.path.exists("/.flatpak-info") or bool(os.environ.get("FLATPAK_ID"))
+
+
+def _default_file_manager_command(path, is_dir=False):
+    """
+    Resolves the user's XDG default file manager (the `inode/directory` handler) and
+    builds a command that opens `path`, selecting it when the file manager supports it.
+
+    Returns an argv list, or None when the default handler cannot be determined, is not
+    installed, or is unknown. This is the only reliable way to honour the *configured*
+    default file manager while still highlighting the item, since neither `xdg-open` nor
+    `org.freedesktop.FileManager1` is guaranteed to map to the XDG-configured default.
+    """
+    try:
+        proc = subprocess.run(
+            ['xdg-mime', 'query', 'default', 'inode/directory'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            env=get_clean_env(), timeout=3
+        )
+        desktop_id = (proc.stdout or "").strip().lower()
+    except Exception:
+        return None
+
+    if not desktop_id:
+        return None
+
+    parent = path if is_dir else (os.path.dirname(path) or path)
+
+    # desktop-entry token -> (binary, argv template). Thunar has no --select flag,
+    # so it can only open the containing directory.
+    fm_select_map = {
+        "dolphin": ("dolphin", ['--select', '{path}']),
+        "nautilus": ("nautilus", ['--select', '{path}']),
+        "caja": ("caja", ['--select', '{path}']),
+        "nemo": ("nemo", ['--select', '{path}']),
+        "pcmanfm-qt": ("pcmanfm-qt", ['--select', '{path}']),
+        "pcmanfm": ("pcmanfm", ['--select', '{path}']),
+        "konqueror": ("konqueror", ['--select', '{path}']),
+        "thunar": ("thunar", ['{parent}']),
+    }
+
+    for token, (binary, args) in fm_select_map.items():
+        if token in desktop_id:
+            if not shutil.which(binary):
+                return None
+            return [binary] + [a.format(path=path, parent=parent) for a in args]
+
+    return None
+
+
+def _portal_reveal(path, clean_env=None):
+    """
+    Opens the folder containing `path` (file or directory) via the XDG Desktop Portal
+    OpenURI.OpenDirectory method, selecting the item when the file manager supports it.
+
+    The portal determines what to highlight from the passed file descriptor, so the
+    target's own fd is passed (never the parent directory, which would only open the
+    folder without selecting anything). OpenDirectory is implemented on top of
+    org.freedesktop.FileManager1.ShowItems on the host side.
+    """
+    if not shutil.which("gdbus") or not os.path.exists(path):
         return False
     try:
-        fd = os.open(dir_path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0))
+        open_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        if os.path.isdir(path):
+            open_flags |= getattr(os, "O_DIRECTORY", 0)
+        fd = os.open(path, open_flags)
         try:
             res = subprocess.run(
                 [
@@ -1235,16 +1298,9 @@ def show_in_folder(path):
                 pass
             return
         else:
-            # Linux / Unix: Target ONLY the default file manager
-            # 1. DBus FileManager1 ShowFolders (default active session file manager)
-            if _dbus_filemanager_show(path, is_dir=True, clean_env=clean_env):
-                return
-
-            # 2. XDG Desktop Portal OpenDirectory (sandboxed Flatpak / Portal default handler)
-            if _portal_open_directory(path, clean_env=clean_env):
-                return
-
-            # 3. Default MIME handler via xdg-open / gio open
+            # Linux / Unix: open the directory itself, honouring the XDG-configured
+            # default handler. `gio open` / `xdg-open` resolve the `inode/directory`
+            # association (and route through the portal automatically when sandboxed).
             if shutil.which("gio"):
                 try:
                     subprocess.Popen(['gio', 'open', path], env=clean_env)
@@ -1259,7 +1315,16 @@ def show_in_folder(path):
                 except Exception:
                     pass
 
-            # 4. Final Qt fallback
+            # XDG Desktop Portal fallback (sandboxed Flatpak / no gio or xdg-open)
+            if _portal_reveal(path, clean_env=clean_env):
+                return
+
+            # Last resort: org.freedesktop.FileManager1. Its owner is NOT guaranteed to
+            # be the XDG-configured default file manager, so this is intentionally last.
+            if _dbus_filemanager_show(path, is_dir=True, clean_env=clean_env):
+                return
+
+            # Final Qt fallback
             try:
                 from PyQt6.QtCore import QUrl
                 from PyQt6.QtGui import QDesktopServices
@@ -1285,48 +1350,26 @@ def show_in_folder(path):
         return
 
     else:
-        # Linux / Unix: Target ONLY the default file manager
-        # 1. DBus FileManager1 ShowItems (highlights item in default session file manager)
-        if _dbus_filemanager_show(path, is_dir=False, clean_env=clean_env):
+        parent = os.path.dirname(path)
+
+        # 1. Inside a Flatpak sandbox the portal is the sanctioned reveal path and the
+        #    only one guaranteed to work without extra D-Bus permissions.
+        if _is_sandboxed() and _portal_reveal(path, clean_env=clean_env):
             return
 
-        parent = os.path.dirname(path) if not os.path.isdir(path) else path
+        # 2. Honour the XDG-configured default file manager by launching it directly with
+        #    its own --select flag. This is the only way to both use the *configured*
+        #    default and highlight the item (xdg-open has no reveal semantics, and the
+        #    org.freedesktop.FileManager1 owner is not necessarily the XDG default).
+        fm_cmd = _default_file_manager_command(path, is_dir=False)
+        if fm_cmd:
+            try:
+                subprocess.Popen(fm_cmd, env=clean_env)
+                return
+            except Exception:
+                pass
 
-        # 2. Query default configured file manager via XDG MIME and launch only that default binary
-        try:
-            proc = subprocess.Popen(
-                ['xdg-mime', 'query', 'default', 'inode/directory'],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=clean_env
-            )
-            output, _ = proc.communicate()
-            output = output.strip().lower()
-
-            fm_select_map = {
-                "dolphin": ['dolphin', '--select', path],
-                "nautilus": ['nautilus', '--select', path],
-                "caja": ['caja', '--select', path],
-                "nemo": ['nemo', '--select', path],
-                "thunar": ['thunar', parent],
-                "pcmanfm-qt": ['pcmanfm-qt', '--select', path],
-                "pcmanfm": ['pcmanfm', '--select', path],
-                "konqueror": ['konqueror', '--select', path],
-            }
-            for fm_key, fm_cmd in fm_select_map.items():
-                if fm_key in output and shutil.which(fm_cmd[0]):
-                    try:
-                        subprocess.Popen(fm_cmd, env=clean_env)
-                        return
-                    except Exception:
-                        pass
-                    break  # Stop if the user's default FM was found but failed to spawn
-        except Exception:
-            pass
-
-        # 3. XDG Desktop Portal OpenDirectory on parent folder (sandboxed Flatpak / Portal fallback)
-        if _portal_open_directory(parent, clean_env=clean_env):
-            return
-
-        # 4. Open parent directory via default MIME tools
+        # 3. Open the containing folder via the XDG default MIME handler (no selection).
         if shutil.which("gio"):
             try:
                 subprocess.Popen(['gio', 'open', parent], env=clean_env)
@@ -1341,7 +1384,16 @@ def show_in_folder(path):
             except Exception:
                 pass
 
-        # 5. Final Qt fallback
+        # 4. XDG Desktop Portal reveal (highlight, or the sandbox fallback path).
+        if _portal_reveal(path, clean_env=clean_env):
+            return
+
+        # 5. Last resort: org.freedesktop.FileManager1. Its owner is NOT guaranteed to be
+        #    the XDG-configured default file manager, so this is intentionally last.
+        if _dbus_filemanager_show(path, is_dir=False, clean_env=clean_env):
+            return
+
+        # 6. Final Qt fallback
         try:
             from PyQt6.QtCore import QUrl
             from PyQt6.QtGui import QDesktopServices

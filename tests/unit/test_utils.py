@@ -1,6 +1,8 @@
 """Unit tests for core.utils."""
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from core.utils import (
@@ -25,6 +27,9 @@ from core.utils import (
     sanitize_media_url,
     wrap_url_tooltip,
     get_unique_media_filepath,
+    show_in_folder,
+    _default_file_manager_command,
+    _portal_reveal,
 )
 
 
@@ -244,4 +249,108 @@ class TestUtilsModuleImports:
         import core.utils as utils
         assert hasattr(utils, "time")
         assert callable(utils.time.time)
+
+
+class TestShowInFolderXdgDefault:
+    """show_in_folder() must honour the XDG-configured default file manager."""
+
+    @staticmethod
+    def _xdg_mime_result(desktop_id):
+        result = MagicMock()
+        result.stdout = f"{desktop_id}\n" if desktop_id else ""
+        result.returncode = 0
+        return result
+
+    def test_default_file_manager_command_dolphin(self):
+        with patch("core.utils.subprocess.run", return_value=self._xdg_mime_result("org.kde.dolphin.desktop")), \
+             patch("core.utils.shutil.which", return_value="/usr/bin/dolphin"):
+            cmd = _default_file_manager_command("/home/u/Downloads/file.zip")
+        assert cmd == ["dolphin", "--select", "/home/u/Downloads/file.zip"]
+
+    def test_default_file_manager_command_thunar_opens_parent(self):
+        # Thunar has no --select flag, so it can only open the containing directory.
+        with patch("core.utils.subprocess.run", return_value=self._xdg_mime_result("Thunar.desktop")), \
+             patch("core.utils.shutil.which", return_value="/usr/bin/thunar"):
+            cmd = _default_file_manager_command("/home/u/Downloads/file.zip")
+        assert cmd == ["thunar", "/home/u/Downloads"]
+
+    def test_default_file_manager_command_unknown_returns_none(self):
+        with patch("core.utils.subprocess.run", return_value=self._xdg_mime_result("org.example.Unknown.desktop")), \
+             patch("core.utils.shutil.which", return_value="/usr/bin/unknown"):
+            assert _default_file_manager_command("/home/u/Downloads/file.zip") is None
+
+    def test_show_in_folder_file_uses_xdg_default_fm(self):
+        path = "/home/u/Downloads/file.zip"
+        with patch("core.utils.platform.system", return_value="Linux"), \
+             patch("core.utils._is_sandboxed", return_value=False), \
+             patch("core.utils.os.path.isdir", return_value=False), \
+             patch("core.utils.os.path.exists", return_value=True), \
+             patch("core.utils._default_file_manager_command", return_value=["dolphin", "--select", path]), \
+             patch("core.utils.subprocess.Popen") as mock_popen, \
+             patch("core.utils._dbus_filemanager_show") as mock_dbus:
+            show_in_folder(path)
+        assert mock_popen.call_args[0][0] == ["dolphin", "--select", path]
+        # FileManager1 must never be consulted when the XDG default resolves.
+        mock_dbus.assert_not_called()
+
+    def test_show_in_folder_file_unknown_fm_opens_parent(self):
+        path = "/home/u/Downloads/file.zip"
+        with patch("core.utils.platform.system", return_value="Linux"), \
+             patch("core.utils._is_sandboxed", return_value=False), \
+             patch("core.utils.os.path.isdir", return_value=False), \
+             patch("core.utils.os.path.exists", return_value=True), \
+             patch("core.utils._default_file_manager_command", return_value=None), \
+             patch("core.utils.shutil.which", return_value="/usr/bin/gio"), \
+             patch("core.utils.subprocess.Popen") as mock_popen, \
+             patch("core.utils._portal_reveal", return_value=False), \
+             patch("core.utils._dbus_filemanager_show") as mock_dbus:
+            show_in_folder(path)
+        assert mock_popen.call_args[0][0] == ["gio", "open", "/home/u/Downloads"]
+        mock_dbus.assert_not_called()
+
+    def test_show_in_folder_filemanager1_only_as_last_resort(self):
+        path = "/home/u/Downloads/file.zip"
+        with patch("core.utils.platform.system", return_value="Linux"), \
+             patch("core.utils._is_sandboxed", return_value=False), \
+             patch("core.utils.os.path.isdir", return_value=False), \
+             patch("core.utils.os.path.exists", return_value=True), \
+             patch("core.utils._default_file_manager_command", return_value=None), \
+             patch("core.utils.shutil.which", return_value=None), \
+             patch("core.utils.subprocess.Popen") as mock_popen, \
+             patch("core.utils._portal_reveal", return_value=False), \
+             patch("core.utils._dbus_filemanager_show", return_value=True) as mock_dbus:
+            show_in_folder(path)
+        mock_popen.assert_not_called()
+        mock_dbus.assert_called_once()
+
+    def test_show_in_folder_directory_prefers_xdg_handler(self):
+        path = "/home/u/Downloads"
+        with patch("core.utils.platform.system", return_value="Linux"), \
+             patch("core.utils.os.path.isdir", return_value=True), \
+             patch("core.utils.os.path.exists", return_value=True), \
+             patch("core.utils.shutil.which", return_value="/usr/bin/gio"), \
+             patch("core.utils.subprocess.Popen") as mock_popen, \
+             patch("core.utils._dbus_filemanager_show") as mock_dbus:
+            show_in_folder(path)
+        assert mock_popen.call_args[0][0] == ["gio", "open", path]
+        mock_dbus.assert_not_called()
+
+    def test_portal_reveal_passes_target_fd_not_parent(self):
+        path = "/home/u/Downloads/file.zip"
+        fake_run = MagicMock()
+        fake_run.returncode = 0
+        with patch("core.utils.shutil.which", return_value="/usr/bin/gdbus"), \
+             patch("core.utils.os.path.exists", return_value=True), \
+             patch("core.utils.os.path.isdir", return_value=False), \
+             patch("core.utils.os.open", return_value=7) as mock_open, \
+             patch("core.utils.os.close"), \
+             patch("core.utils.subprocess.run", return_value=fake_run) as mock_run:
+            assert _portal_reveal(path) is True
+        # The target file itself is opened (not the parent directory) so the portal
+        # can highlight it; O_DIRECTORY is reserved for real directories.
+        assert mock_open.call_args[0][0] == path
+        flags = mock_open.call_args[0][1]
+        assert not (flags & getattr(os, "O_DIRECTORY", 0))
+        method_args = mock_run.call_args[0][0]
+        assert "org.freedesktop.portal.OpenURI.OpenDirectory" in method_args
 
