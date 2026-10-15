@@ -403,6 +403,16 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
             lay.addWidget(titlebar)
             lay.addWidget(content_widget, 1)
 
+            # Adjust window height constraints for the added titlebar (46px) so dialog content isn't cramped
+            is_fixed_h = (window.minimumHeight() == window.maximumHeight()) and window.minimumHeight() > 0
+            if is_fixed_h:
+                orig_h = window.height()
+                window._csd_orig_fixed_height = orig_h
+                window.setFixedHeight(orig_h + 46)
+            elif window.minimumHeight() > 0:
+                window._csd_orig_min_height = window.minimumHeight()
+                window.setMinimumHeight(window.minimumHeight() + 46)
+
     resize_filter = CsdResizeFilter(window)
     window._csd_resize_filter = resize_filter
     window.installEventFilter(resize_filter)
@@ -411,6 +421,8 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
         is_vis = window.isVisible()
         is_max = window.isMaximized()
         geo = window.geometry()
+        if is_dialog:
+            geo.setHeight(geo.height() + 46)
         window.setWindowFlags(window.windowFlags() | Qt.WindowType.FramelessWindowHint)
         if is_vis:
             window.setGeometry(geo)
@@ -480,6 +492,13 @@ def detach_csd(window: QWidget):
                     if lay:
                         lay.setContentsMargins(l, t, r, b)
                     del window._csd_orig_margins
+        if hasattr(window, "_csd_orig_fixed_height"):
+            window.setFixedHeight(window._csd_orig_fixed_height)
+            del window._csd_orig_fixed_height
+        elif hasattr(window, "_csd_orig_min_height"):
+            window.setMinimumHeight(window._csd_orig_min_height)
+            del window._csd_orig_min_height
+
         window._csd_titlebar = None
 
     resize_filter = getattr(window, "_csd_resize_filter", None)
@@ -490,6 +509,8 @@ def detach_csd(window: QWidget):
     is_vis = window.isVisible()
     is_max = window.isMaximized()
     geo = window.geometry()
+    if not is_main_window:
+        geo.setHeight(max(100, geo.height() - 46))
     window.setWindowFlags(window.windowFlags() & ~Qt.WindowType.FramelessWindowHint)
     if is_vis:
         window.setGeometry(geo)

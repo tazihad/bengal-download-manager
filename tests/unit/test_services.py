@@ -226,3 +226,36 @@ class TestSocksBridgeParseHostPort:
     def test_default_port(self):
         from core.services.socks_bridge import parse_host_port
         assert parse_host_port("host", default_port=3128) == ("host", 3128)
+
+
+class TestTitlebarGnomeTheming:
+    def test_native_gnome_titlebar_default_no_csd(self, monkeypatch):
+        import os
+        from core.services.theme_service import apply_titlebar_theme, is_gnome_desktop
+        from PyQt6.QtWidgets import QDialog
+
+        monkeypatch.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        monkeypatch.delenv("BDM_FORCE_CSD", raising=False)
+        assert is_gnome_desktop() is True
+
+        dlg = QDialog()
+        apply_titlebar_theme("Light", window=dlg)
+        # Should NOT attach custom CSD by default, relying on native GNOME/libdecor theming
+        assert getattr(dlg, "_csd_titlebar", None) is None
+
+    def test_forced_csd_with_env_var(self, monkeypatch):
+        import os
+        from core.services.theme_service import apply_titlebar_theme
+        from PyQt6.QtWidgets import QDialog
+
+        monkeypatch.setenv("XDG_CURRENT_DESKTOP", "GNOME")
+        monkeypatch.setenv("BDM_FORCE_CSD", "1")
+
+        dlg = QDialog()
+        apply_titlebar_theme("Dark", window=dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is not None
+
+        # When switching to Automatic, CSD is cleanly detached
+        apply_titlebar_theme("Automatic", window=dlg)
+        assert getattr(dlg, "_csd_titlebar", None) is None
+

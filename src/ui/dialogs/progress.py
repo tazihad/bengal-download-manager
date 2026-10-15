@@ -23,7 +23,8 @@ class DownloadProgressDialog(QDialog):
         
         self.fixed_width = 520
         self.base_height = 236
-        self.setFixedSize(self.fixed_width, self.base_height)
+        csd_extra = 46 if getattr(self, "_csd_titlebar", None) is not None else 0
+        self.setFixedSize(self.fixed_width, self.base_height + csd_extra)
         
         self.is_expanded = False
         self.segment_bars = []
@@ -365,12 +366,14 @@ class DownloadProgressDialog(QDialog):
             
             # Expand window vertically while keeping width 520
             details_height = table_height + 42
-            self.setFixedSize(self.fixed_width, self.base_height + details_height)
+            csd_extra = 46 if getattr(self, "_csd_titlebar", None) is not None else 0
+            self.setFixedSize(self.fixed_width, self.base_height + details_height + csd_extra)
         else:
             self.details_frame.hide()
             self.btn_details.setText("Details >>")
             # Restore to base IDM size 520x236
-            self.setFixedSize(self.fixed_width, self.base_height)
+            csd_extra = 46 if getattr(self, "_csd_titlebar", None) is not None else 0
+            self.setFixedSize(self.fixed_width, self.base_height + csd_extra)
 
     def init_segment_table(self, num_segments):
         # Aria2 backend (which has 'gid') or workers with supports_resume support resume

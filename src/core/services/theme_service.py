@@ -969,8 +969,15 @@ def apply_titlebar_theme(title_bar_mode="Automatic", window=None, app=None):
         except Exception:
             pass
 
-    # 5. Linux GNOME / GTK Client-Side Decoration (CSD) - for GNOME/GTK distros, Automatic uses system default titlebar
-    if sys.platform.startswith("linux") and is_gnome_desktop() and mode in ("Light", "Dark"):
+    # 5. Linux GNOME / GTK Title Bar:
+    # Modern GNOME Wayland/X11 (Qt 6.5+) supports native title bar theming without removing window frames:
+    #   - app.styleHints().setColorScheme(Qt.ColorScheme.Light / Dark) (Step 1)
+    #   - In-process GTK_THEME="Adwaita:light" / "Adwaita:dark" for libdecor-gtk (Step 3b)
+    #   - Setting _GTK_THEME_VARIANT on X11 windows (Step 3)
+    # Native decorations adapt their color without requiring FramelessWindowHint,
+    # eliminating window recreation flicker and preventing modal dialogs from closing.
+    # Custom frameless CSD is preserved only if explicitly forced via BDM_FORCE_CSD=1.
+    if os.environ.get("BDM_FORCE_CSD") == "1" and sys.platform.startswith("linux") and is_gnome_desktop() and mode in ("Light", "Dark"):
         _apply_gnome_csd_titlebar(mode, is_dark, all_windows)
     else:
         try:
