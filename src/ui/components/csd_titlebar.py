@@ -228,6 +228,7 @@ class CsdTitleBar(QWidget):
         opt = QStyleOption()
         opt.initFrom(self)
         p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, p, self)
         super().paintEvent(event)
 
@@ -260,10 +261,30 @@ class CsdTitleBar(QWidget):
             self.btn_max.setToolTip("Restore" if is_max else "Maximize")
         self.apply_style(self._is_dark)
 
+        container = getattr(self._window, "_csd_container", None)
+        if container:
+            container.setStyleSheet("""
+                QWidget#CsdContainer {
+                    background-color: transparent;
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 0px;
+                }
+            """)
+        content_w = getattr(self._window, "_csd_content_widget", None)
+        if content_w:
+            content_w.setStyleSheet("""
+                QWidget#CsdDialogContent {
+                    background-color: palette(window);
+                    border-radius: 0px;
+                }
+            """)
+
     def apply_style(self, is_dark: bool):
         self._is_dark = is_dark
         c = ADW_COLORS["dark" if is_dark else "light"]
 
+        # Ensure top corners fill flush with the window edge (0px) to prevent
+        # unpainted rectangular canvas black corner artifacts on Wayland / X11
         self.setStyleSheet(f"""
             QWidget#CsdTitleBar {{
                 background-color: {c['headerbar_bg']};
@@ -357,6 +378,10 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
     is_dialog = isinstance(window, QDialog)
     is_main_window = isinstance(window, QMainWindow)
 
+    # Protect active modal dialogs from window flag changes mid-execution
+    if is_dialog and window.isVisible() and window.isModal() and not getattr(window, "_csd_during_show", False):
+        return
+
     titlebar = CsdTitleBar(window, is_dark=is_dark, is_dialog=is_dialog)
     window._csd_titlebar = titlebar
 
@@ -364,6 +389,7 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
         menubar = window.menuBar()
         container = QWidget(window)
         container.setObjectName("CsdContainer")
+        container.setStyleSheet("QWidget#CsdContainer { background-color: transparent; border-top-left-radius: 0px; border-top-right-radius: 0px; }")
         clayout = QVBoxLayout(container)
         clayout.setContentsMargins(0, 0, 0, 0)
         clayout.setSpacing(0)
@@ -423,13 +449,19 @@ def attach_csd(window: QWidget, is_dark: bool = False, mode: str = "Automatic"):
         geo = window.geometry()
         if is_dialog:
             geo.setHeight(geo.height() + 46)
+        if is_vis:
+            window.hide()
+            wh = window.windowHandle()
+            if wh:
+                wh.destroy()
         window.setWindowFlags(window.windowFlags() | Qt.WindowType.FramelessWindowHint)
         if is_vis:
-            window.setGeometry(geo)
             if is_max:
                 window.showMaximized()
             else:
                 window.show()
+            window.setGeometry(geo)
+            window.update()
 
 
 def detach_csd(window: QWidget):
@@ -442,6 +474,11 @@ def detach_csd(window: QWidget):
         return
 
     is_main_window = isinstance(window, QMainWindow)
+    is_dialog = isinstance(window, QDialog)
+
+    # Protect active modal dialogs from window flag changes mid-execution
+    if is_dialog and window.isVisible() and window.isModal() and not getattr(window, "_csd_during_show", False):
+        return
 
     if titlebar is not None:
         if is_main_window:
@@ -511,11 +548,17 @@ def detach_csd(window: QWidget):
     geo = window.geometry()
     if not is_main_window:
         geo.setHeight(max(100, geo.height() - 46))
+    if is_vis:
+        window.hide()
+        wh = window.windowHandle()
+        if wh:
+            wh.destroy()
     window.setWindowFlags(window.windowFlags() & ~Qt.WindowType.FramelessWindowHint)
     if is_vis:
-        window.setGeometry(geo)
         if is_max:
             window.showMaximized()
         else:
             window.show()
+        window.setGeometry(geo)
+        window.update()
 
