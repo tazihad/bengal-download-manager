@@ -289,6 +289,17 @@ class DependencyManagerWorker(QThread):
         super().__init__()
         self.force_download = force_download
         self.target_tool = target_tool
+        self._active_resp = None
+
+    def stop(self):
+        """Safely signals worker interruption and closes active socket reads without corrupting Python runtime state."""
+        self.requestInterruption()
+        try:
+            resp = getattr(self, "_active_resp", None)
+            if resp:
+                resp.close()
+        except Exception:
+            pass
 
     def run(self):
         BIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -479,19 +490,23 @@ class DependencyManagerWorker(QThread):
                     if use_unverified:
                         raise net_err
 
-            with resp, open(tmp_download_path, "wb") as out_f:
-                totalsize = int(resp.headers.get("Content-Length", 0))
-                blocksize = 16384
-                blocknum = 0
-                while True:
-                    if self.isInterruptionRequested():
-                        raise InterruptedError("Download interrupted")
-                    chunk = resp.read(blocksize)
-                    if not chunk:
-                        break
-                    out_f.write(chunk)
-                    blocknum += 1
-                    _reporthook(blocknum, blocksize, totalsize)
+            self._active_resp = resp
+            try:
+                with resp, open(tmp_download_path, "wb") as out_f:
+                    totalsize = int(resp.headers.get("Content-Length", 0))
+                    blocksize = 16384
+                    blocknum = 0
+                    while True:
+                        if self.isInterruptionRequested():
+                            raise InterruptedError("Download interrupted")
+                        chunk = resp.read(blocksize)
+                        if not chunk:
+                            break
+                        out_f.write(chunk)
+                        blocknum += 1
+                        _reporthook(blocknum, blocksize, totalsize)
+            finally:
+                self._active_resp = None
 
             if tool_name in ("ffmpeg", "ffprobe") and resp:
                 remote_etag = resp.headers.get("etag", "").strip('"')

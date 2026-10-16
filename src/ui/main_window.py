@@ -6439,11 +6439,7 @@ class MainWindow(QMainWindow):
                     if hasattr(worker, 'quit'):
                         worker.quit()
                     if hasattr(worker, 'wait'):
-                        worker.wait(1000)
-                    if hasattr(worker, 'isRunning') and worker.isRunning():
-                        if hasattr(worker, 'terminate'):
-                            worker.terminate()
-                            worker.wait(1000)
+                        worker.wait(300)
                 except Exception:
                     pass
         except (RuntimeError, Exception):

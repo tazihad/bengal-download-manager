@@ -788,9 +788,7 @@ def _apply_kde_wayland_titlebar(is_dark: bool, windows: list, app: QApplication,
 def _apply_in_process_gtk_theme(is_dark: bool, mode: str = "Auto") -> bool:
     """Sets in-process environment variable for Wayland libdecor GTK plugin without mutating global settings."""
     try:
-        if mode in ("Auto", "Automatic"):
-            os.environ.pop("GTK_THEME", None)
-        elif is_dark:
+        if is_dark:
             os.environ["GTK_THEME"] = "Adwaita:dark"
         else:
             os.environ["GTK_THEME"] = "Adwaita:light"
@@ -1000,14 +998,7 @@ class _TitleBarEventFilter(QObject):
                 if hasattr(watched, "isWindow") and watched.isWindow():
                     if isinstance(watched, (QMainWindow, QDialog)) and watched.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog):
                         mode = get_current_titlebar_mode()
-                        if mode in ("Light", "Dark"):
-                            apply_titlebar_theme(mode, window=watched)
-                        else:
-                            # Automatic mode: Window inherits app-level styleHints & GTK_THEME automatically.
-                            # Ensure no leftover custom CSD is attached.
-                            if getattr(watched, "_csd_titlebar", None) is not None:
-                                from ui.components.csd_titlebar import detach_csd
-                                detach_csd(watched)
+                        apply_titlebar_theme(mode, window=watched)
         except Exception:
             pass
         try:

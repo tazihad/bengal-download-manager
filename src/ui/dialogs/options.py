@@ -2093,13 +2093,12 @@ class OptionsDialog(QDialog):
             self._proxy_worker = None
 
     def closeEvent(self, event):
-        self.hide()
-        try:
-            QApplication.processEvents()
-        except Exception:
-            pass
         self._cleanup_proxy_worker()
-        super().closeEvent(event)
+        try:
+            self.save_and_accept()
+        except Exception:
+            self.hide()
+            super().closeEvent(event)
 
     def accept(self):
         self.hide()

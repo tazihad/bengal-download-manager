@@ -48,9 +48,7 @@ def stop_all_media_extractors():
                 thread.stop()
             if hasattr(thread, "requestInterruption"):
                 thread.requestInterruption()
-            if hasattr(thread, "terminate"):
-                thread.terminate()
-            elif hasattr(thread, "quit"):
+            if hasattr(thread, "quit"):
                 thread.quit()
             if hasattr(thread, "wait"):
                 thread.wait(200)

@@ -131,6 +131,19 @@ def main():
                     num_str = scale_str.replace("%", "").strip()
                     factor = float(num_str) / 100.0
                     os.environ["QT_SCALE_FACTOR"] = str(factor)
+                # Pre-seed GTK_THEME environment for Wayland libdecor and GTK styling
+                tb_mode = settings_data.get("title_bar", "Automatic")
+                t_mode = settings_data.get("theme", "BDM Auto (Default)")
+                if str(tb_mode).strip().lower() in ("dark", "system dark"):
+                    is_dark = True
+                elif str(tb_mode).strip().lower() in ("light", "system light"):
+                    is_dark = False
+                elif str(t_mode).strip().lower() in ("bdm dark", "dark", "ubuntu dark", "dracula", "nord"):
+                    is_dark = True
+                else:
+                    from core.services.theme_service import is_system_dark_theme
+                    is_dark = is_system_dark_theme()
+                os.environ["GTK_THEME"] = "Adwaita:dark" if is_dark else "Adwaita:light"
     except Exception:
         pass
 

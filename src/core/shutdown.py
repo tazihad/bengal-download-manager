@@ -192,6 +192,28 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
     if coordinator.is_finished:
         return 0.0
 
+    # Arm a safety watchdog early to guarantee the process never hangs on finalization
+    import os
+    import signal
+    if "pytest" not in sys.modules and os.environ.get("BDM_TESTING") != "1":
+        if hasattr(signal, "alarm") and hasattr(signal, "SIGALRM"):
+            try:
+                signal.signal(signal.SIGALRM, lambda *_: os._exit(0))
+                signal.alarm(3)  # Hard OS kernel alarm after 3 seconds
+            except Exception:
+                pass
+
+        def _shutdown_watchdog():
+            time.sleep(2.5)
+            try:
+                logger.warning("[Shutdown] Watchdog expired (2.5s). Forcing clean process exit.")
+            except Exception:
+                pass
+            os._exit(0)
+
+        watchdog = threading.Thread(target=_shutdown_watchdog, daemon=True, name="ShutdownWatchdog")
+        watchdog.start()
+
     if window is not None:
         # ---------------------------------------------------------
         # Phase 1: UI Teardown
@@ -270,14 +292,14 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
                 w = getattr(window, w_attr, None)
                 if w and hasattr(w, "isRunning") and w.isRunning():
                     try:
+                        if hasattr(w, "stop") and callable(w.stop):
+                            w.stop()
                         if hasattr(w, "requestInterruption"):
                             w.requestInterruption()
-                        if hasattr(w, "terminate"):
-                            w.terminate()
-                        elif hasattr(w, "quit"):
+                        if hasattr(w, "quit"):
                             w.quit()
                         if hasattr(w, "wait"):
-                            w.wait(300)
+                            w.wait(200)
                     except Exception:
                         pass
                     setattr(window, w_attr, None)
@@ -351,10 +373,18 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
                     pass
                 window.single_instance_server = None
 
-        service_tasks.append(("stop_single_instance_server", stop_single_instance))
+        def stop_aria2_manager():
+            try:
+                from core.aria2_daemon import get_aria2_daemon_manager
+                mgr = get_aria2_daemon_manager()
+                if mgr:
+                    mgr.stop(timeout_sec=0.8)
+            except Exception:
+                pass
 
         if hasattr(window, "stop_aria2_daemon"):
-            service_tasks.append(("stop_aria2_daemon", window.stop_aria2_daemon))
+            service_tasks.append(("stop_window_aria2_daemon", window.stop_aria2_daemon))
+        service_tasks.append(("stop_aria2_daemon_manager", stop_aria2_manager))
 
         coordinator.execute_phase(ShutdownPhase.SERVICES, service_tasks)
 
@@ -412,19 +442,5 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
         cleanup_tasks.append(("cleanup_prefetch_temp_files", lambda: cleanup_prefetch_temp_files(window)))
 
     coordinator.execute_phase(ShutdownPhase.CLEANUP, cleanup_tasks)
-
-    # Arm a safety watchdog to guarantee the process never hangs on finalization (outside test suite)
-    import os
-    if "pytest" not in sys.modules and os.environ.get("BDM_TESTING") != "1":
-        def _shutdown_watchdog():
-            time.sleep(2.0)
-            try:
-                logger.warning("[Shutdown] Watchdog expired (2.0s). Forcing clean process exit.")
-            except Exception:
-                pass
-            os._exit(0)
-
-        watchdog = threading.Thread(target=_shutdown_watchdog, daemon=True, name="ShutdownWatchdog")
-        watchdog.start()
 
     return coordinator.finish()
