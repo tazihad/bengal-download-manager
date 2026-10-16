@@ -263,7 +263,10 @@ class TestNotifications:
              patch("core.notifications._send_freedesktop_notification", return_value=True) as mock_fdo:
             send_system_notification("Title", "Message")
             import time
-            time.sleep(0.1)
+            for _ in range(30):
+                if mock_fdo.called:
+                    break
+                time.sleep(0.05)
             assert mock_fdo.called
 
     def test_send_system_notification_uninstalled_calls_gdbus(self):
@@ -272,7 +275,10 @@ class TestNotifications:
              patch("core.notifications._send_gdbus_cli", return_value=True) as mock_gdbus:
             send_system_notification("Title", "Message")
             import time
-            time.sleep(0.1)
+            for _ in range(30):
+                if mock_gdbus.called:
+                    break
+                time.sleep(0.05)
             assert mock_gdbus.called
 
     def test_send_system_notification_calls_portal_in_flatpak(self):
@@ -280,7 +286,10 @@ class TestNotifications:
              patch("core.notifications._send_portal_notification", return_value=True) as mock_portal:
             send_system_notification("Title", "Message")
             import time
-            time.sleep(0.1)
+            for _ in range(30):
+                if mock_portal.called:
+                    break
+                time.sleep(0.05)
             assert mock_portal.called
 
     def test_send_system_notification_calls_freedesktop_in_snap(self, monkeypatch):
@@ -291,7 +300,10 @@ class TestNotifications:
              patch("core.notifications._send_freedesktop_notification", return_value=True) as mock_fdo:
             send_system_notification("Title", "Message")
             import time
-            time.sleep(0.1)
+            for _ in range(30):
+                if mock_fdo.called:
+                    break
+                time.sleep(0.05)
             assert mock_fdo.called
             call_kwargs = mock_fdo.call_args[1]
             assert call_kwargs.get("desktop_entry") == "bengal-download-manager_bengal-download-manager"
