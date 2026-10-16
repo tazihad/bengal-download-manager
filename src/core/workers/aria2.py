@@ -524,6 +524,17 @@ class Aria2Worker(QThread):
                 pass
             self.log_signal.emit("Removing download from Aria2...")
 
+    def stop(self):
+        """Stops the worker thread and terminates its internal loop."""
+        self.is_running = False
+        self.is_pause_requested = True
+        self.is_paused = True
+        if self.gid:
+            try:
+                self.call_rpc("aria2.pause", [self.gid])
+            except Exception:
+                pass
+
     def pause(self):
         self.is_pause_requested = True
         self.is_paused = True

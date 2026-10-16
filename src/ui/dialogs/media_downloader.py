@@ -1599,12 +1599,11 @@ class MediaDownloaderDialog(QDialog):
                 try:
                     self._dep_worker.tool_status_signal.disconnect()
                     self._dep_worker.all_finished_signal.disconnect()
+                    if hasattr(self._dep_worker, "stop"):
+                        self._dep_worker.stop()
                     self._dep_worker.requestInterruption()
                     self._dep_worker.quit()
-                    self._dep_worker.wait(1000)
-                    if self._dep_worker.isRunning():
-                        self._dep_worker.terminate()
-                        self._dep_worker.wait(500)
+                    self._dep_worker.wait(500)
                 except Exception:
                     pass
             else:
@@ -1680,10 +1679,7 @@ class MediaDownloaderDialog(QDialog):
                     self._worker.stop()
                     self._worker.requestInterruption()
                     self._worker.quit()
-                    self._worker.wait(2000)
-                    if self._worker.isRunning():
-                        self._worker.terminate()
-                        self._worker.wait(2000)
+                    self._worker.wait(500)
                 except Exception:
                     pass
         self._finish_loading()
@@ -3040,10 +3036,7 @@ class MediaDownloaderDialog(QDialog):
                 self._worker.stop()
                 self._worker.requestInterruption()
                 self._worker.quit()
-                self._worker.wait(2000)
-                if self._worker.isRunning():
-                    self._worker.terminate()
-                    self._worker.wait(2000)
+                self._worker.wait(500)
             except Exception:
                 pass
         if hasattr(self, "_dep_worker") and self._dep_worker and self._dep_worker.isRunning():

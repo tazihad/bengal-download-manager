@@ -28,9 +28,9 @@ class DownloadFileInfoDialog(QDialog):
         self.force_copy = force_copy
         self.config = load_category_config()
         
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(15, 10, 15, 10)
-        self.layout.setSpacing(8)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(15, 10, 15, 10)
+        main_layout.setSpacing(8)
         
         # Determine category automatically
         self.ext_map = {
@@ -82,12 +82,12 @@ class DownloadFileInfoDialog(QDialog):
         self.lbl_size.setToolTip("Detected content size and file type")
         form_layout.addRow("File Size:", self.lbl_size)
         
-        self.layout.addLayout(form_layout)
+        main_layout.addLayout(form_layout)
         
         self.chk_dont_show = QCheckBox("Don't show this dialog again (start downloads directly)")
         self.chk_dont_show.setToolTip("Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)")
         self.chk_dont_show.setChecked(False)
-        self.layout.addWidget(self.chk_dont_show)
+        main_layout.addWidget(self.chk_dont_show)
         
         self.auto_detect_category()
         self.update_save_path()
@@ -122,7 +122,7 @@ class DownloadFileInfoDialog(QDialog):
         btn_layout.addStretch(1) # Push 'Download Later' to left, others to right
         btn_layout.addWidget(self.btn_start)
         btn_layout.addWidget(self.btn_cancel)
-        self.layout.addLayout(btn_layout)
+        main_layout.addLayout(btn_layout)
         
         self.adjustSize()
         

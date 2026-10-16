@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QHeaderView, QAbstractItemView, QFrame, QGridLayout, 
     QCheckBox, QSpinBox, QApplication
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize, QEvent, QTimer
 from PyQt6.QtGui import QFont
 from core.utils import show_in_folder, load_extension_config, wrap_url_tooltip
 from core.memory_guard import MemoryGuard
@@ -79,10 +79,31 @@ class DownloadProgressDialog(QDialog):
             return tb.height() if tb.height() > 0 else 46
         return 0
 
+    def _get_target_height(self) -> int:
+        tb_offset = self._get_titlebar_height()
+        return self.base_height + (self._details_height if self.is_expanded else 0) + tb_offset
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(self.fixed_width, self._get_target_height())
+
+    def sizeHint(self) -> QSize:
+        return self.minimumSizeHint()
+
     def update_window_size(self):
         tb_offset = self._get_titlebar_height()
-        target_height = self.base_height + (self._details_height if self.is_expanded else 0) + tb_offset
+        target_height = self._get_target_height()
+        content_h = target_height - tb_offset
+
+        # Enforce size on CSD content container if attached to prevent layout cramming
+        cw = getattr(self, "_csd_content_widget", None)
+        if cw is not None:
+            cw.setFixedSize(self.fixed_width, content_h)
+
         self.setFixedSize(self.fixed_width, target_height)
+        wh = self.windowHandle()
+        if wh:
+            wh.resize(QSize(self.fixed_width, target_height))
+        self.updateGeometry()
 
     def on_csd_attached(self, titlebar_height: int = 46):
         self.update_window_size()
@@ -93,6 +114,19 @@ class DownloadProgressDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         self.update_window_size()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        target_height = self._get_target_height()
+        if self.height() < target_height or self.width() != self.fixed_width:
+            self.update_window_size()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event and event.type() in (QEvent.Type.WindowStateChange, QEvent.Type.ActivationChange):
+            target_height = self._get_target_height()
+            if self.height() != target_height or self.width() != self.fixed_width:
+                self.update_window_size()
 
     def setup_status_tab(self):
         layout = QVBoxLayout(self.status_tab)

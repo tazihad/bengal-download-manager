@@ -250,3 +250,34 @@ class TestTwoRowTabWidget:
         w.setCurrentIndex(1)
         assert w.currentIndex() == 1
         w.deleteLater()
+
+
+class TestDownloadFileInfoDialog:
+    def test_construction_and_csd_integration(self, qapp):
+        from ui.dialogs.file_info import DownloadFileInfoDialog
+        from ui.components.csd_titlebar import attach_csd, detach_csd
+
+        info = {"url": "https://example.com/test.zip", "filename": "test.zip", "size_str": "5.79 MB"}
+        dlg = DownloadFileInfoDialog(info)
+        assert callable(dlg.layout)
+        assert dlg.layout() is not None
+
+        dlg.show()
+        qapp.processEvents()
+
+        # Attach CSD (custom title bar)
+        attach_csd(dlg, is_dark=True, mode="Dark")
+        qapp.processEvents()
+
+        assert hasattr(dlg, "_csd_titlebar") and dlg._csd_titlebar is not None
+        assert dlg._csd_titlebar.geometry().y() == 0
+        assert dlg._csd_titlebar.geometry().width() == 520
+        assert dlg._csd_content_widget.geometry().y() == 46
+        assert dlg._csd_content_widget.geometry().width() == 520
+
+        # Detach CSD
+        detach_csd(dlg)
+        qapp.processEvents()
+        assert getattr(dlg, "_csd_titlebar", None) is None
+        dlg.close()
+

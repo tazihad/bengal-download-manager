@@ -40,6 +40,23 @@ def _keep_thread_alive(thread: QThread):
     thread.finished.connect(lambda: _ACTIVE_WORKER_THREADS.discard(thread))
 
 
+def stop_all_media_extractors():
+    """Stops and terminates all background media extractor threads on application shutdown."""
+    for thread in list(_ACTIVE_WORKER_THREADS):
+        try:
+            if hasattr(thread, "stop"):
+                thread.stop()
+            if hasattr(thread, "requestInterruption"):
+                thread.requestInterruption()
+            if hasattr(thread, "quit"):
+                thread.quit()
+            if hasattr(thread, "wait"):
+                thread.wait(200)
+        except Exception:
+            pass
+    _ACTIVE_WORKER_THREADS.clear()
+
+
 class MediaExtractorWorker(QThread):
     """Background worker thread to fetch and parse video/playlist metadata using yt-dlp."""
 
