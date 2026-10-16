@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from core.notifications import (
     _is_running_in_flatpak,
+    _is_running_in_snap,
     _resolve_notification_icon,
     _send_freedesktop_notification,
     _send_gdbus_cli,
@@ -22,6 +23,12 @@ class TestNotifications:
             assert _is_running_in_flatpak() is True
         with patch("os.path.exists", return_value=False):
             assert _is_running_in_flatpak() is False
+
+    def test_is_running_in_snap(self, monkeypatch):
+        monkeypatch.setenv("SNAP", "/snap/my-snap/current")
+        assert _is_running_in_snap() is True
+        monkeypatch.delenv("SNAP", raising=False)
+        assert _is_running_in_snap() is False
 
     def test_resolve_notification_icon_with_existing_absolute_path(self, tmp_path):
         dummy_icon = tmp_path / "custom_icon.png"
@@ -72,6 +79,11 @@ class TestNotifications:
 
         (fake_apps / "my-app.desktop").write_text("[Desktop Entry]\nName=App\n", encoding="utf-8")
         assert _has_installed_desktop_entry("my-app") is True
+
+    def test_has_installed_desktop_entry_snap(self, monkeypatch):
+        from core.notifications import _has_installed_desktop_entry
+        monkeypatch.setenv("SNAP", "/snap/bengal-download-manager/current")
+        assert _has_installed_desktop_entry("bengal-download-manager_bengal-download-manager") is True
 
     def test_send_freedesktop_notification_success(self):
         with patch("PyQt6.QtDBus.QDBusConnection.sessionBus") as mock_bus_func:
@@ -270,6 +282,19 @@ class TestNotifications:
             import time
             time.sleep(0.1)
             assert mock_portal.called
+
+    def test_send_system_notification_calls_freedesktop_in_snap(self, monkeypatch):
+        monkeypatch.setenv("SNAP", "/snap/bengal-download-manager/current")
+        monkeypatch.setenv("SNAP_INSTANCE_NAME", "bengal-download-manager")
+        monkeypatch.setenv("SNAP_APP_NAME", "bengal-download-manager")
+        with patch("core.notifications._is_running_in_flatpak", return_value=False), \
+             patch("core.notifications._send_freedesktop_notification", return_value=True) as mock_fdo:
+            send_system_notification("Title", "Message")
+            import time
+            time.sleep(0.1)
+            assert mock_fdo.called
+            call_kwargs = mock_fdo.call_args[1]
+            assert call_kwargs.get("desktop_entry") == "bengal-download-manager_bengal-download-manager"
 
     def test_should_send_notification_for_item_main_queue(self):
         from PyQt6.QtCore import Qt

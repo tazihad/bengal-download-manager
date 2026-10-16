@@ -221,6 +221,39 @@ class DownloadController(QObject):
         self.all_stopped.emit()
         self._notify_aggregate_speed()
 
+    def stop_and_terminate_all(self, timeout_ms: int = 400) -> None:
+        """
+        Gracefully stops and terminates all registered download workers
+        so no running QThread instances linger during application shutdown.
+        """
+        with self._lock:
+            entries_snapshot = list(self._entries.items())
+            self._entries.clear()
+            self._speeds.clear()
+
+        for key, entry in entries_snapshot:
+            worker = getattr(entry, "worker", entry)
+            if worker is not None:
+                try:
+                    if hasattr(worker, "stop"):
+                        worker.stop()
+                    elif hasattr(worker, "pause"):
+                        worker.pause()
+                except Exception:
+                    pass
+                try:
+                    if hasattr(worker, "requestInterruption"):
+                        worker.requestInterruption()
+                    if hasattr(worker, "quit"):
+                        worker.quit()
+                    if hasattr(worker, "wait"):
+                        worker.wait(timeout_ms)
+                except Exception:
+                    pass
+
+        self.all_stopped.emit()
+        self._notify_aggregate_speed()
+
     def _notify_aggregate_speed(self) -> None:
         total_speed = self.get_total_speed()
         active_count = self.get_active_count()

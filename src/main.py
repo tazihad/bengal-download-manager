@@ -8,6 +8,7 @@ theming, single-instance coordination, and the primary application window.
 
 import sys
 import os
+import time
 import json
 import threading
 import traceback
@@ -266,13 +267,47 @@ def main():
     atexit.register(perform_cleanup)
 
     # Allow clean Ctrl+C / SIGTERM termination within Qt's event loop
+    _sigint_count = 0
+
     def sig_handler(signum, frame):
-        logger.info("Signal %s received. Shutting down gracefully...", signum)
-        if hasattr(window, "quit_app"):
-            window.quit_app()
-        else:
-            perform_cleanup()
-            app.quit()
+        nonlocal _sigint_count
+        _sigint_count += 1
+        if _sigint_count >= 2:
+            try:
+                logger.info("Signal %s received again. Forcing immediate exit.", signum)
+            except Exception:
+                pass
+            os._exit(130 if signum == signal.SIGINT else 0)
+
+        try:
+            logger.info("Signal %s received. Shutting down gracefully...", signum)
+        except Exception:
+            pass
+
+        def _do_shutdown():
+            try:
+                if hasattr(window, "quit_app"):
+                    window.quit_app()
+                else:
+                    perform_cleanup()
+                    app.quit()
+            except Exception:
+                perform_cleanup()
+                os._exit(0)
+
+        # Dispatch shutdown to the Qt main thread loop
+        QTimer.singleShot(0, _do_shutdown)
+
+        # Arm fallback thread to forcibly exit if Qt event loop is blocked
+        def _cli_sig_watchdog():
+            time.sleep(1.2)
+            try:
+                perform_cleanup()
+            except Exception:
+                pass
+            os._exit(130 if signum == signal.SIGINT else 0)
+
+        threading.Thread(target=_cli_sig_watchdog, daemon=True, name="SigWatchdog").start()
 
     try:
         signal.signal(signal.SIGINT, sig_handler)
@@ -280,10 +315,10 @@ def main():
     except Exception:
         pass
 
-    # Heartbeat timer to periodically yield control to Python interpreter for signal handling
+    # Heartbeat timer to periodically yield control to Python interpreter for signal handling (100ms for responsive Ctrl+C)
     heartbeat_timer = QTimer()
     heartbeat_timer.timeout.connect(lambda: None)
-    heartbeat_timer.start(500)
+    heartbeat_timer.start(100)
 
     if "--minimized" in sys.argv:
         window.start_minimized = True
@@ -294,7 +329,13 @@ def main():
 
     if not getattr(window, "start_minimized", False):
         window.show()
-    sys.exit(app.exec())
+
+    ret = app.exec()
+    try:
+        perform_cleanup()
+    except Exception:
+        pass
+    os._exit(ret)
 
 
 if __name__ == "__main__":

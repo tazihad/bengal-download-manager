@@ -541,9 +541,12 @@ class DownloadWorker(QThread):
     def stop(self):
         self.is_running = False
         for w in self.workers:
-            w.stop()
-            w.quit()
-            w.wait()
+            try:
+                w.stop()
+                w.quit()
+                w.wait(300)
+            except Exception:
+                pass
 
     def pause(self):
         self.is_paused = True 

@@ -115,3 +115,62 @@ def test_perform_application_shutdown_idempotency(caplog):
     # Second invocation should be a no-op returning 0.0
     dur2 = perform_application_shutdown(mock_win)
     assert dur2 == 0.0
+
+
+def test_download_controller_stop_and_terminate_all():
+    """Verify DownloadController stops and terminates all active workers cleanly."""
+    from core.download_controller import DownloadController
+    from unittest.mock import MagicMock
+
+    ctrl = DownloadController()
+    mock_entry1 = MagicMock()
+    mock_worker1 = MagicMock(spec=["stop", "pause", "quit", "wait", "requestInterruption"])
+    mock_entry1.worker = mock_worker1
+
+    mock_entry2 = MagicMock()
+    mock_worker2 = MagicMock(spec=["stop", "pause", "quit", "wait", "requestInterruption"])
+    mock_entry2.worker = mock_worker2
+
+    ctrl.register("key1", mock_entry1)
+    ctrl.register("key2", mock_entry2)
+    ctrl.update_speed("key1", 5000.0)
+
+    assert len(ctrl) == 2
+    assert ctrl.get_total_speed() == 5000.0
+
+    ctrl.stop_and_terminate_all(timeout_ms=50)
+
+    assert len(ctrl) == 0
+    assert ctrl.get_total_speed() == 0.0
+    assert mock_worker1.stop.called or mock_worker1.pause.called
+    assert mock_worker2.stop.called or mock_worker2.pause.called
+    assert mock_worker1.quit.called
+    assert mock_worker2.quit.called
+
+
+def test_stop_all_media_extractors():
+    """Verify stop_all_media_extractors stops and clears active threads."""
+    from core.media.extractor import _ACTIVE_WORKER_THREADS, stop_all_media_extractors
+    from unittest.mock import MagicMock
+
+    mock_thread = MagicMock(spec=["stop", "terminate", "quit", "wait", "requestInterruption"])
+    _ACTIVE_WORKER_THREADS.add(mock_thread)
+
+    stop_all_media_extractors()
+
+    assert mock_thread.stop.called
+    assert mock_thread.terminate.called or mock_thread.quit.called
+    assert len(_ACTIVE_WORKER_THREADS) == 0
+
+
+def test_aria2_worker_stop():
+    """Verify Aria2Worker.stop sets running flags to false cleanly."""
+    from unittest.mock import patch
+    with patch("core.workers.aria2.load_extension_config", return_value={}):
+        from core.workers.aria2 import Aria2Worker
+        worker = Aria2Worker("http://example.com/test.zip")
+        assert worker.is_running is True
+        worker.stop()
+        assert worker.is_running is False
+        assert worker.is_paused is True
+

@@ -417,8 +417,9 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
             self._active_retry_timers.clear()
-        if hasattr(self, "download_controller") and self.download_controller:
-            self.download_controller.clear()
+        if getattr(self, "is_quitting", False):
+            if hasattr(self, "download_controller") and self.download_controller:
+                self.download_controller.clear()
         return super().close()
 
     def closeEvent(self, event: QCloseEvent):

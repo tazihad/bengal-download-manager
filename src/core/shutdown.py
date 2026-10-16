@@ -284,7 +284,9 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
 
         worker_tasks.append(("stop_auxiliary_workers", stop_aux_workers))
 
-        if hasattr(window, "stop_all_downloads"):
+        if hasattr(window, "download_controller") and window.download_controller:
+            worker_tasks.append(("terminate_download_workers", lambda: window.download_controller.stop_and_terminate_all(timeout_ms=300)))
+        elif hasattr(window, "stop_all_downloads"):
             worker_tasks.append(("stop_download_workers", window.stop_all_downloads))
 
         def stop_fetchers():
@@ -296,15 +298,33 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
                         if hasattr(fetcher, "quit"):
                             fetcher.quit()
                         if hasattr(fetcher, "wait"):
-                            fetcher.wait(300)
+                            fetcher.wait(200)
                     except Exception:
                         pass
                 window.active_fetchers.clear()
 
         worker_tasks.append(("stop_active_fetchers", stop_fetchers))
 
-        if hasattr(window, "download_controller") and window.download_controller:
-            worker_tasks.append(("clear_download_controller", window.download_controller.clear))
+        def stop_media_extractors():
+            try:
+                from core.media.extractor import stop_all_media_extractors
+                stop_all_media_extractors()
+            except Exception:
+                pass
+
+        worker_tasks.append(("stop_media_extractors", stop_media_extractors))
+
+        def stop_thread_pools():
+            try:
+                from PyQt6.QtCore import QThreadPool
+                pool = QThreadPool.globalInstance()
+                if pool:
+                    pool.clear()
+                    pool.waitForDone(200)
+            except Exception:
+                pass
+
+        worker_tasks.append(("stop_global_thread_pool", stop_thread_pools))
 
         coordinator.execute_phase(ShutdownPhase.WORKERS, worker_tasks)
 
@@ -316,7 +336,7 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
         def stop_ipc():
             if hasattr(window, "listener_thread") and window.listener_thread:
                 try:
-                    window.listener_thread.stop(timeout_ms=1500)
+                    window.listener_thread.stop(timeout_ms=500)
                 except Exception:
                     pass
                 window.listener_thread = None
@@ -371,7 +391,7 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
                             if hasattr(w, "stop"):
                                 w.stop()
                             if hasattr(w, "wait"):
-                                w.wait(500)
+                                w.wait(300)
                         except Exception:
                             pass
                         fn = getattr(w, "filename", "")
@@ -392,5 +412,19 @@ def perform_application_shutdown(window: Optional[Any] = None) -> float:
         cleanup_tasks.append(("cleanup_prefetch_temp_files", lambda: cleanup_prefetch_temp_files(window)))
 
     coordinator.execute_phase(ShutdownPhase.CLEANUP, cleanup_tasks)
+
+    # Arm a safety watchdog to guarantee the process never hangs on finalization (outside test suite)
+    import os
+    if "pytest" not in sys.modules and os.environ.get("BDM_TESTING") != "1":
+        def _shutdown_watchdog():
+            time.sleep(2.0)
+            try:
+                logger.warning("[Shutdown] Watchdog expired (2.0s). Forcing clean process exit.")
+            except Exception:
+                pass
+            os._exit(0)
+
+        watchdog = threading.Thread(target=_shutdown_watchdog, daemon=True, name="ShutdownWatchdog")
+        watchdog.start()
 
     return coordinator.finish()

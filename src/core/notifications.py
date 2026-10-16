@@ -12,10 +12,19 @@ def _is_running_in_flatpak() -> bool:
     return os.path.exists("/.flatpak-info")
 
 
+def _is_running_in_snap() -> bool:
+    """Returns True if running inside a Snap sandbox."""
+    return bool(os.environ.get("SNAP"))
+
+
 def _has_installed_desktop_entry(desktop_entry: Optional[str]) -> bool:
     """Checks whether a valid desktop entry file is installed in standard XDG application dirs."""
     if not desktop_entry:
         return False
+    if _is_running_in_snap():
+        # Under snap confinement, desktop entries are managed by snapd on the host
+        # at /var/lib/snapd/desktop/applications/<snap_instance>_<snap_app>.desktop
+        return True
     entry_filename = desktop_entry if desktop_entry.endswith(".desktop") else f"{desktop_entry}.desktop"
     raw_dirs = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
     search_dirs = [os.path.expanduser("~/.local/share/applications")] + [
