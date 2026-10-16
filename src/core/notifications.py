@@ -269,11 +269,17 @@ def _send_portal_notification(
 ) -> bool:
     """
     Sends notification via XDG Desktop Portal (org.freedesktop.portal.Notification).
-    Note: Intended primarily for sandboxed Flatpak containers where the portal associates
-    the container's App ID. Unconfined host apps calling this may be silently dropped by the portal.
+
+    This is the only sanctioned notification path inside a Flatpak sandbox: the
+    portal associates the container's App ID and relays the request to the host
+    notification server. Only themed icon names are supported (the portal does
+    not resolve sandbox-local file paths / file URIs), so non-themed icons fall
+    back to the application's own exported icon name.
     """
     try:
-        from PyQt6.QtDBus import QDBusConnection, QDBusInterface
+        from PyQt6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
+        from PyQt6.QtCore import QVariant
+
         bus = QDBusConnection.sessionBus()
         if not bus.isConnected():
             return False
@@ -287,16 +293,35 @@ def _send_portal_notification(
         if not portal.isValid():
             return False
 
-        portal_icon = app_id if (not icon_name or os.path.isabs(icon_name)) else icon_name
+        # The portal only resolves names within the host icon theme; absolute
+        # paths and file:// URIs used by the direct FreeDesktop path cannot cross
+        # the sandbox boundary, so fall back to the app's exported icon name.
+        portal_icon = icon_name
+        if (
+            not portal_icon
+            or os.path.isabs(portal_icon)
+            or "://" in portal_icon
+            or os.sep in portal_icon
+            or _is_image_file(portal_icon)
+        ):
+            portal_icon = app_id
+
         notification_id = f"bengal_dl_{int(time.time() * 1000)}"
+
+        # AddNotification(sa{sv}): wrap each value in a QVariant so they marshal
+        # as D-Bus variants regardless of the PyQt binding's implicit coercion.
         details = {
-            "title": title,
-            "body": message,
-            "icon": portal_icon,
-            "priority": "normal"
+            "title": QVariant(title),
+            "body": QVariant(message),
+            "icon": QVariant(portal_icon),
+            "priority": QVariant("normal"),
         }
+
         reply = portal.call("AddNotification", notification_id, details)
-        return reply.type() != reply.MessageType.ErrorMessage
+        return (
+            reply is not None
+            and reply.type() == QDBusMessage.MessageType.ReplyMessage
+        )
     except Exception:
         return False
 
@@ -375,11 +400,17 @@ def send_system_notification(
             except Exception:
                 pass
 
-        # In Flatpak container sandbox, XDG Desktop Portal is the primary interface
+        # In the Flatpak sandbox the XDG Desktop Portal is the only sanctioned
+        # notification path: the portal associates the container's App ID with the
+        # host notification server. The direct FreeDesktop / CLI attempts below are
+        # best-effort only -- the sandbox bus filter blocks org.freedesktop.Notifications
+        # (no --talk-name permission), so they normally cannot succeed, but they are
+        # retained in case the portal backend is unavailable on the host.
         if is_flatpak:
             flatpak_app_id = target_desktop_entry or "bd.com.zihad.BengalDownloadManager"
             if _send_portal_notification(title, message, resolved_icon, flatpak_app_id):
                 return
+            # Best-effort fallbacks (blocked by the Flatpak session bus filter).
             if _send_freedesktop_notification(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
                 return
             if _send_notify_send_cli(title, message, app_name, resolved_icon, desktop_entry=target_desktop_entry, file_path=file_path):
