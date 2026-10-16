@@ -547,6 +547,10 @@ class _KdeWaylandPaletteManager:
         self._global_cb = None
         self._remove_cb = None
         self._listener = None
+        self._marshal_registry = None
+        self._marshal_bind = None
+        self._marshal_create = None
+        self._marshal_set = None
 
     def initialize(self):
         if self.initialized:
@@ -650,11 +654,39 @@ class _KdeWaylandPaletteManager:
             self.disp_wrapper = self.wl_client.wl_proxy_create_wrapper(self.disp)
             self.wl_client.wl_proxy_set_queue(self.disp_wrapper, self.queue)
 
-            marshal_flags = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags.restype = ctypes.c_void_p
-            marshal_flags.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+            wl_marshal_addr = ctypes.cast(self.wl_client.wl_proxy_marshal_flags, ctypes.c_void_p).value
+            if not wl_marshal_addr:
+                raise RuntimeError("missing wl_proxy_marshal_flags symbol")
 
-            registry = marshal_flags(self.disp_wrapper, 1, reg_iface_addr, 1, 0, None)
+            _reg_proto = ctypes.CFUNCTYPE(
+                ctypes.c_void_p,
+                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
+                ctypes.c_void_p,
+            )
+            self._marshal_registry = _reg_proto(wl_marshal_addr)
+
+            _bind_proto = ctypes.CFUNCTYPE(
+                ctypes.c_void_p,
+                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
+                ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_void_p,
+            )
+            self._marshal_bind = _bind_proto(wl_marshal_addr)
+
+            _create_proto = ctypes.CFUNCTYPE(
+                ctypes.c_void_p,
+                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
+                ctypes.c_void_p, ctypes.c_void_p,
+            )
+            self._marshal_create = _create_proto(wl_marshal_addr)
+
+            _set_proto = ctypes.CFUNCTYPE(
+                ctypes.c_void_p,
+                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
+                ctypes.c_char_p,
+            )
+            self._marshal_set = _set_proto(wl_marshal_addr)
+
+            registry = self._marshal_registry(self.disp_wrapper, 1, reg_iface_addr, 1, 0, None)
 
             GLOBAL_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32)
             REMOVE_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32)
@@ -679,14 +711,7 @@ class _KdeWaylandPaletteManager:
                 self.initialized = True
                 return False
 
-            marshal_flags_bind = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags_bind.restype = ctypes.c_void_p
-            marshal_flags_bind.argtypes = [
-                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
-                ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32, ctypes.c_void_p,
-            ]
-
-            self.mgr_proxy = marshal_flags_bind(
+            self.mgr_proxy = self._marshal_bind(
                 registry, 0, ctypes.byref(self._manager_iface), 1, 0,
                 ctypes.c_uint32(palette_mgr_name),
                 self._manager_iface.name,
@@ -702,6 +727,10 @@ class _KdeWaylandPaletteManager:
             self.queue = None
             self.disp_wrapper = None
             self.wl_client = None
+            self._marshal_registry = None
+            self._marshal_bind = None
+            self._marshal_create = None
+            self._marshal_set = None
             return False
 
     def get_surface_for_window(self, window):
@@ -721,21 +750,9 @@ class _KdeWaylandPaletteManager:
     def set_palette(self, windows: list, scheme_name_or_path: str) -> bool:
         if not self.initialize() or not self.mgr_proxy or not self.wl_client:
             return False
+        if not getattr(self, "_marshal_create", None) or not getattr(self, "_marshal_set", None):
+            return False
         try:
-            marshal_flags_create = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags_create.restype = ctypes.c_void_p
-            marshal_flags_create.argtypes = [
-                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
-                ctypes.c_void_p, ctypes.c_void_p,
-            ]
-
-            marshal_flags_set = self.wl_client.wl_proxy_marshal_flags
-            marshal_flags_set.restype = ctypes.c_void_p
-            marshal_flags_set.argtypes = [
-                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
-                ctypes.c_char_p,
-            ]
-
             payload = (scheme_name_or_path or "").encode("utf-8")
 
             for win in windows:
@@ -743,16 +760,16 @@ class _KdeWaylandPaletteManager:
                 if not surf:
                     continue
                 if surf not in self.palette_proxies:
-                    palette_proxy = marshal_flags_create(
+                    palette_proxy = self._marshal_create(
                         self.mgr_proxy, 0, ctypes.byref(self._palette_iface), 1, 0,
-                        None, surf,
+                        None, ctypes.c_void_p(surf),
                     )
                     if palette_proxy:
                         self.palette_proxies[surf] = palette_proxy
                         self.wl_client.wl_proxy_set_queue(palette_proxy, self.queue)
                 proxy = self.palette_proxies.get(surf)
                 if proxy:
-                    marshal_flags_set(proxy, 0, None, 1, 0, payload)
+                    self._marshal_set(proxy, 0, None, 1, 0, payload)
 
             if self.disp is not None:
                 self.wl_client.wl_display_flush(self.disp)
