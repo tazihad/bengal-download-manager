@@ -104,3 +104,44 @@ class TestDownloadProgressDialog:
         assert dlg.height() == 282
 
         dlg.close()
+
+    def test_wayland_focus_and_resize_resilience(self, qapp, monkeypatch):
+        """Verify DownloadProgressDialog resists Wayland multi-monitor deactivation and spurious resize."""
+        from PyQt6.QtCore import QEvent, QSize
+        from PyQt6.QtGui import QResizeEvent
+        from core.services.theme_service import apply_titlebar_theme
+        monkeypatch.setenv("BDM_FORCE_CSD", "1")
+
+        worker = MockWorker()
+        dlg = DownloadProgressDialog(worker)
+        apply_titlebar_theme("Dark", window=dlg)
+        dlg.show()
+        qapp.processEvents()
+
+        # Expand details
+        dlg.btn_details.click()
+        qapp.processEvents()
+        assert dlg.is_expanded
+        assert dlg.height() == 511
+        assert dlg.minimumSizeHint() == QSize(520, 511)
+        assert dlg.sizeHint() == QSize(520, 511)
+
+        # 1. Simulate window deactivation (e.g. user clicks window on other monitor)
+        qapp.sendEvent(dlg, QEvent(QEvent.Type.WindowDeactivate))
+        qapp.sendEvent(dlg, QEvent(QEvent.Type.ActivationChange))
+        qapp.processEvents()
+        assert dlg.height() == 511
+        assert not dlg.btn_details.geometry().intersects(dlg.tabs.geometry())
+
+        # 2. Simulate compositor sending configure/resize with old collapsed height (282)
+        spurious_resize = QResizeEvent(QSize(520, 282), QSize(520, 511))
+        qapp.sendEvent(dlg, spurious_resize)
+        qapp.processEvents()
+
+        # Dialog must reassert 511 and maintain proper button position
+        assert dlg.height() == 511
+        assert dlg.btn_details.y() >= dlg.tabs.y() + dlg.tabs.height()
+        assert dlg.btn_details.geometry().y() >= 200
+
+        dlg.close()
+
