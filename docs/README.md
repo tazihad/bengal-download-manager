@@ -1,6 +1,6 @@
 # Bengal Download Manager — Documentation Hub
 
-Welcome to the official technical documentation for **Bengal Download Manager (BDM)**, an advanced, high-performance, open-source download accelerator and media acquisition suite built with Python, PyQt6, KDE Kirigami QML, and Aria2.
+Welcome to the official technical documentation for **Bengal Download Manager (BDM)**, an advanced, high-performance, open-source download accelerator and media acquisition suite built with Python, PyQt6, and Aria2.
 
 This documentation suite is organized following standard Free and Open Source Software (FOSS) best practices, providing exhaustive engineering specifications, complete user-interface control references, architectural deep-dives, and package maintenance guides.
 
@@ -10,7 +10,7 @@ This documentation suite is organized following standard Free and Open Source So
 
 | Document | Description | Target Audience |
 | :--- | :--- | :--- |
-| **[System Architecture](ARCHITECTURE.md)** | High-level engineering architecture, dual-engine design (Aria2 RPC + native Python worker), threading and concurrency model, IPC REST bridge, memory guard, and QML integration. | Developers, Contributors, Architects |
+| **[System Architecture](ARCHITECTURE.md)** | High-level engineering architecture, dual-engine design (Aria2 RPC + native Python worker), threading and concurrency model, IPC REST bridge, and memory guard. | Developers, Contributors, Architects |
 | **[Feature Catalog](FEATURES.md)** | Exhaustive technical inventory of all capabilities: multi-segment acceleration, broken link recovery, speed throttling, media stream capture, queue scheduling, and auto-sorting. | Developers, Power Users |
 | **[UI & Controls Reference](UI_AND_CONTROLS.md)** | Granular, button-by-button, menu-by-menu, and dialog-by-dialog guide explaining every control, context menu, shortcut, and metric in the application. | End Users, Testers, Documentarians |
 | **[Database & Storage Architecture](DATABASE_AND_STORAGE.md)** | SQLite persistence engine, WAL mode, foreign keys, schema definitions, FTS5 full-text indexing, dirty write buffering, and data safety. | Database Engineers, Contributors |
@@ -20,6 +20,7 @@ This documentation suite is organized following standard Free and Open Source So
 | **[Theming & Design System](THEMING.md)** | Visual design language, adaptive OS light/dark tracking, 20+ color themes, 14 accents, resolution-independent vector icons, and OpenType tabular figures (`tnum`). | UI/UX Designers, Frontend Engineers |
 | **[Build & Packaging Guide](BUILD_AND_PACKAGING.md)** | Compilation, packaging, and distribution instructions for Linux: Flatpak, Canonical Snap, AppImage, CMake standalone binary, and browser extensions. | Packagers, System Maintainers, CI/CD |
 | **[Version Management (SSOT)](VERSIONING.md)** | Single Source of Truth versioning architecture across `VERSION`, Snapcraft, Flatpak AppStream, and runtime metadata using `sync_version.py`. | Maintainers, Release Managers |
+| **[Localization & Weblate Guide](TRANSLATIONS.md)** | Crowdsourced translations via Weblate, Qt Linguist XML catalogs, extraction workflows, and Gemini AI pre-population. | Translators, Contributors, Maintainers |
 
 ---
 
@@ -30,16 +31,16 @@ Bengal Download Manager connects your web browser, native desktop user interface
 ```
 +---------------------------------------------------------------------------------------+
 |                                    Desktop Shell                                      |
-|  +--------------------------------------------+  +---------------------------------+  |
-|  |           PyQt6 QWidget Desktop            |  |      KDE Kirigami QML View      |  |
-|  |   (Table View, Category Tree, Dialogs)     |  |   (Cards View, Global Drawer)   |  |
-|  +--------------------------------------------+  +---------------------------------+  |
+|  +---------------------------------------------------------------------------------+  |
+|  |                              PyQt6 QWidget Desktop                              |  |
+|  |                      (Table View, Category Tree, Dialogs)                       |  |
+|  +---------------------------------------------------------------------------------+  |
 +---------------------------------------------------------------------------------------+
                                         │
                                         ▼
 +---------------------------------------------------------------------------------------+
 |                                Core Application Layer                                 |
-|  - DownloadBridge: QObject signals and slots for QML / C++ integration               |
+|  - DownloadBridge: QObject signals and slots for UI state synchronization             |
 |  - MemoryGuard: glibc malloc_trim(0) heap compaction and weakref tracking             |
 |  - SQLite Engine: WAL journal mode, FTS5 full-text search, thread-safe persistence    |
 |  - IPC Server: Local REST API on port 56900 handling browser extension dispatches    |
@@ -80,9 +81,6 @@ cd bengal-download-manager
 
 # Run standard PyQt6 desktop interface
 uv run python src/main.py
-
-# Run KDE Kirigami QML interface
-uv run python src/main.py --kirigami
 ```
 
 ### Running Test Suite

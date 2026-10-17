@@ -6,7 +6,7 @@ This document outlines the visual design system, adaptive theming engine, color 
 
 ## 1. Design Philosophy & Adaptive Theming
 
-Bengal Download Manager features a dynamic theming system built on **PyQt6 QWidget** and **KDE Kirigami QML** interfaces. The theme automatically adapts across Light, Dark, and Automatic desktop system environments without hardcoding static foreground or background text colors.
+Bengal Download Manager features a dynamic theming system built on the **PyQt6 QWidget** interface. The theme automatically adapts across Light, Dark, and Automatic desktop system environments without hardcoding static foreground or background text colors.
 
 ### Theme Modes
 
@@ -82,7 +82,7 @@ BDM includes 21 color themes and 14 vibrant accents:
 
 ### Theme Presets
 - **Standard**: `System`, `BDM Auto`, `BDM Dark (Default)`, `BDM Light`
-- **KDE Breeze**: `Breeze Dark`, `Breeze Light`, `Kirigami Dark`, `Kirigami Light`
+- **KDE Breeze**: `Breeze Dark`, `Breeze Light`
 - **Developer Palettes**: `Catppuccin`, `Dracula`, `Nord`, `Obsidian Flow`, `One Dark`, `Solarized Dark`, `Solarized Light`, `Twilight`
 - **Distro & HIG**: `Ubuntu Dark`, `Ubuntu Light`, `Material You Dark`, `Material You Light`, `IDM Classic`
 

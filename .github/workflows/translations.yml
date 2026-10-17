@@ -1,0 +1,53 @@
+name: Translations (Weblate & CI)
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'translations/**'
+      - 'scripts/i18n.py'
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - 'translations/**'
+      - 'scripts/i18n.py'
+
+concurrency:
+  group: translations-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-and-validate:
+    name: Compile & Validate Translations
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile Translation Catalogs (.qm)
+        run: |
+          python3 scripts/i18n.py compile
+          python3 scripts/i18n.py status
+
+      - name: Commit Compiled QM Catalogs (if changed on main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -n $(git status --porcelain assets/translations/) ]]; then
+            git add assets/translations/
+            git commit -m "i18n: compile updated translation catalogs [skip ci]"
+            git push
+          else
+            echo "No changes to binary .qm translation files."
+          fi

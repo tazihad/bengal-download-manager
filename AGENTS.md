@@ -99,3 +99,5 @@ bash scripts/build_flatpak.sh
 5. **Empirical Verification**: Always verify code changes by running `pytest` or testing binary builds before declaring completion.
 6. **Single Source of Truth Versioning**: Always use `scripts/sync_version.py` when changing or checking version numbers across `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, and `src/core/version.py`. (Note: Browser extension in `extension/manifest.json` is versioned independently). See `docs/VERSIONING.md` for details.
 7. **Use `uv` Instead of `venv`**: Always use `uv` for Python environment management, package installation, and execution (e.g. `uv venv`, `uv pip install ...`, and `uv run <command>`). Do not use standard `python3 -m venv` or raw `venv/bin/python`.
+8. **Mandatory UI Localization (`tr(...)` & Tooltips)**: Whenever adding or modifying any UI component, dialog, widget, button, menu action, table header, status message, or tooltip (`setToolTip(...)`), always wrap the user-facing text in `self.tr(...)` or `tr(...)`. Keep `translations/bdm_en.ts` updated by running `uv run python scripts/i18n.py extract` and `uv run python scripts/i18n.py compile`.
+

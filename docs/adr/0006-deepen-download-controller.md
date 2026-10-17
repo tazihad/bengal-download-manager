@@ -17,4 +17,4 @@ We introduce `DownloadController` in `src/core/download_controller.py` as a deep
 - Concurrency tracking and speed calculations can be tested headlessly without GUI tables.
 - Eliminates brittle duck-typing checks across GUI layers for worker vs. dialog objects.
 
-> **Note:** `DownloadBridge` (Kirigami QML layer) was removed in PR #144. `DownloadController` continues to serve `MainWindow`.
+> **Note:** The legacy QML presentation layer was removed in PR #144. `DownloadController` continues to serve `MainWindow`.

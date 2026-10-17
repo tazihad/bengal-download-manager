@@ -10,7 +10,7 @@ import os
 import json
 import logging
 from typing import Optional, Tuple, List, Dict
-from PyQt6.QtCore import QTranslator, QLocale, QLibraryInfo, QCoreApplication
+from PyQt6.QtCore import QTranslator, QLocale, QLibraryInfo, QCoreApplication, Qt
 from PyQt6.QtWidgets import QApplication
 
 from core.utils import get_config_dir
@@ -111,9 +111,55 @@ _qt_translator: Optional[QTranslator] = None
 CURRENT_LANGUAGE_CODE: str = "system"
 
 
+def _get_translation_search_dirs() -> List[str]:
+    """Return all directories where compiled .qm or source .ts catalogs may reside."""
+    search_dirs: List[str] = []
+    import sys
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        search_dirs.append(os.path.join(sys._MEIPASS, "assets", "translations"))
+
+    curr = os.path.abspath(__file__)
+    for _ in range(5):
+        curr = os.path.dirname(curr)
+        a_dir = os.path.join(curr, "assets", "translations")
+        t_dir = os.path.join(curr, "translations")
+        if os.path.isdir(a_dir) and a_dir not in search_dirs:
+            search_dirs.append(a_dir)
+        if os.path.isdir(t_dir) and t_dir not in search_dirs:
+            search_dirs.append(t_dir)
+
+    return search_dirs
+
+
 def get_available_languages() -> List[str]:
-    """Return list of all human-readable language display strings for UI dropdowns."""
-    return [display for _, display in SUPPORTED_LANGUAGES]
+    """
+    Return list of human-readable language display strings for UI dropdowns.
+    Only includes languages for which translation catalogs (.qm or .ts) exist,
+    along with System Default and English.
+    """
+    discovered_codes = {"system", "en"}
+
+    for s_dir in _get_translation_search_dirs():
+        abs_dir = os.path.abspath(s_dir)
+        if os.path.isdir(abs_dir):
+            try:
+                for fname in os.listdir(abs_dir):
+                    if fname.startswith("bdm_") and (fname.endswith(".qm") or fname.endswith(".ts")):
+                        lang_part = fname[4:].rsplit(".", 1)[0]
+                        if lang_part and lang_part != "en":
+                            discovered_codes.add(lang_part)
+                            discovered_codes.add(lang_part.lower())
+            except Exception:
+                pass
+
+    available = []
+    for code, display in SUPPORTED_LANGUAGES:
+        if code in ("system", "en"):
+            available.append(display)
+        elif code in discovered_codes or code.lower() in discovered_codes or code.split("_")[0] in discovered_codes:
+            available.append(display)
+
+    return available
 
 
 def get_language_code(display_or_code: str) -> str:
@@ -153,38 +199,21 @@ def normalize_language_code(val: Optional[str]) -> str:
     return get_language_code(val or "system")
 
 
-class JsonCatalogTranslator(QTranslator):
-    """
-    QTranslator implementation that loads human-readable JSON translation catalogs.
-    Allows dynamic runtime localization without requiring external compiled .qm files.
-    """
-    def __init__(self, catalog: Optional[Dict[str, str]] = None, parent=None):
-        super().__init__(parent)
-        self.catalog: Dict[str, str] = catalog or {}
-
-    def translate(self, context: str, source_text: str, disambiguation: Optional[str] = None, n: int = -1) -> str:
-        if not source_text:
-            return ""
-        # 1. Exact match
-        if source_text in self.catalog:
-            return self.catalog[source_text]
-        # 2. Stripped accelerator match (e.g. '&Tasks' -> 'Tasks')
-        clean = source_text.replace("&", "")
-        if clean in self.catalog:
-            return self.catalog[clean]
-        # 3. Stripped whitespace
-        stripped = source_text.strip()
-        if stripped in self.catalog:
-            return self.catalog[stripped]
-        return ""
-
-
-def tr(text: str, context: str = "BDM") -> str:
-    """Translate text using installed Qt translators with fallback to original text."""
+def tr(text: str, context: str = "") -> str:
+    """Translate text using installed Qt translators with fallback across common contexts."""
     if not text:
         return ""
-    translated = QCoreApplication.translate(context, text)
-    return translated if translated else text
+    if context:
+        translated = QCoreApplication.translate(context, text)
+        if translated and translated != text:
+            return translated
+    # Check default and common UI contexts
+    for ctx in ["MainWindow", "BDM", "OptionsDialog", "AddUrlDialog"]:
+        if ctx != context:
+            translated = QCoreApplication.translate(ctx, text)
+            if translated and translated != text:
+                return translated
+    return text
 
 
 def get_current_language_code() -> str:
@@ -213,6 +242,7 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
     Install Qt translators matching the desired language code onto the application instance.
     Removes previously installed translators cleanly before applying new ones.
     Dynamically updates the application-wide font based on the language script.
+    Enforces Left-to-Right layout direction so widgets do not move for RTL languages.
     """
     global _app_translator, _qt_translator, CURRENT_LANGUAGE_CODE
 
@@ -252,6 +282,11 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
 
     QLocale.setDefault(QLocale(target_locale))
 
+    # Lock layout direction to LeftToRight so widgets, sidebar, toolbars, and dialogs
+    # never flip or shift position when Arabic, Persian, Hebrew, or Urdu is active
+    if isinstance(app, QApplication):
+        app.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+
     # Update application font immediately for the target language
     if isinstance(app, QApplication):
         try:
@@ -264,8 +299,6 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
     if lang_code == "en":
         logger.debug("[i18n] Language 'en' (locale: en_US) applied.")
         return True
-
-    success = False
 
     # 1. Load Qt base system dialog translations (OK, Cancel, Yes, No, file dialog buttons)
     qt_translations_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
@@ -280,22 +313,13 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
             logger.debug("[i18n] Installed Qt base translator: %s", name_prefix)
             break
 
-    # 2. Search for Bengal DM application translations (JSON or QM)
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    search_dirs = [
-        os.path.join(base_dir, "translations"),
-        os.path.join(base_dir, "assets", "translations"),
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "translations"),
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "translations"),
-    ]
+    # 2. Search for Bengal DM application translations (compiled .qm binaries)
+    search_dirs = _get_translation_search_dirs()
 
     app_loaded = False
-    trans_count = 0
     prefixes = [
-        f"bengal_{target_locale}",
-        f"bengal_{target_locale.split('_')[0]}",
-        f"stellar_{target_locale}",
-        f"stellar_{target_locale.split('_')[0]}",
+        f"bdm_{target_locale}",
+        f"bdm_{target_locale.split('_')[0]}",
     ]
 
     for s_dir in search_dirs:
@@ -303,22 +327,6 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
         if not os.path.isdir(abs_dir):
             continue
         for prefix in prefixes:
-            json_path = os.path.join(abs_dir, f"{prefix}.json")
-            if os.path.isfile(json_path):
-                try:
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        cat_data = json.load(f)
-                    if isinstance(cat_data, dict) and cat_data:
-                        trans = JsonCatalogTranslator(cat_data, app)
-                        app.installTranslator(trans)
-                        _app_translator = trans
-                        app_loaded = True
-                        trans_count = len(cat_data)
-                        logger.debug("[i18n] Installed JSON application translator: %s (%d strings)", json_path, trans_count)
-                        break
-                except Exception as e:
-                    logger.warning("[i18n] Failed to load JSON catalog %s: %s", json_path, e)
-
             qm_path = os.path.join(abs_dir, f"{prefix}.qm")
             if os.path.isfile(qm_path):
                 trans = QTranslator(app)
@@ -334,7 +342,7 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
     success = base_loaded or app_loaded or lang_code == "system"
     font_family = app.font().family() if isinstance(app, QApplication) else "N/A"
     logger.debug(
-        "[i18n] Language '%s' (locale: %s) applied. Font: %s, Base: %s, App: %s (%d translations)",
-        lang_code, target_locale, font_family, base_loaded, app_loaded, trans_count
+        "[i18n] Language '%s' (locale: %s) applied. Font: %s, Base: %s, App: %s",
+        lang_code, target_locale, font_family, base_loaded, app_loaded
     )
     return success

@@ -117,7 +117,7 @@ class DataUsageWidget(QFrame):
         # -------------------------------------------------------------
         self.today_card = ClickableCardFrame(self)
         self.today_card.setObjectName("todayUsageCard")
-        self.today_card.setToolTip("Click to view current month data usage and graph")
+        self.today_card.setToolTip(self.tr("Click to view current month data usage and graph"))
         self.today_card.clicked.connect(self._open_data_usage_dialog)
 
         card_layout = QVBoxLayout(self.today_card)
@@ -129,9 +129,9 @@ class DataUsageWidget(QFrame):
         header_row.setContentsMargins(0, 0, 0, 0)
         header_row.setSpacing(4)
 
-        self.lbl_header = QLabel("Today's data usage")
+        self.lbl_header = QLabel(self.tr("Today's data usage"))
         self.lbl_header.setProperty("class", "sectionHeader")
-        self.lbl_header.setToolTip("Click to view current month data usage and graph")
+        self.lbl_header.setToolTip(self.tr("Click to view current month data usage and graph"))
         header_row.addWidget(self.lbl_header)
         header_row.addStretch()
 
@@ -144,7 +144,7 @@ class DataUsageWidget(QFrame):
         stat_row.setAlignment(Qt.AlignmentFlag.AlignBaseline)
 
         self.lbl_downloaded_val = QLabel("0 B")
-        self.lbl_downloaded_val.setToolTip("Data completed today (click to view graph)")
+        self.lbl_downloaded_val.setToolTip(self.tr("Data completed today (click to view graph)"))
         _apply_tabular_font(self.lbl_downloaded_val, point_size=15, bold=True)
         stat_row.addWidget(self.lbl_downloaded_val)
         stat_row.addStretch()
@@ -182,11 +182,11 @@ class DataUsageWidget(QFrame):
 
             f_layout.addWidget(t_lbl)
             f_layout.addWidget(v_lbl)
-            return frame, v_lbl
+            return frame, t_lbl, v_lbl
 
-        self.badge_files, self.lbl_files_val = make_badge("Files", "Files downloaded today")
-        self.badge_active, self.lbl_active_val = make_badge("Active", "Currently active downloads")
-        self.badge_speed, self.lbl_speed_val = make_badge("Speed", "Current download transfer rate")
+        self.badge_files, self.lbl_files_title, self.lbl_files_val = make_badge(self.tr("Files"), self.tr("Files downloaded today"))
+        self.badge_active, self.lbl_active_title, self.lbl_active_val = make_badge(self.tr("Active"), self.tr("Currently active downloads"))
+        self.badge_speed, self.lbl_speed_title, self.lbl_speed_val = make_badge(self.tr("Speed"), self.tr("Current download transfer rate"))
 
         badges_layout.addWidget(self.badge_files, 1)
         badges_layout.addWidget(self.badge_active, 1)
@@ -201,16 +201,16 @@ class DataUsageWidget(QFrame):
         storage_header_row.setContentsMargins(0, 2, 0, 0)
         storage_header_row.setSpacing(4)
 
-        self.lbl_storage_title = QLabel("Storage")
+        self.lbl_storage_title = QLabel(self.tr("Storage"))
         self.lbl_storage_title.setStyleSheet("font-size: 9px; font-weight: bold; color: palette(placeholder-text);")
-        self.lbl_storage_title.setToolTip("Disk storage usage of downloads directory")
+        self.lbl_storage_title.setToolTip(self.tr("Disk storage usage of downloads directory"))
         storage_header_row.addWidget(self.lbl_storage_title)
         storage_header_row.addStretch()
 
         self.lbl_storage_val = QLabel("-- / --")
         _apply_tabular_font(self.lbl_storage_val, point_size=9, bold=False)
         self.lbl_storage_val.setStyleSheet("color: palette(window-text);")
-        self.lbl_storage_val.setToolTip("Used disk space of total capacity")
+        self.lbl_storage_val.setToolTip(self.tr("Used disk space of total capacity"))
         storage_header_row.addWidget(self.lbl_storage_val)
 
         main_layout.addLayout(storage_header_row)
@@ -221,24 +221,24 @@ class DataUsageWidget(QFrame):
         self.storage_progress.setRange(0, 100)
         self.storage_progress.setValue(0)
         self.storage_progress.setTextVisible(False)
-        self.storage_progress.setToolTip("Downloads directory disk usage")
+        self.storage_progress.setToolTip(self.tr("Downloads directory disk usage"))
         main_layout.addWidget(self.storage_progress)
 
         # Storage subtext: "X% used" (left) ... "Y free" (right)
         storage_sub_row = QHBoxLayout()
         storage_sub_row.setContentsMargins(0, 0, 0, 0)
 
-        self.lbl_storage_used = QLabel("0% used")
+        self.lbl_storage_used = QLabel(self.tr("%1% used").replace("%1", "0"))
         self.lbl_storage_used.setProperty("class", "secondaryLabel")
-        self.lbl_storage_used.setToolTip("Percentage of disk space used")
+        self.lbl_storage_used.setToolTip(self.tr("Percentage of disk space used"))
         _apply_tabular_font(self.lbl_storage_used, point_size=8)
         storage_sub_row.addWidget(self.lbl_storage_used)
 
         storage_sub_row.addStretch()
 
-        self.lbl_storage_free = QLabel("0 B free")
+        self.lbl_storage_free = QLabel(self.tr("%1 free").replace("%1", "0 B"))
         self.lbl_storage_free.setProperty("class", "secondaryLabel")
-        self.lbl_storage_free.setToolTip("Free disk space remaining")
+        self.lbl_storage_free.setToolTip(self.tr("Free disk space remaining"))
         _apply_tabular_font(self.lbl_storage_free, point_size=8)
         storage_sub_row.addWidget(self.lbl_storage_free)
 
@@ -334,8 +334,8 @@ class DataUsageWidget(QFrame):
         current_speed = sum(active_speeds.values()) if active_speeds else 0.0
 
         # Update labels and dynamic tooltips
-        files_tip = f"{today_files_count} file{'s' if today_files_count != 1 else ''} downloaded today"
-        downloaded_tip = f"{format_bytes(today_completed_bytes)} completed today (click to view calendar graph)"
+        files_tip = self.tr("%1 files downloaded today").replace("%1", str(today_files_count)) if today_files_count != 1 else self.tr("1 file downloaded today")
+        downloaded_tip = self.tr("%1 completed today (click to view calendar graph)").replace("%1", format_bytes(today_completed_bytes))
 
         self.lbl_downloaded_val.setText(format_bytes(today_completed_bytes))
         self.lbl_downloaded_val.setToolTip(downloaded_tip)
@@ -348,19 +348,40 @@ class DataUsageWidget(QFrame):
 
         self.update_live_speed(current_speed, active_count)
 
+    def retranslate_ui(self):
+        """Update texts and tooltips when application language changes."""
+        self.today_card.setToolTip(self.tr("Click to view current month data usage and graph"))
+        self.lbl_header.setText(self.tr("Today's data usage"))
+        self.lbl_header.setToolTip(self.tr("Click to view current month data usage and graph"))
+        self.lbl_downloaded_val.setToolTip(self.tr("Data completed today (click to view graph)"))
+        if hasattr(self, "lbl_files_title"):
+            self.lbl_files_title.setText(self.tr("Files"))
+        if hasattr(self, "lbl_active_title"):
+            self.lbl_active_title.setText(self.tr("Active"))
+        if hasattr(self, "lbl_speed_title"):
+            self.lbl_speed_title.setText(self.tr("Speed"))
+        self.badge_files.setToolTip(self.tr("Files downloaded today"))
+        self.badge_active.setToolTip(self.tr("Currently active downloads"))
+        self.badge_speed.setToolTip(self.tr("Current download transfer rate"))
+        self.lbl_storage_title.setText(self.tr("Storage"))
+        self.lbl_storage_title.setToolTip(self.tr("Disk storage usage of downloads directory"))
+        self.storage_progress.setToolTip(self.tr("Downloads directory disk usage"))
+        self.lbl_storage_used.setToolTip(self.tr("Percentage of disk space used"))
+        self.lbl_storage_free.setToolTip(self.tr("Free disk space remaining"))
+
     def update_live_speed(self, current_speed: float = 0.0, active_count: int = 0):
         """Immediately updates the speed and active downloads badge in sync with download status updates."""
         speed_str = format_bytes(current_speed) + "/s" if current_speed > 0 else "0 B/s"
         if self.lbl_speed_val.text() != speed_str:
             self.lbl_speed_val.setText(speed_str)
-            speed_tip = f"Current transfer rate: {speed_str}"
+            speed_tip = self.tr("Current transfer rate: %1").replace("%1", speed_str)
             self.lbl_speed_val.setToolTip(speed_tip)
             self.badge_speed.setToolTip(speed_tip)
 
         active_str = str(active_count)
         if self.lbl_active_val.text() != active_str:
             self.lbl_active_val.setText(active_str)
-            active_tip = f"{active_count} active download{'s' if active_count != 1 else ''} in progress"
+            active_tip = self.tr("%1 active downloads in progress").replace("%1", str(active_count)) if active_count != 1 else self.tr("1 active download in progress")
             self.lbl_active_val.setToolTip(active_tip)
             self.badge_active.setToolTip(active_tip)
 
@@ -373,14 +394,14 @@ class DataUsageWidget(QFrame):
             free = usage.free
             pct = int((used / total) * 100) if total > 0 else 0
 
-            storage_tip = f"Downloads storage: {format_bytes(used)} used of {format_bytes(total)} ({pct}%), {format_bytes(free)} free"
-            self.lbl_storage_val.setText(f"{format_bytes(used)} of {format_bytes(total)}")
+            storage_tip = self.tr("Downloads storage: %1 used of %2 (%3%), %4 free").replace("%1", format_bytes(used)).replace("%2", format_bytes(total)).replace("%3", str(pct)).replace("%4", format_bytes(free))
+            self.lbl_storage_val.setText(self.tr("%1 of %2").replace("%1", format_bytes(used)).replace("%2", format_bytes(total)))
             self.lbl_storage_val.setToolTip(storage_tip)
             self.storage_progress.setValue(min(100, max(0, pct)))
             self.storage_progress.setToolTip(storage_tip)
-            self.lbl_storage_used.setText(f"{pct}% used")
-            self.lbl_storage_used.setToolTip(f"{pct}% of disk space used")
-            self.lbl_storage_free.setText(f"{format_bytes(free)} free")
-            self.lbl_storage_free.setToolTip(f"{format_bytes(free)} free disk space remaining")
+            self.lbl_storage_used.setText(self.tr("%1% used").replace("%1", str(pct)))
+            self.lbl_storage_used.setToolTip(self.tr("Percentage of disk space used"))
+            self.lbl_storage_free.setText(self.tr("%1 free").replace("%1", format_bytes(free)))
+            self.lbl_storage_free.setToolTip(self.tr("Free disk space remaining"))
         except Exception:
             pass

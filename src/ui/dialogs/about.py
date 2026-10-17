@@ -109,13 +109,15 @@ class AboutDialog(QDialog):
 
         title_layout = QVBoxLayout()
         title_layout.setSpacing(4)
-        title_label = QLabel("<h2>Bengal Download Manager</h2>", self)
+        title_label = QLabel(f"<h2>{self.tr('Bengal Download Manager')}</h2>", self)
         title_label.setTextFormat(Qt.TextFormat.RichText)
         title_layout.addWidget(title_label)
 
         desc_label = QLabel(
-            "Lightweight open-source download manager built with PyQt6 and Aria2 "
-            "featuring multi-threaded downloading.",
+            self.tr(
+                "Lightweight open-source download manager built with PyQt6 and Aria2 "
+                "featuring multi-threaded downloading."
+            ),
             self
         )
         desc_label.setWordWrap(True)
@@ -140,7 +142,15 @@ class AboutDialog(QDialog):
         version_row.setSpacing(6)
         version_row.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        ver_text = QLabel(f"<b>Version:</b> {VERSION} ({self.pkg_type})", self)
+        pkg_names = {
+            "Dev Build": self.tr("Dev Build"),
+            "Flatpak": self.tr("Flatpak"),
+            "Snap": self.tr("Snap"),
+            "AppImage": self.tr("AppImage"),
+            "Tar Build": self.tr("Tar Build"),
+        }
+        pkg_display = pkg_names.get(self.pkg_type, self.pkg_type)
+        ver_text = QLabel(f"<b>{self.tr('Version:')}</b> {VERSION} ({pkg_display})", self)
         ver_text.setTextFormat(Qt.TextFormat.RichText)
         version_row.addWidget(ver_text)
 
@@ -157,12 +167,12 @@ class AboutDialog(QDialog):
 
         # License & Credits
         license_label = QLabel(
-            "<p style='margin: 0; line-height: 1.4;'>"
-            "<b>License:</b> MIT License<br>"
-            "© 2026 <a>tazihad</a> &nbsp;"
-            "<a href='https://zihad.com.bd/bengal-download-manager'>https://zihad.com.bd/bengal-download-manager</a><br>"
-            "Contact: <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a>"
-            "</p>",
+            f"<p style='margin: 0; line-height: 1.4;'>"
+            f"<b>{self.tr('License:')}</b> MIT License<br>"
+            f"© 2026 <a>tazihad</a> &nbsp;"
+            f"<a href='https://zihad.com.bd/bengal-download-manager'>https://zihad.com.bd/bengal-download-manager</a><br>"
+            f"{self.tr('Contact:')} <a href='mailto:tazihad@gmail.com'>tazihad@gmail.com</a>"
+            f"</p>",
             self
         )
         license_label.setTextFormat(Qt.TextFormat.RichText)
@@ -171,10 +181,10 @@ class AboutDialog(QDialog):
 
         # Project Site
         site_label = QLabel(
-            "<p style='margin: 0; line-height: 1.4;'>"
-            "<b>Project Site:</b><br>"
+            f"<p style='margin: 0; line-height: 1.4;'>"
+            f"<b>{self.tr('Project Site:')}</b><br>"
             f"<a href='{OFFICIAL_GITHUB_REPO}'>{OFFICIAL_GITHUB_REPO}</a>"
-            "</p>",
+            f"</p>",
             self
         )
         site_label.setTextFormat(Qt.TextFormat.RichText)
@@ -204,7 +214,7 @@ class AboutDialog(QDialog):
 
         # Package requires verification: show loading spinner immediately
         self.spinner.start()
-        self.verify_label.setText("<span style='font-size: 11px; color: palette(placeholder-text);'>Verifying...</span>")
+        self.verify_label.setText(f"<span style='font-size: 11px; color: palette(placeholder-text);'>{self.tr('Verifying...')}</span>")
         self.verify_label.show()
 
         # Run verification in background QThread so dialog opens instantaneously
@@ -217,24 +227,29 @@ class AboutDialog(QDialog):
         self.spinner.stop()
 
         if status == "verified":
+            ver_text = self.tr("✔ Verified Source")
             self.verify_label.setText(
-                f"<a href='{url}' title='{note}' style='color: #2ecc71; text-decoration: none; font-weight: bold;'>✔ Verified Source</a>"
+                f"<a href='{url}' title='{note}' style='color: #2ecc71; text-decoration: none; font-weight: bold;'>{ver_text}</a>"
             )
             self.verify_label.setToolTip(note)
             self.verify_label.show()
         elif status == "no_network":
             # Small size warning text when offline / no network available
+            no_net_text = self.tr("⚠ No network")
+            no_net_tip = self.tr("Could not verify package authenticity: no network connection")
             self.verify_label.setText(
-                "<span style='color: #e67e22; font-size: 11px; font-weight: bold;' "
-                "title='Could not verify package authenticity: no network connection'>⚠ No network</span>"
+                f"<span style='color: #e67e22; font-size: 11px; font-weight: bold;' "
+                f"title='{no_net_tip}'>{no_net_text}</span>"
             )
-            self.verify_label.setToolTip(note or "No network connection")
+            self.verify_label.setToolTip(note or no_net_tip)
             self.verify_label.show()
         else:
+            unverified_text = self.tr("✖ Unverified Source")
+            unverified_tip = self.tr("Source verification failed")
             self.verify_label.setText(
-                f"<span style='color: #e74c3c; font-size: 11px;' title='{note}'>✖ Unverified Source</span>"
+                f"<span style='color: #e74c3c; font-size: 11px;' title='{note or unverified_tip}'>{unverified_text}</span>"
             )
-            self.verify_label.setToolTip(note or "Source verification failed")
+            self.verify_label.setToolTip(note or unverified_tip)
             self.verify_label.show()
 
     def closeEvent(self, event) -> None:

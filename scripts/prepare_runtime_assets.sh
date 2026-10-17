@@ -32,7 +32,8 @@ if [ -d "$SRC_ASSETS/icons" ]; then
 fi
 
 if [ -d "$SRC_ASSETS/translations" ]; then
-    cp -r "$SRC_ASSETS/translations" "$TARGET_DIR/"
+    mkdir -p "$TARGET_DIR/translations"
+    cp -f "$SRC_ASSETS/translations"/*.qm "$TARGET_DIR/translations/" 2>/dev/null || true
 fi
 
 # 2. Target architecture binary only (strictly exclude foreign-architecture binaries)

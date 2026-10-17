@@ -138,7 +138,7 @@ Incoming downloads are automatically inspected and routed into designated target
 ### Adaptive Theme Engine
 - Seamlessly conforms to host desktop appearance (GNOME, KDE Plasma, XFCE).
 - Listens to OS `QStyleHints` signals for real-time dark/light mode transitions without restarting.
-- Includes 20+ built-in color schemes (Breeze Light/Dark, Kirigami, Dracula, Catppuccin, Nord, Obsidian Flow, Material You, One Dark, Solarized) and 14 vibrant accent colors.
+- Includes 20+ built-in color schemes (Breeze Light/Dark, Dracula, Catppuccin, Nord, Obsidian Flow, Material You, One Dark, Solarized) and 14 vibrant accent colors.
 - Custom vector monochrome icons dynamically render strokes and luminance to match active background palettes.
 
 ### OpenType Tabular Numerics (`tnum: 1`)
@@ -151,6 +151,5 @@ Incoming downloads are automatically inspected and routed into designated target
 - Optional *Launch minimized in system tray on system startup*.
 - Native FreeDesktop notifications on download completion.
 
-### Dual Interface Options: Classic Qt & KDE Kirigami QML
-- **Classic Mode**: Dense, informative, and productivity-oriented Qt6 QWidget layout with customizable columns and category tree.
-- **Kirigami Mode** (`--kirigami`): Modern, touch-friendly QML card view ideal for KDE Plasma Wayland sessions, convertibles, and Steam Deck devices.
+### Native Qt Desktop Interface
+- Dense, informative, and productivity-oriented Qt6 QWidget layout with customizable columns, collapsible details panel, and download categories tree.

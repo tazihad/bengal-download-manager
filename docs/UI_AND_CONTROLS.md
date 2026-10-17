@@ -303,7 +303,7 @@ Configures global application behavior through a structured, two-row tab bar.
 
 #### `General` Tab
 - **Theme and Appearance**:
-  - **Theme dropdown**: Select visual color scheme (**System**, **BDM Auto**, **BDM Dark**, **BDM Light**, **Breeze Dark**, **Breeze Light**, **Catppuccin**, **Dracula**, **IDM Classic**, **Kirigami Dark/Light**, **Material You**, **Nord**, **Obsidian Flow**, **One Dark**, **Solarized**, **Twilight**, **Ubuntu**).
+  - **Theme dropdown**: Select visual color scheme (**System**, **BDM Auto**, **BDM Dark**, **BDM Light**, **Breeze Dark**, **Breeze Light**, **Catppuccin**, **Dracula**, **IDM Classic**, **Material You**, **Nord**, **Obsidian Flow**, **One Dark**, **Solarized**, **Twilight**, **Ubuntu**).
   - **Accent dropdown**: Choose highlight color (**System**, **BDM Default**, **Amethyst Violet**, **Breeze Blue**, **Crimson Red**, **Dracula Purple**, **Emerald Green**, **Material Cobalt**, **Nord Frost**, **Ubuntu Orange**, etc.).
   - **Icons dropdown**: Select icon pack (**BDM Auto**, **BDM Dark**, **BDM Light**, **Adwaita**, **Breeze**, **Breeze Dark**, **Modern Color**, **Yaru**).
   - **Tray Icon dropdown**: Select tray icon variant (**App Icon**, **Automatic**, **Monochrome Dark**, **Monochrome Light**).

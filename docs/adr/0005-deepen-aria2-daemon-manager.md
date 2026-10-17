@@ -21,4 +21,4 @@ We introduce `Aria2DaemonManager` in `src/core/aria2_daemon.py` as a deep module
 - Automated test fixtures can inspect and manage aria2 daemon state headlessly.
 - Passes the deletion test: low-level process management concentrates in a single module with high locality.
 
-> **Note:** `DownloadBridge` (Kirigami QML layer) was removed in PR #144. `Aria2DaemonManager` continues to be used by `MainWindow` and the core worker layer.
+> **Note:** The legacy QML presentation layer was removed in PR #144. `Aria2DaemonManager` continues to be used by `MainWindow` and the core worker layer.

@@ -68,6 +68,10 @@ if [ "$DO_CLEAN" -eq 1 ]; then
 fi
 
 RUNTIME_ASSETS_DIR="$PYINSTALLER_WORKPATH/runtime_assets"
+if [ -f "$SCRIPT_DIR/i18n.py" ]; then
+    echo "Compiling latest translation catalogs..."
+    $PY_BIN "$SCRIPT_DIR/i18n.py" compile || true
+fi
 bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH"
 
 PYTHONPATH=src $PYINSTALLER_BIN \

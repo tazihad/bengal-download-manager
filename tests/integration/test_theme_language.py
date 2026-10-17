@@ -144,17 +144,21 @@ class TestLanguageIntegration:
         assert get_language_code("klingon") == "system"
         assert get_language_display("klingon") == "System Default"
 
-    def test_translator_translates_known(self, qapp):
-        from core.services.language_service import JsonCatalogTranslator
-        t = JsonCatalogTranslator({"hello": "hallo"})
-        result = t.translate("ctx", "hello")
-        assert result == "hallo"
+    def test_apply_language_en_succeeds(self, qapp):
+        from core.services.language_service import apply_language, tr
+        assert apply_language(qapp, "en") is True
+        assert tr("Resume") == "Resume"
 
-    def test_translator_falls_back_to_source(self, qapp):
-        from core.services.language_service import JsonCatalogTranslator
-        t = JsonCatalogTranslator({})
-        result = t.translate("ctx", "unknown key")
-        assert result == ""
+    def test_rtl_layout_direction_remains_ltr(self, qapp):
+        from PyQt6.QtCore import Qt
+        from core.services.language_service import apply_language
+        # When Arabic or Persian is set, app layout direction must remain LeftToRight
+        apply_language(qapp, "ar")
+        assert qapp.layoutDirection() == Qt.LayoutDirection.LeftToRight
+        apply_language(qapp, "fa")
+        assert qapp.layoutDirection() == Qt.LayoutDirection.LeftToRight
+        # Reset to en
+        apply_language(qapp, "en")
 
 
 class TestCombinedThemeLanguage:

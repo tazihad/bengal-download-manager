@@ -93,9 +93,9 @@ class TwoRowTabWidget(QWidget):
             }
         """)
 
-    def addTab(self, widget, label, row=2):
+    def addTab(self, widget, label, row=2, tab_id=""):
         idx = len(self._widgets)
-        self._widgets.append((widget, label, row))
+        self._widgets.append((widget, label, row, tab_id or str(idx)))
         self.stack.addWidget(widget)
 
         btn = QPushButton(label)
@@ -117,6 +117,11 @@ class TwoRowTabWidget(QWidget):
             self.stack.setCurrentIndex(0)
         return idx
 
+    def tabId(self, idx):
+        if 0 <= idx < len(self._widgets):
+            return self._widgets[idx][3]
+        return ""
+
     def _on_button_clicked(self, idx):
         self.setCurrentIndex(idx)
 
@@ -129,8 +134,8 @@ class TwoRowTabWidget(QWidget):
             self.currentChanged.emit(idx)
 
     def setCurrentWidget(self, widget):
-        for idx, (w, _, _) in enumerate(self._widgets):
-            if w == widget:
+        for idx, item in enumerate(self._widgets):
+            if item[0] == widget:
                 self.setCurrentIndex(idx)
                 break
 
@@ -144,8 +149,8 @@ class TwoRowTabWidget(QWidget):
         return self.stack.widget(idx)
 
     def indexOf(self, widget):
-        for idx, (w, _, _) in enumerate(self._widgets):
-            if w == widget:
+        for idx, item in enumerate(self._widgets):
+            if item[0] == widget:
                 return idx
         return -1
 
@@ -170,7 +175,7 @@ class OptionsDialog(QDialog):
         super().__init__(None)
         self._main_window = main_window or parent
         MemoryGuard.auto_manage_dialog(self)
-        self.setWindowTitle("Options")
+        self.setWindowTitle(self.tr("Options"))
         self.setWindowIcon(QApplication.windowIcon())
         
         # Standard reasonable dialog dimensions: spacious and uncramped, independent of main window height
@@ -210,36 +215,36 @@ class OptionsDialog(QDialog):
         # Row 1 (Top: Core Settings)
         self.general_tab = QWidget()
         self.setup_general_tab()
-        self.tabs.addTab(self.general_tab, "General", row=1)
+        self.tabs.addTab(self.general_tab, self.tr("General"), row=1, tab_id="general")
 
         self.downloads_tab = QWidget()
         self.setup_downloads_tab()
-        self.tabs.addTab(self.downloads_tab, "Downloads", row=1)
+        self.tabs.addTab(self.downloads_tab, self.tr("Downloads"), row=1, tab_id="downloads")
 
         self.saveto_tab = QWidget()
         self.setup_saveto_tab()
-        self.tabs.addTab(self.saveto_tab, "Save To", row=1)
+        self.tabs.addTab(self.saveto_tab, self.tr("Save To"), row=1, tab_id="saveto")
 
         self.startup_tab = QWidget()
         self.setup_startup_tab()
-        self.tabs.addTab(self.startup_tab, "Startup", row=1)
+        self.tabs.addTab(self.startup_tab, self.tr("Startup"), row=1, tab_id="startup")
 
         # Row 2 (Bottom: Integrations & Network)
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, "Extensions", row=2)
+        self.tabs.addTab(self.extension_tab, self.tr("Extensions"), row=2, tab_id="extension")
 
         self.media_tab = QWidget()
         self.setup_media_tab()
-        self.tabs.addTab(self.media_tab, "Media", row=2)
+        self.tabs.addTab(self.media_tab, self.tr("Media"), row=2, tab_id="media")
 
         self.aria2_tab = QWidget()
         self.setup_aria2_tab()
-        self.tabs.addTab(self.aria2_tab, "Aria2 / RPC", row=2)
+        self.tabs.addTab(self.aria2_tab, self.tr("Aria2 / RPC"), row=2, tab_id="aria2")
 
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
-        self.tabs.addTab(self.proxy_tab, "Proxy / Socks", row=2)
+        self.tabs.addTab(self.proxy_tab, self.tr("Proxy / Socks"), row=2, tab_id="proxy")
 
         # Default to General tab in Row 1 or initial_tab if specified
         if initial_tab is not None:
@@ -247,7 +252,7 @@ class OptionsDialog(QDialog):
         else:
             self.tabs.setCurrentWidget(self.general_tab)
 
-        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if any(k in self.tabs.tabText(idx) for k in ("Downloads", "Aria2", "RPC")) else None)
+        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if (self.tabs.tabId(idx) in ("downloads", "aria2") or any(k in self.tabs.tabText(idx) for k in ("Downloads", "Aria2", "RPC"))) else None)
         if hasattr(self, 'spin_aria_port'):
             self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
         if hasattr(self, 'txt_aria_token'):
@@ -256,17 +261,17 @@ class OptionsDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
-        self.btn_ok = QPushButton("OK")
+        self.btn_ok = QPushButton(self.tr("OK"))
         self.btn_ok.setFixedWidth(80)
         self.btn_ok.setFixedHeight(30)
         self.btn_ok.setDefault(True)
-        self.btn_ok.setToolTip("Save configuration changes and close dialog")
+        self.btn_ok.setToolTip(self.tr("Save configuration changes and close dialog"))
         self.btn_ok.clicked.connect(self.save_and_accept)
         
-        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel = QPushButton(self.tr("Cancel"))
         self.btn_cancel.setFixedWidth(80)
         self.btn_cancel.setFixedHeight(30)
-        self.btn_cancel.setToolTip("Discard changes and close dialog")
+        self.btn_cancel.setToolTip(self.tr("Discard changes and close dialog"))
         self.btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addWidget(self.btn_ok)
@@ -283,8 +288,10 @@ class OptionsDialog(QDialog):
             return
         if isinstance(target, str):
             target_lower = target.strip().lower()
-            for idx, (_, label, _) in enumerate(self.tabs._widgets):
-                if target_lower in label.lower():
+            for idx, item in enumerate(self.tabs._widgets):
+                label = item[1]
+                tid = item[3] if len(item) > 3 else ""
+                if target_lower == tid.lower() or target_lower in tid.lower() or target_lower in label.lower():
                     self.tabs.setCurrentIndex(idx)
                     return
 
@@ -304,16 +311,16 @@ class OptionsDialog(QDialog):
         layout.setSpacing(12)
         
         # 1. Theme and Appearance
-        grp_theme = QGroupBox("Theme and Appearance")
+        grp_theme = QGroupBox(self.tr("Theme and Appearance"))
         # Use QGridLayout for Theme & Appearance to ensure perfect 2D alignment across all 4 dropdowns
         grid_theme = QGridLayout()
         grid_theme.setContentsMargins(10, 8, 10, 8)
         grid_theme.setSpacing(10)
 
-        lbl_theme = QLabel("Theme:")
-        lbl_theme.setToolTip("Select application visual theme")
+        lbl_theme = QLabel(self.tr("Theme:"))
+        lbl_theme.setToolTip(self.tr("Select application visual theme"))
         self.combo_theme = QComboBox()
-        self.combo_theme.setToolTip("Select application visual theme")
+        self.combo_theme.setToolTip(self.tr("Select application visual theme"))
         self.combo_theme.setMaxVisibleItems(10)
         self.combo_theme.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_theme = self.combo_theme.view()
@@ -331,10 +338,10 @@ class OptionsDialog(QDialog):
         ]
         self.combo_theme.addItems(theme_options)
 
-        lbl_accent = QLabel("Accent:")
-        lbl_accent.setToolTip("Select accent/highlight color")
+        lbl_accent = QLabel(self.tr("Accent:"))
+        lbl_accent.setToolTip(self.tr("Select accent/highlight color"))
         self.combo_accent = QComboBox()
-        self.combo_accent.setToolTip("Select accent/highlight color")
+        self.combo_accent.setToolTip(self.tr("Select accent/highlight color"))
         self.combo_accent.setMaxVisibleItems(10)
         self.combo_accent.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_accent = self.combo_accent.view()
@@ -348,10 +355,10 @@ class OptionsDialog(QDialog):
         ]
         self.combo_accent.addItems(accent_options)
 
-        lbl_icon_theme = QLabel("Icons:")
-        lbl_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
+        lbl_icon_theme = QLabel(self.tr("Icons:"))
+        lbl_icon_theme.setToolTip(self.tr("Select icon theme set for toolbar and sidebar"))
         self.combo_icon_theme = QComboBox()
-        self.combo_icon_theme.setToolTip("Select icon theme set for toolbar and sidebar")
+        self.combo_icon_theme.setToolTip(self.tr("Select icon theme set for toolbar and sidebar"))
         self.combo_icon_theme.setMaxVisibleItems(10)
         self.combo_icon_theme.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_icons = self.combo_icon_theme.view()
@@ -360,10 +367,10 @@ class OptionsDialog(QDialog):
         icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "Chroma", "HighColor", "Modern Color", "Stellar", "TMOG Neon", "Yaru"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
-        lbl_tray_icon = QLabel("Tray Icon:")
-        lbl_tray_icon.setToolTip("Select system tray icon style")
+        lbl_tray_icon = QLabel(self.tr("Tray Icon:"))
+        lbl_tray_icon.setToolTip(self.tr("Select system tray icon style"))
         self.combo_tray_icon = QComboBox()
-        self.combo_tray_icon.setToolTip("Select system tray icon style")
+        self.combo_tray_icon.setToolTip(self.tr("Select system tray icon style"))
         self.combo_tray_icon.setMaxVisibleItems(10)
         self.combo_tray_icon.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_tray = self.combo_tray_icon.view()
@@ -374,10 +381,10 @@ class OptionsDialog(QDialog):
         ]
         self.combo_tray_icon.addItems(tray_icon_options)
 
-        lbl_titlebar = QLabel("Title bar:")
-        lbl_titlebar.setToolTip("Select title bar theme: follow system theme, system light, or system dark")
+        lbl_titlebar = QLabel(self.tr("Title bar:"))
+        lbl_titlebar.setToolTip(self.tr("Select title bar theme: follow system theme, system light, or system dark"))
         self.combo_titlebar = QComboBox()
-        self.combo_titlebar.setToolTip("Select title bar theme: Automatic (follow system theme), Light, or Dark")
+        self.combo_titlebar.setToolTip(self.tr("Select title bar theme: Automatic (follow system theme), Light, or Dark"))
         self.combo_titlebar.setMaxVisibleItems(10)
         self.combo_titlebar.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_titlebar = self.combo_titlebar.view()
@@ -386,10 +393,10 @@ class OptionsDialog(QDialog):
         titlebar_options = ["Automatic", "Light", "Dark"]
         self.combo_titlebar.addItems(titlebar_options)
 
-        lbl_highlight_text = QLabel("Highlight text:")
-        lbl_highlight_text.setToolTip("Select color of selected and highlighted text across table and menus")
+        lbl_highlight_text = QLabel(self.tr("Highlight text:"))
+        lbl_highlight_text.setToolTip(self.tr("Select color of selected and highlighted text across table and menus"))
         self.combo_highlight_text = QComboBox()
-        self.combo_highlight_text.setToolTip("Select color of highlighted text: Automatic, White, Dark, Cyan, Yellow, Mint Green, Rose Pink, Orange, Lavender")
+        self.combo_highlight_text.setToolTip(self.tr("Select color of highlighted text: Automatic, White, Dark, Cyan, Yellow, Mint Green, Rose Pink, Orange, Lavender"))
         self.combo_highlight_text.setMaxVisibleItems(10)
         self.combo_highlight_text.setStyleSheet("QComboBox { combobox-popup: 0; }")
         view_hl = self.combo_highlight_text.view()
@@ -487,15 +494,15 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_theme)
 
         # 2. UI Settings (Scale & Language)
-        grp_ui = QGroupBox("UI Settings")
+        grp_ui = QGroupBox(self.tr("UI Settings"))
         grid_ui = QGridLayout()
         grid_ui.setContentsMargins(10, 8, 10, 8)
         grid_ui.setSpacing(10)
 
-        lbl_scale = QLabel("Scale:")
-        lbl_scale.setToolTip("Set user interface scale factor")
+        lbl_scale = QLabel(self.tr("Scale:"))
+        lbl_scale.setToolTip(self.tr("Set user interface scale factor"))
         self.combo_scale = QComboBox()
-        self.combo_scale.setToolTip("Set user interface scale factor")
+        self.combo_scale.setToolTip(self.tr("Set user interface scale factor"))
         self.combo_scale.setMaxVisibleItems(10)
         self.combo_scale.setStyleSheet("QComboBox { combobox-popup: 0; }")
         scale_options = [
@@ -519,10 +526,10 @@ class OptionsDialog(QDialog):
             if def_idx != -1:
                 self.combo_scale.setCurrentIndex(def_idx)
 
-        lbl_language = QLabel("Language:")
-        lbl_language.setToolTip("Select user interface language")
+        lbl_language = QLabel(self.tr("Language:"))
+        lbl_language.setToolTip(self.tr("Select user interface language"))
         self.combo_language = QComboBox()
-        self.combo_language.setToolTip("Select interface language (Restart recommended to apply changes to all windows)")
+        self.combo_language.setToolTip(self.tr("Select interface language (Restart recommended to apply changes to all windows)"))
         self.combo_language.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
@@ -562,14 +569,14 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_ui)
 
         # 3. Confirmation Dialogs / Deletion Settings
-        grp_confirm = QGroupBox("Deletion and Confirmations")
+        grp_confirm = QGroupBox(self.tr("Deletion and Confirmations"))
         lyt_confirm = QVBoxLayout()
         lyt_confirm.setContentsMargins(10, 8, 10, 8)
         lyt_confirm.setSpacing(8)
 
-        self.chk_precheck_delete_files = QCheckBox("Pre-check \"Also delete files from disk (permanently)\" in delete dialog")
+        self.chk_precheck_delete_files = QCheckBox(self.tr("Pre-check \"Also delete files from disk (permanently)\" in delete dialog"))
         self.chk_precheck_delete_files.setToolTip(
-            "When deleting downloads, automatically check the option to permanently remove downloaded files from disk."
+            self.tr("When deleting downloads, automatically check the option to permanently remove downloaded files from disk.")
         )
 
         precheck_delete = False
@@ -608,13 +615,13 @@ class OptionsDialog(QDialog):
             return default
 
         # 1. Dialog and Popup Windows (IDM-style)
-        grp_dialogs = QGroupBox("Download Dialogs")
+        grp_dialogs = QGroupBox(self.tr("Download Dialogs"))
         vbox_dialogs = QVBoxLayout()
         vbox_dialogs.setContentsMargins(10, 10, 10, 10)
         vbox_dialogs.setSpacing(8)
 
-        self.chk_silent_download = QCheckBox("Silent download mode (start immediately without showing any dialogs)")
-        self.chk_silent_download.setToolTip("When enabled, downloads start and finish silently in the background without showing Start, Progress, or Complete popup dialogs")
+        self.chk_silent_download = QCheckBox(self.tr("Silent download mode (start immediately without showing any dialogs)"))
+        self.chk_silent_download.setToolTip(self.tr("When enabled, downloads start and finish silently in the background without showing Start, Progress, or Complete popup dialogs"))
         self.chk_silent_download.setChecked(_get_setting("silent_download", False))
         vbox_dialogs.addWidget(self.chk_silent_download)
 
@@ -623,34 +630,34 @@ class OptionsDialog(QDialog):
         line_silent.setFrameShadow(QFrame.Shadow.Sunken)
         vbox_dialogs.addWidget(line_silent)
 
-        self.chk_show_start_dialog = QCheckBox("Show start download dialog")
-        self.chk_show_start_dialog.setToolTip("Show confirmation and destination dialog before starting a download")
+        self.chk_show_start_dialog = QCheckBox(self.tr("Show start download dialog"))
+        self.chk_show_start_dialog.setToolTip(self.tr("Show confirmation and destination dialog before starting a download"))
         self.chk_show_start_dialog.setChecked(_get_setting("show_start_dialog", True))
         vbox_dialogs.addWidget(self.chk_show_start_dialog)
 
-        self.chk_prefetch_download = QCheckBox("Start downloading immediately while showing start dialog (early download)")
-        self.chk_prefetch_download.setToolTip("Begin downloading the file in the background while the start dialog is open (like IDM). If you cancel, the partial file is deleted.")
+        self.chk_prefetch_download = QCheckBox(self.tr("Start downloading immediately while showing start dialog (early download)"))
+        self.chk_prefetch_download.setToolTip(self.tr("Begin downloading the file in the background while the start dialog is open (like IDM). If you cancel, the partial file is deleted."))
         self.chk_prefetch_download.setChecked(_get_setting("prefetch_download", True))
         vbox_dialogs.addWidget(self.chk_prefetch_download)
 
-        self.chk_show_progress_dialog = QCheckBox("Show download progress dialog")
-        self.chk_show_progress_dialog.setToolTip("Show popup progress dialog during active file transfer")
+        self.chk_show_progress_dialog = QCheckBox(self.tr("Show download progress dialog"))
+        self.chk_show_progress_dialog.setToolTip(self.tr("Show popup progress dialog during active file transfer"))
         self.chk_show_progress_dialog.setChecked(_get_setting("show_progress_dialog", True))
         vbox_dialogs.addWidget(self.chk_show_progress_dialog)
 
-        self.chk_show_complete_dialog = QCheckBox("Show download complete dialog")
-        self.chk_show_complete_dialog.setToolTip("Show popup completion window when a file finishes downloading")
+        self.chk_show_complete_dialog = QCheckBox(self.tr("Show download complete dialog"))
+        self.chk_show_complete_dialog.setToolTip(self.tr("Show popup completion window when a file finishes downloading"))
         self.chk_show_complete_dialog.setChecked(_get_setting("show_complete_dialog", True))
         vbox_dialogs.addWidget(self.chk_show_complete_dialog)
 
-        self.chk_show_queue_complete_dialog = QCheckBox("Show download complete dialog for downloads in queues")
-        self.chk_show_queue_complete_dialog.setToolTip("Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)")
+        self.chk_show_queue_complete_dialog = QCheckBox(self.tr("Show download complete dialog for downloads in queues"))
+        self.chk_show_queue_complete_dialog.setToolTip(self.tr("Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)"))
         self.chk_show_queue_complete_dialog.setChecked(_get_setting("show_queue_complete_dialog", False))
         vbox_dialogs.addWidget(self.chk_show_queue_complete_dialog)
 
-        default_progress_tooltip = "Show popup progress dialog during active file transfer"
-        disabled_by_start_tooltip = "Show popup progress dialog during active file transfer (Requires 'Show start download dialog' to be enabled)"
-        disabled_by_silent_tooltip = "Show popup progress dialog during active file transfer (Disabled when Silent Download is enabled)"
+        default_progress_tooltip = self.tr("Show popup progress dialog during active file transfer")
+        disabled_by_start_tooltip = self.tr("Show popup progress dialog during active file transfer (Requires 'Show start download dialog' to be enabled)")
+        disabled_by_silent_tooltip = self.tr("Show popup progress dialog during active file transfer (Disabled when Silent Download is enabled)")
 
         def _update_dialog_checkbox_states():
             silent = self.chk_silent_download.isChecked()
@@ -681,40 +688,40 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_dialogs)
 
         # 2. Desktop Notifications
-        grp_notif = QGroupBox("Notifications")
+        grp_notif = QGroupBox(self.tr("Notifications"))
         vbox_notif = QVBoxLayout()
         vbox_notif.setContentsMargins(10, 10, 10, 10)
         vbox_notif.setSpacing(8)
 
-        self.chk_system_notifications = QCheckBox("Show system notification when download completes")
+        self.chk_system_notifications = QCheckBox(self.tr("Show system notification when download completes"))
         current_notif = False
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
             current_notif = self.main_win.settings.get("system_notifications", False)
         elif self.main_win and hasattr(self.main_win, "system_notifications"):
             current_notif = bool(getattr(self.main_win, "system_notifications", False))
         self.chk_system_notifications.setChecked(current_notif)
-        self.chk_system_notifications.setToolTip("Send an XDG standard desktop notification when a download completes")
+        self.chk_system_notifications.setToolTip(self.tr("Send an XDG standard desktop notification when a download completes"))
         vbox_notif.addWidget(self.chk_system_notifications)
 
         grp_notif.setLayout(vbox_notif)
         layout.addWidget(grp_notif)
 
         # 3. Engine Settings
-        grp_engine = QGroupBox("Engine and Connection Settings")
+        grp_engine = QGroupBox(self.tr("Engine and Connection Settings"))
         vbox_engine = QVBoxLayout()
         vbox_engine.setContentsMargins(10, 10, 10, 10)
         vbox_engine.setSpacing(8)
         
         # Engine status label
-        self.lbl_engine = QLabel("Active Engine: Checking...")
+        self.lbl_engine = QLabel(self.tr("Active Engine: Checking..."))
         self.lbl_engine.setTextFormat(Qt.TextFormat.RichText)
-        self.lbl_engine.setToolTip("Connection status and backend binary for Aria2 download engine")
+        self.lbl_engine.setToolTip(self.tr("Connection status and backend binary for Aria2 download engine"))
         vbox_engine.addWidget(self.lbl_engine)
         
         # Max Split Connections (threads)
         row_conn = QHBoxLayout()
-        lbl_conn = QLabel("Max Split Connections (threads):")
-        lbl_conn.setToolTip("Default number of parallel split connections / threads per download (1-32). Default: 8")
+        lbl_conn = QLabel(self.tr("Max Split Connections (threads):"))
+        lbl_conn.setToolTip(self.tr("Default number of parallel split connections / threads per download (1-32). Default: 8"))
         self.spin_max_conn = QSpinBox()
         self.spin_max_conn.setRange(1, 32)
         init_conn = 8
@@ -722,7 +729,7 @@ class OptionsDialog(QDialog):
             init_conn = self.extension_data.get("max_connections", 8)
         self.spin_max_conn.setValue(int(init_conn) if isinstance(init_conn, (int, float, str)) and str(init_conn).isdigit() else 8)
         self.spin_max_conn.setFixedWidth(70)
-        self.spin_max_conn.setToolTip("Default number of parallel split connections / threads per download (1-32). Default: 8")
+        self.spin_max_conn.setToolTip(self.tr("Default number of parallel split connections / threads per download (1-32). Default: 8"))
         row_conn.addWidget(lbl_conn)
         row_conn.addWidget(self.spin_max_conn)
         row_conn.addStretch()
@@ -755,21 +762,21 @@ class OptionsDialog(QDialog):
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Startup and Integration
-        grp_startup = QGroupBox("Startup and Integration")
+        grp_startup = QGroupBox(self.tr("Startup and Integration"))
         vbox_startup = QVBoxLayout()
         vbox_startup.setContentsMargins(10, 15, 10, 10)
         vbox_startup.setSpacing(10)
         
-        self.chk_startup = QCheckBox("Launch Bengal DM on system startup")
+        self.chk_startup = QCheckBox(self.tr("Launch Bengal DM on system startup"))
         self.chk_startup.setChecked(is_autostart_enabled())
-        self.chk_startup.setToolTip("Automatically launch Bengal Download Manager on system boot")
+        self.chk_startup.setToolTip(self.tr("Automatically launch Bengal Download Manager on system boot"))
         vbox_startup.addWidget(self.chk_startup)
         
-        self.chk_start_minimized = QCheckBox("Start minimized in system tray on system startup")
+        self.chk_start_minimized = QCheckBox(self.tr("Start minimized in system tray on system startup"))
         self.chk_start_minimized.setChecked(getattr(self.main_win, "start_minimized_on_autostart", False))
         self.chk_start_minimized.setEnabled(self.chk_startup.isChecked())
         self.chk_startup.toggled.connect(self.chk_start_minimized.setEnabled)
-        self.chk_start_minimized.setToolTip("Launch hidden in system tray when autostarting")
+        self.chk_start_minimized.setToolTip(self.tr("Launch hidden in system tray when autostarting"))
         vbox_startup.addWidget(self.chk_start_minimized)
         
         grp_startup.setLayout(vbox_startup)
@@ -788,26 +795,26 @@ class OptionsDialog(QDialog):
         token = self.txt_aria_token.text().strip() if hasattr(self, 'txt_aria_token') else self.extension_data.get("token", "")
         rpc_port = self.spin_aria_port.value() if hasattr(self, 'spin_aria_port') else self.extension_data.get("port", 56800)
         
-        self.lbl_engine.setText("Active Engine: <span style='color: #3498db;'>●</span> Checking...")
+        self.lbl_engine.setText(self.tr("Active Engine: Checking..."))
         
         def check():
-            engine_status = "<span style='color: orange;'>●</span> Fallback (Custom Python)"
+            engine_status = f"<span style='color: orange;'>●</span> {self.tr('Fallback (Custom Python)')}"
             try:
                 result = call_aria2_rpc("aria2.getVersion", port=rpc_port, token=token)
                 if result and isinstance(result, dict) and "version" in result:
                     version = result.get('version', 'Unknown')
-                    engine_status = f"<span style='color: #00ca00;'>●</span> Aria2 Connected (v{version})"
+                    engine_status = f"<span style='color: #00ca00;'>●</span> {self.tr('Aria2 Connected (v%1)').replace('%1', str(version))}"
                 else:
                     aria2_bin = find_aria2()
                     if not aria2_bin:
-                        engine_status = "<span style='color: red;'>●</span> Aria2 Not Installed (Python Engine Active)"
+                        engine_status = f"<span style='color: red;'>●</span> {self.tr('Aria2 Not Installed (Python Engine Active)')}"
                     else:
-                        engine_status = "<span style='color: orange;'>●</span> Offline (Python Fallback Active)"
+                        engine_status = f"<span style='color: orange;'>●</span> {self.tr('Offline (Python Fallback Active)')}"
             except Exception:
                 pass
             
-            aria2_bin = find_aria2() or "Not found"
-            final_text = f"Active Engine: {engine_status}<br><small>Binary: {aria2_bin}</small>"
+            aria2_bin = find_aria2() or self.tr("Not found")
+            final_text = f"{self.tr('Active Engine:')} {engine_status}<br><small>{self.tr('Binary:')} {aria2_bin}</small>"
             
             # Update UI safely from background thread
             try:
@@ -834,7 +841,7 @@ class OptionsDialog(QDialog):
         icon_label = QLabel()
         icon_label.setPixmap(self.style().standardPixmap(QStyle.StandardPixmap.SP_DirIcon)) 
         header_layout.addWidget(icon_label)
-        header_layout.addWidget(QLabel("Categories, file types, folders"))
+        header_layout.addWidget(QLabel(self.tr("Categories, file types, folders")))
         header_layout.addStretch()
         layout.addLayout(header_layout)
         
@@ -843,53 +850,65 @@ class OptionsDialog(QDialog):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
-        grp_save = QGroupBox("Save To...")
+        grp_save = QGroupBox(self.tr("Save To..."))
         grp_layout = QVBoxLayout(grp_save)
         grp_layout.setContentsMargins(10, 15, 10, 15)
         grp_layout.setSpacing(10)
         
         cat_row = QHBoxLayout()
-        cat_row.addWidget(QLabel("Category"))
+        cat_row.addWidget(QLabel(self.tr("Category")))
         cat_row.addStretch()
         grp_layout.addLayout(cat_row)
         
+        category_labels = {
+            "Compressed": self.tr("Compressed"),
+            "Disk Images": self.tr("Disk Images"),
+            "Documents": self.tr("Documents"),
+            "General": self.tr("General"),
+            "Images": self.tr("Images"),
+            "Music": self.tr("Music"),
+            "Programs": self.tr("Programs"),
+            "Video": self.tr("Video"),
+        }
         self.combo_cat = QComboBox()
-        self.combo_cat.addItems(sorted(self.config_data["categories"].keys()))
-        idx = self.combo_cat.findText("General")
+        for cat_key in sorted(self.config_data["categories"].keys()):
+            display_name = category_labels.get(cat_key, self.tr(cat_key))
+            self.combo_cat.addItem(display_name, cat_key)
+        idx = self.combo_cat.findData("General")
         if idx != -1: self.combo_cat.setCurrentIndex(idx)
-        self.combo_cat.setToolTip("Select category to configure download routing rules")
-        self.combo_cat.currentTextChanged.connect(self.on_category_changed)
+        self.combo_cat.setToolTip(self.tr("Select category to configure download routing rules"))
+        self.combo_cat.currentIndexChanged.connect(lambda idx: self.on_category_changed(self.combo_cat.currentData()))
         grp_layout.addWidget(self.combo_cat)
 
-        grp_layout.addWidget(QLabel('Automatically put in above category the following file types:'))
+        grp_layout.addWidget(QLabel(self.tr("Automatically put in above category the following file types:")))
         self.txt_extensions = QLineEdit()
-        self.txt_extensions.setToolTip("Space-separated file extensions automatically assigned to this category")
+        self.txt_extensions.setToolTip(self.tr("Space-separated file extensions automatically assigned to this category"))
         self.txt_extensions.textChanged.connect(self.on_extensions_changed)
         grp_layout.addWidget(self.txt_extensions)
         
-        self.lbl_def_dir = QLabel('Default download directory for "General" category')
+        self.lbl_def_dir = QLabel(self.tr('Default download directory for "%1" category').replace("%1", self.tr(self.current_category)))
         grp_layout.addWidget(self.lbl_def_dir)
         
         dir_row = QHBoxLayout()
         self.txt_save_path = QLineEdit()
-        self.txt_save_path.setToolTip("Default save directory for files in selected category")
+        self.txt_save_path.setToolTip(self.tr("Default save directory for files in selected category"))
         self.txt_save_path.textChanged.connect(self.on_path_changed)
         dir_row.addWidget(self.txt_save_path)
         
-        btn_browse_save = QPushButton("Browse")
-        btn_browse_save.setToolTip("Browse folder to set category save directory")
+        btn_browse_save = QPushButton(self.tr("Browse"))
+        btn_browse_save.setToolTip(self.tr("Browse folder to set category save directory"))
         btn_browse_save.clicked.connect(lambda: self.browse_folder(self.txt_save_path))
         dir_row.addWidget(btn_browse_save)
         grp_layout.addLayout(dir_row)
         
-        self.chk_last_selected = QCheckBox('Change folder for selected category on last selected')
+        self.chk_last_selected = QCheckBox(self.tr("Change folder for selected category on last selected"))
         self.chk_last_selected.setChecked(True)
-        self.chk_last_selected.setToolTip("Automatically update category directory when selecting a custom folder")
+        self.chk_last_selected.setToolTip(self.tr("Automatically update category directory when selecting a custom folder"))
         grp_layout.addWidget(self.chk_last_selected)
 
         layout.addWidget(grp_save)
         
-        grp_temp = QGroupBox("Temporary / Cache directory")
+        grp_temp = QGroupBox(self.tr("Temporary / Cache directory"))
         temp_layout = QVBoxLayout(grp_temp)
         temp_layout.setContentsMargins(10, 15, 10, 15)
         temp_layout.setSpacing(10)
@@ -897,11 +916,11 @@ class OptionsDialog(QDialog):
         temp_dir_row = QHBoxLayout()
         self.txt_temp_path = QLineEdit()
         self.txt_temp_path.setText(self.config_data.get("temp_dir", ""))
-        self.txt_temp_path.setToolTip("Temporary and cache directory used for downloading chunks, video stream fragments, and incomplete downloads before merging")
+        self.txt_temp_path.setToolTip(self.tr("Temporary and cache directory used for downloading chunks, video stream fragments, and incomplete downloads before merging"))
         temp_dir_row.addWidget(self.txt_temp_path)
         
-        btn_browse_temp = QPushButton("Browse")
-        btn_browse_temp.setToolTip("Browse folder for temporary chunk and cache storage")
+        btn_browse_temp = QPushButton(self.tr("Browse"))
+        btn_browse_temp.setToolTip(self.tr("Browse folder for temporary chunk and cache storage"))
         btn_browse_temp.clicked.connect(lambda: self.browse_folder(self.txt_temp_path))
         temp_layout.addLayout(temp_dir_row)
         
@@ -914,7 +933,7 @@ class OptionsDialog(QDialog):
         _tab_lyt.setContentsMargins(0, 0, 0, 0)
         _tab_lyt.setSpacing(0)
         _tab_lyt.addWidget(_scroll_area)
-        self.on_category_changed(self.combo_cat.currentText())
+        self.on_category_changed(self.combo_cat.currentData())
 
     def on_proxy_toggle(self, checked):
         if checked:
@@ -935,14 +954,14 @@ class OptionsDialog(QDialog):
         
         self.bg_mode = QButtonGroup(self)
         
-        self.rb_no_proxy = QRadioButton("No proxy / Get from system")
-        self.rb_no_proxy.setToolTip("Connect directly to the internet without using a custom proxy")
+        self.rb_no_proxy = QRadioButton(self.tr("No proxy / Get from system"))
+        self.rb_no_proxy.setToolTip(self.tr("Connect directly to the internet without using a custom proxy"))
         self.rb_no_proxy.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_no_proxy)
         self.bg_mode.addButton(self.rb_no_proxy)
         
-        self.rb_manual = QRadioButton("Manual proxy configuration")
-        self.rb_manual.setToolTip("Route all download traffic through a custom HTTP or HTTPS proxy server")
+        self.rb_manual = QRadioButton(self.tr("Manual proxy configuration"))
+        self.rb_manual.setToolTip(self.tr("Route all download traffic through a custom HTTP or HTTPS proxy server"))
         self.rb_manual.toggled.connect(self.on_proxy_toggle)
         layout.addWidget(self.rb_manual)
         self.bg_mode.addButton(self.rb_manual)
@@ -957,17 +976,17 @@ class OptionsDialog(QDialog):
         type_layout = QHBoxLayout()
         self.bg_type = QButtonGroup(self)
         
-        self.rb_http = QRadioButton("HTTP")
-        self.rb_http.setToolTip("Use HTTP proxy protocol")
+        self.rb_http = QRadioButton(self.tr("HTTP"))
+        self.rb_http.setToolTip(self.tr("Use HTTP proxy protocol"))
         self.rb_http.toggled.connect(self.on_proxy_toggle)
-        self.rb_https = QRadioButton("HTTPS")
-        self.rb_https.setToolTip("Use secure HTTPS proxy protocol")
+        self.rb_https = QRadioButton(self.tr("HTTPS"))
+        self.rb_https.setToolTip(self.tr("Use secure HTTPS proxy protocol"))
         self.rb_https.toggled.connect(self.on_proxy_toggle)
-        self.rb_socks4 = QRadioButton("SOCKS4")
-        self.rb_socks4.setToolTip("Use SOCKS4 proxy protocol (user identity only)")
+        self.rb_socks4 = QRadioButton(self.tr("SOCKS4"))
+        self.rb_socks4.setToolTip(self.tr("Use SOCKS4 proxy protocol (user identity only)"))
         self.rb_socks4.toggled.connect(self.on_proxy_toggle)
-        self.rb_socks5 = QRadioButton("SOCKS5")
-        self.rb_socks5.setToolTip("Use SOCKS5 proxy protocol (with optional user/password authentication)")
+        self.rb_socks5 = QRadioButton(self.tr("SOCKS5"))
+        self.rb_socks5.setToolTip(self.tr("Use SOCKS5 proxy protocol (with optional user/password authentication)"))
         self.rb_socks5.toggled.connect(self.on_proxy_toggle)
 
         self.bg_type.addButton(self.rb_http)
@@ -975,8 +994,8 @@ class OptionsDialog(QDialog):
         self.bg_type.addButton(self.rb_socks4)
         self.bg_type.addButton(self.rb_socks5)
 
-        lbl_type = QLabel("Type:")
-        lbl_type.setToolTip("Select proxy protocol type")
+        lbl_type = QLabel(self.tr("Type:"))
+        lbl_type.setToolTip(self.tr("Select proxy protocol type"))
         type_layout.addWidget(lbl_type)
         type_layout.addWidget(self.rb_http)
         type_layout.addWidget(self.rb_https)
@@ -987,51 +1006,51 @@ class OptionsDialog(QDialog):
         
         # Host / Port
         addr_layout = QHBoxLayout()
-        lbl_host = QLabel("Proxy host:")
-        lbl_host.setToolTip("Hostname or IP address of the proxy server")
+        lbl_host = QLabel(self.tr("Proxy host:"))
+        lbl_host.setToolTip(self.tr("Hostname or IP address of the proxy server"))
         addr_layout.addWidget(lbl_host)
         self.txt_host = QLineEdit()
-        self.txt_host.setToolTip("Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)")
+        self.txt_host.setToolTip(self.tr("Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)"))
         self.txt_host.textChanged.connect(self.save_proxy_data)
         self.txt_host.textChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.txt_host, 1)
         
-        lbl_port = QLabel("Port:")
-        lbl_port.setToolTip("Port number of the proxy server (1-65535)")
+        lbl_port = QLabel(self.tr("Port:"))
+        lbl_port.setToolTip(self.tr("Port number of the proxy server (1-65535)"))
         addr_layout.addWidget(lbl_port)
         self.spin_port = QSpinBox()
         self.spin_port.setRange(1, 65535)
         self.spin_port.setValue(8080)
-        self.spin_port.setToolTip("Port number of proxy server (1-65535)")
+        self.spin_port.setToolTip(self.tr("Port number of proxy server (1-65535)"))
         self.spin_port.valueChanged.connect(self.save_proxy_data)
         self.spin_port.valueChanged.connect(self.refresh_engine_status)
         addr_layout.addWidget(self.spin_port)
         manual_layout.addLayout(addr_layout)
         
         # Auth
-        self.chk_auth = QCheckBox("Authentication required")
-        self.chk_auth.setToolTip("Enable username and password credentials for proxy authentication")
+        self.chk_auth = QCheckBox(self.tr("Authentication required"))
+        self.chk_auth.setToolTip(self.tr("Enable username and password credentials for proxy authentication"))
         self.chk_auth.toggled.connect(self.update_proxy_ui)
         self.chk_auth.toggled.connect(self.save_proxy_data)
         self.chk_auth.toggled.connect(self.refresh_engine_status)
         manual_layout.addWidget(self.chk_auth)
         
         auth_layout = QGridLayout()
-        lbl_user = QLabel("Username:")
-        lbl_user.setToolTip("Username for proxy authentication")
+        lbl_user = QLabel(self.tr("Username:"))
+        lbl_user.setToolTip(self.tr("Username for proxy authentication"))
         auth_layout.addWidget(lbl_user, 0, 0)
         self.txt_user = QLineEdit()
-        self.txt_user.setToolTip("Username for proxy server authentication")
+        self.txt_user.setToolTip(self.tr("Username for proxy server authentication"))
         self.txt_user.textChanged.connect(self.save_proxy_data)
         self.txt_user.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_user, 0, 1)
         
-        lbl_pass = QLabel("Password:")
-        lbl_pass.setToolTip("Password for proxy authentication")
+        lbl_pass = QLabel(self.tr("Password:"))
+        lbl_pass.setToolTip(self.tr("Password for proxy authentication"))
         auth_layout.addWidget(lbl_pass, 1, 0)
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_pass.setToolTip("Password for proxy server authentication")
+        self.txt_pass.setToolTip(self.tr("Password for proxy server authentication"))
         self.txt_pass.textChanged.connect(self.save_proxy_data)
         self.txt_pass.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_pass, 1, 1)
@@ -1056,14 +1075,14 @@ class OptionsDialog(QDialog):
 
         self.lbl_proxy_flag = QLabel("🌐")
         self.lbl_proxy_flag.setStyleSheet("font-size: 22px;")
-        self.lbl_proxy_flag.setToolTip("Country flag")
+        self.lbl_proxy_flag.setToolTip(self.tr("Country flag"))
         status_hlayout.addWidget(self.lbl_proxy_flag, 0, Qt.AlignmentFlag.AlignVCenter)
 
         status_text_layout = QVBoxLayout()
         status_text_layout.setContentsMargins(0, 0, 0, 0)
         status_text_layout.setSpacing(2)
 
-        self.lbl_proxy_status = QLabel("Proxy status: Not checked")
+        self.lbl_proxy_status = QLabel(self.tr("Proxy status: Not checked"))
         self.lbl_proxy_status.setStyleSheet("font-weight: bold; color: palette(window-text);")
         self.lbl_proxy_status.setWordWrap(True)
         self.lbl_proxy_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -1081,7 +1100,7 @@ class OptionsDialog(QDialog):
 
         status_hlayout.addLayout(status_text_layout, 1)
 
-        self.btn_test_proxy = QPushButton("Test Proxy")
+        self.btn_test_proxy = QPushButton(self.tr("Test Proxy"))
         self.btn_test_proxy.setFixedHeight(32)
         self.btn_test_proxy.setFixedWidth(95)
         self.btn_test_proxy.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1091,7 +1110,7 @@ class OptionsDialog(QDialog):
                 font-weight: 500;
             }
         """)
-        self.btn_test_proxy.setToolTip("Verify connection and detect external IP and country using this proxy")
+        self.btn_test_proxy.setToolTip(self.tr("Verify connection and detect external IP and country using this proxy"))
         self.btn_test_proxy.clicked.connect(lambda: self.trigger_proxy_detection(force=True))
         status_hlayout.addWidget(self.btn_test_proxy, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -1191,40 +1210,36 @@ class OptionsDialog(QDialog):
         icon_label = QLabel()
         icon_label.setPixmap(self.windowIcon().pixmap(32, 32))
         header_layout.addWidget(icon_label)
-        header_layout.addWidget(QLabel("<b>Bengal Download Manager Integration Module</b>"))
+        header_layout.addWidget(QLabel(self.tr("<b>Bengal Download Manager Integration Module</b>")))
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
         # Overview & Features Box
-        grp_info = QGroupBox("Browser Integration Overview")
+        grp_info = QGroupBox(self.tr("Browser Integration Overview"))
         info_layout = QVBoxLayout(grp_info)
         info_layout.setContentsMargins(12, 14, 12, 14)
         info_layout.setSpacing(8)
 
         info_text = QLabel(
-            "The Bengal DM browser extension captures downloads directly from your browser "
-            "and sends them to Bengal Download Manager for high-speed multi-threaded acceleration."
+            self.tr("The Bengal DM browser extension captures downloads directly from your browser and sends them to Bengal Download Manager for high-speed multi-threaded acceleration.")
         )
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
 
         features_label = QLabel(
-            "• One-click automatic download interception\n"
-            "• Media sniffer for online audio and video streams\n"
-            "• Right-click context menu to download links or selection\n"
-            "• Configurable file type filtering and bypass lists"
+            self.tr("• One-click automatic download interception\n• Media sniffer for online audio and video streams\n• Right-click context menu to download links or selection\n• Configurable file type filtering and bypass lists")
         )
         features_label.setStyleSheet("color: gray; font-size: 12px; line-height: 1.4;")
         info_layout.addWidget(features_label)
         layout.addWidget(grp_info)
 
         # Get Browser Extension Section
-        grp_get_ext = QGroupBox("Get Browser Extension")
+        grp_get_ext = QGroupBox(self.tr("Get Browser Extension"))
         get_ext_layout = QVBoxLayout(grp_get_ext)
         get_ext_layout.setContentsMargins(12, 14, 12, 14)
         get_ext_layout.setSpacing(10)
 
-        ext_desc = QLabel("Install the extension directly in your preferred browser:")
+        ext_desc = QLabel(self.tr("Install the extension directly in your preferred browser:"))
         get_ext_layout.addWidget(ext_desc)
 
         buttons_layout = QHBoxLayout()
@@ -1234,25 +1249,25 @@ class OptionsDialog(QDialog):
         from PyQt6.QtCore import QUrl
         from PyQt6.QtGui import QDesktopServices
 
-        self.btn_ext_github = QPushButton(" GitHub Releases")
+        self.btn_ext_github = QPushButton(self.tr(" GitHub Releases"))
         self.btn_ext_github.setFixedHeight(32)
         self.btn_ext_github.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ext_github.setIcon(get_monochrome_icon("github", size=18))
-        self.btn_ext_github.setToolTip("Open GitHub Releases page to download extension package (.xpi / .zip)")
+        self.btn_ext_github.setToolTip(self.tr("Open GitHub Releases page to download extension package (.xpi / .zip)"))
         self.btn_ext_github.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
 
-        self.btn_ext_firefox = QPushButton(" Firefox Store")
+        self.btn_ext_firefox = QPushButton(self.tr(" Firefox Store"))
         self.btn_ext_firefox.setFixedHeight(32)
         self.btn_ext_firefox.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ext_firefox.setIcon(get_monochrome_icon("firefox", size=18))
-        self.btn_ext_firefox.setToolTip("Open Mozilla Firefox Add-ons Store page")
+        self.btn_ext_firefox.setToolTip(self.tr("Open Mozilla Firefox Add-ons Store page"))
         self.btn_ext_firefox.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
 
-        self.btn_ext_chrome = QPushButton(" Chrome (Coming Soon)")
+        self.btn_ext_chrome = QPushButton(self.tr(" Chrome (Coming Soon)"))
         self.btn_ext_chrome.setFixedHeight(32)
         self.btn_ext_chrome.setIcon(get_monochrome_icon("chrome", size=18))
         self.btn_ext_chrome.setEnabled(False)
-        self.btn_ext_chrome.setToolTip("Chrome Web Store integration is coming soon")
+        self.btn_ext_chrome.setToolTip(self.tr("Chrome Web Store integration is coming soon"))
 
         buttons_layout.addWidget(self.btn_ext_github)
         buttons_layout.addWidget(self.btn_ext_firefox)
@@ -1262,7 +1277,7 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_get_ext)
 
         # Note pointing to Aria2 / RPC tab
-        note_label = QLabel("<i>Note: To configure Aria2 RPC authentication token or local IPC port, open the <b>Aria2 / RPC</b> tab.</i>")
+        note_label = QLabel(self.tr("<i>Note: To configure Aria2 RPC authentication token or local IPC port, open the <b>Aria2 / RPC</b> tab.</i>"))
         note_label.setWordWrap(True)
         note_label.setStyleSheet("color: gray; font-size: 11px;")
         layout.addWidget(note_label)
@@ -1291,22 +1306,22 @@ class OptionsDialog(QDialog):
         header_icon = QLabel()
         header_icon.setPixmap(self.windowIcon().pixmap(24, 24))
         header_layout.addWidget(header_icon)
-        header_title = QLabel("<b>Aria2 RPC & IPC Connection Settings</b>")
+        header_title = QLabel(self.tr("<b>Aria2 RPC & IPC Connection Settings</b>"))
         header_layout.addWidget(header_title)
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
         # Aria2 RPC Settings Group
-        grp_aria = QGroupBox("Aria2 RPC Daemon Settings")
+        grp_aria = QGroupBox(self.tr("Aria2 RPC Daemon Settings"))
         aria_layout = QGridLayout(grp_aria)
         aria_layout.setContentsMargins(12, 16, 12, 16)
         aria_layout.setSpacing(12)
 
         # Protocol
-        aria_layout.addWidget(QLabel("Protocol:"), 0, 0)
+        aria_layout.addWidget(QLabel(self.tr("Protocol:")), 0, 0)
         self.combo_aria_proto = QComboBox()
         self.combo_aria_proto.setFixedHeight(28)
-        self.combo_aria_proto.setToolTip("Communication protocol for connecting to Aria2 RPC daemon")
+        self.combo_aria_proto.setToolTip(self.tr("Communication protocol for connecting to Aria2 RPC daemon"))
         self.combo_aria_proto.addItem("http", "http")
         self.combo_aria_proto.addItem("https", "https")
         self.combo_aria_proto.addItem("websocket", "ws")
@@ -1325,46 +1340,46 @@ class OptionsDialog(QDialog):
         aria_layout.addWidget(self.combo_aria_proto, 0, 1)
 
         # Port
-        aria_layout.addWidget(QLabel("Port:"), 1, 0)
+        aria_layout.addWidget(QLabel(self.tr("Port:")), 1, 0)
         self.spin_aria_port = QSpinBox()
         self.spin_aria_port.setFixedHeight(28)
         self.spin_aria_port.setRange(1, 65535)
         self.spin_aria_port.setValue(self.extension_data.get("port", 56800))
-        self.spin_aria_port.setToolTip("Port number for Aria2 RPC daemon (default 56800)")
+        self.spin_aria_port.setToolTip(self.tr("Port number for Aria2 RPC daemon (default 56800)"))
         aria_layout.addWidget(self.spin_aria_port, 1, 1)
 
         # Token
-        aria_layout.addWidget(QLabel("Secret Token:"), 2, 0)
+        aria_layout.addWidget(QLabel(self.tr("Secret Token:")), 2, 0)
         self.txt_aria_token = QLineEdit()
         self.txt_aria_token.setFixedHeight(28)
-        self.txt_aria_token.setPlaceholderText("Optional secret token")
+        self.txt_aria_token.setPlaceholderText(self.tr("Optional secret token"))
         self.txt_aria_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_aria_token.setText(self.extension_data.get("token", ""))
-        self.txt_aria_token.setToolTip("Secret authentication token for Aria2 RPC requests")
+        self.txt_aria_token.setToolTip(self.tr("Secret authentication token for Aria2 RPC requests"))
         aria_layout.addWidget(self.txt_aria_token, 2, 1)
 
         # Show Token Checkbox
-        self.chk_show_token = QCheckBox("Show Token")
-        self.chk_show_token.setToolTip("Toggle secret token text visibility")
+        self.chk_show_token = QCheckBox(self.tr("Show Token"))
+        self.chk_show_token.setToolTip(self.tr("Toggle secret token text visibility"))
         self.chk_show_token.toggled.connect(self.on_toggle_show_token)
         aria_layout.addWidget(self.chk_show_token, 3, 1)
 
         layout.addWidget(grp_aria)
 
         # Extension IPC Settings Group
-        grp_ipc = QGroupBox("Extension IPC Settings")
+        grp_ipc = QGroupBox(self.tr("Extension IPC Settings"))
         ipc_layout = QGridLayout(grp_ipc)
         ipc_layout.setContentsMargins(12, 16, 12, 16)
         ipc_layout.setSpacing(12)
 
-        ipc_layout.addWidget(QLabel("IPC Port:"), 0, 0)
+        ipc_layout.addWidget(QLabel(self.tr("IPC Port:")), 0, 0)
         self.spin_ipc_port = QSpinBox()
         self.spin_ipc_port.setFixedHeight(28)
         self.spin_ipc_port.setRange(1024, 65535)
         configured_port = self.extension_data.get("ipc_port", 56900)
         self.spin_ipc_port.setValue(configured_port)
         self.spin_ipc_port.setToolTip(
-            "Local IPC port for browser extension downloads. Change if 56900 is in use."
+            self.tr("Local IPC port for browser extension downloads. Change if 56900 is in use.")
         )
         ipc_layout.addWidget(self.spin_ipc_port, 0, 1)
 
@@ -1380,7 +1395,7 @@ class OptionsDialog(QDialog):
             )
             ipc_hint.setStyleSheet("color: #e67e22; font-size: 11px; font-weight: 500;")
         else:
-            ipc_hint = QLabel("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.")
+            ipc_hint = QLabel(self.tr("Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use."))
             ipc_hint.setStyleSheet("color: gray; font-size: 11px;")
         ipc_hint.setWordWrap(True)
         ipc_layout.addWidget(ipc_hint, 1, 0, 1, 2)
@@ -1408,18 +1423,18 @@ class OptionsDialog(QDialog):
         media_defaults = self.config_data.get("media_downloader_defaults", {})
 
         # 1. Browser Integration and Auto-Start
-        grp_browser = QGroupBox("Browser Integration and Auto-Start")
+        grp_browser = QGroupBox(self.tr("Browser Integration and Auto-Start"))
         vbox_browser = QVBoxLayout(grp_browser)
         vbox_browser.setContentsMargins(10, 15, 10, 15)
         vbox_browser.setSpacing(10)
 
-        self.chk_auto_start_media = QCheckBox("Auto-start media downloads when sent from browser")
-        self.chk_auto_start_media.setToolTip("Automatically analyze and start downloading media streams sent from browser without extra confirmation")
+        self.chk_auto_start_media = QCheckBox(self.tr("Auto-start media downloads when sent from browser"))
+        self.chk_auto_start_media.setToolTip(self.tr("Automatically analyze and start downloading media streams sent from browser without extra confirmation"))
         self.chk_auto_start_media.setChecked(bool(media_defaults.get("auto_start_media", False)))
         vbox_browser.addWidget(self.chk_auto_start_media)
 
-        self.chk_auto_update_engine = QCheckBox("Auto-check and update media engine on startup")
-        self.chk_auto_update_engine.setToolTip("Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch")
+        self.chk_auto_update_engine = QCheckBox(self.tr("Auto-check and update media engine on startup"))
+        self.chk_auto_update_engine.setToolTip(self.tr("Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch"))
         self.chk_auto_update_engine.setChecked(bool(media_defaults.get("auto_update_engine_startup", True)))
         vbox_browser.addWidget(self.chk_auto_update_engine)
 
@@ -1429,12 +1444,12 @@ class OptionsDialog(QDialog):
 
         COMBO_MAX_WIDTH = 300
 
-        lbl_q = QLabel("Quality preset:")
-        lbl_q.setToolTip("Default quality preset to select when auto-starting media downloads")
+        lbl_q = QLabel(self.tr("Quality preset:"))
+        lbl_q.setToolTip(self.tr("Default quality preset to select when auto-starting media downloads"))
         self.cmb_media_quality = QComboBox()
         self.cmb_media_quality.setFixedHeight(28)
         self.cmb_media_quality.setMaximumWidth(COMBO_MAX_WIDTH)
-        self.cmb_media_quality.setToolTip("Default quality preset to select when auto-starting media downloads")
+        self.cmb_media_quality.setToolTip(self.tr("Default quality preset to select when auto-starting media downloads"))
         self.cmb_media_quality.addItems([
             "Best Quality (Video + Audio merged)",
             "4K Ultra HD (2160p)",
@@ -1458,13 +1473,15 @@ class OptionsDialog(QDialog):
         grid_media.addWidget(self.cmb_media_quality, 0, 1)
 
         # Video Codec
-        lbl_codec = QLabel("Video codec:")
+        lbl_codec = QLabel(self.tr("Video codec:"))
         lbl_codec.setToolTip(
-            "Preferred video codec stream from YouTube and video platforms.\n"
-            "• Auto (Default): Downloads the best available codec stream.\n"
-            "• AV1: Next-generation high-efficiency video codec (av01).\n"
-            "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
-            "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
+            self.tr(
+                "Preferred video codec stream from YouTube and video platforms.\n"
+                "• Auto (Default): Downloads the best available codec stream.\n"
+                "• AV1: Next-generation high-efficiency video codec (av01).\n"
+                "• H.264 / AVC: Maximum hardware compatibility across devices and players (avc1 / mp4).\n"
+                "• VP9: High-efficiency open video codec standard for YouTube / WebM (vp9)."
+            )
         )
         self.cmb_video_codec = QComboBox()
         self.cmb_video_codec.setFixedHeight(28)
@@ -1481,12 +1498,14 @@ class OptionsDialog(QDialog):
         grid_media.addWidget(self.cmb_video_codec, 1, 1)
 
         # Video Container format
-        lbl_v = QLabel("Video format:")
+        lbl_v = QLabel(self.tr("Video format:"))
         lbl_v.setToolTip(
-            "Output container format for downloaded videos.\n"
-            "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
-            "• MKV: Universal container, supports all codecs.\n"
-            "• MP4 / WebM: Converts to target format via FFmpeg if needed."
+            self.tr(
+                "Output container format for downloaded videos.\n"
+                "• Auto: Downloads the site's native container (fastest, no extra conversion).\n"
+                "• MKV: Universal container, supports all codecs.\n"
+                "• MP4 / WebM: Converts to target format via FFmpeg if needed."
+            )
         )
         self.cmb_video_container = QComboBox()
         self.cmb_video_container.setFixedHeight(28)
@@ -1503,11 +1522,13 @@ class OptionsDialog(QDialog):
         grid_media.addWidget(self.cmb_video_container, 2, 1)
 
         # Audio Format
-        lbl_a = QLabel("Audio format:")
+        lbl_a = QLabel(self.tr("Audio format:"))
         lbl_a.setToolTip(
-            "Output format for audio-only downloads.\n"
-            "• Auto: Downloads the site's native audio stream (fastest).\n"
-            "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
+            self.tr(
+                "Output format for audio-only downloads.\n"
+                "• Auto: Downloads the site's native audio stream (fastest).\n"
+                "• Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed."
+            )
         )
         self.cmb_audio_format = QComboBox()
         self.cmb_audio_format.setFixedHeight(28)
@@ -1529,19 +1550,19 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_browser)
 
         # 2. Authentication and Cookie Vault Defaults
-        grp_cookies = QGroupBox("Authentication and Cookie Vault Defaults")
+        grp_cookies = QGroupBox(self.tr("Authentication and Cookie Vault Defaults"))
         vbox_cookies = QVBoxLayout(grp_cookies)
         vbox_cookies.setContentsMargins(10, 15, 10, 15)
         vbox_cookies.setSpacing(10)
 
         row_cookies_config = QHBoxLayout()
-        lbl_cookie = QLabel("Cookie:")
-        lbl_cookie.setToolTip("Select cookie authentication strategy for media sites")
+        lbl_cookie = QLabel(self.tr("Cookie:"))
+        lbl_cookie.setToolTip(self.tr("Select cookie authentication strategy for media sites"))
         row_cookies_config.addWidget(lbl_cookie)
         self.cmb_opt_cookies_mode = QComboBox()
         self.cmb_opt_cookies_mode.setFixedHeight(28)
         self.cmb_opt_cookies_mode.setMaximumWidth(260)
-        self.cmb_opt_cookies_mode.setToolTip("Select cookie authentication source (Netscape file or none)")
+        self.cmb_opt_cookies_mode.setToolTip(self.tr("Select cookie authentication source (Netscape file or none)"))
         self.cmb_opt_cookies_mode.addItems([
             "Netscape File (cookies.txt)",
             "None (Anonymous / Public)"
@@ -1553,13 +1574,13 @@ class OptionsDialog(QDialog):
         vbox_cookies.addLayout(row_cookies_config)
 
         # Full-width cookies path input with Browse / Clear buttons below
-        self.lbl_opt_cookies_path = QLabel("Netscape cookies.txt Path:")
-        self.lbl_opt_cookies_path.setToolTip("File path to exported Netscape format cookies.txt")
+        self.lbl_opt_cookies_path = QLabel(self.tr("Netscape cookies.txt Path:"))
+        self.lbl_opt_cookies_path.setToolTip(self.tr("File path to exported Netscape format cookies.txt"))
         vbox_cookies.addWidget(self.lbl_opt_cookies_path)
 
         self.txt_opt_cookies_path = QLineEdit()
-        self.txt_opt_cookies_path.setPlaceholderText("Path to exported Netscape cookies.txt file...")
-        self.txt_opt_cookies_path.setToolTip("Path to exported Netscape format cookies.txt file on disk")
+        self.txt_opt_cookies_path.setPlaceholderText(self.tr("Path to exported Netscape cookies.txt file..."))
+        self.txt_opt_cookies_path.setToolTip(self.tr("Path to exported Netscape format cookies.txt file on disk"))
         saved_cpath = self.config_data.get("media_downloader_cookies_path", media_defaults.get("cookies_path", ""))
         self.txt_opt_cookies_path.setText(saved_cpath)
         vbox_cookies.addWidget(self.txt_opt_cookies_path)
@@ -1567,25 +1588,27 @@ class OptionsDialog(QDialog):
         row_cbuttons = QHBoxLayout()
         row_cbuttons.addStretch()
 
-        self.btn_opt_browse_c = QPushButton("Browse...")
+        self.btn_opt_browse_c = QPushButton(self.tr("Browse..."))
         self.btn_opt_browse_c.setFixedWidth(90)
-        self.btn_opt_browse_c.setToolTip("Browse filesystem for exported cookies.txt file")
+        self.btn_opt_browse_c.setToolTip(self.tr("Browse filesystem for exported cookies.txt file"))
         self.btn_opt_browse_c.clicked.connect(self._browse_opt_cookies_file)
         row_cbuttons.addWidget(self.btn_opt_browse_c)
 
-        self.btn_opt_clear_c = QPushButton("Clear")
+        self.btn_opt_clear_c = QPushButton(self.tr("Clear"))
         self.btn_opt_clear_c.setFixedWidth(80)
-        self.btn_opt_clear_c.setToolTip("Clear current cookies.txt file path")
+        self.btn_opt_clear_c.setToolTip(self.tr("Clear current cookies.txt file path"))
         self.btn_opt_clear_c.clicked.connect(self.txt_opt_cookies_path.clear)
         row_cbuttons.addWidget(self.btn_opt_clear_c)
 
         vbox_cookies.addLayout(row_cbuttons)
 
         lbl_cookies_help = QLabel(
-            '<i>Authenticated cookies bypass bot verification ("Sign in to confirm you\'re not a bot"), '
-            'rate limits, and unlock premium/member-only streams. '
-            'Learn how to export and configure cookies in the '
-            '<a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: #3498db; text-decoration: underline;">How to Use Cookies Guide on GitHub</a>.</i>'
+            self.tr(
+                '<i>Authenticated cookies bypass bot verification ("Sign in to confirm you\'re not a bot"), '
+                'rate limits, and unlock premium/member-only streams. '
+                'Learn how to export and configure cookies in the '
+                '<a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: #3498db; text-decoration: underline;">How to Use Cookies Guide on GitHub</a>.</i>'
+            )
         )
         lbl_cookies_help.setOpenExternalLinks(True)
         lbl_cookies_help.setWordWrap(True)
@@ -1598,30 +1621,32 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_cookies)
 
         # 3. YouTube Extractor & Player Client Settings
-        grp_extractor = QGroupBox("YouTube Extractor Engine Settings")
+        grp_extractor = QGroupBox(self.tr("YouTube Extractor Engine Settings"))
         vbox_extractor = QVBoxLayout(grp_extractor)
         vbox_extractor.setContentsMargins(10, 15, 10, 15)
         vbox_extractor.setSpacing(10)
 
         row_client = QHBoxLayout()
-        lbl_yt_client = QLabel("YouTube Player Client:")
+        lbl_yt_client = QLabel(self.tr("YouTube Player Client:"))
         lbl_yt_client.setToolTip(
-            "YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\n"
-            "• 'auto': Automatically uses resilient multi-client fallback (mweb, android, ios, web_creator, tv, web) to bypass bot verification and SABR blocks.\n"
-            "• Custom clients or comma-separated lists (e.g. 'android,ios', 'mweb', 'web') can be entered manually."
+            self.tr(
+                "YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...\n"
+                "• 'auto': Automatically uses resilient multi-client fallback (mweb, android, ios, web_creator, tv, web) to bypass bot verification and SABR blocks.\n"
+                "• Custom clients or comma-separated lists (e.g. 'android,ios', 'mweb', 'web') can be entered manually."
+            )
         )
         row_client.addWidget(lbl_yt_client)
 
         self.txt_opt_youtube_client = QLineEdit()
-        self.txt_opt_youtube_client.setPlaceholderText("e.g. auto, android, web, ios, tv, mweb...")
+        self.txt_opt_youtube_client.setPlaceholderText(self.tr("e.g. auto, android, web, ios, tv, mweb..."))
         self.txt_opt_youtube_client.setToolTip(lbl_yt_client.toolTip())
         saved_client = media_defaults.get("youtube_player_client", "auto") or "auto"
         self.txt_opt_youtube_client.setText(saved_client)
         row_client.addWidget(self.txt_opt_youtube_client, stretch=1)
 
-        self.btn_opt_reset_youtube_client = QPushButton("Reset")
+        self.btn_opt_reset_youtube_client = QPushButton(self.tr("Reset"))
         self.btn_opt_reset_youtube_client.setFixedWidth(80)
-        self.btn_opt_reset_youtube_client.setToolTip("Reset YouTube player client to 'auto'")
+        self.btn_opt_reset_youtube_client.setToolTip(self.tr("Reset YouTube player client to 'auto'"))
         self.btn_opt_reset_youtube_client.clicked.connect(lambda: self.txt_opt_youtube_client.setText("auto"))
         row_client.addWidget(self.btn_opt_reset_youtube_client)
 
@@ -1629,13 +1654,13 @@ class OptionsDialog(QDialog):
         layout.addWidget(grp_extractor)
 
         # 4. YouTube Proof of Origin (PO Token) Settings
-        grp_pot = QGroupBox("YouTube Proof of Origin (PO Token) Auto-Solver")
+        grp_pot = QGroupBox(self.tr("YouTube Proof of Origin (PO Token) Auto-Solver"))
         vbox_pot = QVBoxLayout(grp_pot)
         vbox_pot.setContentsMargins(10, 15, 10, 15)
         vbox_pot.setSpacing(10)
 
-        self.chk_opt_pot_enabled = QCheckBox("Enable YouTube Proof of Origin (PO Token) auto-solver")
-        self.chk_opt_pot_enabled.setToolTip("Automatically solves YouTube BotGuard challenges and Proof-of-Origin tokens via Deno/Node.js engine and bgutil")
+        self.chk_opt_pot_enabled = QCheckBox(self.tr("Enable YouTube Proof of Origin (PO Token) auto-solver"))
+        self.chk_opt_pot_enabled.setToolTip(self.tr("Automatically solves YouTube BotGuard challenges and Proof-of-Origin tokens via Deno/Node.js engine and bgutil"))
         saved_pot_enabled = media_defaults.get("youtube_pot_enabled", True)
         self.chk_opt_pot_enabled.setChecked(bool(saved_pot_enabled))
         vbox_pot.addWidget(self.chk_opt_pot_enabled)
@@ -1646,9 +1671,11 @@ class OptionsDialog(QDialog):
         vbox_pot.addWidget(self.lbl_opt_pot_status)
 
         lbl_pot_help = QLabel(
-            '<i>Proof of Origin (PO) tokens bypass YouTube "Sign in to confirm you\'re not a bot" challenges and streaming throttling. '
-            'Bengal DM automatically uses the <b>Deno</b> engine (available in Options > Media Downloader Tools) or Node.js to solve tokens locally without manual configuration. '
-            'Learn more in the <a href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide" style="color: #3498db; text-decoration: underline;">yt-dlp PO Token Guide</a>.</i>'
+            self.tr(
+                '<i>Proof of Origin (PO) tokens bypass YouTube "Sign in to confirm you\'re not a bot" challenges and streaming throttling. '
+                'Bengal DM automatically uses the <b>Deno</b> engine (available in Options > Media Downloader Tools) or Node.js to solve tokens locally without manual configuration. '
+                'Learn more in the <a href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide" style="color: #3498db; text-decoration: underline;">yt-dlp PO Token Guide</a>.</i>'
+            )
         )
         lbl_pot_help.setOpenExternalLinks(True)
         lbl_pot_help.setWordWrap(True)
@@ -1702,23 +1729,23 @@ class OptionsDialog(QDialog):
             return
 
         if not self.chk_opt_pot_enabled.isChecked():
-            self.lbl_opt_pot_status.setText("⚪ PO Token Auto-Solver disabled (yt-dlp will run with --extractor-args youtube:fetch_pot=never)")
+            self.lbl_opt_pot_status.setText(self.tr("⚪ PO Token Auto-Solver disabled (yt-dlp will run with --extractor-args youtube:fetch_pot=never)"))
             self.lbl_opt_pot_status.setStyleSheet("color: gray; font-size: 11px;")
             return
 
         from core.media.pot_provider import get_deno_executable_path, is_pot_provider_available, DEFAULT_POT_PROVIDER_URL
         deno_path = get_deno_executable_path()
         if deno_path:
-            self.lbl_opt_pot_status.setText(f"🟢 Active: Deno Engine ({deno_path}) ready for automatic PO token generation.")
+            self.lbl_opt_pot_status.setText(self.tr("🟢 Active: Deno Engine (%1) ready for automatic PO token generation.").replace("%1", deno_path))
             self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
         elif shutil.which("node"):
-            self.lbl_opt_pot_status.setText(f"🟢 Active: System Node.js ({shutil.which('node')}) ready for automatic PO token generation.")
+            self.lbl_opt_pot_status.setText(self.tr("🟢 Active: System Node.js (%1) ready for automatic PO token generation.").replace("%1", str(shutil.which('node'))))
             self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
         elif is_pot_provider_available(DEFAULT_POT_PROVIDER_URL, timeout=0.2):
-            self.lbl_opt_pot_status.setText(f"🟢 Active: Local bgutil POT Daemon ({DEFAULT_POT_PROVIDER_URL}) detected.")
+            self.lbl_opt_pot_status.setText(self.tr("🟢 Active: Local bgutil POT Daemon (%1) detected.").replace("%1", DEFAULT_POT_PROVIDER_URL))
             self.lbl_opt_pot_status.setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
         else:
-            self.lbl_opt_pot_status.setText("🟡 Deno is not installed yet. Install Deno via 'Options > Media Downloader Tools' (or install Node.js) for full PO token support.")
+            self.lbl_opt_pot_status.setText(self.tr("🟡 Deno is not installed yet. Install Deno via 'Options > Media Downloader Tools' (or install Node.js) for full PO token support."))
             self.lbl_opt_pot_status.setStyleSheet("color: #f39c12; font-size: 11px;")
 
     def on_toggle_show_token(self, checked):
@@ -1739,9 +1766,9 @@ class OptionsDialog(QDialog):
         self.txt_user.setEnabled(auth)
         self.txt_pass.setEnabled(auth and not is_socks4)
         if is_socks4:
-            self.chk_auth.setText("User identity required (SOCKS4)")
+            self.chk_auth.setText(self.tr("User identity required (SOCKS4)"))
         else:
-            self.chk_auth.setText("Authentication required")
+            self.chk_auth.setText(self.tr("Authentication required"))
 
     def save_proxy_data(self):
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
@@ -1793,16 +1820,16 @@ class OptionsDialog(QDialog):
         host = self.txt_host.text().strip() if hasattr(self, "txt_host") else ""
         if not host:
             if hasattr(self, "lbl_proxy_status"):
-                self.lbl_proxy_status.setText("Proxy status: Host is empty")
+                self.lbl_proxy_status.setText(self.tr("Proxy status: Host is empty"))
                 self.lbl_proxy_status.setStyleSheet("color: palette(placeholder-text);")
                 self.lbl_proxy_status.setToolTip("")
                 self.lbl_proxy_flag.setText("🌐")
-                self.lbl_proxy_flag.setToolTip("Enter proxy host to test connection")
+                self.lbl_proxy_flag.setToolTip(self.tr("Enter proxy host to test connection"))
                 self.lbl_proxy_ip.setText("")
                 self.lbl_proxy_ip.setToolTip("")
             return
         if hasattr(self, "lbl_proxy_status"):
-            self.lbl_proxy_status.setText("Proxy status: Waiting to test...")
+            self.lbl_proxy_status.setText(self.tr("Proxy status: Waiting to test..."))
             self.lbl_proxy_status.setStyleSheet("color: palette(window-text);")
             self.lbl_proxy_status.setToolTip("")
             if hasattr(self, "lbl_proxy_ip"):
@@ -1820,11 +1847,11 @@ class OptionsDialog(QDialog):
         if getattr(self, "_proxy_worker", None) and self._proxy_worker.isRunning():
             return
 
-        self.lbl_proxy_status.setText("Testing proxy...")
+        self.lbl_proxy_status.setText(self.tr("Testing proxy..."))
         self.lbl_proxy_status.setStyleSheet("color: palette(window-text); font-weight: bold;")
-        self.lbl_proxy_status.setToolTip("Testing connection through configured proxy...")
+        self.lbl_proxy_status.setToolTip(self.tr("Testing connection through configured proxy..."))
         self.lbl_proxy_flag.setText("⏳")
-        self.lbl_proxy_flag.setToolTip("Testing connection through configured proxy...")
+        self.lbl_proxy_flag.setToolTip(self.tr("Testing connection through configured proxy..."))
         if hasattr(self, "lbl_proxy_ip"):
             self.lbl_proxy_ip.setText("")
             self.lbl_proxy_ip.setToolTip("")
@@ -1845,13 +1872,13 @@ class OptionsDialog(QDialog):
 
         if result.is_working:
             self.lbl_proxy_flag.setText(result.flag_emoji or "🌐")
-            tooltip_country = result.country if result.country else "Unknown Country"
+            tooltip_country = result.country if result.country else self.tr("Unknown Country")
             if result.city:
                 tooltip_country = f"{result.city}, {tooltip_country}"
             self.lbl_proxy_flag.setToolTip(tooltip_country)
-            self.lbl_proxy_status.setText("Proxy is working")
+            self.lbl_proxy_status.setText(self.tr("Proxy is working"))
             self.lbl_proxy_status.setStyleSheet("color: #2eb85c; font-weight: bold;")
-            self.lbl_proxy_status.setToolTip("Proxy connection verified successfully")
+            self.lbl_proxy_status.setToolTip(self.tr("Proxy connection verified successfully"))
             self.lbl_proxy_ip.setText(f"IP: {result.ip}")
             self.lbl_proxy_ip.setStyleSheet("color: palette(window-text);")
             self.lbl_proxy_ip.setToolTip(tooltip_country)
@@ -1862,9 +1889,9 @@ class OptionsDialog(QDialog):
                     pass
         else:
             self.lbl_proxy_flag.setText("⚠️")
-            err_msg = result.error_message or "Proxy error"
+            err_msg = result.error_message or self.tr("Proxy error")
             self.lbl_proxy_flag.setToolTip(err_msg)
-            self.lbl_proxy_status.setText("Connection failed")
+            self.lbl_proxy_status.setText(self.tr("Connection failed"))
             self.lbl_proxy_status.setStyleSheet("color: #e55353; font-weight: bold;")
             self.lbl_proxy_status.setToolTip(err_msg)
             self.lbl_proxy_ip.setText(err_msg)
@@ -1934,13 +1961,16 @@ class OptionsDialog(QDialog):
         save_extension_config(self.extension_data)
 
     def on_category_changed(self, category):
+        if not category:
+            return
         self.current_category = category
         cat_data = self.config_data["categories"].get(category, {})
         self.txt_extensions.blockSignals(True)
         self.txt_save_path.blockSignals(True)
         self.txt_extensions.setText(cat_data.get("extensions", ""))
         self.txt_save_path.setText(cat_data.get("path", ""))
-        self.lbl_def_dir.setText(f'Default download directory for "{category}" category')
+        display_cat = self.combo_cat.currentText() if hasattr(self, "combo_cat") else self.tr(category)
+        self.lbl_def_dir.setText(self.tr('Default download directory for "%1" category').replace("%1", display_cat))
         self.txt_extensions.blockSignals(False)
         self.txt_save_path.blockSignals(False)
 
@@ -1955,7 +1985,7 @@ class OptionsDialog(QDialog):
     def browse_folder(self, line_edit):
         current_path = line_edit.text().strip()
         folder = current_path if os.path.exists(current_path) else get_user_downloads_dir()
-        path = choose_portal_folder_path("Select Directory", folder)
+        path = choose_portal_folder_path(self.tr("Select Directory"), folder)
         if path:
             line_edit.setText(path)
 
@@ -2100,16 +2130,17 @@ class OptionsDialog(QDialog):
 
         restart_items = []
         if scale_changed:
-            restart_items.append("UI Scale")
+            restart_items.append(self.tr("UI Scale"))
         if lang_changed:
-            restart_items.append("Language")
+            restart_items.append(self.tr("Language"))
 
         if restart_items:
-            items_str = " and ".join(restart_items)
+            items_str = f" {self.tr('and')} ".join(restart_items)
+            msg_text = self.tr("{items} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect.").replace("{items}", items_str)
             QMessageBox.information(
                 self,
-                "Restart Required",
-                f"{items_str} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect."
+                self.tr("Restart Required"),
+                msg_text
             )
 
         self.accept()

@@ -36,11 +36,6 @@ uv pip install -e ".[dev]"
 uv run python src/main.py
 ```
 
-### KDE Kirigami QML Mode:
-```bash
-uv run python src/main.py --kirigami
-```
-
 ---
 
 ## 🧪 Testing & Verification
@@ -58,10 +53,10 @@ Make sure all tests pass cleanly without errors.
 ## 📐 Code Guidelines & Architecture
 
 1. **Architecture Separation**:
-   - `src/core/`: Download engine, workers (`download.py`, `aria2.py`, `fetcher.py`), SQLite database manager, and QML bridge.
-   - `src/ui/`: PyQt6 widgets, dialogs, custom table delegates, and Kirigami QML views.
+   - `src/core/`: Download engine, workers (`download.py`, `aria2.py`, `fetcher.py`), SQLite database manager, and business logic services.
+   - `src/ui/`: PyQt6 widgets, dialogs, and custom table delegates.
    - `extension/`: Manifest V3 browser integration extension.
-2. **Numeric Typography**: When formatting numeric data (percentages, sizes, transfer rates, elapsed time) in QML/UI labels, enable tabular figures (`font.features: { "tnum": 1 }`).
+2. **Numeric Typography**: When formatting numeric data (percentages, sizes, transfer rates, elapsed time) in UI labels, enable tabular figures (`font.features: { "tnum": 1 }`).
 3. **Theme Compatibility**: Do not hardcode static colors for text or backgrounds. Ensure components dynamically adapt to both Light and Dark system palettes.
 4. **Defensive Programming**: Handle network drops and transient I/O exceptions gracefully; preserve existing docstrings and comments.
 

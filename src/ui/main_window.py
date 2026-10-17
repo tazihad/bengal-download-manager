@@ -969,18 +969,18 @@ class MainWindow(QMainWindow):
         all_downloads.setExpanded(True)
 
 
-        cat_icons = {
-            "Compressed": get_themed_icon("compressed"),
-            "Documents": get_themed_icon("documents"),
-            "Music": get_themed_icon("music"),
-            "Programs": get_themed_icon("programs"),
-            "Video": get_themed_icon("video")
-        }
-        for cat_name, cat_icon in cat_icons.items():
-            child = QTreeWidgetItem(all_downloads, [self.tr(cat_name)])
+        cat_items = [
+            ("Compressed", self.tr("Compressed"), get_themed_icon("compressed"), self.tr("Filter downloads in Compressed category")),
+            ("Documents", self.tr("Documents"), get_themed_icon("documents"), self.tr("Filter downloads in Documents category")),
+            ("Music", self.tr("Music"), get_themed_icon("music"), self.tr("Filter downloads in Music category")),
+            ("Programs", self.tr("Programs"), get_themed_icon("programs"), self.tr("Filter downloads in Programs category")),
+            ("Video", self.tr("Video"), get_themed_icon("video"), self.tr("Filter downloads in Video category")),
+        ]
+        for cat_key, cat_display, cat_icon, cat_tip in cat_items:
+            child = QTreeWidgetItem(all_downloads, [cat_display])
             child.setIcon(0, cat_icon)
-            child.setData(0, Qt.ItemDataRole.UserRole + 1, cat_name)
-            child.setToolTip(0, self.tr(f"Filter downloads in {cat_name} category"))
+            child.setData(0, Qt.ItemDataRole.UserRole + 1, cat_key)
+            child.setToolTip(0, cat_tip)
 
         # 2. Status Section Header
         self.header_status = make_section_header(self.tr("Status"), self.tr("Filter by download status"))
@@ -1015,10 +1015,13 @@ class MainWindow(QMainWindow):
             q["daily_days"] = list(q.get("daily_days", [True, True, True, True, True, True, True]))
         self._sidebar_queue_names = []
         for q in self._queues_data:
-            child = QTreeWidgetItem(self.queues_header, [q["name"]])
+            q_name = q["name"]
+            display_q = self.tr("Main download queue") if q_name == "Main download queue" else (self.tr("Synchronization queue") if q_name == "Synchronization queue" else self.tr(q_name))
+            child = QTreeWidgetItem(self.queues_header, [display_q])
             child.setIcon(0, get_themed_icon("scheduler"))
-            child.setToolTip(0, f"Queue: {q['name']}")
+            child.setToolTip(0, self.tr("Queue: %1").replace("%1", display_q))
             child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+            child.setData(0, Qt.ItemDataRole.UserRole + 1, q_name)
             self._sidebar_queue_names.append(q["name"])
 
         self.category_tree.setCurrentItem(all_downloads)
@@ -2435,7 +2438,7 @@ class MainWindow(QMainWindow):
 
         # Queue child — filter by queue name stored in UserRole+8
         if item.data(0, Qt.ItemDataRole.UserRole) == "queue":
-            queue_name = item.text(0)
+            queue_name = item.data(0, Qt.ItemDataRole.UserRole + 1) or item.text(0)
             for row in range(self.download_table.rowCount()):
                 row_item = self.download_table.item(row, 0)
                 row_queue = row_item.data(Qt.ItemDataRole.UserRole + 8) if row_item else None
@@ -2449,7 +2452,8 @@ class MainWindow(QMainWindow):
         for row in range(self.download_table.rowCount()):
             self.download_table.setRowHidden(row, False) 
             filename = self.download_table.item(row, 0).text().lower()
-            status = self.download_table.item(row, 2).text()
+            item_2 = self.download_table.item(row, 2)
+            status = (item_2.data(Qt.ItemDataRole.UserRole + 1) if item_2 else None) or (item_2.text() if item_2 else "")
             should_hide = False
             
             if category == "All Downloads":
@@ -2533,35 +2537,35 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
 
         if is_queue_child:
-            queue_name = item.text(0)
+            queue_name = item.data(0, Qt.ItemDataRole.UserRole + 1) or item.text(0)
             queue_is_running = self._is_queue_active(queue_name)
 
-            act_start = menu.addAction("Start now")
+            act_start = menu.addAction(self.tr("Start now"))
             act_start.setEnabled(not queue_is_running)
             act_start.triggered.connect(lambda: self._queue_action_start(queue_name))
 
-            act_stop = menu.addAction("Stop")
+            act_stop = menu.addAction(self.tr("Stop"))
             act_stop.setEnabled(queue_is_running)
             act_stop.triggered.connect(lambda: self._queue_action_stop(queue_name))
 
             menu.addSeparator()
 
-            act_edit = menu.addAction("Edit queue")
+            act_edit = menu.addAction(self.tr("Edit queue"))
             act_edit.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name, tab_index=1))
 
-            act_schedule = menu.addAction("Schedule")
+            act_schedule = menu.addAction(self.tr("Schedule"))
             act_schedule.triggered.connect(lambda: self._open_scheduler_for_queue(queue_name, tab_index=0))
 
             menu.addSeparator()
 
             # Determine if this is a default queue (cannot delete)
             is_default = queue_name in ("Main download queue", "Synchronization queue")
-            act_delete = menu.addAction("Delete")
+            act_delete = menu.addAction(self.tr("Delete"))
             act_delete.setIcon(make_faded_icon(get_themed_icon("delete")) if is_default else get_themed_icon("delete"))
             act_delete.setEnabled(not is_default)
             act_delete.triggered.connect(lambda: self._delete_sidebar_queue(item))
 
-        act_new = menu.addAction("Create new queue")
+        act_new = menu.addAction(self.tr("Create new queue"))
         act_new.triggered.connect(self._create_sidebar_queue)
 
         menu.exec(self.category_tree.viewport().mapToGlobal(pos))
@@ -2821,7 +2825,7 @@ class MainWindow(QMainWindow):
 
     def _delete_sidebar_queue(self, item):
         """Deletes a queue from the sidebar and from the scheduler if open."""
-        queue_name = item.text(0)
+        queue_name = item.data(0, Qt.ItemDataRole.UserRole + 1) or item.text(0)
         if queue_name in ("Main download queue", "Synchronization queue"):
             return
 
@@ -2877,8 +2881,9 @@ class MainWindow(QMainWindow):
         # Add to sidebar
         child = QTreeWidgetItem(self.queues_header, [name])
         child.setIcon(0, get_themed_icon("scheduler"))
-        child.setToolTip(0, f"Queue: {name}")
+        child.setToolTip(0, self.tr("Queue: %1").replace("%1", name))
         child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+        child.setData(0, Qt.ItemDataRole.UserRole + 1, name)
         self._sidebar_queue_names.append(name)
 
         # Reflect in scheduler dialog if it's open
@@ -3488,23 +3493,46 @@ class MainWindow(QMainWindow):
         # Retranslate sidebar items
         if hasattr(self, "header_categories") and self.header_categories:
             self.header_categories.setText(0, self.tr("Categories"))
+            self.header_categories.setToolTip(0, self.tr("Download categories"))
         if hasattr(self, "all_downloads_header") and self.all_downloads_header:
             self.all_downloads_header.setText(0, self.tr("All Downloads"))
+            self.all_downloads_header.setToolTip(0, self.tr("Show all downloads regardless of category or status"))
+            cat_map = {
+                "Compressed": (self.tr("Compressed"), self.tr("Filter downloads in Compressed category")),
+                "Documents": (self.tr("Documents"), self.tr("Filter downloads in Documents category")),
+                "Music": (self.tr("Music"), self.tr("Filter downloads in Music category")),
+                "Programs": (self.tr("Programs"), self.tr("Filter downloads in Programs category")),
+                "Video": (self.tr("Video"), self.tr("Filter downloads in Video category")),
+            }
             for i in range(self.all_downloads_header.childCount()):
                 ch = self.all_downloads_header.child(i)
                 orig_cat = ch.data(0, Qt.ItemDataRole.UserRole + 1)
-                if orig_cat:
-                    ch.setText(0, self.tr(orig_cat))
+                if orig_cat in cat_map:
+                    ch.setText(0, cat_map[orig_cat][0])
+                    ch.setToolTip(0, cat_map[orig_cat][1])
         if hasattr(self, "header_status") and self.header_status:
             self.header_status.setText(0, self.tr("Status"))
+            self.header_status.setToolTip(0, self.tr("Filter by download status"))
         if hasattr(self, "item_unfinished") and self.item_unfinished:
             self.item_unfinished.setText(0, self.tr("Incomplete"))
+            self.item_unfinished.setToolTip(0, self.tr("Show active, paused, or pending downloads"))
         if hasattr(self, "item_finished") and self.item_finished:
             self.item_finished.setText(0, self.tr("Finished"))
+            self.item_finished.setToolTip(0, self.tr("Show completed downloads"))
         if hasattr(self, "header_schedule") and self.header_schedule:
             self.header_schedule.setText(0, self.tr("Schedule"))
+            self.header_schedule.setToolTip(0, self.tr("Download scheduler and queues"))
         if hasattr(self, "queues_header") and self.queues_header:
             self.queues_header.setText(0, self.tr("Queues"))
+            self.queues_header.setToolTip(0, self.tr("Download queues and scheduler"))
+            for i in range(self.queues_header.childCount()):
+                ch = self.queues_header.child(i)
+                orig_q = ch.data(0, Qt.ItemDataRole.UserRole + 1) or ch.text(0)
+                display_q = self.tr("Main download queue") if orig_q == "Main download queue" else (self.tr("Synchronization queue") if orig_q == "Synchronization queue" else self.tr(orig_q))
+                ch.setText(0, display_q)
+                ch.setToolTip(0, self.tr("Queue: %1").replace("%1", display_q))
+        if hasattr(self, "data_usage_widget") and self.data_usage_widget and hasattr(self.data_usage_widget, "retranslate_ui"):
+            self.data_usage_widget.retranslate_ui()
 
     def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None, highlight_text=None):
         self._is_previewing = True
@@ -4329,7 +4357,7 @@ class MainWindow(QMainWindow):
     def _create_new_queue_and_move_selected(self):
         """Prompts for a new queue name, creates it, and moves selected items to it."""
         from PyQt6.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "New Queue", "Enter queue name:")
+        name, ok = QInputDialog.getText(self, self.tr("New Queue"), self.tr("Enter queue name:"))
         if ok and name.strip():
             queue_name = name.strip()
             from ui.dialogs.scheduler import _make_default_queue
@@ -4347,8 +4375,9 @@ class MainWindow(QMainWindow):
                 if hasattr(self, "queues_header") and self.queues_header:
                     child = QTreeWidgetItem(self.queues_header, [queue_name])
                     child.setIcon(0, get_themed_icon("scheduler"))
-                    child.setToolTip(0, f"Queue: {queue_name}")
+                    child.setToolTip(0, self.tr("Queue: %1").replace("%1", queue_name))
                     child.setData(0, Qt.ItemDataRole.UserRole, "queue")
+                    child.setData(0, Qt.ItemDataRole.UserRole + 1, queue_name)
                     if not hasattr(self, "_sidebar_queue_names"):
                         self._sidebar_queue_names = []
                     self._sidebar_queue_names.append(queue_name)

@@ -37,7 +37,7 @@ An execution adapter fulfilling the transfer interface at the download seam.
 Classification of downloads based on payload file extensions (e.g., Compressed, Documents, Music, Programs, Video) used for folder routing and view filtering.
 
 ### Bridge
-The presentation seam connecting the core application model to the PyQt6 QWidget frontend. Previously also served Kirigami QML cards (removed in PR #144).
+The presentation seam connecting the core application model to the PyQt6 QWidget frontend.
 
 ### Desktop Integration
 The platform seam managing system interactions: XDG Desktop Portals, D-Bus file manager discovery, system tray status, and autostart launchers.

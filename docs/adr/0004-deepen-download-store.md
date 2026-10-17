@@ -12,4 +12,4 @@ We introduce `DownloadStore` in `src/core/download_store.py` as an autonomous in
 - GUI table widgets are treated strictly as view presentation adapters rather than data stores.
 - Download lifecycle, state transitions, and concurrency filtering are testable in headless unit tests.
 
-> **Note:** `DownloadBridge` and the Kirigami QML layer that originally consumed `DownloadStore` signals were removed in PR #144. The store continues to serve the PyQt6 QWidget table view adapter.
+> **Note:** The legacy QML presentation layer was removed in PR #144. The store continues to serve the PyQt6 QWidget table view adapter.

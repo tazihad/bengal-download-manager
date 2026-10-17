@@ -42,7 +42,7 @@
   <img width="100%" alt="Bengal Download Manager Poster 2 - Adaptive Light & Dark Themes" src="assets/posters/poster_duo.jpg" />
 </p>
 
-Bengal Download Manager is a high-performance download management tool built with PyQt6, KDE Kirigami QML, and Aria2 to accelerate and simplify your download workflow.
+Bengal Download Manager is a high-performance download management tool built with PyQt6 and Aria2 to accelerate and simplify your download workflow.
 
 ## 🎬 Feature Tour & App Demo
 
@@ -163,8 +163,6 @@ python3 src/main.py
 | `--debug` | `DEBUG=1` or `BENGAL_DEBUG=1` | Enables detailed `DEBUG` logging with timestamps, source file/line context, and clean throttled IPC heartbeat summaries. |
 | `--verbose` | `VERBOSE=1` or `BENGAL_VERBOSE=1` | Enables full, unrestricted diagnostic logging including every raw IPC extension ping and HTTP request/response line. |
 | `--debug --verbose` | `DEBUG=1 VERBOSE=1` | Complete unrestricted verbose debug output for comprehensive troubleshooting. |
-| `--kirigami` | *(none)* | Launches the KDE Kirigami QML responsive user interface instead of the classic PyQt6 QWidget table view. |
-
 
 ### 2. Standalone Binary Build (CMake)
 
