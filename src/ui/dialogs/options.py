@@ -173,13 +173,24 @@ class OptionsDialog(QDialog):
         self.setWindowTitle("Options")
         self.setWindowIcon(QApplication.windowIcon())
         
-        target_height = 520
-        if self._main_window and hasattr(self._main_window, "height"):
-            main_h = self._main_window.height()
-            if main_h > 200:
-                target_height = main_h
-        self.setFixedWidth(520)
-        self.setFixedHeight(target_height)
+        # Standard reasonable dialog dimensions: spacious and uncramped, independent of main window height
+        dialog_width = 580
+        dialog_height = 580
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            if avail.height() > 0:
+                dialog_height = min(dialog_height, max(480, avail.height() - 80))
+            if avail.width() > 0:
+                dialog_width = min(dialog_width, max(520, avail.width() - 80))
+        self.setFixedSize(dialog_width, dialog_height)
+
+        # Center over parent main window if visible
+        if self._main_window and hasattr(self._main_window, "frameGeometry") and self._main_window.isVisible():
+            main_geo = self._main_window.frameGeometry()
+            x = main_geo.x() + (main_geo.width() - dialog_width) // 2
+            y = main_geo.y() + (main_geo.height() - dialog_height) // 2
+            self.move(max(0, x), max(0, y))
         
         # Set window flags so Options dialog appears as an independent top-level window in taskbar panels
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
@@ -310,7 +321,7 @@ class OptionsDialog(QDialog):
             view_theme.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         theme_options = [
             "BDM Auto (Default)", "System", "BDM Dark", "BDM Light",
-            "Breeze Dark", "Breeze Light", "Catppuccin",
+            "Breeze Dark", "Breeze Light", "Catppuccin", "Chroma Dark",
             "Dracula", "IDM Classic", "Kirigami Dark", 
             "Kirigami Light", "Material You Dark", "Material You Light",
             "Nord", "Obsidian Flow", "One Dark", 
@@ -331,7 +342,7 @@ class OptionsDialog(QDialog):
             view_accent.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         accent_options = [
             "System", "BDM (Default)", "Amethyst Violet", "Breeze Blue", 
-            "Crimson Red", "Dracula Purple", "Emerald Green", 
+            "Chroma Blue", "Crimson Red", "Dracula Purple", "Emerald Green", 
             "Material Cobalt", "Material Violet", "Nord Frost", 
             "Obsidian Purple", "Stellar Blue", "TMOG Cyan", "Twilight", "Ubuntu Orange", "Windows Blue"
         ]
@@ -346,7 +357,7 @@ class OptionsDialog(QDialog):
         view_icons = self.combo_icon_theme.view()
         if view_icons:
             view_icons.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "HighColor", "Modern Color", "Stellar", "TMOG Neon", "Yaru"]
+        icon_theme_options = ["BDM Auto (Default)", "BDM Dark", "BDM Light", "Adwaita", "Breeze", "Breeze Dark", "Chroma", "HighColor", "Modern Color", "Stellar", "TMOG Neon", "Yaru"]
         self.combo_icon_theme.addItems(icon_theme_options)
 
         lbl_tray_icon = QLabel("Tray Icon:")
@@ -375,6 +386,19 @@ class OptionsDialog(QDialog):
         titlebar_options = ["Automatic", "Light", "Dark"]
         self.combo_titlebar.addItems(titlebar_options)
 
+        lbl_highlight_text = QLabel("Highlight text:")
+        lbl_highlight_text.setToolTip("Select color of selected and highlighted text across table and menus")
+        self.combo_highlight_text = QComboBox()
+        self.combo_highlight_text.setToolTip("Select color of highlighted text: Automatic, White, Dark, Cyan, Yellow, Mint Green, Rose Pink, Orange, Lavender")
+        self.combo_highlight_text.setMaxVisibleItems(10)
+        self.combo_highlight_text.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        view_hl = self.combo_highlight_text.view()
+        if view_hl:
+            view_hl.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        from core.services.theme_service import HIGHLIGHT_TEXT_COLORS
+        highlight_text_options = list(HIGHLIGHT_TEXT_COLORS.keys())
+        self.combo_highlight_text.addItems(highlight_text_options)
+
         grid_theme.addWidget(lbl_theme, 0, 0)
         grid_theme.addWidget(self.combo_theme, 0, 1)
         grid_theme.addWidget(lbl_accent, 0, 2)
@@ -387,6 +411,8 @@ class OptionsDialog(QDialog):
 
         grid_theme.addWidget(lbl_titlebar, 2, 0)
         grid_theme.addWidget(self.combo_titlebar, 2, 1)
+        grid_theme.addWidget(lbl_highlight_text, 2, 2)
+        grid_theme.addWidget(self.combo_highlight_text, 2, 3)
 
         grp_theme.setLayout(grid_theme)
 
@@ -395,24 +421,27 @@ class OptionsDialog(QDialog):
         current_icon_theme = "BDM Auto (Default)"
         current_tray_icon = "App Icon (Default)"
         current_titlebar = "Automatic"
+        current_highlight_text = "Automatic"
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
             current_theme = self.main_win.settings.get("theme", "BDM Auto (Default)")
             current_accent = self.main_win.settings.get("accent", "BDM (Default)")
             current_icon_theme = self.main_win.settings.get("icon_theme", "BDM (Default)")
             current_tray_icon = self.main_win.settings.get("tray_icon", "App Icon (Default)")
             current_titlebar = self.main_win.settings.get("title_bar", "Automatic")
+            current_highlight_text = self.main_win.settings.get("highlight_text", "Automatic")
 
         try:
             from core.services.theme_service import (
                 normalize_theme_name, normalize_accent_name,
                 normalize_icon_theme_name, normalize_tray_icon_name,
-                normalize_titlebar_name
+                normalize_titlebar_name, normalize_highlight_text_name
             )
             current_theme = normalize_theme_name(current_theme)
             current_accent = normalize_accent_name(current_accent)
             current_icon_theme = normalize_icon_theme_name(current_icon_theme)
             current_tray_icon = normalize_tray_icon_name(current_tray_icon)
             current_titlebar = normalize_titlebar_name(current_titlebar)
+            current_highlight_text = normalize_highlight_text_name(current_highlight_text)
         except Exception:
             pass
 
@@ -421,6 +450,7 @@ class OptionsDialog(QDialog):
         self.initial_icon_theme = current_icon_theme
         self.initial_tray_icon = current_tray_icon
         self.initial_titlebar = current_titlebar
+        self.initial_highlight_text = current_highlight_text
 
         idx_t = self.combo_theme.findText(current_theme)
         if idx_t == -1: idx_t = self.combo_theme.findText("BDM Auto (Default)")
@@ -442,12 +472,17 @@ class OptionsDialog(QDialog):
         if idx_tb == -1: idx_tb = self.combo_titlebar.findText("Automatic")
         if idx_tb != -1: self.combo_titlebar.setCurrentIndex(idx_tb)
 
+        idx_ht = self.combo_highlight_text.findText(current_highlight_text)
+        if idx_ht == -1: idx_ht = self.combo_highlight_text.findText("Automatic")
+        if idx_ht != -1: self.combo_highlight_text.setCurrentIndex(idx_ht)
+
         # Connect live preview signals
         self.combo_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_accent.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_icon_theme.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_tray_icon.currentTextChanged.connect(self.on_appearance_preview)
         self.combo_titlebar.currentTextChanged.connect(self.on_appearance_preview)
+        self.combo_highlight_text.currentTextChanged.connect(self.on_appearance_preview)
 
         layout.addWidget(grp_theme)
 
@@ -1930,10 +1965,11 @@ class OptionsDialog(QDialog):
         i = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         tr = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         tb = self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
+        ht = self.combo_highlight_text.currentText() if hasattr(self, 'combo_highlight_text') else "Automatic"
         if self.main_win:
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
-                preview_fn(t, a, i, tr, tb)
+                preview_fn(t, a, i, tr, tb, ht)
 
     def reject(self):
         self.hide()
@@ -1941,7 +1977,7 @@ class OptionsDialog(QDialog):
             QApplication.processEvents()
         except Exception:
             pass
-        if self.main_win:
+        if self.main_win and getattr(self.main_win, "_is_previewing", False):
             preview_fn = getattr(self.main_win, "preview_appearance", None)
             if callable(preview_fn):
                 t = getattr(self, 'initial_theme', 'BDM Auto (Default)')
@@ -1949,7 +1985,8 @@ class OptionsDialog(QDialog):
                 i = getattr(self, 'initial_icon_theme', 'BDM Auto')
                 tr = getattr(self, 'initial_tray_icon', 'App Icon (Default)')
                 tb = getattr(self, 'initial_titlebar', 'Automatic')
-                preview_fn(t, a, i, tr, tb)
+                ht = getattr(self, 'initial_highlight_text', 'Automatic')
+                preview_fn(t, a, i, tr, tb, ht)
             setattr(self.main_win, "_is_previewing", False)
         self._cleanup_proxy_worker()
         super().reject()
@@ -1998,6 +2035,7 @@ class OptionsDialog(QDialog):
         new_icon_theme = self.combo_icon_theme.currentText() if hasattr(self, 'combo_icon_theme') else "BDM Auto"
         new_tray_icon = self.combo_tray_icon.currentText() if hasattr(self, 'combo_tray_icon') else "App Icon (Default)"
         new_titlebar = self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
+        new_highlight_text = self.combo_highlight_text.currentText() if hasattr(self, 'combo_highlight_text') else "Automatic"
         new_lang_display = self.combo_language.currentText() if hasattr(self, 'combo_language') else "System Default"
         new_lang_code = get_language_code(new_lang_display)
 
@@ -2032,6 +2070,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["icon_theme"] = new_icon_theme
                 self.main_win.settings["tray_icon"] = new_tray_icon
                 self.main_win.settings["title_bar"] = new_titlebar
+                self.main_win.settings["highlight_text"] = new_highlight_text
                 self.main_win.settings["language"] = new_lang_code
                 self.main_win.settings["system_notifications"] = is_notif
                 self.main_win.settings["silent_download"] = silent_dl
@@ -2049,7 +2088,7 @@ class OptionsDialog(QDialog):
 
             apply_fn = getattr(self.main_win, "apply_appearance_setting", None)
             if callable(apply_fn):
-                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon, new_titlebar)
+                apply_fn(new_theme, new_accent, new_icon_theme, new_tray_icon, new_titlebar, new_highlight_text)
             else:
                 save_fn = getattr(self.main_win, "save_settings", None)
                 if callable(save_fn):
@@ -2127,6 +2166,9 @@ class OptionsDialog(QDialog):
 
     def get_titlebar(self):
         return self.combo_titlebar.currentText() if hasattr(self, 'combo_titlebar') else "Automatic"
+
+    def get_highlight_text(self):
+        return self.combo_highlight_text.currentText() if hasattr(self, 'combo_highlight_text') else "Automatic"
 
     def get_silent_download(self) -> bool:
         return self.chk_silent_download.isChecked() if hasattr(self, "chk_silent_download") else False

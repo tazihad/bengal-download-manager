@@ -125,7 +125,7 @@ def test_handle_media_fetch_complete_safety(monkeypatch):
 
     # Simulate fallback media_info payload (similar to YouTube 413 error)
     payload = {
-        "url": "https://www.youtube.com/watch?v=u_wB6byrl5k",
+        "url": "https://www.youtube.com/watch?v=mock_video_fallback",
         "filename": "media.mp4",
         "size_bytes": 0,
         "size_str": "Size unavailable",
@@ -145,7 +145,7 @@ def test_handle_media_fetch_complete_safety(monkeypatch):
     # Should not throw any exception
     mw._handle_media_fetch_complete(payload)
     assert len(started) == 1
-    assert started[0]["url"] == "https://www.youtube.com/watch?v=u_wB6byrl5k"
+    assert started[0]["url"] == "https://www.youtube.com/watch?v=mock_video_fallback"
 
 
 def test_properties_dialog_missing_file_warning(monkeypatch):

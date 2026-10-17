@@ -64,11 +64,24 @@ class TestThemeApplication:
         apply_app_theme("Breeze Light")
         assert is_dark_theme(app) is False
 
+    def test_apply_chroma_dark(self, app):
+        from core.services.theme_service import apply_app_theme, is_dark_theme, get_themed_icon
+        apply_app_theme("Chroma Dark", icon_theme_name="Chroma")
+        assert is_dark_theme(app) is True
+        # Verify toolbar action icons render with Chroma gradient style
+        ic_add = get_themed_icon("add_url")
+        assert not ic_add.isNull()
+        ic_resume = get_themed_icon("resume")
+        assert not ic_resume.isNull()
+        # Verify left panel category icons fall back cleanly
+        ic_cat = get_themed_icon("documents")
+        assert not ic_cat.isNull()
+
     def test_theme_switching_no_crash(self, app):
         from core.services.theme_service import apply_app_theme
         themes = [
             "BDM Auto (Default)", "System", "BDM Dark", "BDM Light",
-            "Breeze Dark", "Breeze Light", "Catppuccin", "Dracula",
+            "Breeze Dark", "Breeze Light", "Catppuccin", "Chroma Dark", "Dracula",
             "Kirigami Dark", "Kirigami Light", "Material You Dark",
             "Material You Light", "Nord", "Obsidian Flow", "One Dark",
             "Solarized Dark", "Solarized Light", "Twilight",
@@ -81,7 +94,7 @@ class TestThemeApplication:
         from core.services.theme_service import apply_app_theme
         accents = [
             "BDM (Default)", "System", "Amethyst Violet", "Breeze Blue",
-            "Crimson Red", "Dracula Purple", "Emerald Green",
+            "Chroma Blue", "Crimson Red", "Dracula Purple", "Emerald Green",
             "Nord Frost", "Stellar Blue", "Ubuntu Orange", "Windows Blue",
         ]
         for a in accents:
@@ -93,7 +106,7 @@ class TestThemeNormalization:
         from core.services.theme_service import normalize_theme_name
         themes = [
             "BDM Auto (Default)", "System", "BDM Dark", "BDM Light",
-            "Dracula", "Kirigami Dark", "Kirigami Light", "Nord",
+            "Chroma Dark", "Dracula", "Kirigami Dark", "Kirigami Light", "Nord",
             "Ubuntu Dark", "Ubuntu Light", "Twilight", "Stellar Dark",
         ]
         for t in themes:
@@ -106,6 +119,8 @@ class TestThemeNormalization:
         assert normalize_theme_name("BDMDARK") == "BDM Dark"
         assert normalize_theme_name("bdm dark") == "BDM Dark"
         assert normalize_theme_name("BDM DARK") == "BDM Dark"
+        assert normalize_theme_name("chroma dark") == "Chroma Dark"
+        assert normalize_theme_name("CHROMA DARK") == "Chroma Dark"
 
 
 class TestLanguageIntegration:
@@ -166,3 +181,59 @@ class TestCombinedThemeLanguage:
         from core.services.theme_service import detect_accent
         color = detect_accent("auto", qapp)
         assert color is not None
+
+
+class TestHighlightTextColor:
+    def test_normalize_highlight_text(self):
+        from core.services.theme_service import normalize_highlight_text_name, HIGHLIGHT_TEXT_COLORS
+        for name in HIGHLIGHT_TEXT_COLORS.keys():
+            assert normalize_highlight_text_name(name) == name
+            assert normalize_highlight_text_name(name.lower()) == name
+            assert normalize_highlight_text_name(name.upper()) == name
+        assert normalize_highlight_text_name("unknown") == "Automatic"
+        assert normalize_highlight_text_name(None) == "Automatic"
+
+    def test_highlight_text_palette_application(self, qapp):
+        from PyQt6.QtGui import QPalette
+        from core.services.theme_service import apply_app_theme, HIGHLIGHT_TEXT_COLORS
+        for name, hex_val in HIGHLIGHT_TEXT_COLORS.items():
+            apply_app_theme("Chroma Dark", highlight_text=name)
+            pal = qapp.palette()
+            hl_color = pal.color(QPalette.ColorRole.HighlightedText)
+            assert hl_color.isValid()
+            if hex_val is not None:
+                assert hl_color.name().lower() == hex_val.lower()
+
+    def test_adaptive_selection_contrast(self, qapp):
+        from PyQt6.QtGui import QPalette, QColor
+        from core.services.theme_service import (
+            apply_app_theme, get_color_contrast_ratio, ensure_contrast_selection_bg
+        )
+        # Test unit function
+        bdm_accent = QColor("#3daee9")
+        mint_green = QColor("#5eead4")
+        assert get_color_contrast_ratio(bdm_accent, mint_green) < 2.0
+        adapted_bg = ensure_contrast_selection_bg(bdm_accent, mint_green)
+        assert get_color_contrast_ratio(adapted_bg, mint_green) >= 4.5
+
+        # Test full app theme application with BDM Default (#3daee9) and Mint Green
+        apply_app_theme("BDM Dark", accent_name="BDM (Default)", highlight_text="Mint Green")
+        pal = qapp.palette()
+        hl_bg = pal.color(QPalette.ColorRole.Highlight)
+        hl_txt = pal.color(QPalette.ColorRole.HighlightedText)
+        contrast = get_color_contrast_ratio(hl_bg, hl_txt)
+        assert contrast >= 4.5
+
+
+class TestChromaCategoryIcons:
+    def test_chroma_left_panel_icons(self):
+        from core.services.theme_service import get_themed_icon
+        from PyQt6.QtGui import QIcon
+        categories = [
+            "all_downloads", "compressed", "documents", "music",
+            "programs", "video", "unfinished", "finished", "queues"
+        ]
+        for cat in categories:
+            icon = get_themed_icon(cat, "Chroma", 24)
+            assert isinstance(icon, QIcon)
+            assert not icon.isNull()

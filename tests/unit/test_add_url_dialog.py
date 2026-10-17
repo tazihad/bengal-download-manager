@@ -87,13 +87,13 @@ class TestAddUrlDialog:
 
     def test_prefetch_complete_with_redirect_url(self, qapp):
         dlg = AddUrlDialog()
-        original_url = "https://github.com/xsobhi/turbodm/releases/download/v1.4.2/TurboDM-1.4.2-windows-x64-portable.zip"
+        original_url = "https://example.com/releases/download/v1.4.2/app-1.4.2-windows-x64-portable.zip"
         dlg.url_input.setText(original_url)
 
         mock_redirected_result = {
-            "url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/...",
+            "url": "https://cdn.example.com/assets/asset-2e65be/app-1.4.2.zip",
             "original_url": original_url,
-            "filename": "TurboDM-1.4.2-windows-x64-portable.zip",
+            "filename": "app-1.4.2-windows-x64-portable.zip",
             "size_str": "30.06 MB",
             "size_bytes": 31524965,
             "content_type": "application/zip",
@@ -101,7 +101,7 @@ class TestAddUrlDialog:
         }
         dlg._on_prefetch_complete(mock_redirected_result)
 
-        assert dlg.micro_inspector.lbl_filename.text() == "TurboDM-1.4.2-windows-x64-portable.zip"
+        assert dlg.micro_inspector.lbl_filename.text() == "app-1.4.2-windows-x64-portable.zip"
         assert dlg.micro_inspector.lbl_size.text() == "30.06 MB"
         assert dlg.micro_inspector.lbl_category.text() == "Compressed"
         assert dlg.get_prefetched_info() == mock_redirected_result
@@ -131,7 +131,7 @@ class TestAddUrlDialog:
 
     def test_media_url_detection(self, qapp):
         dlg = AddUrlDialog()
-        dlg.url_input.setText("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        dlg.url_input.setText("https://www.youtube.com/watch?v=mock_video_media_url")
         assert not dlg.lbl_media_status.isHidden()
         assert not dlg.btn_send_media.isHidden()
         dlg._on_send_media_clicked()

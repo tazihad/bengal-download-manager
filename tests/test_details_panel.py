@@ -82,7 +82,7 @@ def test_details_panel_data_population(qapp):
 
     test_data = {
         "filename": "test-file.iso",
-        "url": "https://releases.ubuntu.com/26.04/test-file.iso",
+        "url": "https://example.com/downloads/test-file.iso",
         "filepath": "/home/user/Downloads/test-file.iso",
         "total_bytes": 1024 * 1024 * 100,  # 100 MB
         "downloaded_bytes": 1024 * 1024 * 50,  # 50 MB
@@ -100,7 +100,7 @@ def test_details_panel_data_population(qapp):
     assert panel.gen_filename_label.text() == "test-file.iso"
     assert "50%" in panel.gen_status_label.text()
     assert "50.00 MB" in panel.gen_size_label.text()
-    assert panel.gen_url_label.text() == "https://releases.ubuntu.com/26.04/test-file.iso"
+    assert panel.gen_url_label.text() == "https://example.com/downloads/test-file.iso"
     assert "/home/user/Downloads" in panel.gen_folder_btn.text()
     assert panel.gen_icon_label.pixmap() is not None
     assert not panel.gen_icon_label.pixmap().isNull()
@@ -113,7 +113,7 @@ def test_details_panel_data_population(qapp):
 
     # Connections Tab checks
     assert panel.conn_table.rowCount() == 1
-    assert panel.conn_table.item(0, 0).text() == "releases.ubuntu.com"
+    assert panel.conn_table.item(0, 0).text() == "example.com"
     assert panel.conn_table.item(0, 1).text() == "443"
     assert panel.conn_table.item(0, 3).text() in ["Direct", "HTTP", "SOCKS5"]
 
@@ -194,42 +194,44 @@ def test_details_panel_persistence(qapp, monkeypatch, tmp_path):
     monkeypatch.setattr("core.utils.get_config_dir", lambda: config_dir)
     monkeypatch.setattr("ui.main_window.get_config_dir", lambda: config_dir)
 
+    from unittest.mock import patch
     from ui.main_window import MainWindow
 
-    # 1. Open app, panel starts closed by default
-    win1 = MainWindow(start_ipc=False)
-    win1.show()
-    assert not win1.details_panel.isVisible()
+    with patch.object(MainWindow, "start_aria2_daemon", return_value=None):
+        # 1. Open app, panel starts closed by default
+        win1 = MainWindow(start_ipc=False)
+        win1.show()
+        assert not win1.details_panel.isVisible()
 
-    # 2. User opens details panel, switches to Progress tab (index 1)
-    win1.show_details_panel()
-    win1.details_panel.switch_tab(1)
-    assert win1.details_panel.isVisible()
-    assert win1.details_panel.stacked_widget.currentIndex() == 1
+        # 2. User opens details panel, switches to Progress tab (index 1)
+        win1.show_details_panel()
+        win1.details_panel.switch_tab(1)
+        assert win1.details_panel.isVisible()
+        assert win1.details_panel.stacked_widget.currentIndex() == 1
 
-    # Save settings and close app
-    win1.save_settings()
-    win1.close()
+        # Save settings and close app
+        win1.save_settings()
+        win1.close()
 
-    # 3. Reopen app: panel must restore to open state and Progress tab
-    win2 = MainWindow(start_ipc=False)
-    win2.show()
-    assert win2.details_panel.isVisible()
-    assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
-    assert win2.details_panel.stacked_widget.currentIndex() == 1
+        # 3. Reopen app: panel must restore to open state and Progress tab
+        win2 = MainWindow(start_ipc=False)
+        win2.show()
+        assert win2.details_panel.isVisible()
+        assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
+        assert win2.details_panel.stacked_widget.currentIndex() == 1
 
-    # 4. User closes details panel
-    win2.hide_details_panel()
-    assert not win2.details_panel.isVisible()
-    win2.save_settings()
-    win2.close()
+        # 4. User closes details panel
+        win2.hide_details_panel()
+        assert not win2.details_panel.isVisible()
+        win2.save_settings()
+        win2.close()
 
-    # 5. Reopen app: panel must restore to closed state
-    win3 = MainWindow(start_ipc=False)
-    win3.show()
-    assert not win3.details_panel.isVisible()
-    assert win3.btn_details_toggle.lbl_arrow.text() == "▲"
-    win3.close()
+        # 5. Reopen app: panel must restore to closed state
+        win3 = MainWindow(start_ipc=False)
+        win3.show()
+        assert not win3.details_panel.isVisible()
+        assert win3.btn_details_toggle.lbl_arrow.text() == "▲"
+        win3.close()
 
 
 def test_details_panel_accent_color_adaptation(qapp):
@@ -268,61 +270,63 @@ def test_selected_item_and_proxy_tab_restoration_on_startup(qapp, monkeypatch, t
 
     # Mock downloads list
     mock_downloads = [
-        {"filename": "archlinux-2026.iso", "url": "https://arch.org/archlinux-2026.iso", "path": "/downloads/archlinux-2026.iso", "size": "1.2 GB", "status": "Complete"},
-        {"filename": "debian-13.iso", "url": "https://debian.org/debian-13.iso", "path": "/downloads/debian-13.iso", "size": "650 MB", "status": "Downloading", "rate": "3 MB/s"},
-        {"filename": "fedora-42.iso", "url": "https://fedora.org/fedora-42.iso", "path": "/downloads/fedora-42.iso", "size": "2.1 GB", "status": "Paused"}
+        {"filename": "distro1-2026.iso", "url": "https://example.com/distro1-2026.iso", "path": "/downloads/distro1-2026.iso", "size": "1.2 GB", "status": "Complete"},
+        {"filename": "distro2-13.iso", "url": "https://example.com/distro2-13.iso", "path": "/downloads/distro2-13.iso", "size": "650 MB", "status": "Downloading", "rate": "3 MB/s"},
+        {"filename": "distro3-42.iso", "url": "https://example.com/distro3-42.iso", "path": "/downloads/distro3-42.iso", "size": "2.1 GB", "status": "Paused"}
     ]
     monkeypatch.setattr("ui.main_window.get_all_downloads", lambda: mock_downloads)
     monkeypatch.setattr("core.download_store.DownloadStore.load_from_database", lambda self: mock_downloads)
 
+    from unittest.mock import patch
     from ui.main_window import MainWindow
 
-    # Session 1: Start app, select item 1 (debian-13.iso), open details panel, switch to Connections tab (index 2)
-    win1 = MainWindow(start_ipc=False)
-    win1.show()
+    with patch.object(MainWindow, "start_aria2_daemon", return_value=None):
+        # Session 1: Start app, select item 1 (distro2-13.iso), open details panel, switch to Connections tab (index 2)
+        win1 = MainWindow(start_ipc=False)
+        win1.show()
 
-    assert win1.download_table.rowCount() == 3
-    # Select row 1
-    win1.download_table.selectRow(1)
-    win1.download_table.setCurrentCell(1, 0)
-    win1.show_details_panel()
-    win1.details_panel.switch_tab(2)  # Connections / Proxy tab
+        assert win1.download_table.rowCount() == 3
+        # Select row 1
+        win1.download_table.selectRow(1)
+        win1.download_table.setCurrentCell(1, 0)
+        win1.show_details_panel()
+        win1.details_panel.switch_tab(2)  # Connections / Proxy tab
 
-    assert win1.details_panel.stacked_widget.currentIndex() == 2
-    assert win1.btn_details_toggle.lbl_arrow.text() == "▼"
-    assert "debian-13.iso" in win1.btn_details_toggle.toolTip()
+        assert win1.details_panel.stacked_widget.currentIndex() == 2
+        assert win1.btn_details_toggle.lbl_arrow.text() == "▼"
+        assert "distro2-13.iso" in win1.btn_details_toggle.toolTip()
 
-    # Save settings and close
-    win1.save_settings()
-    win1.close()
+        # Save settings and close
+        win1.save_settings()
+        win1.close()
 
-    # Session 2: Start app afresh
-    win2 = MainWindow(start_ipc=False)
-    win2.show()
+        # Session 2: Start app afresh
+        win2 = MainWindow(start_ipc=False)
+        win2.show()
 
-    # Verify:
-    # 1. Row 1 (debian-13.iso) is selected
-    assert win2.download_table.currentRow() == 1
-    selected_items = win2.download_table.selectedItems()
-    assert len(selected_items) > 0
-    assert win2.download_table.item(1, 0).text() == "debian-13.iso"
+        # Verify:
+        # 1. Row 1 (distro2-13.iso) is selected
+        assert win2.download_table.currentRow() == 1
+        selected_items = win2.download_table.selectedItems()
+        assert len(selected_items) > 0
+        assert win2.download_table.item(1, 0).text() == "distro2-13.iso"
 
-    # 2. Toggle button shows open arrow ▼ and tooltip for selected item
-    assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
-    assert "debian-13.iso" in win2.btn_details_toggle.toolTip()
+        # 2. Toggle button shows open arrow ▼ and tooltip for selected item
+        assert win2.btn_details_toggle.lbl_arrow.text() == "▼"
+        assert "distro2-13.iso" in win2.btn_details_toggle.toolTip()
 
-    # 3. Details panel is visible
-    assert win2.details_panel.isVisible()
+        # 3. Details panel is visible
+        assert win2.details_panel.isVisible()
 
-    # 4. Connections / Proxy tab (index 2) is restored
-    assert win2.details_panel.stacked_widget.currentIndex() == 2
+        # 4. Connections / Proxy tab (index 2) is restored
+        assert win2.details_panel.stacked_widget.currentIndex() == 2
 
-    # 5. Connections table is populated with host and proxy info
-    assert win2.details_panel.conn_table.rowCount() >= 1
-    assert win2.details_panel.conn_table.item(0, 0).text() == "debian.org"
-    assert win2.details_panel.conn_table.item(0, 3).text() in ["Direct", "HTTP", "SOCKS5"]
+        # 5. Connections table is populated with host and proxy info
+        assert win2.details_panel.conn_table.rowCount() >= 1
+        assert win2.details_panel.conn_table.item(0, 0).text() == "example.com"
+        assert win2.details_panel.conn_table.item(0, 3).text() in ["Direct", "HTTP", "SOCKS5"]
 
-    win2.close()
+        win2.close()
 
 
 def test_eliding_widgets_and_long_filename(qapp):
@@ -440,7 +444,7 @@ def test_details_panel_thumbnail_update(qapp, tmp_path):
     panel.set_download_data({
         "filename": "test_movie.mp4",
         "filepath": video_path,
-        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "url": "https://www.youtube.com/watch?v=mock_video_01",
         "total_bytes": 5000000,
         "downloaded_bytes": 5000000,
         "status": "Complete",

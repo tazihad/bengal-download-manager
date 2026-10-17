@@ -1724,4 +1724,633 @@ def get_tmog_icon(name: str, size: int = 24) -> QIcon:
     return icon
 
 
+def draw_chroma_icon_path(painter: QPainter, name: str, size: int):
+    """
+    Renders crisp, high-DPI vector stroke icons with vibrant dual-stop linear gradients,
+    styled after the modern toolbar icon set.
+    """
+    s = float(size)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+    pen_w = max(1.8, s * 0.08)
+    cx, cy = s * 0.50, s * 0.50
+
+    if name in ("add_url", "add", "paste_url", "batch_download", "import_links"):
+        # Rounded Plus sign with Green -> Cyan gradient
+        grad = QLinearGradient(s * 0.20, cy, s * 0.80, cy)
+        grad.setColorAt(0.0, QColor("#34d399"))  # Mint green
+        grad.setColorAt(1.0, QColor("#22d3ee"))  # Cyan
+        painter.setPen(QPen(grad, pen_w * 1.15, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        arm = s * 0.22
+        painter.drawLine(QPointF(cx - arm, cy), QPointF(cx + arm, cy))
+        painter.drawLine(QPointF(cx, cy - arm), QPointF(cx, cy + arm))
+
+    elif name in ("resume", "download_now"):
+        # Circular ring + centered downward arrow with Emerald -> Cyan gradient
+        grad = QLinearGradient(cx, s * 0.16, cx, s * 0.84)
+        grad.setColorAt(0.0, QColor("#10b981"))  # Emerald
+        grad.setColorAt(1.0, QColor("#06b6d4"))  # Cyan
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawEllipse(QRectF(s * 0.16, s * 0.16, s * 0.68, s * 0.68))
+
+        # Downward arrow inside
+        painter.drawLine(QPointF(cx, s * 0.34), QPointF(cx, s * 0.64))
+        head = QPainterPath()
+        head.moveTo(s * 0.38, s * 0.52)
+        head.lineTo(cx, s * 0.64)
+        head.lineTo(s * 0.62, s * 0.52)
+        painter.drawPath(head)
+
+    elif name in ("stop", "pause"):
+        # Circular ring + centered rounded square with Amber -> Coral gradient
+        grad = QLinearGradient(cx, s * 0.16, cx, s * 0.84)
+        grad.setColorAt(0.0, QColor("#f59e0b"))  # Amber
+        grad.setColorAt(1.0, QColor("#ef4444"))  # Coral red
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.drawEllipse(QRectF(s * 0.16, s * 0.16, s * 0.68, s * 0.68))
+
+        # Inner rounded square
+        sq = QRectF(s * 0.36, s * 0.36, s * 0.28, s * 0.28)
+        painter.drawRoundedRect(sq, s * 0.05, s * 0.05)
+
+    elif name in ("stop_all", "stop_all_queues"):
+        # Open flat hand outline with Coral -> Crimson gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#fb7185"))  # Coral
+        grad.setColorAt(1.0, QColor("#e11d48"))  # Crimson
+        painter.setPen(QPen(grad, pen_w * 0.95, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        hand = QPainterPath()
+        # Wrist bottom
+        hand.moveTo(s * 0.34, s * 0.82)
+        # Left wrist up to thumb base
+        hand.lineTo(s * 0.28, s * 0.70)
+        # Thumb sticking out left
+        hand.lineTo(s * 0.20, s * 0.54)
+        hand.arcTo(QRectF(s * 0.16, s * 0.46, s * 0.12, s * 0.12), 180, 180)
+        hand.lineTo(s * 0.34, s * 0.54)
+        # Index finger
+        hand.lineTo(s * 0.34, s * 0.24)
+        hand.arcTo(QRectF(s * 0.34, s * 0.18, s * 0.09, s * 0.12), 180, 180)
+        hand.lineTo(s * 0.43, s * 0.36)
+        # Middle finger (tallest)
+        hand.lineTo(s * 0.44, s * 0.20)
+        hand.arcTo(QRectF(s * 0.44, s * 0.14, s * 0.09, s * 0.12), 180, 180)
+        hand.lineTo(s * 0.53, s * 0.36)
+        # Ring finger
+        hand.lineTo(s * 0.54, s * 0.23)
+        hand.arcTo(QRectF(s * 0.54, s * 0.17, s * 0.09, s * 0.12), 180, 180)
+        hand.lineTo(s * 0.63, s * 0.40)
+        # Pinky finger
+        hand.lineTo(s * 0.64, s * 0.32)
+        hand.arcTo(QRectF(s * 0.64, s * 0.26, s * 0.09, s * 0.12), 180, 180)
+        hand.lineTo(s * 0.73, s * 0.64)
+        # Right wrist edge
+        hand.lineTo(s * 0.66, s * 0.82)
+        hand.closeSubpath()
+        painter.drawPath(hand)
+
+    elif name in ("delete", "trash"):
+        # Wastebasket outline with Crimson -> Rose gradient
+        grad = QLinearGradient(cx, s * 0.20, cx, s * 0.80)
+        grad.setColorAt(0.0, QColor("#f43f5e"))  # Crimson
+        grad.setColorAt(1.0, QColor("#be123c"))  # Rose
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Top lid bar
+        painter.drawLine(QPointF(s * 0.22, s * 0.32), QPointF(s * 0.78, s * 0.32))
+        # Lid handle
+        h = QPainterPath()
+        h.moveTo(s * 0.40, s * 0.32)
+        h.lineTo(s * 0.40, s * 0.22)
+        h.lineTo(s * 0.60, s * 0.22)
+        h.lineTo(s * 0.60, s * 0.32)
+        painter.drawPath(h)
+        # Body
+        body = QPainterPath()
+        body.moveTo(s * 0.28, s * 0.32)
+        body.lineTo(s * 0.33, s * 0.78)
+        body.lineTo(s * 0.67, s * 0.78)
+        body.lineTo(s * 0.72, s * 0.32)
+        painter.drawPath(body)
+        # Two inner ribs
+        painter.drawLine(QPointF(s * 0.43, s * 0.42), QPointF(s * 0.43, s * 0.68))
+        painter.drawLine(QPointF(s * 0.57, s * 0.42), QPointF(s * 0.57, s * 0.68))
+
+    elif name in ("clear_completed", "clear"):
+        # Wastebasket with checkmark across front with Orchid -> Violet gradient
+        grad = QLinearGradient(cx, s * 0.18, cx, s * 0.80)
+        grad.setColorAt(0.0, QColor("#d946ef"))  # Orchid
+        grad.setColorAt(1.0, QColor("#8b5cf6"))  # Violet
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Top lid bar
+        painter.drawLine(QPointF(s * 0.22, s * 0.32), QPointF(s * 0.78, s * 0.32))
+        # Lid handle
+        h = QPainterPath()
+        h.moveTo(s * 0.40, s * 0.32)
+        h.lineTo(s * 0.40, s * 0.22)
+        h.lineTo(s * 0.60, s * 0.22)
+        h.lineTo(s * 0.60, s * 0.32)
+        painter.drawPath(h)
+        # Body
+        body = QPainterPath()
+        body.moveTo(s * 0.28, s * 0.32)
+        body.lineTo(s * 0.33, s * 0.78)
+        body.lineTo(s * 0.67, s * 0.78)
+        body.lineTo(s * 0.72, s * 0.32)
+        painter.drawPath(body)
+        # Checkmark across body
+        chk = QPainterPath()
+        chk.moveTo(s * 0.32, s * 0.46)
+        chk.lineTo(s * 0.46, s * 0.62)
+        chk.lineTo(s * 0.70, s * 0.38)
+        painter.drawPath(chk)
+
+    elif name in ("options", "settings", "configure"):
+        # 8-pointed gear/cog with round inner hole with Peach/Coral -> Soft Purple gradient
+        grad = QLinearGradient(cx, s * 0.14, cx, s * 0.86)
+        grad.setColorAt(0.0, QColor("#fb923c"))  # Coral/Peach
+        grad.setColorAt(1.0, QColor("#a855f7"))  # Soft Purple
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        gear = QPainterPath()
+        teeth = 8
+        r_out, r_in = s * 0.36, s * 0.26
+        for i in range(teeth * 2):
+            angle = math.radians(i * (360 / (teeth * 2)) - 22.5)
+            r = r_out if i % 2 == 0 else r_in
+            x = cx + r * math.cos(angle)
+            y = cy + r * math.sin(angle)
+            if i == 0: gear.moveTo(x, y)
+            else: gear.lineTo(x, y)
+        gear.closeSubpath()
+        painter.drawPath(gear)
+        # Center circle hole
+        painter.drawEllipse(QRectF(cx - s * 0.12, cy - s * 0.12, s * 0.24, s * 0.24))
+
+    elif name in ("extensions", "extension"):
+        # Puzzle piece with top and right connector tabs with Royal Blue -> Indigo gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#3b82f6"))  # Royal Blue
+        grad.setColorAt(1.0, QColor("#818cf8"))  # Indigo
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        pz = QPainterPath()
+        # Top-left corner
+        pz.moveTo(s * 0.24, s * 0.32)
+        # Top edge with tab
+        pz.lineTo(s * 0.42, s * 0.32)
+        pz.lineTo(s * 0.42, s * 0.20)
+        pz.lineTo(s * 0.58, s * 0.20)
+        pz.lineTo(s * 0.58, s * 0.32)
+        pz.lineTo(s * 0.72, s * 0.32)
+        # Right edge with tab
+        pz.lineTo(s * 0.72, s * 0.44)
+        pz.lineTo(s * 0.84, s * 0.44)
+        pz.lineTo(s * 0.84, s * 0.60)
+        pz.lineTo(s * 0.72, s * 0.60)
+        pz.lineTo(s * 0.72, s * 0.76)
+        # Bottom edge
+        pz.lineTo(s * 0.24, s * 0.76)
+        # Left edge
+        pz.closeSubpath()
+        painter.drawPath(pz)
+
+    elif name == "scheduler":
+        # Twin-bell alarm clock with bells and clock hands with Coral-pink -> Amber-orange gradient
+        grad = QLinearGradient(s * 0.20, s * 0.16, s * 0.80, s * 0.84)
+        grad.setColorAt(0.0, QColor("#f43f5e"))  # Coral-pink
+        grad.setColorAt(1.0, QColor("#f97316"))  # Amber-orange
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Clock dial
+        painter.drawEllipse(QRectF(s * 0.22, s * 0.24, s * 0.56, s * 0.56))
+
+        # Twin bells at top
+        painter.drawLine(QPointF(s * 0.24, s * 0.28), QPointF(s * 0.33, s * 0.18))
+        painter.drawLine(QPointF(s * 0.76, s * 0.28), QPointF(s * 0.67, s * 0.18))
+
+        # Clock hands at 12:20 (vertical hour hand, down-right minute hand)
+        clock_cx, clock_cy = s * 0.50, s * 0.52
+        painter.drawLine(QPointF(clock_cx, clock_cy), QPointF(clock_cx, clock_cy - s * 0.17))
+        painter.drawLine(QPointF(clock_cx, clock_cy), QPointF(clock_cx + s * 0.13, clock_cy + s * 0.09))
+
+    elif name == "start_queue":
+        # Stacked tray card with downward arrow with Sky Blue -> Mint Teal gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#38bdf8"))  # Sky Blue
+        grad.setColorAt(1.0, QColor("#14b8a6"))  # Mint Teal
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Back stacked card outline
+        back = QPainterPath()
+        back.moveTo(s * 0.68, s * 0.30)
+        back.lineTo(s * 0.80, s * 0.30)
+        back.lineTo(s * 0.80, s * 0.74)
+        back.lineTo(s * 0.36, s * 0.74)
+        back.lineTo(s * 0.36, s * 0.64)
+        painter.drawPath(back)
+
+        # Front card
+        front = QRectF(s * 0.20, s * 0.20, s * 0.48, s * 0.44)
+        painter.drawRoundedRect(front, s * 0.08, s * 0.08)
+
+        # Down arrow inside front card
+        f_cx = front.center().x()
+        painter.drawLine(QPointF(f_cx, s * 0.28), QPointF(f_cx, s * 0.52))
+        arr = QPainterPath()
+        arr.moveTo(f_cx - s * 0.10, s * 0.44)
+        arr.lineTo(f_cx, s * 0.54)
+        arr.lineTo(f_cx + s * 0.10, s * 0.44)
+        painter.drawPath(arr)
+
+    elif name in ("stop_queue", "pause_queue"):
+        # Stacked queue tray card with stop square with Violet -> Magenta gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#a855f7"))  # Violet
+        grad.setColorAt(1.0, QColor("#ec4899"))  # Magenta
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Back stacked card outline
+        back = QPainterPath()
+        back.moveTo(s * 0.68, s * 0.30)
+        back.lineTo(s * 0.80, s * 0.30)
+        back.lineTo(s * 0.80, s * 0.74)
+        back.lineTo(s * 0.36, s * 0.74)
+        back.lineTo(s * 0.36, s * 0.64)
+        painter.drawPath(back)
+
+        # Front card
+        front = QRectF(s * 0.20, s * 0.20, s * 0.48, s * 0.44)
+        painter.drawRoundedRect(front, s * 0.08, s * 0.08)
+
+        # Stop square inside front card
+        f_cx, f_cy = front.center().x(), front.center().y()
+        painter.drawRoundedRect(QRectF(f_cx - s * 0.09, f_cy - s * 0.09, s * 0.18, s * 0.18), 2, 2)
+
+    elif name in ("speed_limit", "bandwidth", "connections"):
+        # Speedometer dial gauge with tick marks with Emerald -> Sky Blue gradient
+        grad = QLinearGradient(s * 0.20, cy, s * 0.80, cy)
+        grad.setColorAt(0.0, QColor("#34d399"))  # Emerald
+        grad.setColorAt(1.0, QColor("#38bdf8"))  # Sky Blue
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Gauge arc
+        dial = QRectF(s * 0.20, s * 0.22, s * 0.60, s * 0.60)
+        painter.drawArc(dial, 0 * 16, 180 * 16)
+
+        # Center hub
+        hub_y = cy + s * 0.08
+        painter.drawEllipse(QRectF(cx - s * 0.06, hub_y - s * 0.06, s * 0.12, s * 0.12))
+
+        # Needle pointing up-right (~10-11 o'clock)
+        painter.drawLine(QPointF(cx, hub_y), QPointF(cx + s * 0.16, hub_y - s * 0.18))
+
+        # Radial ticks
+        painter.drawLine(QPointF(cx, s * 0.22), QPointF(cx, s * 0.29))
+        painter.drawLine(QPointF(s * 0.26, s * 0.34), QPointF(s * 0.32, s * 0.39))
+        painter.drawLine(QPointF(s * 0.74, s * 0.34), QPointF(s * 0.68, s * 0.39))
+
+    elif name in ("media_downloader", "media"):
+        # Display monitor screen + play triangle with Cyan -> Violet gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#06b6d4"))  # Cyan
+        grad.setColorAt(1.0, QColor("#8b5cf6"))  # Violet
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Screen
+        rect = QRectF(s * 0.18, s * 0.22, s * 0.64, s * 0.44)
+        painter.drawRoundedRect(rect, 4, 4)
+        # Stand
+        painter.drawLine(QPointF(s * 0.40, s * 0.76), QPointF(s * 0.60, s * 0.76))
+        painter.drawLine(QPointF(s * 0.50, s * 0.66), QPointF(s * 0.50, s * 0.76))
+        # Play Triangle inside screen
+        play = QPainterPath()
+        play.moveTo(s * 0.44, s * 0.34)
+        play.lineTo(s * 0.60, s * 0.44)
+        play.lineTo(s * 0.44, s * 0.54)
+        play.closeSubpath()
+        painter.drawPath(play)
+
+    elif name in ("grabber", "site_grabber"):
+        # Web globe with download chevron with Sky Blue -> Violet gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#38bdf8"))  # Sky Blue
+        grad.setColorAt(1.0, QColor("#a855f7"))  # Violet
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Globe outer circle
+        painter.drawEllipse(QRectF(s * 0.18, s * 0.18, s * 0.64, s * 0.64))
+        # Equator
+        painter.drawLine(QPointF(s * 0.18, cy), QPointF(s * 0.82, cy))
+        # Central meridian ellipse
+        painter.drawEllipse(QRectF(s * 0.34, s * 0.18, s * 0.32, s * 0.64))
+
+    elif name in ("open_folder", "folder"):
+        # Tabbed folder outline with Amber -> Gold gradient
+        grad = QLinearGradient(s * 0.18, s * 0.26, s * 0.82, s * 0.76)
+        grad.setColorAt(0.0, QColor("#f59e0b"))  # Amber
+        grad.setColorAt(1.0, QColor("#fbbf24"))  # Gold
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        f = QPainterPath()
+        f.moveTo(s * 0.18, s * 0.30)
+        f.lineTo(s * 0.40, s * 0.30)
+        f.lineTo(s * 0.48, s * 0.38)
+        f.lineTo(s * 0.82, s * 0.38)
+        f.lineTo(s * 0.82, s * 0.74)
+        f.lineTo(s * 0.18, s * 0.74)
+        f.closeSubpath()
+        painter.drawPath(f)
+
+    elif name in ("exit", "quit"):
+        # Power arc + vertical switch line with Coral -> Crimson gradient
+        grad = QLinearGradient(cx, s * 0.16, cx, s * 0.84)
+        grad.setColorAt(0.0, QColor("#f87171"))  # Coral
+        grad.setColorAt(1.0, QColor("#ef4444"))  # Crimson
+        painter.setPen(QPen(grad, pen_w * 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        painter.drawArc(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60), 45 * 16, 270 * 16)
+        painter.drawLine(QPointF(cx, s * 0.16), QPointF(cx, s * 0.48))
+
+    elif name in ("redownload", "refresh"):
+        # Refresh arrows with Emerald -> Cyan gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#10b981"))
+        grad.setColorAt(1.0, QColor("#06b6d4"))
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        painter.drawArc(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60), 30 * 16, 120 * 16)
+        painter.drawArc(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60), 210 * 16, 120 * 16)
+        # Arrowheads
+        a1 = QPainterPath()
+        a1.moveTo(s * 0.64, s * 0.22)
+        a1.lineTo(s * 0.74, s * 0.28)
+        a1.lineTo(s * 0.64, s * 0.34)
+        painter.drawPath(a1)
+        a2 = QPainterPath()
+        a2.moveTo(s * 0.36, s * 0.78)
+        a2.lineTo(s * 0.26, s * 0.72)
+        a2.lineTo(s * 0.36, s * 0.66)
+        painter.drawPath(a2)
+
+    elif name in ("show_hide", "window"):
+        # Dual overlapping windows with Sky Blue -> Teal gradient
+        grad = QLinearGradient(s * 0.18, s * 0.20, s * 0.82, s * 0.76)
+        grad.setColorAt(0.0, QColor("#38bdf8"))
+        grad.setColorAt(1.0, QColor("#2dd4bf"))
+        painter.setPen(QPen(grad, pen_w * 0.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        w1 = QRectF(s * 0.18, s * 0.28, s * 0.48, s * 0.48)
+        w2 = QRectF(s * 0.34, s * 0.20, s * 0.48, s * 0.48)
+        painter.drawRoundedRect(w2, 3, 3)
+        painter.drawRoundedRect(w1, 3, 3)
+
+    elif name == "all_downloads":
+        # Inbox / download tray + downward arrow with Sky Blue -> Mint Teal gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#38bdf8"))  # Sky Blue
+        grad.setColorAt(1.0, QColor("#2dd4bf"))  # Mint Teal
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Tray path
+        tray = QPainterPath()
+        tray.moveTo(s * 0.18, s * 0.42)
+        tray.lineTo(s * 0.18, s * 0.76)
+        tray.lineTo(s * 0.82, s * 0.76)
+        tray.lineTo(s * 0.82, s * 0.42)
+        painter.drawPath(tray)
+
+        # Center arrow down
+        painter.drawLine(QPointF(cx, s * 0.20), QPointF(cx, s * 0.54))
+        arr = QPainterPath()
+        arr.moveTo(cx - s * 0.13, s * 0.43)
+        arr.lineTo(cx, s * 0.56)
+        arr.lineTo(cx + s * 0.13, s * 0.43)
+        painter.drawPath(arr)
+
+    elif name in ("compressed", "zip", "rar", "tar", "7z"):
+        # Archive container box with zipper teeth in Amber -> Coral gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#f59e0b"))  # Amber
+        grad.setColorAt(1.0, QColor("#fb923c"))  # Coral orange
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        box = QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60)
+        painter.drawRoundedRect(box, s * 0.08, s * 0.08)
+
+        # Center zip teeth
+        painter.drawLine(QPointF(cx, s * 0.20), QPointF(cx, s * 0.54))
+        painter.setPen(QPen(grad, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        for yp in [0.28, 0.36, 0.44]:
+            painter.drawLine(QPointF(cx - s * 0.07, s * yp), QPointF(cx + s * 0.07, s * yp))
+        # Zip pull tag
+        painter.setBrush(QColor(245, 158, 11, 40))
+        painter.drawRoundedRect(QRectF(cx - s * 0.06, s * 0.54, s * 0.12, s * 0.16), 2, 2)
+
+    elif name in ("documents", "doc", "pdf", "txt"):
+        # Document sheet with folded corner in Sky Blue -> Cyan gradient
+        grad = QLinearGradient(s * 0.20, s * 0.18, s * 0.80, s * 0.82)
+        grad.setColorAt(0.0, QColor("#38bdf8"))  # Sky Blue
+        grad.setColorAt(1.0, QColor("#06b6d4"))  # Cyan
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        doc = QPainterPath()
+        doc.moveTo(s * 0.24, s * 0.18)
+        doc.lineTo(s * 0.56, s * 0.18)
+        doc.lineTo(s * 0.76, s * 0.38)
+        doc.lineTo(s * 0.76, s * 0.82)
+        doc.lineTo(s * 0.24, s * 0.82)
+        doc.closeSubpath()
+        painter.drawPath(doc)
+
+        # Corner fold
+        fold = QPainterPath()
+        fold.moveTo(s * 0.56, s * 0.18)
+        fold.lineTo(s * 0.56, s * 0.38)
+        fold.lineTo(s * 0.76, s * 0.38)
+        painter.drawPath(fold)
+
+        # Horizontal text lines
+        painter.setPen(QPen(grad, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.34, s * 0.52), QPointF(s * 0.66, s * 0.52))
+        painter.drawLine(QPointF(s * 0.34, s * 0.64), QPointF(s * 0.56, s * 0.64))
+
+    elif name in ("music", "audio", "mp3", "flac"):
+        # Dual beamed musical eighth notes in Violet -> Magenta gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#a855f7"))  # Violet
+        grad.setColorAt(1.0, QColor("#ec4899"))  # Magenta
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Note heads
+        painter.drawEllipse(QRectF(s * 0.22, s * 0.58, s * 0.22, s * 0.18))
+        painter.drawEllipse(QRectF(s * 0.56, s * 0.48, s * 0.22, s * 0.18))
+
+        # Vertical stems
+        painter.drawLine(QPointF(s * 0.44, s * 0.66), QPointF(s * 0.44, s * 0.24))
+        painter.drawLine(QPointF(s * 0.78, s * 0.56), QPointF(s * 0.78, s * 0.18))
+
+        # Top connecting beam
+        painter.setPen(QPen(grad, pen_w * 1.3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.44, s * 0.24), QPointF(s * 0.78, s * 0.18))
+
+    elif name in ("programs", "app", "exe", "msi", "appimage", "flatpak"):
+        # App window container in Emerald -> Teal gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#10b981"))  # Emerald
+        grad.setColorAt(1.0, QColor("#14b8a6"))  # Teal
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        app_w = QRectF(s * 0.20, s * 0.22, s * 0.60, s * 0.56)
+        painter.drawRoundedRect(app_w, s * 0.08, s * 0.08)
+
+        # Title bar line
+        painter.drawLine(QPointF(s * 0.20, s * 0.38), QPointF(s * 0.80, s * 0.38))
+
+        # Window dots
+        painter.drawEllipse(QRectF(s * 0.28, s * 0.28, s * 0.04, s * 0.04))
+        painter.drawEllipse(QRectF(s * 0.36, s * 0.28, s * 0.04, s * 0.04))
+
+        # Terminal prompt chevron inside
+        chv = QPainterPath()
+        chv.moveTo(s * 0.32, s * 0.48)
+        chv.lineTo(s * 0.42, s * 0.56)
+        chv.lineTo(s * 0.32, s * 0.64)
+        painter.drawPath(chv)
+        painter.drawLine(QPointF(s * 0.46, s * 0.64), QPointF(s * 0.62, s * 0.64))
+
+    elif name in ("video", "movie", "mp4", "mkv", "webm"):
+        # Cinema display frame with play triangle in Cyan -> Indigo gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#06b6d4"))  # Cyan
+        grad.setColorAt(1.0, QColor("#6366f1"))  # Indigo
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        v_rect = QRectF(s * 0.18, s * 0.24, s * 0.64, s * 0.52)
+        painter.drawRoundedRect(v_rect, s * 0.08, s * 0.08)
+
+        # Play triangle
+        vp = QPainterPath()
+        vp.moveTo(s * 0.44, s * 0.38)
+        vp.lineTo(s * 0.62, s * 0.50)
+        vp.lineTo(s * 0.44, s * 0.62)
+        vp.closeSubpath()
+        painter.drawPath(vp)
+
+    elif name == "unfinished":
+        # In-progress circular clock dial in Amber -> Coral-orange gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#f59e0b"))  # Amber
+        grad.setColorAt(1.0, QColor("#f97316"))  # Coral orange
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        painter.drawEllipse(QRectF(s * 0.20, s * 0.20, s * 0.60, s * 0.60))
+        # Clock hands at 3:00 / in progress
+        painter.drawLine(QPointF(cx, cy), QPointF(cx, cy - s * 0.18))
+        painter.drawLine(QPointF(cx, cy), QPointF(cx + s * 0.16, cy))
+
+    elif name == "finished":
+        # Checkmark badge circle in Emerald -> Mint gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#10b981"))  # Emerald
+        grad.setColorAt(1.0, QColor("#34d399"))  # Mint
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        painter.drawEllipse(QRectF(s * 0.18, s * 0.18, s * 0.64, s * 0.64))
+        chk = QPainterPath()
+        chk.moveTo(s * 0.34, s * 0.50)
+        chk.lineTo(s * 0.46, s * 0.62)
+        chk.lineTo(s * 0.68, s * 0.38)
+        painter.drawPath(chk)
+
+    elif name in ("queues", "queue"):
+        # Stacked queue cards in Violet -> Indigo gradient
+        grad = QLinearGradient(s * 0.20, s * 0.20, s * 0.80, s * 0.80)
+        grad.setColorAt(0.0, QColor("#8b5cf6"))  # Violet
+        grad.setColorAt(1.0, QColor("#6366f1"))  # Indigo
+        painter.setPen(QPen(grad, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.GlobalColor.transparent)
+
+        # Back card
+        back = QPainterPath()
+        back.moveTo(s * 0.32, s * 0.24)
+        back.lineTo(s * 0.78, s * 0.24)
+        back.lineTo(s * 0.78, s * 0.68)
+        painter.drawPath(back)
+
+        # Front card
+        front = QRectF(s * 0.22, s * 0.32, s * 0.56, s * 0.48)
+        painter.drawRoundedRect(front, s * 0.08, s * 0.08)
+
+        # Inner horizontal queue lines
+        painter.setPen(QPen(grad, pen_w * 0.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(QPointF(s * 0.32, s * 0.48), QPointF(s * 0.68, s * 0.48))
+        painter.drawLine(QPointF(s * 0.32, s * 0.62), QPointF(s * 0.56, s * 0.62))
+
+    else:
+        # Fallback to standard monochrome vector drawing
+        from ui.icons import draw_icon_path
+        painter.setPen(QPen(QColor("#d4d4d4"), pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        draw_icon_path(painter, name, int(size))
+
+
+def get_chroma_icon(name: str, size: int = 24) -> QIcon:
+    """
+    Renders a crisp, high-DPI Chroma vector stroke icon with vibrant linear gradients.
+    Toolbar actions feature glowing gradient geometry; disabled actions render in muted gray.
+    """
+    pixmap = QPixmap(size * 2, size * 2)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    draw_chroma_icon_path(painter, name, size * 2)
+    painter.end()
+
+    # Muted disabled state matching screenshot
+    disabled_pixmap = QPixmap(pixmap.size())
+    disabled_pixmap.fill(Qt.GlobalColor.transparent)
+    p = QPainter(disabled_pixmap)
+    p.setOpacity(0.35)
+    p.drawPixmap(0, 0, pixmap)
+    p.end()
+
+    icon = QIcon()
+    icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Normal, QIcon.State.On)
+    icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Active, QIcon.State.On)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.Off)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected, QIcon.State.On)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.Off)
+    icon.addPixmap(disabled_pixmap, QIcon.Mode.Disabled, QIcon.State.On)
+    return icon
+
+
+
 

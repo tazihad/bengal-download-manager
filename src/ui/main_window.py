@@ -124,6 +124,7 @@ from core.services.theme_service import (
     init_app_font,
     make_faded_icon,
     normalize_accent_name,
+    normalize_highlight_text_name,
     normalize_icon_theme_name,
     normalize_theme_name,
     normalize_titlebar_name,
@@ -3386,6 +3387,7 @@ class MainWindow(QMainWindow):
                 "icon_theme": getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)"),
                 "tray_icon": getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)"),
                 "title_bar": getattr(self, "settings", {}).get("title_bar", "Automatic"),
+                "highlight_text": getattr(self, "settings", {}).get("highlight_text", "Automatic"),
                 "language": getattr(self, "settings", {}).get("language", "system"),
                 "table_style": getattr(self, "table_style", "classic"),
                 "system_notifications": bool(getattr(self, "system_notifications", self.settings.get("system_notifications", False) if isinstance(getattr(self, "settings", None), dict) else False)),
@@ -3423,7 +3425,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None):
+    def apply_appearance_setting(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None, highlight_text=None):
         self._is_previewing = False
         if getattr(self, "_is_applying_theme", False):
             return
@@ -3437,9 +3439,12 @@ class MainWindow(QMainWindow):
             self.settings["tray_icon"] = tray_icon_name
             if title_bar_mode is not None:
                 self.settings["title_bar"] = title_bar_mode
+            if highlight_text is not None:
+                self.settings["highlight_text"] = highlight_text
             apply_app_theme(
                 theme_name, accent_name, icon_theme_name, tray_icon_name,
-                title_bar_mode=self.settings.get("title_bar", "Automatic")
+                title_bar_mode=self.settings.get("title_bar", "Automatic"),
+                highlight_text=self.settings.get("highlight_text", "Automatic")
             )
             self.save_settings()
             self.refresh_theme_ui()
@@ -3501,14 +3506,15 @@ class MainWindow(QMainWindow):
         if hasattr(self, "queues_header") and self.queues_header:
             self.queues_header.setText(0, self.tr("Queues"))
 
-    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None):
+    def preview_appearance(self, theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, title_bar_mode=None, highlight_text=None):
         self._is_previewing = True
         if getattr(self, "_is_applying_theme", False):
             return
         self._is_applying_theme = True
         try:
             tb = title_bar_mode if title_bar_mode is not None else getattr(self, "settings", {}).get("title_bar", "Automatic")
-            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode=tb)
+            ht = highlight_text if highlight_text is not None else getattr(self, "settings", {}).get("highlight_text", "Automatic")
+            apply_app_theme(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode=tb, highlight_text=ht)
             self.refresh_theme_ui()
         finally:
             self._is_applying_theme = False
@@ -3608,7 +3614,8 @@ class MainWindow(QMainWindow):
         icon_theme_name = getattr(self, "settings", {}).get("icon_theme", "BDM Auto (Default)")
         tray_icon_name = getattr(self, "settings", {}).get("tray_icon", "App Icon (Default)")
         title_bar_mode = getattr(self, "settings", {}).get("title_bar", "Automatic")
-        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode)
+        highlight_text = getattr(self, "settings", {}).get("highlight_text", "Automatic")
+        self.apply_appearance_setting(theme_name, accent_name, icon_theme_name, tray_icon_name, title_bar_mode, highlight_text)
 
     def refresh_theme_ui(self):
         app = QApplication.instance()
@@ -3762,6 +3769,7 @@ class MainWindow(QMainWindow):
             "icon_theme": "BDM Auto (Default)",
             "tray_icon": "App Icon (Default)",
             "title_bar": "Automatic",
+            "highlight_text": "Automatic",
             "language": "system"
         }
         config_dir = get_config_dir()
@@ -3797,6 +3805,7 @@ class MainWindow(QMainWindow):
         settings["icon_theme"] = normalize_icon_theme_name(settings.get("icon_theme"))
         settings["tray_icon"] = normalize_tray_icon_name(settings.get("tray_icon"))
         settings["title_bar"] = normalize_titlebar_name(settings.get("title_bar"))
+        settings["highlight_text"] = normalize_highlight_text_name(settings.get("highlight_text"))
         settings["language"] = normalize_language_code(settings.get("language", "system"))
         settings["table_style"] = settings.get("table_style", "classic")
         self.system_notifications = settings.get("system_notifications", False)
@@ -3819,7 +3828,8 @@ class MainWindow(QMainWindow):
             settings["accent"],
             settings["icon_theme"],
             settings["tray_icon"],
-            title_bar_mode=settings["title_bar"]
+            title_bar_mode=settings["title_bar"],
+            highlight_text=settings["highlight_text"]
         )
 
         if hasattr(self, "tray_icon") and self.tray_icon:

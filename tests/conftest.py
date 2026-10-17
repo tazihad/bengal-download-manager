@@ -33,6 +33,17 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
+def _mock_aria2_daemon_autostart(monkeypatch):
+    """Prevent MainWindow from starting live aria2c processes during test runs,
+    saving seconds of port contention and process waits."""
+    try:
+        from ui.main_window import MainWindow
+        monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self, port=None: None)
+    except Exception:
+        pass
+
+
+@pytest.fixture(autouse=True)
 def _flush_deferred_deletes(qapp):
     """Process pending deleteLater() calls after every test.
 
@@ -46,19 +57,26 @@ def _flush_deferred_deletes(qapp):
 
 
 def flush_deferred_deletes(app):
-    import gc
     for w in app.topLevelWidgets():
         try:
             if hasattr(w, "listener_thread") and w.listener_thread:
-                w.listener_thread.stop(timeout_ms=500)
+                if hasattr(w.listener_thread, "isRunning") and w.listener_thread.isRunning():
+                    w.listener_thread.stop(timeout_ms=100)
                 w.listener_thread = None
         except Exception:
             pass
-    gc.collect()
+        try:
+            if hasattr(w, "timestamp_timer") and w.timestamp_timer:
+                w.timestamp_timer.stop()
+            if hasattr(w, "status_bar_timer") and w.status_bar_timer:
+                w.status_bar_timer.stop()
+            if hasattr(w, "memory_guard_timer") and w.memory_guard_timer:
+                w.memory_guard_timer.stop()
+        except Exception:
+            pass
     app.processEvents()
     app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
-    gc.collect()
 
 
 @pytest.fixture(scope="session")

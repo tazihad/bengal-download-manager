@@ -314,10 +314,58 @@ ACCENT_COLORS = {
     "Stellar Blue": "#4488dd",
     "TMOG Cyan": "#00e5ff",
     "Cyber Cyan": "#00e5ff",
+    "Chroma Blue": "#264f78",
+    "Chroma": "#264f78",
 }
 
 
-def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
+def get_color_contrast_ratio(c1: QColor, c2: QColor) -> float:
+    """Computes the WCAG 2.1 relative luminance contrast ratio between two QColors."""
+    def _srgb(v: float) -> float:
+        v = v / 255.0
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    l1 = 0.2126 * _srgb(c1.red()) + 0.7152 * _srgb(c1.green()) + 0.0722 * _srgb(c1.blue())
+    l2 = 0.2126 * _srgb(c2.red()) + 0.7152 * _srgb(c2.green()) + 0.0722 * _srgb(c2.blue())
+    return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+
+def ensure_contrast_selection_bg(hl_color: QColor, text_color: QColor, min_contrast: float = 4.5) -> QColor:
+    """
+    Adaptive Selection Surface (Solution 1):
+    Ensures that the selection background meets WCAG AA contrast (>= 4.5:1) against the highlighted text.
+    If the text is bright/light (e.g. Mint Green, Yellow, Cyan, White) and the accent is bright (like #3daee9),
+    deepens the background into a rich, dark shade of the exact same accent hue until >= 5.0:1 contrast
+    is achieved.
+    """
+    def _srgb(v: float) -> float:
+        v = v / 255.0
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    text_lum = 0.2126 * _srgb(text_color.red()) + 0.7152 * _srgb(text_color.green()) + 0.0722 * _srgb(text_color.blue())
+    current_contrast = get_color_contrast_ratio(hl_color, text_color)
+    if current_contrast >= min_contrast:
+        return hl_color
+
+    if text_lum > 0.15:
+        # Text is light/bright; deepen background into a darker, contrast-safe shade of the accent
+        res_bg = QColor(hl_color)
+        factor = 140
+        while factor <= 320 and get_color_contrast_ratio(res_bg, text_color) < 5.0:
+            res_bg = hl_color.darker(factor)
+            factor += 20
+        return res_bg
+    else:
+        # Text is dark; lighten background if necessary
+        res_bg = QColor(hl_color)
+        factor = 140
+        while factor <= 320 and get_color_contrast_ratio(res_bg, text_color) < 5.0:
+            res_bg = hl_color.lighter(factor)
+            factor += 20
+        return res_bg
+
+
+def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None, highlight_text=None):
     if accent and str(accent).lower() == "system":
         sys_acc = detect_accent("auto", app=QApplication.instance())
         if sys_acc and sys_acc.isValid():
@@ -337,11 +385,27 @@ def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None):
     pal.setColor(QPalette.ColorRole.Button, QColor(btn))
     pal.setColor(QPalette.ColorRole.ButtonText, QColor(text))
     pal.setColor(QPalette.ColorRole.BrightText, QColor("#ff5555"))
-    pal.setColor(QPalette.ColorRole.Highlight, QColor(hl))
-    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
-    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, QColor("#000000"))
-    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor("#000000"))
-    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor("#000000"))
+
+    # Resolve highlighted text color based on user selection or theme default
+    ht_mode = highlight_text if highlight_text is not None else CURRENT_HIGHLIGHT_TEXT
+    ht_norm = normalize_highlight_text_name(ht_mode)
+    if ht_norm != "Automatic" and ht_norm in HIGHLIGHT_TEXT_COLORS and HIGHLIGHT_TEXT_COLORS[ht_norm]:
+        resolved_hl_text = QColor(HIGHLIGHT_TEXT_COLORS[ht_norm])
+    else:
+        resolved_hl_text = QColor(hl_text) if hl_text else QColor("#ffffff" if QColor(hl).value() < 128 else "#000000")
+
+    # Adaptive Selection Surface: adapt selection background to guarantee high contrast
+    adapted_hl = ensure_contrast_selection_bg(QColor(hl), resolved_hl_text)
+    pal.setColor(QPalette.ColorRole.Highlight, adapted_hl)
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight, adapted_hl)
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, adapted_hl)
+
+    pal.setColor(QPalette.ColorRole.HighlightedText, resolved_hl_text)
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, resolved_hl_text)
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, resolved_hl_text)
+    dis_hl = QColor(resolved_hl_text)
+    dis_hl.setAlpha(120)
+    pal.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, dis_hl)
 
     # ── Structural derived roles ───────────────────────────────────────────────
     # QPalette() constructor copies unset roles from the CURRENT app palette,
@@ -414,6 +478,8 @@ def normalize_theme_name(name, default="BDM Auto (Default)"):
         return "Stellar Light"
     if s_lower in ("tmog dark", "tmog", "tmogdark", "cyberpunk tmog", "cyber tmog", "cyber"):
         return "TMOG Dark"
+    if s_lower in ("chroma dark", "chromadark", "chroma"):
+        return "Chroma Dark"
     return s
 
 
@@ -432,6 +498,8 @@ def normalize_accent_name(name, default="BDM (Default)"):
         return "Stellar Blue"
     if s_lower in ("tmog", "tmog cyan", "tmogcyan", "cyber cyan", "cybercyan", "electric cyan"):
         return "TMOG Cyan"
+    if s_lower in ("chroma", "chroma blue", "chromablue"):
+        return "Chroma Blue"
     return s
 
 
@@ -452,6 +520,8 @@ def normalize_icon_theme_name(name, default="BDM Auto (Default)"):
         return "Stellar"
     elif s_lower in ("tmog neon", "tmog", "tmogneon", "cyber neon", "cyberneon", "cyber"):
         return "TMOG Neon"
+    elif s_lower in ("chroma", "chroma icons", "chroma gradient", "chromagradient", "chroma-gradient"):
+        return "Chroma"
     elif s_lower in ("bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "default", "automatic"):
         return "BDM Auto (Default)"
     return s
@@ -481,10 +551,50 @@ def normalize_titlebar_name(name, default="Automatic"):
     return default
 
 
+HIGHLIGHT_TEXT_COLORS = {
+    "Automatic": None,
+    "White": "#ffffff",
+    "Dark": "#000000",
+    "Cyan": "#00e5ff",
+    "Yellow": "#facc15",
+    "Mint Green": "#4ade80",
+    "Rose Pink": "#fb7185",
+    "Orange": "#fb923c",
+    "Lavender": "#c084fc",
+}
+
+
+def normalize_highlight_text_name(name, default="Automatic"):
+    if not name:
+        return default
+    s = str(name).strip()
+    s_lower = s.lower()
+    if s_lower in ("auto", "automatic", "default", "auto (default)"):
+        return "Automatic"
+    if s_lower in ("white", "light"):
+        return "White"
+    if s_lower in ("dark", "black"):
+        return "Dark"
+    if s_lower in ("cyan", "electric cyan"):
+        return "Cyan"
+    if s_lower in ("yellow", "gold", "amber"):
+        return "Yellow"
+    if s_lower in ("mint green", "mint", "green"):
+        return "Mint Green"
+    if s_lower in ("rose pink", "rose", "pink"):
+        return "Rose Pink"
+    if s_lower in ("orange", "coral"):
+        return "Orange"
+    if s_lower in ("lavender", "purple", "violet"):
+        return "Lavender"
+    return default
+
+
 CURRENT_THEME = "BDM Auto (Default)"
 CURRENT_ICON_THEME = "Automatic"
 CURRENT_TRAY_ICON = "App Icon (Default)"
 CURRENT_TITLE_BAR_MODE = "Automatic"
+CURRENT_HIGHLIGHT_TEXT = "Automatic"
 
 
 def _find_kde_color_scheme(is_dark: bool) -> Tuple[str, str]:
@@ -1106,7 +1216,7 @@ def is_dark_theme(app=None) -> bool:
     """Returns True if the current active theme is dark, False if light."""
     global CURRENT_THEME
     t_lower = str(CURRENT_THEME).strip().lower() if 'CURRENT_THEME' in globals() and CURRENT_THEME else ""
-    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark", "stellar dark", "stellardark", "tmog dark", "tmog", "tmogdark", "cyberpunk tmog", "cyber tmog", "cyber"):
+    if t_lower in ("bdm dark", "bdm dark (default)", "bdmdark", "dark", "ubuntu dark", "ubuntudark", "kirigami dark", "kirigamidark", "dracula", "nord", "obsidian flow", "obsidian", "material you dark", "one dark", "onedark", "catppuccin", "catppuccin mocha", "solarized dark", "solarizeddark", "twilight", "twilight dark", "breeze dark", "breezedark", "stellar dark", "stellardark", "tmog dark", "tmog", "tmogdark", "cyberpunk tmog", "cyber tmog", "cyber", "chroma dark", "chromadark", "chroma"):
         return True
     if t_lower in ("bdm light", "bdmlight", "light", "ubuntu light", "ubuntulight", "idm classic", "idm", "windows classic", "kirigami light", "kirigamilight", "material you light", "material light", "solarized light", "solarizedlight", "breeze light", "breezelight", "breeze white", "stellar light", "stellarlight"):
         return False
@@ -1205,18 +1315,20 @@ def init_app_font(lang_code: Optional[str] = None) -> QFont:
     return app_font
 
 
-def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None, title_bar_mode=None):
+def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_icon_name=None, app=None, title_bar_mode=None, highlight_text=None):
     """
-    Applies application theme, custom accent color, custom toolbar icon set, custom system tray icon set, and title bar theme.
+    Applies application theme, custom accent color, custom toolbar icon set, custom system tray icon set, title bar theme, and highlight text color.
     """
     if not isinstance(app, QApplication) and app is not None and title_bar_mode is None:
         title_bar_mode = app
         app = None
 
-    global CURRENT_THEME, CURRENT_TITLE_BAR_MODE
+    global CURRENT_THEME, CURRENT_TITLE_BAR_MODE, CURRENT_HIGHLIGHT_TEXT
     CURRENT_THEME = str(theme_name).strip()
     if title_bar_mode is not None:
         CURRENT_TITLE_BAR_MODE = normalize_titlebar_name(title_bar_mode)
+    if highlight_text is not None:
+        CURRENT_HIGHLIGHT_TEXT = normalize_highlight_text_name(highlight_text)
 
     if app is None:
         app = QApplication.instance()
@@ -1310,6 +1422,10 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
         app.setPalette(_build_palette("#0c1017", "#eaf2fd", "#080c12", "#111722", "#151d2a", "#00e5ff", "#00b4d8", "#000000", accent=accent_name))
+    elif theme_lower in ("chroma dark", "chromadark", "chroma"):
+        if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
+            sh.setColorScheme(Qt.ColorScheme.Dark)
+        app.setPalette(_build_palette("#2b2b2b", "#d4d4d4", "#1e1e1e", "#252525", "#323232", "#38bdf8", "#264f78", "#ffffff", accent=accent_name))
     elif theme_lower in ("bdm light", "bdmlight", "light"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Light)
@@ -1318,18 +1434,31 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Unknown)
         app.setPalette(app.style().standardPalette())
+        p = QPalette(app.palette())
         if accent_name and str(accent_name).lower() == "system":
             sys_acc = detect_accent("auto", app=app)
             if sys_acc and sys_acc.isValid():
-                p = QPalette(app.palette())
                 p.setColor(QPalette.ColorRole.Highlight, sys_acc)
                 p.setColor(QPalette.ColorRole.Link, sys_acc)
-                app.setPalette(p)
         elif accent_name and accent_name in ACCENT_COLORS and ACCENT_COLORS[accent_name]:
-            p = QPalette(app.palette())
             p.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT_COLORS[accent_name]))
             p.setColor(QPalette.ColorRole.Link, QColor(ACCENT_COLORS[accent_name]))
-            app.setPalette(p)
+
+        ht_mode = highlight_text if highlight_text is not None else CURRENT_HIGHLIGHT_TEXT
+        ht_norm = normalize_highlight_text_name(ht_mode)
+        if ht_norm != "Automatic" and ht_norm in HIGHLIGHT_TEXT_COLORS and HIGHLIGHT_TEXT_COLORS[ht_norm]:
+            resolved_hl_text = QColor(HIGHLIGHT_TEXT_COLORS[ht_norm])
+        else:
+            resolved_hl_text = p.color(QPalette.ColorRole.HighlightedText)
+
+        adapted_hl = ensure_contrast_selection_bg(p.color(QPalette.ColorRole.Highlight), resolved_hl_text)
+        p.setColor(QPalette.ColorRole.Highlight, adapted_hl)
+        p.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight, adapted_hl)
+        p.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, adapted_hl)
+        p.setColor(QPalette.ColorRole.HighlightedText, resolved_hl_text)
+        p.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, resolved_hl_text)
+        p.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, resolved_hl_text)
+        app.setPalette(p)
     elif theme_lower in ("bdm dark", "bdmdark", "dark"):
         if hasattr(sh, "setColorScheme") and hasattr(Qt, "ColorScheme"):
             sh.setColorScheme(Qt.ColorScheme.Dark)
@@ -1357,7 +1486,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     else:
         CURRENT_TRAY_ICON = "App Icon (Default)"
 
-    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru", "stellar", "stellar icons", "stellaricons", "tmog neon", "tmog", "tmogneon", "cyber neon", "cyberneon", "cyber"):
+    if icon_theme_name and str(icon_theme_name).lower() not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "modern color", "modern", "prism", "color", "vivid", "vibrant", "yaru", "ubuntu yaru", "stellar", "stellar icons", "stellaricons", "tmog neon", "tmog", "tmogneon", "cyber neon", "cyberneon", "cyber", "chroma", "chroma icons", "chroma gradient", "chromagradient", "chroma-gradient"):
         icon_lower = str(icon_theme_name).strip().lower()
         icon_map = {
             "breeze": "breeze",
@@ -1390,7 +1519,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QMenuBar::item:selected, QMenuBar::item:hover {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QMenuBar::item:disabled {
                 color: #888888;
@@ -1410,7 +1539,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QMenu::item:selected, QMenu::item:hover {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QMenu::item:disabled {
                 color: #888888;
@@ -1449,7 +1578,7 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
             }
             QToolBar QToolButton:pressed {
                 background-color: palette(highlight);
-                color: #000000;
+                color: palette(highlighted-text);
             }
             QToolBar QToolButton:disabled {
                 opacity: 0.30;
@@ -1457,19 +1586,19 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 border: 1px solid transparent;
             }
             QTableWidget {
-                selection-color: #000000;
+                selection-color: palette(highlighted-text);
                 selection-background-color: palette(highlight);
             }
             QTableWidget::item:selected, QTableWidget::item:selected:active, QTableWidget::item:selected:!active {
-                color: #000000;
+                color: palette(highlighted-text);
                 background-color: palette(highlight);
             }
             QTreeWidget {
-                selection-color: #000000;
+                selection-color: palette(highlighted-text);
                 selection-background-color: palette(highlight);
             }
             QTreeWidget::item:selected, QTreeWidget::item:selected:active, QTreeWidget::item:selected:!active {
-                color: #000000;
+                color: palette(highlighted-text);
                 background-color: palette(highlight);
             }
             QSplitter::handle:horizontal {
@@ -1588,7 +1717,11 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
         from ui.icons import get_tmog_icon
         return get_tmog_icon(name)
 
-    if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight"):
+    if icon_theme_lower in ("chroma", "chroma icons", "chroma gradient", "chromagradient", "chroma-gradient", "chrome"):
+        from ui.icons import get_chroma_icon
+        return get_chroma_icon(name)
+
+    if icon_theme_lower not in ("automatic", "bdm", "bdm auto (default)", "bdm auto", "bdmauto", "bdm (default)", "bdm dark", "bdmdark", "bdm light", "bdmlight", "chroma", "chroma icons", "chroma gradient", "chromagradient"):
         aliases = FREEDESKTOP_MAP.get(name, [name])
         for alias in aliases:
             ic = QIcon.fromTheme(alias)

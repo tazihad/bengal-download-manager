@@ -15,9 +15,9 @@ class MockWorker(QObject):
     finished_signal = pyqtSignal(int, str)
     init_segments_signal = pyqtSignal(int)
     segment_update_signal = pyqtSignal(int, int, int, int, str)
-    url = "https://mirror.del.albony.in/videolan-ftp/vlc/3.0.24/win64/vlc-3.0.24-win64.exe"
-    filename = "vlc-3.0.24-win64.exe"
-    target_path = "/tmp/vlc-3.0.24-win64.exe"
+    url = "https://example.com/downloads/sample-app.bin"
+    filename = "sample-app.bin"
+    target_path = "/tmp/sample-app.bin"
     total_bytes = 44 * 1024 * 1024
     row_index = 0
 

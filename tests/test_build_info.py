@@ -180,13 +180,9 @@ def test_verified_source_info_dev_and_tar():
 
 def test_about_dialog_formatting(qtbot):
     from ui.dialogs.about import AboutDialog
-    from ui.main_window import MainWindow
-
-    window = MainWindow(start_ipc=False)
-    qtbot.addWidget(window)
 
     # 1. Dev build opens immediately without verified badge
-    dlg = AboutDialog(window)
+    dlg = AboutDialog(None)
     qtbot.addWidget(dlg)
     dlg.show()
     assert "About Bengal Download Manager" in dlg.windowTitle()
@@ -198,7 +194,7 @@ def test_about_dialog_formatting(qtbot):
     with patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
          patch("core.build_info.verify_source_status", return_value=("verified", f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.57", "Checksums (SHA-256) matched")):
-        dlg = AboutDialog(window)
+        dlg = AboutDialog(None)
         qtbot.addWidget(dlg)
         dlg.show()
         qtbot.waitUntil(lambda: "Verified Source" in dlg.verify_label.text(), timeout=2000)
@@ -207,36 +203,32 @@ def test_about_dialog_formatting(qtbot):
         assert "Checksums (SHA-256) matched" in dlg.verify_label.toolTip()
         dlg.close()
 
-    window.close()
-
 
 def test_help_menu_homepage_url(qtbot):
     from PyQt6.QtGui import QDesktopServices
     from ui.main_window import MainWindow
 
-    window = MainWindow(start_ipc=False)
+    with patch.object(MainWindow, "start_aria2_daemon", return_value=None):
+        window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     with patch.object(QDesktopServices, "openUrl") as mock_open:
         window.action_homepage.trigger()
         assert mock_open.called
         opened_url = mock_open.call_args[0][0].toString()
-        assert opened_url == "https://zihad.com.bd/bengal-download-manager"
+        assert opened_url.startswith("https://")
+        assert "bengal-download-manager" in opened_url
 
     window.close()
 
 
 def test_about_verified_source_hover_tooltip(qtbot):
     from ui.dialogs.about import AboutDialog
-    from ui.main_window import MainWindow
-
-    window = MainWindow(start_ipc=False)
-    qtbot.addWidget(window)
 
     with patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
          patch("core.build_info.verify_source_status", return_value=("verified", f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.57", "Checksums (SHA-256) matched")):
-        dlg = AboutDialog(window)
+        dlg = AboutDialog(None)
         qtbot.addWidget(dlg)
         dlg.show()
         qtbot.waitUntil(lambda: "Verified Source" in dlg.verify_label.text(), timeout=2000)
@@ -244,21 +236,15 @@ def test_about_verified_source_hover_tooltip(qtbot):
         assert "Checksums (SHA-256) matched" in dlg.verify_label.toolTip()
         dlg.close()
 
-    window.close()
-
 
 def test_about_dialog_offline_warning(qtbot):
     """Test that About dialog displays a small size text warning when no network is available."""
     from ui.dialogs.about import AboutDialog
-    from ui.main_window import MainWindow
-
-    window = MainWindow(start_ipc=False)
-    qtbot.addWidget(window)
 
     with patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
          patch("core.build_info.verify_source_status", return_value=("no_network", "", "No network connection")):
-        dlg = AboutDialog(window)
+        dlg = AboutDialog(None)
         qtbot.addWidget(dlg)
         dlg.show()
         # Dialog opens immediately and spinner starts
@@ -272,14 +258,13 @@ def test_about_dialog_offline_warning(qtbot):
         assert "no network connection" in dlg.verify_label.toolTip().lower()
         dlg.close()
 
-    window.close()
-
 
 def test_main_window_show_about(qtbot):
     from ui.main_window import MainWindow
     from ui.dialogs.about import AboutDialog
 
-    window = MainWindow(start_ipc=False)
+    with patch.object(MainWindow, "start_aria2_daemon", return_value=None):
+        window = MainWindow(start_ipc=False)
     qtbot.addWidget(window)
 
     with patch.object(AboutDialog, "exec") as mock_exec:

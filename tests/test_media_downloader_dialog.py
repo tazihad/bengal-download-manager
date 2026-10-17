@@ -111,14 +111,14 @@ def test_scope_radio_buttons_behavior(qapp):
     assert not dlg.rad_whole_playlist.isEnabled()
 
     # Single video URL (no playlist)
-    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=mock_video_01")
     qapp.processEvents()
     assert dlg.rad_single_video.isChecked()
     assert dlg.rad_single_video.isEnabled()
     assert not dlg.rad_whole_playlist.isEnabled()
 
     # Playlist URL with video (mixed): defaults to single video while enabling playlist option
-    dlg.txt_url.setText("https://www.youtube.com/watch?v=T4tedh_11hg&list=PLQnZ5f76fyck3278_RFN9RDRvMObdWFbv&index=2")
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=mock_video_02&list=PLmock_playlist_01&index=2")
     qapp.processEvents()
     assert dlg.rad_single_video.isChecked()
     assert dlg.rad_single_video.isEnabled()
@@ -131,17 +131,17 @@ def test_scope_radio_buttons_behavior(qapp):
     assert dlg.rad_whole_playlist.isChecked()
 
     # Pure playlist URL
-    dlg.txt_url.setText("https://www.youtube.com/playlist?list=PL9bw4S5ePsEGgHMPYsEJQJaKOs9RBKDxs")
+    dlg.txt_url.setText("https://www.youtube.com/playlist?list=PLmock_playlist_02")
     qapp.processEvents()
     assert dlg.rad_whole_playlist.isEnabled()
     assert dlg.rad_whole_playlist.isChecked()
     assert not dlg.rad_single_video.isEnabled()
 
     # YouTube Mix (RD) URL: defaults to single video while enabling playlist option
-    mix_url = "https://www.youtube.com/watch?v=6VgBHZJggkA&list=RDGMEMPipJmhsMq3GHGrfqf4WIqA&start_radio=1&rv=QPSAjqjylTc"
+    mix_url = "https://www.youtube.com/watch?v=mock_video_03&list=RDmock_mix_01&start_radio=1&rv=mock_video_04"
     from core.utils import sanitize_media_url
     clean_mix = sanitize_media_url(mix_url)
-    assert "list=RDGMEMPipJmhsMq3GHGrfqf4WIqA" in clean_mix
+    assert "list=RDmock_mix_01" in clean_mix
 
     dlg.txt_url.setText(clean_mix)
     qapp.processEvents()
@@ -157,7 +157,7 @@ def test_scope_radio_buttons_behavior(qapp):
     assert dlg.rad_whole_playlist.isEnabled()
 
     # Back to single video URL: playlist becomes disabled again
-    dlg.txt_url.setText("https://www.youtube.com/watch?v=r2ecLFsdbzI")
+    dlg.txt_url.setText("https://www.youtube.com/watch?v=mock_video_01")
     qapp.processEvents()
     assert dlg.rad_single_video.isChecked()
     assert not dlg.rad_whole_playlist.isEnabled()
@@ -266,9 +266,9 @@ def test_single_video_auto_extension_resolution(qapp, monkeypatch):
     # Setup single video data with auto format
     dlg.stack.setCurrentWidget(dlg.page_video)
     dlg._current_video_data = {
-        "id": "r2ecLFsdbzI",
-        "title": "Bengali Test Video",
-        "webpage_url": "https://www.youtube.com/watch?v=r2ecLFsdbzI",
+        "id": "mock_video_01",
+        "title": "Sample Test Video",
+        "webpage_url": "https://www.youtube.com/watch?v=mock_video_01",
         "formats": [
             {"format_id": "137", "ext": "mp4", "height": 1080, "is_video": True, "vcodec": "avc1.640028"},
             {"format_id": "140", "ext": "m4a", "is_audio": True, "acodec": "mp4a.40.2"},

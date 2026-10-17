@@ -61,30 +61,32 @@ class SidebarItemDelegate(QStyledItemDelegate):
             opt = QStyleOptionViewItem(option)
             self.initStyleOption(opt, index)
 
+            hl_color = opt.palette.color(QPalette.ColorRole.HighlightedText)
             from core.services.theme_service import is_monochrome_icon_theme
             if is_monochrome_icon_theme():
-                # Left panel selected/hovered icon for BDM monochrome stroke icons MUST be pure black
+                # Left panel selected/hovered icon for BDM monochrome stroke icons matches highlighted text
                 icon = index.data(Qt.ItemDataRole.DecorationRole)
                 if isinstance(icon, QIcon) and not icon.isNull():
                     dec_size = opt.decorationSize if opt.decorationSize.isValid() and not opt.decorationSize.isEmpty() else QSize(18, 18)
                     src_pm = icon.pixmap(dec_size, QIcon.Mode.Normal)
                     if not src_pm.isNull() and src_pm.width() > 0 and src_pm.height() > 0:
                         img = src_pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+                        r, g, b = hl_color.red(), hl_color.green(), hl_color.blue()
                         for y in range(img.height()):
                             for x in range(img.width()):
                                 c = img.pixelColor(x, y)
                                 if c.alpha() > 0:
-                                    img.setPixelColor(x, y, QColor(0, 0, 0, c.alpha()))
-                        black_pm = QPixmap.fromImage(img)
-                        black_ic = QIcon()
-                        black_ic.addPixmap(black_pm, QIcon.Mode.Normal)
-                        black_ic.addPixmap(black_pm, QIcon.Mode.Selected)
-                        black_ic.addPixmap(black_pm, QIcon.Mode.Active)
-                        opt.icon = black_ic
+                                    img.setPixelColor(x, y, QColor(r, g, b, c.alpha()))
+                        tinted_pm = QPixmap.fromImage(img)
+                        tinted_ic = QIcon()
+                        tinted_ic.addPixmap(tinted_pm, QIcon.Mode.Normal)
+                        tinted_ic.addPixmap(tinted_pm, QIcon.Mode.Selected)
+                        tinted_ic.addPixmap(tinted_pm, QIcon.Mode.Active)
+                        opt.icon = tinted_ic
 
-            opt.palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
-            opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#000000"))
-            opt.palette.setColor(QPalette.ColorRole.WindowText, QColor("#000000"))
+            opt.palette.setColor(QPalette.ColorRole.Text, hl_color)
+            opt.palette.setColor(QPalette.ColorRole.HighlightedText, hl_color)
+            opt.palette.setColor(QPalette.ColorRole.WindowText, hl_color)
 
             widget = option.widget
             style = widget.style() if widget else QApplication.style()

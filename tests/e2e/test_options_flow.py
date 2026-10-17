@@ -12,7 +12,7 @@ def win(qapp, destroy_widget):
     destroy_widget(w)
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def dialog(win):
     from ui.dialogs import OptionsDialog
     dlg = OptionsDialog(main_window=win)
@@ -133,4 +133,13 @@ class TestOptionsPersistenceRoundTrip:
         reloaded = win.load_settings()
         assert reloaded.get("silent_download") == (not original)
         win.settings["silent_download"] = original
+        win.save_settings()
+
+    def test_highlight_text_roundtrip(self, win):
+        original = win.settings.get("highlight_text", "Automatic")
+        win.settings["highlight_text"] = "Mint Green"
+        win.save_settings()
+        reloaded = win.load_settings()
+        assert reloaded.get("highlight_text") == "Mint Green"
+        win.settings["highlight_text"] = original
         win.save_settings()

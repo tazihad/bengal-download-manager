@@ -74,18 +74,28 @@ class TestPrefetchWorkers:
 
 
 class TestMainWindowPrefetchLogic:
-    @pytest.fixture
-    def main_win(self, qapp):
+    @pytest.fixture(scope="class")
+    def main_win(self, qapp, destroy_widget):
         from ui.main_window import MainWindow
-        with patch("ui.main_window.ensure_aria2", return_value=True):
+        with patch("ui.main_window.ensure_aria2", return_value=True), \
+             patch.object(MainWindow, "start_aria2_daemon", return_value=None):
             win = MainWindow(start_ipc=False)
             win.settings["show_complete_dialog"] = False
             yield win
-            win.close()
+            destroy_widget(win)
+
+    @pytest.fixture(autouse=True)
+    def _clean_window(self, main_win):
+        main_win.download_table.setRowCount(0)
+        main_win.active_complete_dialogs.clear()
+        main_win.settings["show_complete_dialog"] = False
+        yield
+        main_win.download_table.setRowCount(0)
+        main_win.active_complete_dialogs.clear()
 
     def test_add_completed_download_no_duplicates(self, main_win, tmp_path):
-        url = "https://example.com/turbodm.rpm"
-        filename = "turbodm.rpm"
+        url = "https://example.com/sample.rpm"
+        filename = "sample.rpm"
         save_path = str(tmp_path / filename)
 
         # Initial row count
@@ -126,8 +136,8 @@ class TestMainWindowPrefetchLogic:
 
     def test_add_completed_download_with_show_complete_dialog(self, main_win, tmp_path):
         main_win.settings["show_complete_dialog"] = True
-        url = "https://example.com/turbodm2.rpm"
-        filename = "turbodm2.rpm"
+        url = "https://example.com/sample2.rpm"
+        filename = "sample2.rpm"
         save_path = str(tmp_path / filename)
 
         init_count = main_win.download_table.rowCount()

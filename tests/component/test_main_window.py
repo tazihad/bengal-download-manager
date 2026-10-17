@@ -5,12 +5,14 @@ from PyQt6.QtWidgets import QTableWidgetItem, QToolBar
 from PyQt6.QtCore import Qt
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def main_window(qapp, destroy_widget):
+    from unittest.mock import patch
     from ui.main_window import MainWindow
-    win = MainWindow(start_ipc=False)
-    yield win
-    destroy_widget(win)
+    with patch.object(MainWindow, "start_aria2_daemon", return_value=None):
+        win = MainWindow(start_ipc=False)
+        yield win
+        destroy_widget(win)
 
 
 class TestMainWindowConstruction:

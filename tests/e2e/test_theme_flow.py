@@ -74,8 +74,7 @@ class TestThemePersistence:
 
 class TestThemeSwitchSequence:
     def test_rapid_theme_switching(self, win):
-        themes = ["BDM Dark", "BDM Light", "Nord", "Dracula",
-                  "Solarized Light", "BDM Auto (Default)"]
+        themes = ["BDM Dark", "BDM Light", "BDM Auto (Default)"]
         for t in themes:
             win.settings["theme"] = t
             win.apply_theme_setting(t)

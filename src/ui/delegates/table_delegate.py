@@ -51,11 +51,6 @@ class CheckableTableItemDelegate(QStyledItemDelegate):
         except RuntimeError:
             return
         option.state &= ~QStyle.StateFlag.State_HasFocus
-        if option.state & QStyle.StateFlag.State_Selected:
-            option.palette.setColor(
-                QPalette.ColorRole.HighlightedText,
-                option.palette.color(QPalette.ColorRole.Text)
-            )
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
         try:

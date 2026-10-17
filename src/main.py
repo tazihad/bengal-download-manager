@@ -67,6 +67,7 @@ from core.services.theme_service import (
     is_monochrome_icon_theme,
     make_faded_icon,
     normalize_accent_name,
+    normalize_highlight_text_name,
     normalize_icon_theme_name,
     normalize_theme_name,
     normalize_titlebar_name,
@@ -225,6 +226,7 @@ def main():
     saved_icon_theme = "BDM Auto (Default)"
     saved_tray_icon = "App Icon (Default)"
     saved_title_bar = "Automatic"
+    saved_highlight_text = "Automatic"
     saved_language = "system"
     try:
         if os.path.exists(cfg_path):
@@ -235,11 +237,12 @@ def main():
                 saved_icon_theme = normalize_icon_theme_name(s_data.get("icon_theme"))
                 saved_tray_icon = normalize_tray_icon_name(s_data.get("tray_icon"))
                 saved_title_bar = normalize_titlebar_name(s_data.get("title_bar"))
+                saved_highlight_text = normalize_highlight_text_name(s_data.get("highlight_text"))
                 saved_language = s_data.get("language", "system")
     except Exception:
         pass
 
-    apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app=app, title_bar_mode=saved_title_bar)
+    apply_app_theme(saved_theme, saved_accent, saved_icon_theme, saved_tray_icon, app=app, title_bar_mode=saved_title_bar, highlight_text=saved_highlight_text)
     from core.services.language_service import apply_language
     apply_language(app, saved_language)
     app.setFont(init_app_font())
