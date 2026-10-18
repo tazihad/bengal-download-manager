@@ -1,77 +1,82 @@
-# Bengal Download Manager — Localization & Weblate Guide
+# Bengal Download Manager — Localization Guide
 
-Bengal Download Manager is localized using standard Qt Linguist XML (`.ts`) translation files and compiled `.qm` binary catalogs. Anyone can contribute translations through the **Weblate web portal** without writing code or installing development tools.
-
----
-
-## 🌐 1. Contributing via Weblate (Recommended)
-
-Bengal Download Manager uses **Weblate** for crowdsourced, community-driven localization:
-
-* **File Format**: Standard Qt Linguist XML (`ts`).
-* **Source Strings**: [`translations/bdm_en.ts`](../translations/bdm_en.ts) (Generated from Python & PyQt6 source code).
-* **Target Translations**: [`translations/bdm_<lang>.ts`](../translations/).
-* **Weblate Configuration**: [`.weblate.json`](../.weblate.json) & [`.weblate.yaml`](../.weblate.yaml) in the repository root.
-
-### How Weblate Works with GitHub:
-1. Translators edit strings in the Weblate web interface.
-2. Weblate automatically runs quality checks (accelerator `&` preservation, Qt placeholders `%1`, HTML tag validity).
-3. Weblate commits and pushes updated `translations/bdm_<lang>.ts` files to GitHub.
-4. The [Translations GitHub Action](https://github.com/tazihad/bengal-download-manager/actions/workflows/translations.yml) automatically compiles them to `assets/translations/bdm_<lang>.qm`.
+Bengal Download Manager is localized using standard Qt Linguist XML (`.ts`) translation files and compiled `.qm` binary catalogs. Translations across all supported languages are powered by **Google Gemini AI** and managed directly through the project CLI tooling.
 
 ---
 
-## 🛠️ 2. Adding or Updating Translations via CLI
+## 🌐 1. Architecture & Translation Files
+
+* **Source Strings**: [`translations/bdm_en.ts`](../translations/bdm_en.ts) (Extracted from Python & PyQt6 source code).
+* **Target Translations**: [`translations/bdm_<lang>.ts`](../translations/) (Language-specific XML catalogs).
+* **Compiled Catalogs**: [`assets/translations/bdm_<lang>.qm`](../assets/translations/) (High-performance binary catalogs loaded by `QTranslator` at runtime).
+* **Supported Languages**: Defined in [`src/core/services/language_service.py`](../src/core/services/language_service.py).
+
+---
+
+## 🛠️ 2. Translation Workflow via CLI
 
 The project includes [`scripts/i18n.py`](../scripts/i18n.py) for managing the complete localization lifecycle.
 
-### Extracting New UI Strings
-Whenever UI code, dialogs, buttons, or tooltips are added or modified:
+### Step 1: Extract New UI Strings
+Whenever UI code, dialogs, buttons, menus, or tooltips are added or modified:
 ```bash
 uv run python scripts/i18n.py extract
 ```
 * Runs `pylupdate` across `src/ui/` and `src/core/`.
-* Synchronizes strings into `translations/bdm_en.ts`.
+* Synchronizes new and modified strings into `translations/bdm_en.ts`.
 
-### Compiling Translations
-To compile all `.ts` files into binary `.qm` catalogs for runtime:
+### Step 2: Translate Strings with Gemini AI
+Translate untranslated strings into target language(s) using Google Gemini:
+```bash
+GEMINI_API_KEY="YOUR_API_KEY" uv run python scripts/i18n.py translate --lang <lang_code>
+```
+
+Examples:
+```bash
+# Translate a single language (e.g., Bengali)
+GEMINI_API_KEY="YOUR_API_KEY" uv run python scripts/i18n.py translate --lang bn
+
+# Translate multiple specific languages
+GEMINI_API_KEY="YOUR_API_KEY" uv run python scripts/i18n.py translate --lang es,fr,ja,ar
+
+# Translate all supported languages
+GEMINI_API_KEY="YOUR_API_KEY" uv run python scripts/i18n.py translate --lang all
+```
+
+Options:
+* `--model <model_name>`: Gemini model to use (default: `gemini-flash-lite-latest`).
+* `--batch-size <n>`: Number of strings per batch request (default: `60`).
+
+### Step 3: Compile Translation Catalogs
+Compile all `.ts` files into binary `.qm` catalogs for runtime:
 ```bash
 uv run python scripts/i18n.py compile
 ```
 
-### Checking Translation Status
-To view completion percentage across all languages:
+### Step 4: Check Translation Status
+View completion percentage across all languages:
 ```bash
 uv run python scripts/i18n.py status
 ```
 
 ---
 
-## 🤖 3. Pre-Populating Translations with Gemini AI
+## 🤖 3. AI Translation Pipeline Rules
 
-To bootstrap a new language or fill untranslated gaps:
-```bash
-GEMINI_API_KEY="YOUR_API_KEY" uv run python scripts/i18n.py translate --lang <lang_code> --model gemini-flash-lite-latest
-```
-
-Example for Spanish, French, and Japanese:
-```bash
-GEMINI_API_KEY="YOUR_API_KEY" uv run python scripts/i18n.py translate --lang es,fr,ja
-```
+The translation pipeline in `scripts/i18n.py` enforces strict localization rules:
+1. **Accelerators (`&`)**:
+   - **Latin scripts**: Keyboard accelerators (e.g., `&File`, `&Tasks`) are preserved.
+   - **CJK scripts**: Standard format is used, appending the shortcut (e.g., `文件(&F)`).
+   - **Indic & RTL scripts**: Accidental accelerators before non-ASCII characters are stripped to prevent breaking Unicode combining vowel marks (কার/মাত্রা) and Arabic cursive shaping.
+2. **Placeholders**: All format placeholders (`%1`, `%2`, `%s`, `%n`, `{0}`) are strictly preserved.
+3. **HTML Tags**: Formatting tags (`<b>`, `<i>`, `<a>`) remain intact.
+4. **Domain Terminology**: Consistent networking and download manager terms (`Pause`, `Resume`, `Chunk`, `Aria2`, `Hash`) are prioritized.
 
 ---
 
-## 🎨 4. Setting Up Weblate on a New Instance
+## 🚀 4. CI/CD Validation & Compilation
 
-To connect this repository to a Weblate instance:
-
-1. **Add Project**: Set Project Name to `Bengal Download Manager` and Project Website to `https://github.com/tazihad/bengal-download-manager`.
-2. **Add Component**:
-   * **Configuration style**: Repository configuration (`.weblate.yaml` or `.weblate.json` is auto-detected).
-   * **Source code repository**: `https://github.com/tazihad/bengal-download-manager.git`
-   * **Repository branch**: `main`
-   * **File mask**: `translations/bdm_*.ts`
-   * **Template for new translations**: `translations/bdm_en.ts`
-   * **File format**: `Qt Linguist translation file`
-3. **Weblate Push Access**: Add Weblate's SSH public key as a deploy key with write access (or use GitHub App / Personal Access Token) on GitHub.
-4. **Webhook**: Add a GitHub Webhook pointing to `https://weblate.example.com/hooks/github/` with `push` events to trigger instantaneous translation updates.
+The [Translations GitHub Action](https://github.com/tazihad/bengal-download-manager/actions/workflows/translations.yml) runs on every push and pull request modifying `translations/**` or `scripts/i18n.py`:
+1. Compiles all `.ts` files to `.qm` binary catalogs.
+2. Validates translation status and integrity.
+3. Automatically commits compiled `.qm` files back to `main` if changes occurred.

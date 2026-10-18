@@ -59,14 +59,16 @@ class TestI18nBackend:
             if os.path.exists(tmp_qm):
                 os.unlink(tmp_qm)
 
-    def test_weblate_config_exists(self):
-        assert os.path.exists(".weblate.json")
-        import json
-        with open(".weblate.json", "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        assert cfg.get("filemask") == "translations/bdm_*.ts"
-        assert cfg.get("template") == "translations/bdm_en.ts"
-        assert cfg.get("file_format") == "ts"
+    def test_i18n_cli_commands(self):
+        import sys
+        sys.path.insert(0, os.path.abspath("scripts"))
+        import i18n
+        import argparse
+
+        # Verify that weblate is removed from commands
+        assert not hasattr(i18n, "generate_weblate_config")
+        assert not os.path.exists(".weblate.json")
+        assert not os.path.exists(".weblate.yaml")
 
     def test_master_template_ts_exists_and_valid(self):
         import xml.etree.ElementTree as ET

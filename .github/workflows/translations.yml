@@ -1,4 +1,4 @@
-name: Translations (Weblate & CI)
+name: Translations CI
 
 on:
   push:

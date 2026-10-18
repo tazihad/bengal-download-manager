@@ -10,7 +10,7 @@
         <message>
             <location filename="../src/ui/dialogs/about.py" line="112" />
             <source>Bengal Download Manager</source>
-            <translation type="unfinished">Bengal Download Manager</translation>
+            <translation>Bengal Download Manager</translation>
         </message>
         <message>
             <location filename="../src/ui/dialogs/about.py" line="117" />
@@ -441,7 +441,7 @@
             <location filename="../src/ui/components/data_usage_widget.py" line="134" />
             <location filename="../src/ui/components/data_usage_widget.py" line="120" />
             <source>Click to view current month data usage and graph</source>
-            <translation type="unfinished">Click to view current month data usage and graph</translation>
+            <translation>Click to view current month data usage and graph</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="354" />
@@ -453,7 +453,7 @@
             <location filename="../src/ui/components/data_usage_widget.py" line="356" />
             <location filename="../src/ui/components/data_usage_widget.py" line="147" />
             <source>Data completed today (click to view graph)</source>
-            <translation type="unfinished">Data completed today (click to view graph)</translation>
+            <translation>Data completed today (click to view graph)</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="358" />
@@ -495,24 +495,24 @@
             <location filename="../src/ui/components/data_usage_widget.py" line="366" />
             <location filename="../src/ui/components/data_usage_widget.py" line="204" />
             <source>Storage</source>
-            <translation type="unfinished">Storage</translation>
+            <translation>Storage</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="367" />
             <location filename="../src/ui/components/data_usage_widget.py" line="206" />
             <source>Disk storage usage of downloads directory</source>
-            <translation type="unfinished">Disk storage usage of downloads directory</translation>
+            <translation>Disk storage usage of downloads directory</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="213" />
             <source>Used disk space of total capacity</source>
-            <translation type="unfinished">Used disk space of total capacity</translation>
+            <translation>Used disk space of total capacity</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="368" />
             <location filename="../src/ui/components/data_usage_widget.py" line="224" />
             <source>Downloads directory disk usage</source>
-            <translation type="unfinished">Downloads directory disk usage</translation>
+            <translation>Downloads directory disk usage</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="402" />
@@ -525,7 +525,7 @@
             <location filename="../src/ui/components/data_usage_widget.py" line="369" />
             <location filename="../src/ui/components/data_usage_widget.py" line="233" />
             <source>Percentage of disk space used</source>
-            <translation type="unfinished">Percentage of disk space used</translation>
+            <translation>Percentage of disk space used</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="404" />
@@ -538,7 +538,7 @@
             <location filename="../src/ui/components/data_usage_widget.py" line="370" />
             <location filename="../src/ui/components/data_usage_widget.py" line="241" />
             <source>Free disk space remaining</source>
-            <translation type="unfinished">Free disk space remaining</translation>
+            <translation>Free disk space remaining</translation>
         </message>
         <message>
             <location filename="../src/ui/components/data_usage_widget.py" line="337" />
@@ -1236,7 +1236,7 @@
             <location filename="../src/ui/main_window.py" line="3505" />
             <location filename="../src/ui/main_window.py" line="977" />
             <source>Video</source>
-            <translation type="unfinished">Video</translation>
+            <translation>Video</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="3505" />
@@ -1877,7 +1877,7 @@
         <message>
             <location filename="../src/ui/dialogs/options.py" line="864" />
             <source>Compressed</source>
-            <translation type="unfinished">Compressed</translation>
+            <translation>Compressed</translation>
         </message>
         <message>
             <location filename="../src/ui/dialogs/options.py" line="865" />
@@ -1887,7 +1887,7 @@
         <message>
             <location filename="../src/ui/dialogs/options.py" line="866" />
             <source>Documents</source>
-            <translation type="unfinished">Documents</translation>
+            <translation>Documents</translation>
         </message>
         <message>
             <location filename="../src/ui/dialogs/options.py" line="868" />
@@ -1897,17 +1897,17 @@
         <message>
             <location filename="../src/ui/dialogs/options.py" line="869" />
             <source>Music</source>
-            <translation type="unfinished">Music</translation>
+            <translation>Music</translation>
         </message>
         <message>
             <location filename="../src/ui/dialogs/options.py" line="870" />
             <source>Programs</source>
-            <translation type="unfinished">Programs</translation>
+            <translation>Programs</translation>
         </message>
         <message>
             <location filename="../src/ui/dialogs/options.py" line="871" />
             <source>Video</source>
-            <translation type="unfinished">Video</translation>
+            <translation>Video</translation>
         </message>
         <message>
             <location filename="../src/ui/dialogs/options.py" line="879" />

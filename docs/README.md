@@ -20,7 +20,7 @@ This documentation suite is organized following standard Free and Open Source So
 | **[Theming & Design System](THEMING.md)** | Visual design language, adaptive OS light/dark tracking, 20+ color themes, 14 accents, resolution-independent vector icons, and OpenType tabular figures (`tnum`). | UI/UX Designers, Frontend Engineers |
 | **[Build & Packaging Guide](BUILD_AND_PACKAGING.md)** | Compilation, packaging, and distribution instructions for Linux: Flatpak, Canonical Snap, AppImage, CMake standalone binary, and browser extensions. | Packagers, System Maintainers, CI/CD |
 | **[Version Management (SSOT)](VERSIONING.md)** | Single Source of Truth versioning architecture across `VERSION`, Snapcraft, Flatpak AppStream, and runtime metadata using `sync_version.py`. | Maintainers, Release Managers |
-| **[Localization & Weblate Guide](TRANSLATIONS.md)** | Crowdsourced translations via Weblate, Qt Linguist XML catalogs, extraction workflows, and Gemini AI pre-population. | Translators, Contributors, Maintainers |
+| **[Localization Guide](TRANSLATIONS.md)** | Localization pipeline using Qt Linguist XML catalogs, automated extraction, compilation, and Gemini AI translation. | Translators, Contributors, Maintainers |
 
 ---
 

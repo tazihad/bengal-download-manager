@@ -3,13 +3,12 @@
 Bengal Download Manager - Internationalization (i18n) & Localization Tool
 ========================================================================
 CLI tool for extracting UI strings, compiling binary .qm catalogs,
-translating via Gemini AI, and managing Weblate configurations.
+and translating via Gemini AI.
 
 Commands:
     extract         Extract translatable strings from code into translations/bdm_en.ts
     compile         Compile all translations/bdm_*.ts files into assets/translations/bdm_*.qm
     translate       Translate strings into target language(s) using Gemini AI
-    weblate-init    Generate Weblate repository configuration (.weblate.json)
     status          Show translation progress statistics across all languages
 """
 
@@ -349,8 +348,9 @@ def extract_strings() -> str:
             total_messages += 1
             src_text = msg.findtext("source") or ""
             trans_elem = msg.find("translation")
-            if trans_elem is not None and not trans_elem.text:
-                trans_elem.text = src_text
+            if trans_elem is not None:
+                if not trans_elem.text:
+                    trans_elem.text = src_text
                 if "type" in trans_elem.attrib:
                     del trans_elem.attrib["type"]
 
@@ -522,11 +522,12 @@ def save_ts_file(root: ET.Element, existing_trans: Dict[Tuple[str, str], str], t
                 cmt_el = ET.SubElement(msg_el, "extracomment")
                 cmt_el.text = cmt
 
-            trans_text = existing_trans.get((cname, src), src)
+            trans_text = existing_trans.get((cname, src))
             trans_el = ET.SubElement(msg_el, "translation")
-            trans_el.text = trans_text
-            # Mark AI-generated strings as unfinished for Weblate review
-            if trans_text != src:
+            if trans_text:
+                trans_el.text = trans_text
+            else:
+                trans_el.text = src
                 trans_el.attrib["type"] = "unfinished"
 
     ET.indent(target_tree, space="    ")
@@ -534,63 +535,7 @@ def save_ts_file(root: ET.Element, existing_trans: Dict[Tuple[str, str], str], t
 
 
 # ==============================================================================
-# 4. Weblate Configuration Generator
-# ==============================================================================
-
-def generate_weblate_config():
-    """Create .weblate.json and .weblate.yaml configuration files in repository root."""
-    weblate_cfg = {
-        "$schema": "https://weblate.org/schemas/component.json",
-        "project": "bengal-download-manager",
-        "component": "client",
-        "file_format": "ts",
-        "filemask": "translations/bdm_*.ts",
-        "template": "translations/bdm_en.ts",
-        "new_base": "translations/bdm_en.ts",
-        "source_language": "en",
-        "license": "MIT",
-        "license_url": "https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/LICENSE",
-        "check_flags": [
-            "qt-format",
-            "safe-html",
-            "same-accelerator"
-        ],
-        "language_code_style": "bcp47",
-        "commit_message": "translations: update translations from Weblate\n\n[skip ci]"
-    }
-    cfg_path = os.path.join(ROOT_DIR, ".weblate.json")
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(weblate_cfg, f, indent=2)
-    print(f"✓ Generated Weblate configuration: {cfg_path}")
-
-    yaml_content = """# Weblate Component Discovery & Configuration
-# https://docs.weblate.org/en/latest/admin/projects.html#component-discovery
-version: 1
-components:
-  - name: Desktop Client
-    slug: client
-    file_format: ts
-    filemask: translations/bdm_*.ts
-    template: translations/bdm_en.ts
-    new_base: translations/bdm_en.ts
-    source_language: en
-    license: MIT
-    license_url: https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/LICENSE
-    check_flags:
-      - qt-format
-      - safe-html
-      - same-accelerator
-    language_code_style: bcp47
-    commit_message: "translations: update translations from Weblate\\n\\n[skip ci]"
-"""
-    yaml_path = os.path.join(ROOT_DIR, ".weblate.yaml")
-    with open(yaml_path, "w", encoding="utf-8") as f:
-        f.write(yaml_content)
-    print(f"✓ Generated Weblate discovery file: {yaml_path}")
-
-
-# ==============================================================================
-# 5. Status & Compilation CLI Handlers
+# 4. Status & Compilation CLI Handlers
 # ==============================================================================
 
 def compile_all():
@@ -621,7 +566,7 @@ def show_status():
         return
 
     print("================================================================================")
-    print(f" {'Language':<12} {'Display Name':<35} {'Total':<8} {'Done':<8} {'Review':<8} {'%'}")
+    print(f" {'Language':<12} {'Display Name':<35} {'Total':<8} {'Done':<8} {'Pending':<8} {'%'}")
     print("--------------------------------------------------------------------------------")
 
     lang_map = {code: name for code, name, _ in SUPPORTED_LANGUAGES}
@@ -642,7 +587,9 @@ def show_status():
                         unfinished += 1
                     else:
                         done += 1
-            pct = (done + unfinished) / total * 100 if total > 0 else 0
+                else:
+                    unfinished += 1
+            pct = (done / total * 100) if total > 0 else 0
             print(f" {code:<12} {name[:34]:<35} {total:<8} {done:<8} {unfinished:<8} {pct:>5.1f}%")
         except Exception:
             print(f" {code:<12} {name[:34]:<35} ERROR")
@@ -664,9 +611,6 @@ def main():
     # compile
     subparsers.add_parser("compile", help="Compile all translations/bdm_*.ts into assets/translations/bdm_*.qm")
 
-    # weblate-init
-    subparsers.add_parser("weblate-init", help="Generate .weblate.json configuration")
-
     # status
     subparsers.add_parser("status", help="Show translation status table")
 
@@ -683,8 +627,6 @@ def main():
         extract_strings()
     elif args.command == "compile":
         compile_all()
-    elif args.command == "weblate-init":
-        generate_weblate_config()
     elif args.command == "status":
         show_status()
     elif args.command == "translate":
