@@ -1275,10 +1275,14 @@ def init_app_font(lang_code: Optional[str] = None) -> QFont:
     font_size = 9
     if lang_code == "bn" or (lang_code == "system" and "bn" in QLocale.system().name().lower()):
         # Cross-platform Bengali system fonts (Linux, Windows, macOS)
+        # Note: 'Hind Siliguri' is intentionally excluded due to broken OpenType conjunct
+        # (যুক্তাক্ষর/যুক্তবর্ণ) rendering in Qt HarfBuzz text shaping.
         candidates = [
-            # Linux system fonts
-            "Hind Siliguri", "Kalpurush", "Noto Sans Bengali", "Nikosh",
-            "SolaimanLipi", "Mitra", "Mukti", "Akaash", "Bangla",
+            # Modern UI Sans-Serif (Google / Monotype - verified clean conjuncts & UI vertical metrics)
+            "Noto Sans Bengali UI", "Noto Sans Bengali",
+            # Classic verified OpenType conjunct fonts (Linux / FreeDesktop)
+            "Kalpurush", "SolaimanLipi", "Siyam Rupali", "Nikosh",
+            "Akaash", "Mitra", "Mukti", "Bangla",
             # Windows native fonts
             "Nirmala UI", "Vrinda",
             # macOS native fonts

@@ -1043,22 +1043,22 @@
         <message>
             <location filename="../src/ui/main_window.py" line="620" />
             <source>&amp;Tasks</source>
-            <translation type="unfinished">&amp;टास्क</translation>
+            <translation type="unfinished">टास्क</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="631" />
             <source>&amp;File</source>
-            <translation type="unfinished">&amp;फ़ाइल</translation>
+            <translation type="unfinished">फ़ाइल</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="640" />
             <source>&amp;Downloads</source>
-            <translation type="unfinished">&amp;डाउनलोड</translation>
+            <translation type="unfinished">डाउनलोड</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="656" />
             <source>&amp;View</source>
-            <translation type="unfinished">&amp;देखें</translation>
+            <translation type="unfinished">देखें</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="658" />
@@ -1083,17 +1083,17 @@
         <message>
             <location filename="../src/ui/main_window.py" line="705" />
             <source>&amp;Status Bar</source>
-            <translation type="unfinished">&amp;स्थिति पट्टी</translation>
+            <translation type="unfinished">स्थिति पट्टी</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="708" />
             <source>&amp;Show Status Bar</source>
-            <translation type="unfinished">&amp;स्थिति पट्टी दिखाएं</translation>
+            <translation type="unfinished">स्थिति पट्टी दिखाएं</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="717" />
             <source>&amp;Memory</source>
-            <translation type="unfinished">&amp;मेमोरी</translation>
+            <translation type="unfinished">मेमोरी</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="724" />
@@ -1108,52 +1108,52 @@
         <message>
             <location filename="../src/ui/main_window.py" line="738" />
             <source>&amp;Media Status</source>
-            <translation type="unfinished">&amp;मीडिया स्थिति</translation>
+            <translation type="unfinished">मीडिया स्थिति</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="745" />
             <source>&amp;Speed</source>
-            <translation type="unfinished">&amp;गति</translation>
+            <translation type="unfinished">गति</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="752" />
             <source>&amp;Public IP</source>
-            <translation type="unfinished">&amp;सार्वजनिक आईपी</translation>
+            <translation type="unfinished">सार्वजनिक आईपी</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="759" />
             <source>&amp;Proxy Status</source>
-            <translation type="unfinished">&amp;प्रॉक्सी स्थिति</translation>
+            <translation type="unfinished">प्रॉक्सी स्थिति</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="765" />
             <source>&amp;Toolbar</source>
-            <translation type="unfinished">&amp;टूलबार</translation>
+            <translation type="unfinished">टूलबार</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="771" />
             <source>&amp;Hide left panel</source>
-            <translation type="unfinished">&amp;बायां पैनल छिपाएं</translation>
+            <translation type="unfinished">बायां पैनल छिपाएं</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="778" />
             <source>&amp;Data usage summary</source>
-            <translation type="unfinished">&amp;डेटा उपयोग सारांश</translation>
+            <translation type="unfinished">डेटा उपयोग सारांश</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="785" />
             <source>&amp;Help</source>
-            <translation type="unfinished">&amp;सहायता</translation>
+            <translation type="unfinished">सहायता</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="786" />
             <source>BDM &amp;Homepage</source>
-            <translation type="unfinished">BDM &amp;होमपेज</translation>
+            <translation type="unfinished">BDM होमपेज</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="790" />
             <source>&amp;File bug report</source>
-            <translation type="unfinished">&amp;बग रिपोर्ट सबमिट करें</translation>
+            <translation type="unfinished">बग रिपोर्ट सबमिट करें</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="796" />
