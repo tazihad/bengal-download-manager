@@ -1043,22 +1043,22 @@
         <message>
             <location filename="../src/ui/main_window.py" line="620" />
             <source>&amp;Tasks</source>
-            <translation type="unfinished">&amp;وظایف</translation>
+            <translation type="unfinished">وظایف</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="631" />
             <source>&amp;File</source>
-            <translation type="unfinished">&amp;پرونده</translation>
+            <translation type="unfinished">پرونده</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="640" />
             <source>&amp;Downloads</source>
-            <translation type="unfinished">&amp;دانلودها</translation>
+            <translation type="unfinished">دانلودها</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="656" />
             <source>&amp;View</source>
-            <translation type="unfinished">&amp;نمایش</translation>
+            <translation type="unfinished">نمایش</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="658" />
@@ -1083,17 +1083,17 @@
         <message>
             <location filename="../src/ui/main_window.py" line="705" />
             <source>&amp;Status Bar</source>
-            <translation type="unfinished">نوار &amp;وضعیت</translation>
+            <translation type="unfinished">نوار وضعیت</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="708" />
             <source>&amp;Show Status Bar</source>
-            <translation type="unfinished">&amp;نمایش نوار وضعیت</translation>
+            <translation type="unfinished">نمایش نوار وضعیت</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="717" />
             <source>&amp;Memory</source>
-            <translation type="unfinished">&amp;حافظه</translation>
+            <translation type="unfinished">حافظه</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="724" />
@@ -1108,42 +1108,42 @@
         <message>
             <location filename="../src/ui/main_window.py" line="738" />
             <source>&amp;Media Status</source>
-            <translation type="unfinished">وضعیت &amp;رسانه</translation>
+            <translation type="unfinished">وضعیت رسانه</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="745" />
             <source>&amp;Speed</source>
-            <translation type="unfinished">&amp;سرعت</translation>
+            <translation type="unfinished">سرعت</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="752" />
             <source>&amp;Public IP</source>
-            <translation type="unfinished">IP &amp;عمومی</translation>
+            <translation type="unfinished">IP عمومی</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="759" />
             <source>&amp;Proxy Status</source>
-            <translation type="unfinished">وضعیت &amp;پروکسی</translation>
+            <translation type="unfinished">وضعیت پروکسی</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="765" />
             <source>&amp;Toolbar</source>
-            <translation type="unfinished">نوار &amp;ابزار</translation>
+            <translation type="unfinished">نوار ابزار</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="771" />
             <source>&amp;Hide left panel</source>
-            <translation type="unfinished">مخفی کردن پانل &amp;چپ</translation>
+            <translation type="unfinished">مخفی کردن پانل چپ</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="778" />
             <source>&amp;Data usage summary</source>
-            <translation type="unfinished">خلاصه مصرف &amp;داده</translation>
+            <translation type="unfinished">خلاصه مصرف داده</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="785" />
             <source>&amp;Help</source>
-            <translation type="unfinished">&amp;راهنما</translation>
+            <translation type="unfinished">راهنما</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="786" />
@@ -1153,7 +1153,7 @@
         <message>
             <location filename="../src/ui/main_window.py" line="790" />
             <source>&amp;File bug report</source>
-            <translation type="unfinished">ارسال گزارش &amp;خطا (باگ)</translation>
+            <translation type="unfinished">ارسال گزارش خطا (باگ)</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="796" />

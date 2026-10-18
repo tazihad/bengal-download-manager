@@ -97,3 +97,14 @@ class TestI18nBackend:
 
         # Revert to English
         apply_language(qapp, "en")
+
+    def test_bengali_menu_mnemonics_not_broken(self, qapp):
+        from core.services.language_service import apply_language, tr
+        apply_language(qapp, "bn")
+        # Ensure accelerators (&) are stripped from Bengali menus so vowel marks (কার) do not break
+        assert tr("&Tasks", "MainWindow") == "টাস্ক"
+        assert tr("&File", "MainWindow") == "ফাইল"
+        assert tr("&Downloads", "MainWindow") == "ডাউনলোড"
+        assert tr("&View", "MainWindow") == "ভিউ"
+        assert tr("&Help", "MainWindow") == "সহায়তা"
+        apply_language(qapp, "en")

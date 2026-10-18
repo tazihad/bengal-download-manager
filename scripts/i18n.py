@@ -225,6 +225,10 @@ def compile_ts_file(ts_path: str, qm_path: str) -> int:
                     trans_text = num_forms[0]
 
             if trans_text:
+                # Strip broken keyboard accelerators ('&') from non-Latin scripts (e.g. Indic, Arabic)
+                # where '&' placed before a non-ASCII letter breaks HarfBuzz ligature shaping
+                # and orphans combining vowel signs onto dotted circles (◌).
+                trans_text = re.sub(r'&(?=[^\x00-\x7f\s])', '', trans_text)
                 messages.append((ctx_name, src, trans_text, cmt))
 
     qm_bytes = compile_ts_data_to_qm(messages)
@@ -452,7 +456,10 @@ You are an expert technical translator localizing Bengal Download Manager (BDM),
 Translate the provided English UI strings into {target_name} ({target_lang}).
 
 STRICT LOCALIZATION RULES:
-1. Preserve UI keyboard accelerators like '&File' or '&Tasks'. Keep the '&' in the appropriate location in {target_name}.
+1. UI keyboard accelerators:
+   - For Latin-based languages (English, Spanish, French, German, etc.): Preserve accelerators like '&File' or '&Tasks' with '&' in an appropriate place.
+   - For CJK (Chinese, Japanese, Korean): Use the standard format appending the shortcut, e.g., '文件(&F)' or 'ファイル(&F)'.
+   - For Indic scripts (Bengali, Hindi, etc.) and RTL scripts (Arabic, Persian): DO NOT include '&' accelerators inside translated words because '&' severs Unicode combining vowel marks (কার/মাত্রা) and breaks font shaping. Omit the '&' completely.
 2. Preserve all format placeholders like '%1', '%2', '%s', '%n', '{{0}}' exactly as they appear.
 3. Preserve HTML tags like '<b>', '</i>', '<a href="...">'.
 4. Use standard download manager and networking terminology (e.g., 'Download', 'Pause', 'Resume', 'Queue', 'Chunk', 'Speed limit', 'Proxy', 'Aria2', 'Hash').

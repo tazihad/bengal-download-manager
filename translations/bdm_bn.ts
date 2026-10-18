@@ -1043,22 +1043,22 @@
         <message>
             <location filename="../src/ui/main_window.py" line="620" />
             <source>&amp;Tasks</source>
-            <translation type="unfinished">&amp;টাস্ক</translation>
+            <translation type="unfinished">টাস্ক</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="631" />
             <source>&amp;File</source>
-            <translation type="unfinished">&amp;ফাইল</translation>
+            <translation type="unfinished">ফাইল</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="640" />
             <source>&amp;Downloads</source>
-            <translation type="unfinished">&amp;ডাউনলোড</translation>
+            <translation type="unfinished">ডাউনলোড</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="656" />
             <source>&amp;View</source>
-            <translation type="unfinished">&amp;ভিউ</translation>
+            <translation type="unfinished">ভিউ</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="658" />
@@ -1083,82 +1083,82 @@
         <message>
             <location filename="../src/ui/main_window.py" line="705" />
             <source>&amp;Status Bar</source>
-            <translation type="unfinished">&amp;স্ট্যাটাস বার</translation>
+            <translation type="unfinished">স্ট্যাটাস বার</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="708" />
             <source>&amp;Show Status Bar</source>
-            <translation type="unfinished">&amp;স্ট্যাটাস বার দেখান</translation>
+            <translation type="unfinished">স্ট্যাটাস বার দেখান</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="717" />
             <source>&amp;Memory</source>
-            <translation type="unfinished">&amp;মেমরি</translation>
+            <translation type="unfinished">মেমরি</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="724" />
             <source>&amp;Aria2 Status</source>
-            <translation type="unfinished">&amp;Aria2 স্ট্যাটাস</translation>
+            <translation type="unfinished">Aria2 স্ট্যাটাস</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="731" />
             <source>&amp;IPC Status</source>
-            <translation type="unfinished">&amp;IPC স্ট্যাটাস</translation>
+            <translation type="unfinished">IPC স্ট্যাটাস</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="738" />
             <source>&amp;Media Status</source>
-            <translation type="unfinished">&amp;মিডিয়া স্ট্যাটাস</translation>
+            <translation type="unfinished">মিডিয়া স্ট্যাটাস</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="745" />
             <source>&amp;Speed</source>
-            <translation type="unfinished">&amp;গতি</translation>
+            <translation type="unfinished">গতি</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="752" />
             <source>&amp;Public IP</source>
-            <translation type="unfinished">&amp;পাবলিক আইপি</translation>
+            <translation type="unfinished">পাবলিক আইপি</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="759" />
             <source>&amp;Proxy Status</source>
-            <translation type="unfinished">&amp;প্রক্সি স্ট্যাটাস</translation>
+            <translation type="unfinished">প্রক্সি স্ট্যাটাস</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="765" />
             <source>&amp;Toolbar</source>
-            <translation type="unfinished">&amp;টুলবার</translation>
+            <translation type="unfinished">টুলবার</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="771" />
             <source>&amp;Hide left panel</source>
-            <translation type="unfinished">বাম প্যানেল &amp;লুকান</translation>
+            <translation type="unfinished">বাম প্যানেল লুকান</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="778" />
             <source>&amp;Data usage summary</source>
-            <translation type="unfinished">&amp;ডেটা ব্যবহারের সারসংক্ষেপ</translation>
+            <translation type="unfinished">ডেটা ব্যবহারের সারসংক্ষেপ</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="785" />
             <source>&amp;Help</source>
-            <translation type="unfinished">&amp;সহায়তা</translation>
+            <translation type="unfinished">সহায়তা</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="786" />
             <source>BDM &amp;Homepage</source>
-            <translation type="unfinished">BDM &amp;হোমপেজ</translation>
+            <translation type="unfinished">BDM হোমপেজ</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="790" />
             <source>&amp;File bug report</source>
-            <translation type="unfinished">&amp;বাগ রিপোর্ট জমা দিন</translation>
+            <translation type="unfinished">বাগ রিপোর্ট জমা দিন</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="796" />
             <source>&amp;About Bengal DM</source>
-            <translation type="unfinished">Bengal DM &amp;সম্পর্কে</translation>
+            <translation type="unfinished">Bengal DM সম্পর্কে</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="3495" />

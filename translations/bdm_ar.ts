@@ -1043,22 +1043,22 @@
         <message>
             <location filename="../src/ui/main_window.py" line="620" />
             <source>&amp;Tasks</source>
-            <translation type="unfinished">&amp;مهام</translation>
+            <translation type="unfinished">مهام</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="631" />
             <source>&amp;File</source>
-            <translation type="unfinished">&amp;ملف</translation>
+            <translation type="unfinished">ملف</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="640" />
             <source>&amp;Downloads</source>
-            <translation type="unfinished">&amp;تحميلات</translation>
+            <translation type="unfinished">تحميلات</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="656" />
             <source>&amp;View</source>
-            <translation type="unfinished">&amp;عرض</translation>
+            <translation type="unfinished">عرض</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="658" />
@@ -1083,17 +1083,17 @@
         <message>
             <location filename="../src/ui/main_window.py" line="705" />
             <source>&amp;Status Bar</source>
-            <translation type="unfinished">شريط &amp;الحالة</translation>
+            <translation type="unfinished">شريط الحالة</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="708" />
             <source>&amp;Show Status Bar</source>
-            <translation type="unfinished">إ&amp;ظهار شريط الحالة</translation>
+            <translation type="unfinished">إظهار شريط الحالة</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="717" />
             <source>&amp;Memory</source>
-            <translation type="unfinished">الذا&amp;كرة</translation>
+            <translation type="unfinished">الذاكرة</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="724" />
@@ -1108,52 +1108,52 @@
         <message>
             <location filename="../src/ui/main_window.py" line="738" />
             <source>&amp;Media Status</source>
-            <translation type="unfinished">حالة ال&amp;وسائط</translation>
+            <translation type="unfinished">حالة الوسائط</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="745" />
             <source>&amp;Speed</source>
-            <translation type="unfinished">ال&amp;سرعة</translation>
+            <translation type="unfinished">السرعة</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="752" />
             <source>&amp;Public IP</source>
-            <translation type="unfinished">عنوان IP الع&amp;ام</translation>
+            <translation type="unfinished">عنوان IP العام</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="759" />
             <source>&amp;Proxy Status</source>
-            <translation type="unfinished">حالة ال&amp;وكيل (Proxy)</translation>
+            <translation type="unfinished">حالة الوكيل (Proxy)</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="765" />
             <source>&amp;Toolbar</source>
-            <translation type="unfinished">شريط ال&amp;أدوات</translation>
+            <translation type="unfinished">شريط الأدوات</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="771" />
             <source>&amp;Hide left panel</source>
-            <translation type="unfinished">إ&amp;خفاء اللوحة الجانبية اليسرى</translation>
+            <translation type="unfinished">إخفاء اللوحة الجانبية اليسرى</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="778" />
             <source>&amp;Data usage summary</source>
-            <translation type="unfinished">ملخص استهلاك الب&amp;يانات</translation>
+            <translation type="unfinished">ملخص استهلاك البيانات</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="785" />
             <source>&amp;Help</source>
-            <translation type="unfinished">م&amp;ساعدة</translation>
+            <translation type="unfinished">مساعدة</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="786" />
             <source>BDM &amp;Homepage</source>
-            <translation type="unfinished">موقع BDM ال&amp;رئيسي</translation>
+            <translation type="unfinished">موقع BDM الرئيسي</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="790" />
             <source>&amp;File bug report</source>
-            <translation type="unfinished">الإبلاغ عن ع&amp;طل برمجبي</translation>
+            <translation type="unfinished">الإبلاغ عن عطل برمجبي</translation>
         </message>
         <message>
             <location filename="../src/ui/main_window.py" line="796" />
