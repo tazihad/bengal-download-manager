@@ -181,6 +181,17 @@ class TestCombinedThemeLanguage:
         font = init_app_font()
         assert font is not None
 
+    def test_bengali_font_selection(self, qapp):
+        from core.services.theme_service import init_app_font
+        font = init_app_font("bn")
+        assert font is not None
+        assert font.pointSize() == 10
+        # Hind Siliguri must not be among candidates due to broken conjuncts
+        assert "Hind Siliguri" not in font.families()
+        # Should include verified Bengali fonts
+        assert "Noto Sans Bengali UI" in font.families()
+        assert "Kalpurush" in font.families()
+
     def test_detect_accent_returns_qcolor(self, qapp):
         from core.services.theme_service import detect_accent
         color = detect_accent("auto", qapp)
