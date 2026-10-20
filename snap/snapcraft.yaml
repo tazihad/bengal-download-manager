@@ -33,6 +33,9 @@ platforms:
 apps:
   bengal-download-manager:
     command: bin/bengal-wrapper
+    # Link the snap to the AppStream component so desktop environments can
+    # match the running app with its metadata (icons, keywords, screenshots).
+    common-id: bd.com.zihad.BengalDownloadManager
     desktop: usr/share/applications/bengal-download-manager.desktop
     autostart: bengal-download-manager.desktop
     extensions: [ gnome ]
