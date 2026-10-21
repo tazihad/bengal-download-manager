@@ -20,6 +20,7 @@ finish-args:
   - --share=network
   - --device=dri
   - --filesystem=xdg-download
+  - --filesystem=xdg-config/autostart
   - --talk-name=org.freedesktop.FileManager1
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=org.freedesktop.StatusNotifierWatcher

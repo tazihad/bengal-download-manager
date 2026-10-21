@@ -13,6 +13,8 @@ from core.utils import (
     set_autostart_enabled,
     get_executable_command,
     is_running_in_flatpak,
+    is_user_flatpak,
+    get_flatpak_autostart_icon,
     LEGACY_AUTOSTART_FILENAMES,
 )
 
@@ -155,6 +157,8 @@ def test_flatpak_autostart_portal_lifecycle(tmp_path, monkeypatch):
 
     sandbox_file = autostart_dir / "bd.com.zihad.BengalDownloadManager.desktop"
     assert sandbox_file.exists()
+    content = sandbox_file.read_text()
+    assert "Icon=" in content
     assert is_autostart_enabled()
 
     # 2. Disable autostart
@@ -166,3 +170,29 @@ def test_flatpak_autostart_portal_lifecycle(tmp_path, monkeypatch):
 
     assert not sandbox_file.exists()
     assert not is_autostart_enabled()
+
+
+def test_flatpak_icon_resolution_user_and_system(tmp_path, monkeypatch):
+    """Verify get_flatpak_autostart_icon returns user icon for --user and system icon for system-wide."""
+    fake_info = tmp_path / ".flatpak-info"
+    monkeypatch.setattr(os.path, "exists", lambda p: True if p == "/.flatpak-info" else (p == str(fake_info)))
+    
+    # User flatpak info
+    fake_info.write_text("[Instance]\napp-path=/home/testuser/.local/share/flatpak/app/bd.com.zihad.BengalDownloadManager\n")
+    import builtins
+    orig_open = builtins.open
+    def mock_open(path, *args, **kwargs):
+        if path == "/.flatpak-info":
+            return orig_open(str(fake_info), *args, **kwargs)
+        return orig_open(path, *args, **kwargs)
+    monkeypatch.setattr(builtins, "open", mock_open)
+
+    assert is_user_flatpak()
+    user_icon = get_flatpak_autostart_icon()
+    assert ".local/share/flatpak" in user_icon
+
+    # System flatpak info
+    fake_info.write_text("[Instance]\napp-path=/var/lib/flatpak/app/bd.com.zihad.BengalDownloadManager\n")
+    assert not is_user_flatpak()
+    sys_icon = get_flatpak_autostart_icon()
+    assert "/var/lib/flatpak" in sys_icon

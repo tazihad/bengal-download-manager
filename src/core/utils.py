@@ -1764,11 +1764,62 @@ def is_running_in_flatpak() -> bool:
     return os.path.exists("/.flatpak-info") or bool(os.environ.get("FLATPAK_ID"))
 
 
+def is_user_flatpak() -> bool:
+    """Detects whether the running Flatpak instance is installed as user or system."""
+    if os.path.exists("/.flatpak-info"):
+        try:
+            with open("/.flatpak-info", "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if line.startswith("app-path="):
+                        val = line.split("=", 1)[1].strip()
+                        if ".local/share/flatpak" in val or "/home/" in val or "/var/home/" in val:
+                            return True
+                        elif "/var/lib/flatpak" in val:
+                            return False
+        except Exception:
+            pass
+    real_home = get_user_home_dir()
+    user_app = os.path.join(real_home, ".local", "share", "flatpak", "app", "bd.com.zihad.BengalDownloadManager")
+    if os.path.exists(user_app):
+        return True
+    return False
+
+
+def get_flatpak_autostart_icon() -> str:
+    """
+    Resolves the canonical Flatpak icon on the host for autostart .desktop entries.
+    Returns the user installation icon if installed with --user, or the system icon
+    if installed system-wide.
+    """
+    home = get_user_home_dir()
+    if is_user_flatpak():
+        user_candidates = [
+            os.path.join(home, ".local", "share", "flatpak", "exports", "share", "icons", "hicolor", "scalable", "apps", "bd.com.zihad.BengalDownloadManager.svg"),
+            os.path.join(home, ".local", "share", "flatpak", "exports", "share", "icons", "hicolor", "512x512", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(home, ".local", "share", "flatpak", "exports", "share", "icons", "hicolor", "256x256", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+            os.path.join(home, ".local", "share", "flatpak", "exports", "share", "icons", "hicolor", "128x128", "apps", "bd.com.zihad.BengalDownloadManager.png"),
+        ]
+        for p in user_candidates:
+            if os.path.exists(p):
+                return p
+        return user_candidates[0]
+    else:
+        sys_candidates = [
+            "/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg",
+            "/var/lib/flatpak/exports/share/icons/hicolor/512x512/apps/bd.com.zihad.BengalDownloadManager.png",
+            "/var/lib/flatpak/exports/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png",
+            "/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/bd.com.zihad.BengalDownloadManager.png",
+        ]
+        for p in sys_candidates:
+            if os.path.exists(p):
+                return p
+        return sys_candidates[0]
+
+
 def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) -> bool:
     """
-    Configures autostart via the XDG Desktop Background Portal (org.freedesktop.portal.Background).
-    This is the standard mechanism for Flatpak sandboxes, creating or removing host autostart
-    entries without requiring host filesystem access permissions.
+    Configures autostart via the XDG Desktop Background Portal (org.freedesktop.portal.Background)
+    and synchronizes the autostart .desktop entry with the appropriate system or user Flatpak icon.
     """
     portal_success = False
 
@@ -1836,28 +1887,78 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
         except Exception as e:
             print(f"Failed to call portal Background via QDBus: {e}")
 
-    # Synchronize sandbox state so is_autostart_enabled() reflects current setting
+    # 3. Synchronize host autostart .desktop entry and inject the Flatpak logo
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
     if enabled:
         try:
             os.makedirs(autostart_dir, exist_ok=True)
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(
-                    f"[Desktop Entry]\n"
-                    f"Type=Application\n"
-                    f"Name=Bengal Download Manager\n"
-                    f"Exec=bengal-download-manager{' --minimized' if start_minimized else ''}\n"
-                    f"X-XDP-Autostart=true\n"
-                )
-        except Exception:
-            pass
+            icon_path = get_flatpak_autostart_icon()
+            exec_cmd = f"flatpak run bd.com.zihad.BengalDownloadManager{' --minimized' if start_minimized else ''}"
+
+            if os.path.exists(filepath):
+                with open(filepath, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                lines = content.splitlines()
+                has_icon = False
+                has_exec = False
+                new_lines = []
+                for line in lines:
+                    if line.startswith("Icon="):
+                        new_lines.append(f"Icon={icon_path}")
+                        has_icon = True
+                    elif line.startswith("Exec="):
+                        new_lines.append(f"Exec={exec_cmd}")
+                        has_exec = True
+                    elif line.startswith("Name=") and ("bd.com.zihad" in line):
+                        new_lines.append("Name=Bengal Download Manager")
+                    else:
+                        new_lines.append(line)
+
+                if not has_icon:
+                    inserted = False
+                    final_lines = []
+                    for line in new_lines:
+                        final_lines.append(line)
+                        if line.strip() == "[Desktop Entry]":
+                            final_lines.append(f"Icon={icon_path}")
+                            inserted = True
+                    if not inserted:
+                        final_lines.append(f"Icon={icon_path}")
+                    new_lines = final_lines
+
+                if not has_exec:
+                    new_lines.append(f"Exec={exec_cmd}")
+
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write("\n".join(new_lines) + "\n")
+            else:
+                desktop_content = f"""[Desktop Entry]
+Type=Application
+Name=Bengal Download Manager
+Comment=High-performance multi-threaded download manager
+Exec={exec_cmd}
+Icon={icon_path}
+Terminal=false
+StartupWMClass=bd.com.zihad.BengalDownloadManager
+Categories=Network;FileTransfer;
+X-GNOME-Autostart-enabled=true
+X-XDP-Autostart=bd.com.zihad.BengalDownloadManager
+X-Flatpak=bd.com.zihad.BengalDownloadManager
+"""
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(desktop_content)
+
+            os.chmod(filepath, 0o755)
+        except Exception as e:
+            print(f"Failed to set flatpak autostart entry: {e}")
     else:
         try:
             if os.path.exists(filepath):
                 os.remove(filepath)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Failed to remove autostart file {filepath}: {e}")
 
     return portal_success
 

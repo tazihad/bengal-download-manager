@@ -1376,116 +1376,116 @@
             <translation>Stopped all download queues (Synchronization queue preserved)</translation>
         </message>
         <message>
-            <source>Direct connection (No proxy configured)\nClick to configure</source>
-            <translation>Direct connection (No proxy configured)\nClick to configure</translation>
-        </message>
-        <message>
-            <source>Proxy Status (Click to configure)</source>
-            <translation>Proxy Status (Click to configure)</translation>
-        </message>
-        <message>
-            <source>No downloads in list</source>
-            <translation>No downloads in list</translation>
-        </message>
-        <message>
-            <source>Media Engine: Missing or not installed\nClick to open Media Downloader and install</source>
-            <translation>Media Engine: Missing or not installed\nClick to open Media Downloader and install</translation>
-        </message>
-        <message>
-            <source>) if can_show_progress else _fi(get_themed_icon(</source>
-            <translation>) if can_show_progress else _fi(get_themed_icon(</translation>
-        </message>
-        <message>
-            <source>● IPC: Ready</source>
-            <translation>● IPC: Ready</translation>
-        </message>
-        <message>
-            <source>Bengal Download Manager</source>
-            <translation>Bengal Download Manager</translation>
-        </message>
-        <message>
-            <source>), self.tr(</source>
-            <translation>), self.tr(</translation>
-        </message>
-        <message>
-            <source>)), self.tr(</source>
-            <translation>)), self.tr(</translation>
-        </message>
-        <message>
-            <source>Proxy: Direct</source>
-            <translation>Proxy: Direct</translation>
-        </message>
-        <message>
-            <source>Browser Extension IPC Status</source>
-            <translation>Browser Extension IPC Status</translation>
-        </message>
-        <message>
             <source>Media Status (Click to open Media Downloader)</source>
             <translation>Media Status (Click to open Media Downloader)</translation>
-        </message>
-        <message>
-            <source>IP: Detecting...</source>
-            <translation>IP: Detecting...</translation>
-        </message>
-        <message>
-            <source>● Media: Ready</source>
-            <translation>● Media: Ready</translation>
-        </message>
-        <message>
-            <source>Columns...</source>
-            <translation>Columns...</translation>
-        </message>
-        <message>
-            <source>Application Memory Usage (Resident Set Size)</source>
-            <translation>Application Memory Usage (Resident Set Size)</translation>
-        </message>
-        <message>
-            <source>Hide</source>
-            <translation>Hide</translation>
-        </message>
-        <message>
-            <source>0 items</source>
-            <translation>0 items</translation>
-        </message>
-        <message>
-            <source>)),</source>
-            <translation>)),</translation>
-        </message>
-        <message>
-            <source>Public IP: Unable to detect (offline or blocked)</source>
-            <translation>Public IP: Unable to detect (offline or blocked)</translation>
-        </message>
-        <message>
-            <source>● Aria2: Ready</source>
-            <translation>● Aria2: Ready</translation>
-        </message>
-        <message>
-            <source>Memory: 0 B</source>
-            <translation>Memory: 0 B</translation>
         </message>
         <message>
             <source>Public IP Address (Click to copy)</source>
             <translation>Public IP Address (Click to copy)</translation>
         </message>
         <message>
+            <source>● IPC: Ready</source>
+            <translation>● IPC: Ready</translation>
+        </message>
+        <message>
+            <source>● Aria2: Ready</source>
+            <translation>● Aria2: Ready</translation>
+        </message>
+        <message>
+            <source>)),</source>
+            <translation>)),</translation>
+        </message>
+        <message>
+            <source>Aria2 RPC Status</source>
+            <translation>Aria2 RPC Status</translation>
+        </message>
+        <message>
+            <source>Proxy: Direct</source>
+            <translation>Proxy: Direct</translation>
+        </message>
+        <message>
+            <source>Bengal Download Manager</source>
+            <translation>Bengal Download Manager</translation>
+        </message>
+        <message>
+            <source>Hide</source>
+            <translation>Hide</translation>
+        </message>
+        <message>
             <source>),</source>
             <translation>),</translation>
         </message>
         <message>
-            <source>Speed: 0 B/s</source>
-            <translation>Speed: 0 B/s</translation>
+            <source>Direct connection (No proxy configured)\nClick to configure</source>
+            <translation>Direct connection (No proxy configured)\nClick to configure</translation>
+        </message>
+        <message>
+            <source>Columns...</source>
+            <translation>Columns...</translation>
+        </message>
+        <message>
+            <source>No downloads in list</source>
+            <translation>No downloads in list</translation>
         </message>
         <message>
             <source>Direct connection (Proxy host is empty)\nClick to configure</source>
             <translation>Direct connection (Proxy host is empty)\nClick to configure</translation>
         </message>
         <message>
+            <source>Proxy Status (Click to configure)</source>
+            <translation>Proxy Status (Click to configure)</translation>
+        </message>
+        <message>
+            <source>Speed: 0 B/s</source>
+            <translation>Speed: 0 B/s</translation>
+        </message>
+        <message>
+            <source>), self.tr(</source>
+            <translation>), self.tr(</translation>
+        </message>
+        <message>
+            <source>Media Engine: Missing or not installed\nClick to open Media Downloader and install</source>
+            <translation>Media Engine: Missing or not installed\nClick to open Media Downloader and install</translation>
+        </message>
+        <message>
             <source>Total Transfer Rate</source>
             <translation>Total Transfer Rate</translation>
         </message>
         <message>
-            <source>Aria2 RPC Status</source>
-            <translation>Aria2 RPC Status</translation>
+            <source>) if can_show_progress else _fi(get_themed_icon(</source>
+            <translation>) if can_show_progress else _fi(get_themed_icon(</translation>
+        </message>
+        <message>
+            <source>0 items</source>
+            <translation>0 items</translation>
+        </message>
+        <message>
+            <source>Browser Extension IPC Status</source>
+            <translation>Browser Extension IPC Status</translation>
+        </message>
+        <message>
+            <source>● Media: Ready</source>
+            <translation>● Media: Ready</translation>
+        </message>
+        <message>
+            <source>IP: Detecting...</source>
+            <translation>IP: Detecting...</translation>
+        </message>
+        <message>
+            <source>)), self.tr(</source>
+            <translation>)), self.tr(</translation>
+        </message>
+        <message>
+            <source>Public IP: Unable to detect (offline or blocked)</source>
+            <translation>Public IP: Unable to detect (offline or blocked)</translation>
+        </message>
+        <message>
+            <source>Memory: 0 B</source>
+            <translation>Memory: 0 B</translation>
+        </message>
+        <message>
+            <source>Application Memory Usage (Resident Set Size)</source>
+            <translation>Application Memory Usage (Resident Set Size)</translation>
         </message>
     </context>
     <context>
@@ -2673,91 +2673,83 @@
             <translation>A queue with the name '%s' already exists.</translation>
         </message>
         <message>
-            <source>hours</source>
-            <translation>hours</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>Daily</translation>
-        </message>
-        <message>
-            <source>Show desktop system notification when downloads in this queue finish</source>
-            <translation>Show desktop system notification when downloads in this queue finish</translation>
-        </message>
-        <message>
-            <source>Periodic synchronization</source>
-            <translation>Periodic synchronization</translation>
-        </message>
-        <message>
-            <source>One-time downloading</source>
-            <translation>One-time downloading</translation>
-        </message>
-        <message>
-            <source>Scheduler</source>
-            <translation>Scheduler</translation>
-        </message>
-        <message>
-            <source>files at the same time</source>
-            <translation>files at the same time</translation>
-        </message>
-        <message>
-            <source>Start again every</source>
-            <translation>Start again every</translation>
-        </message>
-        <message>
-            <source>Stop download at</source>
-            <translation>Stop download at</translation>
-        </message>
-        <message>
-            <source>Show notification when download completes</source>
-            <translation>Show notification when download completes</translation>
-        </message>
-        <message>
-            <source>min</source>
-            <translation>min</translation>
-        </message>
-        <message>
-            <source>Download</source>
-            <translation>Download</translation>
+            <source>Start download on application startup</source>
+            <translation>Start download on application startup</translation>
         </message>
         <message>
             <source>Once at</source>
             <translation>Once at</translation>
         </message>
         <message>
-            <source>Number of retries for each file if downloading failed:</source>
-            <translation>Number of retries for each file if downloading failed:</translation>
-        </message>
-        <message>
-            <source>Start download on application startup</source>
-            <translation>Start download on application startup</translation>
+            <source>Download</source>
+            <translation>Download</translation>
         </message>
         <message>
             <source>Start download at</source>
             <translation>Start download at</translation>
         </message>
+        <message>
+            <source>Daily</source>
+            <translation>Daily</translation>
+        </message>
+        <message>
+            <source>Number of retries for each file if downloading failed:</source>
+            <translation>Number of retries for each file if downloading failed:</translation>
+        </message>
+        <message>
+            <source>Show notification when download completes</source>
+            <translation>Show notification when download completes</translation>
+        </message>
+        <message>
+            <source>One-time downloading</source>
+            <translation>One-time downloading</translation>
+        </message>
+        <message>
+            <source>min</source>
+            <translation>min</translation>
+        </message>
+        <message>
+            <source>Scheduler</source>
+            <translation>Scheduler</translation>
+        </message>
+        <message>
+            <source>Periodic synchronization</source>
+            <translation>Periodic synchronization</translation>
+        </message>
+        <message>
+            <source>Show desktop system notification when downloads in this queue finish</source>
+            <translation>Show desktop system notification when downloads in this queue finish</translation>
+        </message>
+        <message>
+            <source>Start again every</source>
+            <translation>Start again every</translation>
+        </message>
+        <message>
+            <source>files at the same time</source>
+            <translation>files at the same time</translation>
+        </message>
+        <message>
+            <source>hours</source>
+            <translation>hours</translation>
+        </message>
+        <message>
+            <source>Stop download at</source>
+            <translation>Stop download at</translation>
+        </message>
     </context>
     <context>
         <name>Details_panelDialog</name>
         <message>
+            <source>0 B / 0 B</source>
+            <translation>0 B / 0 B</translation>
+        </message>
+        <message>
+            <source>Active: 0</source>
+            <translation>Active: 0</translation>
+        </message>
+        <message>
             <source>Live blocks: 480</source>
             <translation>Live blocks: 480</translation>
-        </message>
-        <message>
-            <source>Failed</source>
-            <translation>Failed</translation>
-        </message>
-        <message>
-            <source>Click to open containing folder</source>
-            <translation>Click to open containing folder</translation>
-        </message>
-        <message>
-            <source>0 B/s</source>
-            <translation>0 B/s</translation>
-        </message>
-        <message>
-            <source>0% Idle</source>
-            <translation>0% Idle</translation>
         </message>
         <message>
             <source>Toggle download details panel</source>
@@ -2768,48 +2760,60 @@
             <translation>Added at: --</translation>
         </message>
         <message>
-            <source>Close details panel</source>
-            <translation>Close details panel</translation>
+            <source>0% Idle</source>
+            <translation>0% Idle</translation>
         </message>
         <message>
-            <source>Failed: 0</source>
-            <translation>Failed: 0</translation>
-        </message>
-        <message>
-            <source>0 B / 0 B</source>
-            <translation>0 B / 0 B</translation>
-        </message>
-        <message>
-            <source>Downloaded: 0 B of 0 B</source>
-            <translation>Downloaded: 0 B of 0 B</translation>
-        </message>
-        <message>
-            <source>Active: 0</source>
-            <translation>Active: 0</translation>
-        </message>
-        <message>
-            <source>ETA --</source>
-            <translation>ETA --</translation>
-        </message>
-        <message>
-            <source>Segments: 0 / 8</source>
-            <translation>Segments: 0 / 8</translation>
-        </message>
-        <message>
-            <source>0.00%</source>
-            <translation>0.00%</translation>
+            <source>0 B/s</source>
+            <translation>0 B/s</translation>
         </message>
         <message>
             <source>Downloaded bytes</source>
             <translation>Downloaded bytes</translation>
         </message>
         <message>
+            <source>Failed</source>
+            <translation>Failed</translation>
+        </message>
+        <message>
+            <source>ETA --</source>
+            <translation>ETA --</translation>
+        </message>
+        <message>
+            <source>Close details panel</source>
+            <translation>Close details panel</translation>
+        </message>
+        <message>
+            <source>Downloaded: 0 B of 0 B</source>
+            <translation>Downloaded: 0 B of 0 B</translation>
+        </message>
+        <message>
+            <source>0.00%</source>
+            <translation>0.00%</translation>
+        </message>
+        <message>
+            <source>Click to open containing folder</source>
+            <translation>Click to open containing folder</translation>
+        </message>
+        <message>
+            <source>Segments: 0 / 8</source>
+            <translation>Segments: 0 / 8</translation>
+        </message>
+        <message>
             <source>Active remaining bytes</source>
             <translation>Active remaining bytes</translation>
+        </message>
+        <message>
+            <source>Failed: 0</source>
+            <translation>Failed: 0</translation>
         </message>
     </context>
     <context>
         <name>Csd_titlebarDialog</name>
+        <message>
+            <source>Restore" if is_max else "Maximize</source>
+            <translation>Restore" if is_max else "Maximize</translation>
+        </message>
         <message>
             <source>Close</source>
             <translation>Close</translation>
@@ -2822,36 +2826,20 @@
             <source>Maximize</source>
             <translation>Maximize</translation>
         </message>
-        <message>
-            <source>Restore" if is_max else "Maximize</source>
-            <translation>Restore" if is_max else "Maximize</translation>
-        </message>
     </context>
     <context>
         <name>Data_usage_widgetDialog</name>
         <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
-        </message>
-        <message>
             <source>-- / --</source>
             <translation>-- / --</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
         </message>
     </context>
     <context>
         <name>ColumnDialog</name>
-        <message>
-            <source>Deselect All</source>
-            <translation>Deselect All</translation>
-        </message>
-        <message>
-            <source>Column width (pixels):</source>
-            <translation>Column width (pixels):</translation>
-        </message>
-        <message>
-            <source>Move Up</source>
-            <translation>Move Up</translation>
-        </message>
         <message>
             <source>Move Down</source>
             <translation>Move Down</translation>
@@ -2865,23 +2853,47 @@
             <translation>Select All</translation>
         </message>
         <message>
+            <source>Columns</source>
+            <translation>Columns</translation>
+        </message>
+        <message>
+            <source>Deselect All</source>
+            <translation>Deselect All</translation>
+        </message>
+        <message>
+            <source>Move Up</source>
+            <translation>Move Up</translation>
+        </message>
+        <message>
             <source>OK</source>
             <translation>OK</translation>
         </message>
         <message>
-            <source>Columns</source>
-            <translation>Columns</translation>
+            <source>Column width (pixels):</source>
+            <translation>Column width (pixels):</translation>
         </message>
     </context>
     <context>
         <name>DuplicateDialog</name>
         <message>
-            <source>Cancel and discard this request</source>
-            <translation>Cancel and discard this request</translation>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Open destination directory and highlight file</source>
+            <translation>Open destination directory and highlight file</translation>
+        </message>
+        <message>
+            <source>Restart download and overwrite existing file</source>
+            <translation>Restart download and overwrite existing file</translation>
         </message>
         <message>
             <source>Resume downloading this existing item</source>
             <translation>Resume downloading this existing item</translation>
+        </message>
+        <message>
+            <source>Open existing downloaded file</source>
+            <translation>Open existing downloaded file</translation>
         </message>
         <message>
             <source>Save as a new copy with an auto-numbered filename</source>
@@ -2896,55 +2908,43 @@
             <translation>Redownload</translation>
         </message>
         <message>
-            <source>Restart download from beginning (0%)</source>
-            <translation>Restart download from beginning (0%)</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
             <source>Download Already Exists</source>
             <translation>Download Already Exists</translation>
-        </message>
-        <message>
-            <source>Download Copy</source>
-            <translation>Download Copy</translation>
         </message>
         <message>
             <source>Restart</source>
             <translation>Restart</translation>
         </message>
         <message>
-            <source>Resume</source>
-            <translation>Resume</translation>
-        </message>
-        <message>
-            <source>Restart download and overwrite existing file</source>
-            <translation>Restart download and overwrite existing file</translation>
-        </message>
-        <message>
-            <source>Open existing downloaded file</source>
-            <translation>Open existing downloaded file</translation>
+            <source>Download Copy</source>
+            <translation>Download Copy</translation>
         </message>
         <message>
             <source>Duplicate Download</source>
             <translation>Duplicate Download</translation>
         </message>
         <message>
-            <source>Open Folder</source>
-            <translation>Open Folder</translation>
+            <source>Restart download from beginning (0%)</source>
+            <translation>Restart download from beginning (0%)</translation>
         </message>
         <message>
-            <source>Open destination directory and highlight file</source>
-            <translation>Open destination directory and highlight file</translation>
+            <source>Cancel and discard this request</source>
+            <translation>Cancel and discard this request</translation>
+        </message>
+        <message>
+            <source>Resume</source>
+            <translation>Resume</translation>
+        </message>
+        <message>
+            <source>Open Folder</source>
+            <translation>Open Folder</translation>
         </message>
     </context>
     <context>
         <name>RefreshDialog</name>
         <message>
-            <source>Address:</source>
-            <translation>Address:</translation>
+            <source>Paste from clipboard</source>
+            <translation>Paste from clipboard</translation>
         </message>
         <message>
             <source>Cancel</source>
@@ -2955,109 +2955,81 @@
             <translation>Refresh download address</translation>
         </message>
         <message>
+            <source>OK</source>
+            <translation>OK</translation>
+        </message>
+        <message>
             <source>Paste</source>
             <translation>Paste</translation>
         </message>
         <message>
-            <source>Paste from clipboard</source>
-            <translation>Paste from clipboard</translation>
-        </message>
-        <message>
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Address:</source>
+            <translation>Address:</translation>
         </message>
     </context>
     <context>
         <name>RenameDialog</name>
         <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
+            <source>Enter new file name:</source>
+            <translation>Enter new file name:</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
         </message>
         <message>
             <source>Rename File</source>
             <translation>Rename File</translation>
         </message>
         <message>
-            <source>Enter new file name:</source>
-            <translation>Enter new file name:</translation>
+            <source>OK</source>
+            <translation>OK</translation>
         </message>
     </context>
     <context>
         <name>Data_usageDialog</name>
         <message>
-            <source>Daily Activity Breakdown</source>
-            <translation>Daily Activity Breakdown</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
+            <source>Only current month</source>
+            <translation>Only current month</translation>
         </message>
         <message>
             <source>Total data downloaded today</source>
             <translation>Total data downloaded today</translation>
         </message>
         <message>
-            <source>Total data downloaded in current month</source>
-            <translation>Total data downloaded in current month</translation>
+            <source>Daily Activity Breakdown</source>
+            <translation>Daily Activity Breakdown</translation>
         </message>
         <message>
             <source>Close</source>
             <translation>Close</translation>
         </message>
         <message>
-            <source>Only current month</source>
-            <translation>Only current month</translation>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>Data Usage - Current Month</source>
+            <translation>Data Usage - Current Month</translation>
         </message>
         <message>
             <source>Today: 0 B</source>
             <translation>Today: 0 B</translation>
         </message>
         <message>
-            <source>Data Usage - Current Month</source>
-            <translation>Data Usage - Current Month</translation>
+            <source>Total data downloaded in current month</source>
+            <translation>Total data downloaded in current month</translation>
         </message>
     </context>
     <context>
         <name>CompleteDialog</name>
         <message>
-            <source>Disable completion dialog popup for future downloads</source>
-            <translation>Disable completion dialog popup for future downloads</translation>
-        </message>
-        <message>
-            <source>Open downloaded file with default application</source>
-            <translation>Open downloaded file with default application</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
-        <message>
-            <source>Download Completed</source>
-            <translation>Download Completed</translation>
-        </message>
-        <message>
-            <source>Choose application to open this file</source>
-            <translation>Choose application to open this file</translation>
-        </message>
-        <message>
-            <source>Click and drag this file directly to any folder, desktop, file manager, or application</source>
-            <translation>Click and drag this file directly to any folder, desktop, file manager, or application</translation>
-        </message>
-        <message>
             <source>Don</source>
             <translation>Don</translation>
         </message>
         <message>
-            <source>Open with...</source>
-            <translation>Open with...</translation>
-        </message>
-        <message>
-            <source>Close completion dialog</source>
-            <translation>Close completion dialog</translation>
+            <source>Download Completed</source>
+            <translation>Download Completed</translation>
         </message>
         <message>
             <source>Show file in its containing folder</source>
@@ -3068,27 +3040,55 @@
             <translation>Your file has been downloaded successfully and is ready to use.</translation>
         </message>
         <message>
-            <source>Open Folder</source>
-            <translation>Open Folder</translation>
+            <source>Close completion dialog</source>
+            <translation>Close completion dialog</translation>
         </message>
         <message>
             <source>Open</source>
             <translation>Open</translation>
         </message>
+        <message>
+            <source>Disable completion dialog popup for future downloads</source>
+            <translation>Disable completion dialog popup for future downloads</translation>
+        </message>
+        <message>
+            <source>Open with...</source>
+            <translation>Open with...</translation>
+        </message>
+        <message>
+            <source>Click and drag this file directly to any folder, desktop, file manager, or application</source>
+            <translation>Click and drag this file directly to any folder, desktop, file manager, or application</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Choose application to open this file</source>
+            <translation>Choose application to open this file</translation>
+        </message>
+        <message>
+            <source>Open downloaded file with default application</source>
+            <translation>Open downloaded file with default application</translation>
+        </message>
+        <message>
+            <source>Open Folder</source>
+            <translation>Open Folder</translation>
+        </message>
     </context>
     <context>
         <name>DeleteDialog</name>
         <message>
-            <source>Delete Completed Downloads" if is_completed else "Delete</source>
-            <translation>Delete Completed Downloads" if is_completed else "Delete</translation>
+            <source>No</source>
+            <translation>No</translation>
         </message>
         <message>
             <source>Also delete files from disk (permanently)</source>
             <translation>Also delete files from disk (permanently)</translation>
         </message>
         <message>
-            <source>No</source>
-            <translation>No</translation>
+            <source>Delete Completed Downloads" if is_completed else "Delete</source>
+            <translation>Delete Completed Downloads" if is_completed else "Delete</translation>
         </message>
         <message>
             <source>Yes</source>
@@ -3102,47 +3102,27 @@
             <translation>File Information</translation>
         </message>
         <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
-        <message>
-            <source>Close properties window</source>
-            <translation>Close properties window</translation>
+            <source>Open</source>
+            <translation>Open</translation>
         </message>
         <message>
             <source>Open this file with default application</source>
             <translation>Open this file with default application</translation>
         </message>
         <message>
-            <source>Open</source>
-            <translation>Open</translation>
+            <source>Close properties window</source>
+            <translation>Close properties window</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
         </message>
     </context>
     <context>
         <name>Add_urlDialog</name>
         <message>
-            <source>Add URL</source>
-            <translation>Add URL</translation>
-        </message>
-        <message>
             <source>Batch pattern detected (go to Batch Downloader)</source>
             <translation>Batch pattern detected (go to Batch Downloader)</translation>
-        </message>
-        <message>
-            <source>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</source>
-            <translation>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</translation>
-        </message>
-        <message>
-            <source>Address:</source>
-            <translation>Address:</translation>
-        </message>
-        <message>
-            <source>Awaiting URL</source>
-            <translation>Awaiting URL</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
         </message>
         <message>
             <source>Enter new address to download</source>
@@ -3153,453 +3133,449 @@
             <translation>Add download URL</translation>
         </message>
         <message>
-            <source>📁 ~/Downloads</source>
-            <translation>📁 ~/Downloads</translation>
+            <source>Batch Download</source>
+            <translation>Batch Download</translation>
         </message>
         <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Awaiting URL</source>
+            <translation>Awaiting URL</translation>
+        </message>
+        <message>
+            <source>📁 ~/Downloads</source>
+            <translation>📁 ~/Downloads</translation>
+        </message>
+        <message>
+            <source>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</source>
+            <translation>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</translation>
         </message>
         <message>
             <source>Paste link from clipboard</source>
             <translation>Paste link from clipboard</translation>
         </message>
         <message>
-            <source>Download Media</source>
-            <translation>Download Media</translation>
-        </message>
-        <message>
-            <source>Paste</source>
-            <translation>Paste</translation>
-        </message>
-        <message>
-            <source>Batch Download</source>
-            <translation>Batch Download</translation>
+            <source>Enter or paste download address</source>
+            <translation>Enter or paste download address</translation>
         </message>
         <message>
             <source>Media Stream detected (go to Media Downloader)</source>
             <translation>Media Stream detected (go to Media Downloader)</translation>
         </message>
         <message>
-            <source>Cancel and close dialog</source>
-            <translation>Cancel and close dialog</translation>
-        </message>
-        <message>
-            <source>Enter or paste download address</source>
-            <translation>Enter or paste download address</translation>
-        </message>
-    </context>
-    <context>
-        <name>File_infoDialog</name>
-        <message>
-            <source>Cancel and discard download request</source>
-            <translation>Cancel and discard download request</translation>
-        </message>
-        <message>
-            <source>Begin downloading this file immediately</source>
-            <translation>Begin downloading this file immediately</translation>
-        </message>
-        <message>
-            <source>...</source>
-            <translation>...</translation>
-        </message>
-        <message>
-            <source>Download File Info</source>
-            <translation>Download File Info</translation>
-        </message>
-        <message>
-            <source>Full download source URL</source>
-            <translation>Full download source URL</translation>
-        </message>
-        <message>
-            <source>Destination path and filename for the download</source>
-            <translation>Destination path and filename for the download</translation>
-        </message>
-        <message>
-            <source>Download Later</source>
-            <translation>Download Later</translation>
-        </message>
-        <message>
-            <source>Category to organize and route the download file</source>
-            <translation>Category to organize and route the download file</translation>
-        </message>
-        <message>
-            <source>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</source>
-            <translation>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Start Download</source>
-            <translation>Start Download</translation>
-        </message>
-        <message>
-            <source>Don</source>
-            <translation>Don</translation>
-        </message>
-        <message>
-            <source>Detected content size and file type</source>
-            <translation>Detected content size and file type</translation>
-        </message>
-        <message>
-            <source>Browse folder to select save location</source>
-            <translation>Browse folder to select save location</translation>
-        </message>
-        <message>
-            <source>Add download to list in paused state</source>
-            <translation>Add download to list in paused state</translation>
-        </message>
-    </context>
-    <context>
-        <name>Media_downloaderDialog</name>
-        <message>
-            <source>Save all tracks inside a dedicated subfolder named after the playlist</source>
-            <translation>Save all tracks inside a dedicated subfolder named after the playlist</translation>
-        </message>
-        <message>
-            <source>Download single media</source>
-            <translation>Download single media</translation>
-        </message>
-        <message>
-            <source>Quality:</source>
-            <translation>Quality:</translation>
-        </message>
-        <message>
-            <source>Select download queue for the downloaded item(s)</source>
-            <translation>Select download queue for the downloaded item(s)</translation>
-        </message>
-        <message>
-            <source>FPS:</source>
-            <translation>FPS:</translation>
-        </message>
-        <message>
-            <source>Range:</source>
-            <translation>Range:</translation>
-        </message>
-        <message>
-            <source>Video Batch</source>
-            <translation>Video Batch</translation>
-        </message>
-        <message>
-            <source>📁 Open Binaries Folder</source>
-            <translation>📁 Open Binaries Folder</translation>
-        </message>
-        <message>
-            <source>Pipeline Engines</source>
-            <translation>Pipeline Engines</translation>
-        </message>
-        <message>
-            <source>to</source>
-            <translation>to</translation>
-        </message>
-        <message>
-            <source>No playlist detected in this URL</source>
-            <translation>No playlist detected in this URL</translation>
-        </message>
-        <message>
-            <source>Embed Artwork</source>
-            <translation>Embed Artwork</translation>
-        </message>
-        <message>
-            <source>Single</source>
-            <translation>Single</translation>
-        </message>
-        <message>
-            <source>Download</source>
-            <translation>Download</translation>
-        </message>
-        <message>
-            <source>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</source>
-            <translation>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</translation>
-        </message>
-        <message>
-            <source>Advanced Mode</source>
-            <translation>Advanced Mode</translation>
-        </message>
-        <message>
-            <source>Filter video container / codec</source>
-            <translation>Filter video container / codec</translation>
-        </message>
-        <message>
-            <source>Analyze</source>
-            <translation>Analyze</translation>
-        </message>
-        <message>
-            <source>Quality / Bitrate:</source>
-            <translation>Quality / Bitrate:</translation>
-        </message>
-        <message>
-            <source>Enter a video or playlist link above and click</source>
-            <translation>Enter a video or playlist link above and click</translation>
-        </message>
-        <message>
-            <source>Filter tracks...</source>
-            <translation>Filter tracks...</translation>
-        </message>
-        <message>
-            <source>Embed ID3 Tags</source>
-            <translation>Embed ID3 Tags</translation>
-        </message>
-        <message>
-            <source>Paste URL from clipboard (Ctrl+V)</source>
-            <translation>Paste URL from clipboard (Ctrl+V)</translation>
-        </message>
-        <message>
-            <source>Filter video framerate (e.g. 60 fps, 30 fps)</source>
-            <translation>Filter video framerate (e.g. 60 fps, 30 fps)</translation>
-        </message>
-        <message>
-            <source>Type:</source>
-            <translation>Type:</translation>
-        </message>
-        <message>
-            <source>● Checking...</source>
-            <translation>● Checking...</translation>
-        </message>
-        <message>
-            <source>Select All</source>
-            <translation>Select All</translation>
-        </message>
-        <message>
-            <source>Save current quality, format choices, and selection mode for future downloads</source>
-            <translation>Save current quality, format choices, and selection mode for future downloads</translation>
-        </message>
-        <message>
-            <source>Preserve album track ordering by prefixing track numbers</source>
-            <translation>Preserve album track ordering by prefixing track numbers</translation>
-        </message>
-        <message>
-            <source>Automatically start downloading media links sent from the browser extension using preselected quality</source>
-            <translation>Automatically start downloading media links sent from the browser extension using preselected quality</translation>
-        </message>
-        <message>
-            <source>Update All</source>
-            <translation>Update All</translation>
+            <source>0 B</source>
+            <translation>0 B</translation>
         </message>
         <message>
             <source>Paste</source>
             <translation>Paste</translation>
         </message>
         <message>
-            <source>Auto-start from extension</source>
-            <translation>Auto-start from extension</translation>
+            <source>Address:</source>
+            <translation>Address:</translation>
         </message>
         <message>
-            <source>Embed album cover artwork into downloaded audio tracks</source>
-            <translation>Embed album cover artwork into downloaded audio tracks</translation>
+            <source>Add URL</source>
+            <translation>Add URL</translation>
         </message>
         <message>
-            <source>Close Media Downloader window</source>
-            <translation>Close Media Downloader window</translation>
+            <source>Cancel and close dialog</source>
+            <translation>Cancel and close dialog</translation>
         </message>
         <message>
-            <source>Download video with audio merged</source>
-            <translation>Download video with audio merged</translation>
+            <source>Download Media</source>
+            <translation>Download Media</translation>
+        </message>
+    </context>
+    <context>
+        <name>File_infoDialog</name>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
         </message>
         <message>
-            <source>No playlist detected in URL</source>
-            <translation>No playlist detected in URL</translation>
+            <source>Begin downloading this file immediately</source>
+            <translation>Begin downloading this file immediately</translation>
         </message>
         <message>
-            <source>Create dedicated playlist subfolder</source>
-            <translation>Create dedicated playlist subfolder</translation>
+            <source>Add download to list in paused state</source>
+            <translation>Add download to list in paused state</translation>
         </message>
         <message>
-            <source>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</source>
-            <translation>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</translation>
+            <source>Don</source>
+            <translation>Don</translation>
         </message>
         <message>
-            <source>Audio</source>
-            <translation>Audio</translation>
+            <source>Cancel and discard download request</source>
+            <translation>Cancel and discard download request</translation>
         </message>
         <message>
-            <source>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</source>
-            <translation>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</translation>
+            <source>Download File Info</source>
+            <translation>Download File Info</translation>
         </message>
         <message>
-            <source>Extract and download audio track only</source>
-            <translation>Extract and download audio track only</translation>
+            <source>...</source>
+            <translation>...</translation>
         </message>
         <message>
-            <source>Video:</source>
-            <translation>Video:</translation>
+            <source>Start Download</source>
+            <translation>Start Download</translation>
         </message>
         <message>
-            <source>⚙️ Media Options...</source>
-            <translation>⚙️ Media Options...</translation>
+            <source>Full download source URL</source>
+            <translation>Full download source URL</translation>
         </message>
         <message>
-            <source>Total: 0 items</source>
-            <translation>Total: 0 items</translation>
+            <source>Browse folder to select save location</source>
+            <translation>Browse folder to select save location</translation>
         </message>
         <message>
-            <source>Installed</source>
-            <translation>Installed</translation>
+            <source>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</source>
+            <translation>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</translation>
         </message>
         <message>
-            <source>Start download for selected format (merges video + audio + thumbnail + subtitles)</source>
-            <translation>Start download for selected format (merges video + audio + thumbnail + subtitles)</translation>
+            <source>Detected content size and file type</source>
+            <translation>Detected content size and file type</translation>
         </message>
         <message>
-            <source>Select quality (auto-merges Video + Audio)</source>
-            <translation>Select quality (auto-merges Video + Audio)</translation>
+            <source>Category to organize and route the download file</source>
+            <translation>Category to organize and route the download file</translation>
         </message>
         <message>
-            <source>Playlist</source>
-            <translation>Playlist</translation>
+            <source>Download Later</source>
+            <translation>Download Later</translation>
         </message>
         <message>
-            <source>Uploader: Unknown | Duration: 0s</source>
-            <translation>Uploader: Unknown | Duration: 0s</translation>
+            <source>Destination path and filename for the download</source>
+            <translation>Destination path and filename for the download</translation>
         </message>
+    </context>
+    <context>
+        <name>Media_downloaderDialog</name>
         <message>
-            <source>Enter direct video URL or playlist link to analyze</source>
-            <translation>Enter direct video URL or playlist link to analyze</translation>
-        </message>
-        <message>
-            <source>Deselect All</source>
-            <translation>Deselect All</translation>
-        </message>
-        <message>
-            <source>Remember selection</source>
-            <translation>Remember selection</translation>
-        </message>
-        <message>
-            <source>0 of 0 items selected</source>
-            <translation>0 of 0 items selected</translation>
-        </message>
-        <message>
-            <source>Media Downloader</source>
-            <translation>Media Downloader</translation>
-        </message>
-        <message>
-            <source>Stop ongoing link analysis</source>
-            <translation>Stop ongoing link analysis</translation>
-        </message>
-        <message>
-            <source>Batch Mode:</source>
-            <translation>Batch Mode:</translation>
-        </message>
-        <message>
-            <source>Enter URL</source>
-            <translation>Enter URL</translation>
-        </message>
-        <message>
-            <source>Audio Only</source>
-            <translation>Audio Only</translation>
-        </message>
-        <message>
-            <source>Parse media formats or playlist items using yt-dlp</source>
-            <translation>Parse media formats or playlist items using yt-dlp</translation>
-        </message>
-        <message>
-            <source>Download the entire playlist batch</source>
-            <translation>Download the entire playlist batch</translation>
-        </message>
-        <message>
-            <source>Apply Range</source>
-            <translation>Apply Range</translation>
-        </message>
-        <message>
-            <source>Embed ID3 metadata (Artist, Album, Track number) into audio files</source>
-            <translation>Embed ID3 metadata (Artist, Album, Track number) into audio files</translation>
+            <source>Pipeline Engines &amp; Settings (Update Available)</source>
+            <translation>Pipeline Engines &amp; Settings (Update Available)</translation>
         </message>
         <message>
             <source>Pipeline Engines &amp; Settings</source>
             <translation>Pipeline Engines &amp; Settings</translation>
         </message>
         <message>
-            <source>Close</source>
-            <translation>Close</translation>
+            <source>Remember selection</source>
+            <translation>Remember selection</translation>
+        </message>
+        <message>
+            <source>Download</source>
+            <translation>Download</translation>
+        </message>
+        <message>
+            <source>Extract and download audio track only</source>
+            <translation>Extract and download audio track only</translation>
+        </message>
+        <message>
+            <source>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</source>
+            <translation>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</translation>
+        </message>
+        <message>
+            <source>Filter audio container / codec</source>
+            <translation>Filter audio container / codec</translation>
+        </message>
+        <message>
+            <source>Uploader: Unknown | Duration: 0s</source>
+            <translation>Uploader: Unknown | Duration: 0s</translation>
+        </message>
+        <message>
+            <source>Quality / Bitrate:</source>
+            <translation>Quality / Bitrate:</translation>
+        </message>
+        <message>
+            <source>Paste URL from clipboard (Ctrl+V)</source>
+            <translation>Paste URL from clipboard (Ctrl+V)</translation>
         </message>
         <message>
             <source>Mode:</source>
             <translation>Mode:</translation>
         </message>
         <message>
-            <source>Video Title</source>
-            <translation>Video Title</translation>
+            <source>Create dedicated playlist subfolder</source>
+            <translation>Create dedicated playlist subfolder</translation>
+        </message>
+        <message>
+            <source>Embed ID3 Tags</source>
+            <translation>Embed ID3 Tags</translation>
+        </message>
+        <message>
+            <source>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</source>
+            <translation>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</translation>
+        </message>
+        <message>
+            <source>Filter video framerate (e.g. 60 fps, 30 fps)</source>
+            <translation>Filter video framerate (e.g. 60 fps, 30 fps)</translation>
+        </message>
+        <message>
+            <source>Select quality (auto-merges Video + Audio)</source>
+            <translation>Select quality (auto-merges Video + Audio)</translation>
+        </message>
+        <message>
+            <source>Start download for selected format (merges video + audio + thumbnail + subtitles)</source>
+            <translation>Start download for selected format (merges video + audio + thumbnail + subtitles)</translation>
+        </message>
+        <message>
+            <source>⚙️ Media Options...</source>
+            <translation>⚙️ Media Options...</translation>
+        </message>
+        <message>
+            <source>Select All</source>
+            <translation>Select All</translation>
+        </message>
+        <message>
+            <source>Deselect All</source>
+            <translation>Deselect All</translation>
+        </message>
+        <message>
+            <source>Single</source>
+            <translation>Single</translation>
+        </message>
+        <message>
+            <source>Video Batch</source>
+            <translation>Video Batch</translation>
+        </message>
+        <message>
+            <source>Pipeline Engines</source>
+            <translation>Pipeline Engines</translation>
+        </message>
+        <message>
+            <source>FPS:</source>
+            <translation>FPS:</translation>
         </message>
         <message>
             <source>Queue:</source>
             <translation>Queue:</translation>
         </message>
         <message>
-            <source>Audio Format:</source>
-            <translation>Audio Format:</translation>
+            <source>Preserve album track ordering by prefixing track numbers</source>
+            <translation>Preserve album track ordering by prefixing track numbers</translation>
         </message>
         <message>
-            <source>Playlist Title</source>
-            <translation>Playlist Title</translation>
+            <source>Advanced Mode</source>
+            <translation>Advanced Mode</translation>
         </message>
         <message>
-            <source>Invert</source>
-            <translation>Invert</translation>
-        </message>
-        <message>
-            <source>Prefix filenames with track order (e.g. 01 - Song)</source>
-            <translation>Prefix filenames with track order (e.g. 01 - Song)</translation>
-        </message>
-        <message>
-            <source>Pipeline Engines &amp; Settings (Update Available)</source>
-            <translation>Pipeline Engines &amp; Settings (Update Available)</translation>
-        </message>
-        <message>
-            <source>Show individual audio and video streams table for advanced format selection</source>
-            <translation>Show individual audio and video streams table for advanced format selection</translation>
+            <source>📁 Open Binaries Folder</source>
+            <translation>📁 Open Binaries Folder</translation>
         </message>
         <message>
             <source>yt-dlp update channel (Stable or Nightly build)</source>
             <translation>yt-dlp update channel (Stable or Nightly build)</translation>
         </message>
         <message>
-            <source>Audio:</source>
-            <translation>Audio:</translation>
+            <source>Automatically start downloading media links sent from the browser extension using preselected quality</source>
+            <translation>Automatically start downloading media links sent from the browser extension using preselected quality</translation>
+        </message>
+        <message>
+            <source>Audio</source>
+            <translation>Audio</translation>
+        </message>
+        <message>
+            <source>Paste</source>
+            <translation>Paste</translation>
+        </message>
+        <message>
+            <source>0 of 0 items selected</source>
+            <translation>0 of 0 items selected</translation>
+        </message>
+        <message>
+            <source>Video:</source>
+            <translation>Video:</translation>
         </message>
         <message>
             <source>Video</source>
             <translation>Video</translation>
         </message>
         <message>
-            <source>Filter audio container / codec</source>
-            <translation>Filter audio container / codec</translation>
+            <source>Media Downloader</source>
+            <translation>Media Downloader</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</source>
+            <translation>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</translation>
+        </message>
+        <message>
+            <source>Embed album cover artwork into downloaded audio tracks</source>
+            <translation>Embed album cover artwork into downloaded audio tracks</translation>
+        </message>
+        <message>
+            <source>Filter video container / codec</source>
+            <translation>Filter video container / codec</translation>
+        </message>
+        <message>
+            <source>Apply Range</source>
+            <translation>Apply Range</translation>
+        </message>
+        <message>
+            <source>Download video with audio merged</source>
+            <translation>Download video with audio merged</translation>
+        </message>
+        <message>
+            <source>Download single media</source>
+            <translation>Download single media</translation>
+        </message>
+        <message>
+            <source>Total: 0 items</source>
+            <translation>Total: 0 items</translation>
+        </message>
+        <message>
+            <source>Prefix filenames with track order (e.g. 01 - Song)</source>
+            <translation>Prefix filenames with track order (e.g. 01 - Song)</translation>
+        </message>
+        <message>
+            <source>Save current quality, format choices, and selection mode for future downloads</source>
+            <translation>Save current quality, format choices, and selection mode for future downloads</translation>
+        </message>
+        <message>
+            <source>Range:</source>
+            <translation>Range:</translation>
+        </message>
+        <message>
+            <source>Stop ongoing link analysis</source>
+            <translation>Stop ongoing link analysis</translation>
+        </message>
+        <message>
+            <source>● Checking...</source>
+            <translation>● Checking...</translation>
+        </message>
+        <message>
+            <source>Select download queue for the downloaded item(s)</source>
+            <translation>Select download queue for the downloaded item(s)</translation>
+        </message>
+        <message>
+            <source>Download the entire playlist batch</source>
+            <translation>Download the entire playlist batch</translation>
+        </message>
+        <message>
+            <source>Parse media formats or playlist items using yt-dlp</source>
+            <translation>Parse media formats or playlist items using yt-dlp</translation>
+        </message>
+        <message>
+            <source>Audio:</source>
+            <translation>Audio:</translation>
+        </message>
+        <message>
+            <source>to</source>
+            <translation>to</translation>
+        </message>
+        <message>
+            <source>Enter a video or playlist link above and click</source>
+            <translation>Enter a video or playlist link above and click</translation>
+        </message>
+        <message>
+            <source>Batch Mode:</source>
+            <translation>Batch Mode:</translation>
+        </message>
+        <message>
+            <source>Playlist Title</source>
+            <translation>Playlist Title</translation>
+        </message>
+        <message>
+            <source>Type:</source>
+            <translation>Type:</translation>
+        </message>
+        <message>
+            <source>Enter URL</source>
+            <translation>Enter URL</translation>
+        </message>
+        <message>
+            <source>Invert</source>
+            <translation>Invert</translation>
+        </message>
+        <message>
+            <source>Enter direct video URL or playlist link to analyze</source>
+            <translation>Enter direct video URL or playlist link to analyze</translation>
+        </message>
+        <message>
+            <source>No playlist detected in URL</source>
+            <translation>No playlist detected in URL</translation>
+        </message>
+        <message>
+            <source>Audio Only</source>
+            <translation>Audio Only</translation>
+        </message>
+        <message>
+            <source>Filter tracks...</source>
+            <translation>Filter tracks...</translation>
+        </message>
+        <message>
+            <source>Save all tracks inside a dedicated subfolder named after the playlist</source>
+            <translation>Save all tracks inside a dedicated subfolder named after the playlist</translation>
+        </message>
+        <message>
+            <source>Close Media Downloader window</source>
+            <translation>Close Media Downloader window</translation>
+        </message>
+        <message>
+            <source>Embed ID3 metadata (Artist, Album, Track number) into audio files</source>
+            <translation>Embed ID3 metadata (Artist, Album, Track number) into audio files</translation>
+        </message>
+        <message>
+            <source>Update All</source>
+            <translation>Update All</translation>
+        </message>
+        <message>
+            <source>Auto-start from extension</source>
+            <translation>Auto-start from extension</translation>
+        </message>
+        <message>
+            <source>Installed</source>
+            <translation>Installed</translation>
+        </message>
+        <message>
+            <source>Embed Artwork</source>
+            <translation>Embed Artwork</translation>
+        </message>
+        <message>
+            <source>No playlist detected in this URL</source>
+            <translation>No playlist detected in this URL</translation>
+        </message>
+        <message>
+            <source>Playlist</source>
+            <translation>Playlist</translation>
+        </message>
+        <message>
+            <source>Audio Format:</source>
+            <translation>Audio Format:</translation>
+        </message>
+        <message>
+            <source>Show individual audio and video streams table for advanced format selection</source>
+            <translation>Show individual audio and video streams table for advanced format selection</translation>
+        </message>
+        <message>
+            <source>Quality:</source>
+            <translation>Quality:</translation>
+        </message>
+        <message>
+            <source>Analyze</source>
+            <translation>Analyze</translation>
+        </message>
+        <message>
+            <source>Video Title</source>
+            <translation>Video Title</translation>
         </message>
     </context>
     <context>
         <name>ProgressDialog</name>
         <message>
-            <source>Overall download progress</source>
-            <translation>Overall download progress</translation>
-        </message>
-        <message>
-            <source>Start positions and download progress by connections</source>
-            <translation>Start positions and download progress by connections</translation>
-        </message>
-        <message>
-            <source>KB/sec</source>
-            <translation>KB/sec</translation>
-        </message>
-        <message>
-            <source>Cancel download and stop worker thread</source>
-            <translation>Cancel download and stop worker thread</translation>
-        </message>
-        <message>
             <source>Pause or resume this download</source>
             <translation>Pause or resume this download</translation>
         </message>
         <message>
-            <source>Limit download speed to avoid slowing down internet browsing.</source>
-            <translation>Limit download speed to avoid slowing down internet browsing.</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>0 bytes</source>
-            <translation>0 bytes</translation>
+            <source>KB/sec</source>
+            <translation>KB/sec</translation>
         </message>
         <message>
             <source>Unknown</source>
@@ -3610,28 +3586,44 @@
             <translation>Max speed:</translation>
         </message>
         <message>
-            <source>Pause</source>
-            <translation>Pause</translation>
+            <source>Overall download progress</source>
+            <translation>Overall download progress</translation>
         </message>
         <message>
-            <source>0.00 B/s</source>
-            <translation>0.00 B/s</translation>
+            <source>Pause</source>
+            <translation>Pause</translation>
         </message>
         <message>
             <source>Calculating...</source>
             <translation>Calculating...</translation>
         </message>
         <message>
+            <source>Hide</source>
+            <translation>Hide</translation>
+        </message>
+        <message>
+            <source>0.00 B/s</source>
+            <translation>0.00 B/s</translation>
+        </message>
+        <message>
             <source>Show or hide multi-connection segment metrics panel</source>
             <translation>Show or hide multi-connection segment metrics panel</translation>
         </message>
         <message>
-            <source>Connecting...</source>
-            <translation>Connecting...</translation>
+            <source>Cancel download and stop worker thread</source>
+            <translation>Cancel download and stop worker thread</translation>
         </message>
         <message>
-            <source>Hide</source>
-            <translation>Hide</translation>
+            <source>0 bytes</source>
+            <translation>0 bytes</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Hide progress window and continue downloading in the background</source>
+            <translation>Hide progress window and continue downloading in the background</translation>
         </message>
         <message>
             <source>Details &gt;&gt;</source>
@@ -3642,8 +3634,16 @@
             <translation>Use Speed Limiter</translation>
         </message>
         <message>
-            <source>Hide progress window and continue downloading in the background</source>
-            <translation>Hide progress window and continue downloading in the background</translation>
+            <source>Start positions and download progress by connections</source>
+            <translation>Start positions and download progress by connections</translation>
+        </message>
+        <message>
+            <source>Connecting...</source>
+            <translation>Connecting...</translation>
+        </message>
+        <message>
+            <source>Limit download speed to avoid slowing down internet browsing.</source>
+            <translation>Limit download speed to avoid slowing down internet browsing.</translation>
         </message>
     </context>
 </TS>
