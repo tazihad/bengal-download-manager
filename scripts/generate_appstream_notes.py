@@ -111,15 +111,45 @@ def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
     return tags[0]
 
 
-def get_git_commits(from_ref: Optional[str], to_ref: str = "HEAD") -> List[str]:
-    """Retrieves commit subjects between from_ref and to_ref."""
+def get_git_commits(
+    from_ref: Optional[str],
+    to_ref: str = "HEAD",
+    app_src_only: bool = False,
+) -> List[str]:
+    """
+    Retrieves commit subjects between from_ref and to_ref.
+    If app_src_only is True, filters to only commits that modified files in 'src/' or 'assets/'.
+    """
     try:
-        if from_ref:
-            cmd = ["git", "log", f"{from_ref}..{to_ref}", "--pretty=format:%s"]
+        ref_range = f"{from_ref}..{to_ref}" if from_ref else to_ref
+        if app_src_only:
+            cmd = ["git", "log", ref_range, "--name-only", "--pretty=format:COMMIT:%s"]
+            raw = subprocess.check_output(cmd, cwd=ROOT_DIR, text=True, stderr=subprocess.DEVNULL).splitlines()
+            commits: List[str] = []
+            current_subj = ""
+            is_app_src = False
+            app_prefixes = ("src/", "assets/")
+
+            for line in raw:
+                if line.startswith("COMMIT:"):
+                    if current_subj and is_app_src:
+                        commits.append(current_subj)
+                    current_subj = line[7:].strip()
+                    is_app_src = False
+                elif line.strip():
+                    if any(line.strip().startswith(p) for p in app_prefixes):
+                        is_app_src = True
+
+            if current_subj and is_app_src:
+                commits.append(current_subj)
+            return commits
         else:
-            cmd = ["git", "log", "-n", "10", "--pretty=format:%s", to_ref]
-        raw = subprocess.check_output(cmd, cwd=ROOT_DIR, text=True, stderr=subprocess.DEVNULL)
-        return [c.strip() for c in raw.splitlines() if c.strip()]
+            if from_ref:
+                cmd = ["git", "log", f"{from_ref}..{to_ref}", "--pretty=format:%s"]
+            else:
+                cmd = ["git", "log", "-n", "10", "--pretty=format:%s", to_ref]
+            raw = subprocess.check_output(cmd, cwd=ROOT_DIR, text=True, stderr=subprocess.DEVNULL)
+            return [c.strip() for c in raw.splitlines() if c.strip()]
     except Exception:
         return []
 
@@ -185,12 +215,13 @@ def generate_notes_from_git(
     version: str,
     from_ref: Optional[str] = None,
     to_ref: str = "HEAD",
+    app_src_only: bool = False,
 ) -> List[str]:
     """Generates a list of human-readable bullet points for the release notes."""
     if not from_ref:
         from_ref = get_previous_tag(version)
 
-    commits = get_git_commits(from_ref, to_ref)
+    commits = get_git_commits(from_ref, to_ref, app_src_only=app_src_only)
     notes: List[str] = []
     seen = set()
 
@@ -256,9 +287,10 @@ if __name__ == "__main__":
     parser.add_argument("--from-tag", default=None, help="Starting git tag")
     parser.add_argument("--to-ref", default="HEAD", help="Ending git ref")
     parser.add_argument("--format", choices=["xml", "markdown"], default="xml", help="Output format")
+    parser.add_argument("--app-src-only", action="store_true", help="Only include commits modifying src/ or assets/")
     args = parser.parse_args()
 
-    bullet_notes = generate_notes_from_git(args.version, args.from_tag, args.to_ref)
+    bullet_notes = generate_notes_from_git(args.version, args.from_tag, args.to_ref, app_src_only=args.app_src_only)
     if args.format == "markdown":
         print(format_markdown_notes(args.version, bullet_notes))
     else:

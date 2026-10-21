@@ -141,11 +141,11 @@ def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     with open(METAINFO_FILE, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Generate release notes list
+    # Generate release notes list (app src changes only for AppStream in-app notes)
     if custom_notes:
         notes = custom_notes
     else:
-        notes = generate_notes_from_git(clean_ver)
+        notes = generate_notes_from_git(clean_ver, app_src_only=True)
 
     new_release_block = format_appstream_xml(clean_ver, today, notes, indent="    ")
 

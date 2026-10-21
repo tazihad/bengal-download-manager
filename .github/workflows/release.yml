@@ -474,13 +474,40 @@ jobs:
           try:
               import sys
               sys.path.insert(0, os.path.abspath(".."))
-              from scripts.generate_appstream_notes import generate_notes_from_git, format_markdown_notes
+              from scripts.generate_appstream_notes import generate_notes_from_git, format_markdown_notes, get_previous_tag
               bullet_notes = generate_notes_from_git(version, to_ref="HEAD")
+              lines.append("## What's Changed\n")
               if bullet_notes:
-                  lines.append("## What's Changed\n")
+                  lines.append("### Highlights")
                   for note in bullet_notes:
                       lines.append(f"* {note}")
-                  lines.append(f"\n**Full Changelog**: https://github.com/{repo}/compare/{tag}...{version}")
+                  lines.append("")
+
+              # Include previous release changelog if available
+              prev_tag = get_previous_tag(tag or version)
+              if prev_tag:
+                  try:
+                      import json, urllib.request
+                      gh_token = os.environ.get("GITHUB_TOKEN", "")
+                      headers = {"Accept": "application/vnd.github+json", "User-Agent": "BDM-Release"}
+                      if gh_token:
+                          headers["Authorization"] = f"Bearer {gh_token}"
+                      req = urllib.request.Request(
+                          f"{os.environ.get('GITHUB_API_URL', 'https://api.github.com')}/repos/{repo}/releases/tags/{prev_tag}",
+                          headers=headers
+                      )
+                      with urllib.request.urlopen(req, timeout=10) as resp:
+                          data = json.loads(resp.read().decode())
+                          prev_body = data.get("body", "")
+                          wc_idx = prev_body.find("## What's Changed")
+                          if wc_idx != -1:
+                              prev_wc = prev_body[wc_idx + len("## What's Changed"):].strip()
+                              if prev_wc:
+                                  lines.append(f"<details>\n<summary><b>Previous Release Notes ({prev_tag})</b></summary>\n\n{prev_wc}\n</details>\n")
+                  except Exception as err:
+                      print(f"Notice: could not fetch previous release notes for {prev_tag}: {err}")
+
+              lines.append(f"\n**Full Changelog**: https://github.com/{repo}/compare/{prev_tag if prev_tag else tag}...{version}")
           except Exception as e:
               print(f"Warning: could not generate human-friendly release notes: {e}")
 
