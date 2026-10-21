@@ -8,59 +8,68 @@
     <name>tazihad</name>
   </developer>
 
-  <name>Bengal Download Manager</name>
-  <summary>High-speed multi-threaded download manager</summary>
+  <name>High speed downloader</name>
+  <summary>Download and manage files</summary>
 
   <description>
     <p>
-      Bengal Download Manager is a lightweight, open-source download manager
-      built with PyQt6 and Aria2. It features multi-threaded segment
-      acceleration, browser extension integration, proxy support, and
-      category organization.
+      Bengal Download Manager is a lightweight, open-source download manager.
+      It features multi-threaded segment acceleration, browser extension
+      integration, proxy support, and category organization.
     </p>
   </description>
 
   <screenshots>
-    <screenshot type="default">
+    <screenshot type="default" xml:lang="en">
       <caption>Bengal Download Manager in dark mode</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/01-main-app.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/01-main-app.webp</image>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <caption>Bengal Download Manager in light mode</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/02-main-app-light-mode.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/02-main-app-light-mode.webp</image>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <caption>Custom theme configuration</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/03-main-app-different-theme.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/03-main-app-different-theme.webp</image>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <caption>Media and video downloader tool</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/04-media-downloader.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/04-media-downloader.webp</image>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <caption>Batch site grabber tool</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/05-site-grabber.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/05-site-grabber.webp</image>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <caption>Automated download scheduler</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/06-scheduler.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/06-scheduler.webp</image>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <caption>Data usage and bandwidth monitor</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.webp</image>
     </screenshot>
   </screenshots>
 
   <releases>
-    <release version="0.3.2" date="2026-10-21">
+    <release version="0.3.3" date="2026-10-21">
       <description>
-        <p>Bengal Download Manager 0.3.2 changes:</p>
+        <p>Bengal Download Manager 0.3.3 changes:</p>
         <ul>
-          <li>Added autostart support for Flatpak via the XDG Desktop Background Portal</li>
-          <li>Ensured automatic startup works seamlessly without extra sandbox permissions</li>
-          <li>Updated application translations</li>
+          <li>Optimized interface screenshots using WebP format for faster catalog loading</li>
+          <li>Added language tagging to AppStream screenshots</li>
+          <li>Refined application summary and description in metadata</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.2" date="2026-10-21">
+        <description>
+            <p>Bengal Download Manager 0.3.2 changes:</p>
+            <ul>
+                <li>Added autostart support for Flatpak via the XDG Desktop Background Portal</li>
+                <li>Ensured automatic startup works seamlessly without extra sandbox permissions</li>
+                <li>Updated application translations</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.1" date="2026-10-21">
         <description>
