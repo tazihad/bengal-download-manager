@@ -195,6 +195,20 @@ def generate_notes_from_git(
     return notes
 
 
+def format_markdown_notes(
+    version: str,
+    notes: List[str],
+) -> str:
+    """Formats release notes as clean Markdown bullet points."""
+    clean_version = version.lstrip("v").split("-")[0]
+    lines = [
+        f"### 🚀 What's New in v{clean_version}\n"
+    ]
+    for item in notes:
+        lines.append(f"- {item}")
+    return "\n".join(lines)
+
+
 def format_appstream_xml(
     version: str,
     release_date: str,
@@ -225,13 +239,17 @@ if __name__ == "__main__":
     import argparse
     import datetime
 
-    parser = argparse.ArgumentParser(description="Generate AppStream release notes.")
+    parser = argparse.ArgumentParser(description="Generate AppStream & Markdown release notes.")
     parser.add_argument("--version", default="0.2.99", help="Target release version")
     parser.add_argument("--date", default=datetime.date.today().isoformat(), help="Release date (YYYY-MM-DD)")
     parser.add_argument("--from-tag", default=None, help="Starting git tag")
     parser.add_argument("--to-ref", default="HEAD", help="Ending git ref")
+    parser.add_argument("--format", choices=["xml", "markdown"], default="xml", help="Output format")
     args = parser.parse_args()
 
     bullet_notes = generate_notes_from_git(args.version, args.from_tag, args.to_ref)
-    xml_output = format_appstream_xml(args.version, args.date, bullet_notes)
-    print(xml_output)
+    if args.format == "markdown":
+        print(format_markdown_notes(args.version, bullet_notes))
+    else:
+        xml_output = format_appstream_xml(args.version, args.date, bullet_notes)
+        print(xml_output)
