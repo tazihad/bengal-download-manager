@@ -118,7 +118,7 @@ def _get_version():
     except Exception:
         pass
 
-    return "0.3.2"
+    return "0.3.3-alpha.1"
 
 VERSION = _get_version()
 
