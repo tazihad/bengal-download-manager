@@ -52,15 +52,25 @@
   </screenshots>
 
   <releases>
-    <release version="0.3.1" date="2026-10-21">
+    <release version="0.3.2" date="2026-10-21">
       <description>
-        <p>Bengal Download Manager 0.3.1 changes:</p>
+        <p>Bengal Download Manager 0.3.2 changes:</p>
         <ul>
-          <li>Resolved version display issue in Flatpak and Flathub builds</li>
-          <li>Improved application version reporting across packaging formats</li>
+          <li>Added autostart support for Flatpak via the XDG Desktop Background Portal</li>
+          <li>Ensured automatic startup works seamlessly without needing extra sandbox permissions</li>
           <li>Updated application translations</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.1" date="2026-10-21">
+        <description>
+            <p>Bengal Download Manager 0.3.1 changes:</p>
+            <ul>
+                <li>Resolved version display issue in Flatpak and Flathub builds</li>
+                <li>Improved application version reporting across packaging formats</li>
+                <li>Updated application translations</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.0" date="2026-10-21">
         <description>
