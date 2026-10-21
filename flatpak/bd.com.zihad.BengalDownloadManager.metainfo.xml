@@ -56,7 +56,9 @@
       <description>
         <p>Bengal Download Manager 0.3.0 changes:</p>
         <ul>
-          <li>General maintenance, bug fixes, and performance improvements.</li>
+          <li>Assets: Update, renumber, and optimize screenshots and feature branding posters</li>
+          <li>Options: Disable proxy credentials section when unchecked or unsupported</li>
+          <li>Assets: Create high-resolution branding posters for speed, ecosystem, and themes</li>
         </ul>
       </description>
     </release>
