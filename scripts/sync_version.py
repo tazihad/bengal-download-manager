@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import List, Optional
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
@@ -25,6 +26,13 @@ SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yaml")
 METAINFO_FILE = os.path.join(ROOT_DIR, "flatpak", "bd.com.zihad.BengalDownloadManager.metainfo.xml")
 PYPROJECT_FILE = os.path.join(ROOT_DIR, "pyproject.toml")
 VERSION_PY_FILE = os.path.join(ROOT_DIR, "src", "core", "version.py")
+
+# Import AppStream release notes generator helper
+try:
+    from scripts.generate_appstream_notes import format_appstream_xml, generate_notes_from_git
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from scripts.generate_appstream_notes import format_appstream_xml, generate_notes_from_git
 
 
 def read_root_version() -> str:
@@ -124,15 +132,67 @@ def update_snapcraft(ver: str):
         f.write(content)
 
 
-def update_metainfo(ver: str):
+def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     if not os.path.exists(METAINFO_FILE):
         return
     today = datetime.date.today().isoformat()
     clean_ver = ver.split("-")[0] if "-" in ver else ver
+
     with open(METAINFO_FILE, "r", encoding="utf-8") as f:
         content = f.read()
-    new_release = f"<releases>\n    <release version=\"{clean_ver}\" date=\"{today}\"/>\n  </releases>"
-    content = re.sub(r"<releases>.*?</releases>", new_release, content, flags=re.DOTALL)
+
+    # Generate release notes list (app src changes only for AppStream in-app notes)
+    if custom_notes:
+        notes = custom_notes
+    else:
+        notes = generate_notes_from_git(clean_ver, app_src_only=True)
+
+    new_release_block = format_appstream_xml(clean_ver, today, notes, indent="    ")
+
+    # Parse existing releases blocks
+    releases_match = re.search(r"<releases>(.*?)</releases>", content, flags=re.DOTALL)
+    if releases_match:
+        inner_releases = releases_match.group(1).strip()
+        # Find all individual <release ...>.*?</release> or self-closing <release .../>
+        existing_releases = re.findall(r"<release\s+[^>]*?(?:/>|>.*?</release>)", inner_releases, flags=re.DOTALL)
+
+        # Filter out existing release of same version to avoid duplicates
+        filtered_releases = []
+        for r in existing_releases:
+            m = re.search(r'version="([^"]+)"', r)
+            if m and m.group(1) == clean_ver:
+                continue
+            # Ensure clean 4-space indentation for inner lines
+            lines = [line.strip() for line in r.strip().splitlines() if line.strip()]
+            indented_lines = []
+            indent_level = 1
+            for line in lines:
+                if line.startswith("</release>"):
+                    indent_level = 1
+                elif line.startswith("</description>"):
+                    indent_level = 2
+                elif line.startswith("</ul>"):
+                    indent_level = 3
+                
+                indented_lines.append("    " * indent_level + line)
+                
+                if line.startswith("<release"):
+                    indent_level = 2
+                elif line.startswith("<description>"):
+                    indent_level = 3
+                elif line.startswith("<ul>"):
+                    indent_level = 4
+            filtered_releases.append("\n".join(indented_lines))
+
+        # Retain top 10 historical releases
+        all_releases = [new_release_block] + filtered_releases[:9]
+        formatted_inner = "\n" + "\n".join(all_releases) + "\n  "
+        new_releases_section = f"<releases>{formatted_inner}</releases>"
+        content = re.sub(r"<releases>.*?</releases>", new_releases_section, content, flags=re.DOTALL)
+    else:
+        new_releases_section = f"<releases>\n{new_release_block}\n  </releases>"
+        content = content.replace("</component>", f"  {new_releases_section}\n</component>")
+
     with open(METAINFO_FILE, "w", encoding="utf-8") as f:
         f.write(content)
 
@@ -167,11 +227,11 @@ def update_html_landing_page(ver: str):
             f.write(content)
 
 
-def sync_all(ver: str):
+def sync_all(ver: str, custom_notes: Optional[List[str]] = None):
     print(f"[*] Synchronizing SSOT version: {ver}")
     update_root_version(ver)
     update_snapcraft(ver)
-    update_metainfo(ver)
+    update_metainfo(ver, custom_notes=custom_notes)
     update_html_landing_page(ver)
     print("[✓] All manifests synchronized successfully.")
 
@@ -237,6 +297,8 @@ def main():
     parser.add_argument("--set", type=str, metavar="VER", help="Set specific version string across all manifests")
     parser.add_argument("--bump", choices=["patch", "minor", "major", "alpha"], help="Bump semantic version")
     parser.add_argument("--graduate", action="store_true", help="Graduate pre-release version (e.g. 0.3.34-alpha) to stable version (0.3.34)")
+    parser.add_argument("--notes", type=str, help="Custom release notes separated by newlines or semicolon")
+    parser.add_argument("--notes-file", type=str, help="Path to file containing release notes bullet points")
     parser.add_argument("--tag", action="store_true", help="Create Git tag after bump/set/graduate")
     parser.add_argument("--commit", action="store_true", help="Create Git commit after bump/set/graduate")
 
@@ -245,6 +307,16 @@ def main():
     if args.check:
         success = check_consistency()
         sys.exit(0 if success else 1)
+
+    custom_notes = None
+    if args.notes_file and os.path.exists(args.notes_file):
+        with open(args.notes_file, "r", encoding="utf-8") as f:
+            custom_notes = [line.strip().lstrip("-*• ") for line in f if line.strip()]
+    elif args.notes:
+        if "\n" in args.notes:
+            custom_notes = [n.strip().lstrip("-*• ") for n in args.notes.split("\n") if n.strip()]
+        else:
+            custom_notes = [n.strip().lstrip("-*• ") for n in args.notes.split(";") if n.strip()]
 
     new_ver = None
     if args.set:
@@ -257,7 +329,7 @@ def main():
         new_ver = bump_version(curr_ver, args.bump)
 
     if new_ver:
-        sync_all(new_ver)
+        sync_all(new_ver, custom_notes=custom_notes)
         if args.commit or args.tag:
             create_git_tag_and_commit(new_ver)
     else:

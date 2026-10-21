@@ -61,25 +61,29 @@ Bengal Download Manager is a high-performance download management tool built wit
 ### Main Application (Dark & Light Mode)
 
 <p align="center">
-  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshots/screenshot_dark_mode.png" />
-  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshots/screenshot_light_mode.png" />
+  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshots/01-main-app.webp" />
+  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshots/02-main-app-light-mode.webp" />
 </p>
 
-### One-Click Browser Integration & Settings
+### Media Downloader & Batch Site Grabber
 
 <p align="center">
-  <img width="49%" alt="Download Interception File Info Dialog" src="assets/screenshots/screenshot_download_dialog.png" />
-  <img width="49%" alt="Browser Extension Popup Settings" src="assets/screenshots/screenshot_extension_popup.png" />
+  <img width="49%" alt="Media and Video Stream Downloader" src="assets/screenshots/04-media-downloader.webp" />
+  <img width="49%" alt="Batch Site Grabber Tool" src="assets/screenshots/05-site-grabber.webp" />
 </p>
 
 ### Feature Branding Posters
 
 <p align="center">
-  <img width="100%" alt="Seamless Browser Integration Poster" src="assets/posters/poster_browser_integration.jpg" />
+  <img width="100%" alt="Batch Site Grabber & Automation Suite" src="assets/posters/poster_power_tools.jpg" />
 </p>
 
 <p align="center">
-  <img width="100%" alt="Complete Download Ecosystem Poster" src="assets/posters/poster_master_suite.jpg" />
+  <img width="100%" alt="Seamless Browser & Media Downloader Ecosystem" src="assets/posters/poster_ecosystem_integration.jpg" />
+</p>
+
+<p align="center">
+  <img width="100%" alt="Adaptive Desktop Themes & Modern UI Styling" src="assets/posters/poster_adaptive_themes.jpg" />
 </p>
 
 ## Key Features

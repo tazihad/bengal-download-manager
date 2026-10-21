@@ -100,3 +100,89 @@ def test_proxy_button_vertical_position_stability(qapp):
 
     dlg.close()
 
+
+def test_proxy_auth_username_password_disabled_when_unchecked_or_unsupported(qapp):
+    from ui.dialogs.options import OptionsDialog
+
+    dlg = OptionsDialog(initial_tab=7)
+    dlg._proxy_debounce_timer.stop()
+    dlg._cleanup_proxy_worker()
+    dlg.show()
+    qapp.processEvents()
+
+    # 1. Manual proxy enabled, auth unchecked -> username & password disabled
+    dlg.rb_manual.setChecked(True)
+    dlg.rb_http.setChecked(True)
+    dlg.chk_auth.setChecked(False)
+    qapp.processEvents()
+
+    assert dlg.lbl_user.isEnabled() is False
+    assert dlg.txt_user.isEnabled() is False
+    assert dlg.lbl_pass.isEnabled() is False
+    assert dlg.txt_pass.isEnabled() is False
+
+    # 2. Check auth with HTTP -> both username and password enabled
+    dlg.chk_auth.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.lbl_user.isEnabled() is True
+    assert dlg.txt_user.isEnabled() is True
+    assert dlg.lbl_pass.isEnabled() is True
+    assert dlg.txt_pass.isEnabled() is True
+    assert dlg.chk_auth.text() == "Authentication required"
+    assert dlg.txt_pass.placeholderText() == ""
+
+    # 3. Select SOCKS4 with auth checked -> username enabled, password disabled (unsupported)
+    dlg.rb_socks4.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.lbl_user.isEnabled() is True
+    assert dlg.txt_user.isEnabled() is True
+    assert dlg.lbl_pass.isEnabled() is False
+    assert dlg.txt_pass.isEnabled() is False
+    assert "SOCKS4" in dlg.chk_auth.text()
+    assert dlg.txt_pass.placeholderText() == "Not supported by SOCKS4"
+
+    # 4. Uncheck auth in SOCKS4 -> both username and password disabled
+    dlg.chk_auth.setChecked(False)
+    qapp.processEvents()
+
+    assert dlg.lbl_user.isEnabled() is False
+    assert dlg.txt_user.isEnabled() is False
+    assert dlg.lbl_pass.isEnabled() is False
+    assert dlg.txt_pass.isEnabled() is False
+
+    # 5. Switch to SOCKS5 and recheck auth -> both username and password enabled
+    dlg.chk_auth.setChecked(True)
+    dlg.rb_socks5.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.lbl_user.isEnabled() is True
+    assert dlg.txt_user.isEnabled() is True
+    assert dlg.lbl_pass.isEnabled() is True
+    assert dlg.txt_pass.isEnabled() is True
+    assert dlg.chk_auth.text() == "Authentication required"
+    assert dlg.txt_pass.placeholderText() == ""
+
+    # 6. Switch to HTTPS -> both username and password enabled
+    dlg.rb_https.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.lbl_user.isEnabled() is True
+    assert dlg.txt_user.isEnabled() is True
+    assert dlg.lbl_pass.isEnabled() is True
+    assert dlg.txt_pass.isEnabled() is True
+
+    # 7. Select No proxy / Direct -> everything disabled
+    dlg.rb_no_proxy.setChecked(True)
+    qapp.processEvents()
+
+    assert dlg.grp_manual.isEnabled() is False
+    assert dlg.lbl_user.isEnabled() is False
+    assert dlg.txt_user.isEnabled() is False
+    assert dlg.lbl_pass.isEnabled() is False
+    assert dlg.txt_pass.isEnabled() is False
+
+    dlg.close()
+
+

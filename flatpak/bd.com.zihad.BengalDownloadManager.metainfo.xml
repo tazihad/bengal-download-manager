@@ -23,24 +23,95 @@
   <screenshots>
     <screenshot type="default">
       <caption>Bengal Download Manager in dark mode</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/main-app.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/01-main-app.png</image>
     </screenshot>
     <screenshot>
       <caption>Bengal Download Manager in light mode</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/main-app-light-mode.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/02-main-app-light-mode.png</image>
     </screenshot>
     <screenshot>
       <caption>Custom theme configuration</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/main-app-different-theme.png</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/03-main-app-different-theme.png</image>
     </screenshot>
     <screenshot>
-      <caption>Media downloader tool</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/media-downloader.png</image>
+      <caption>Media and video downloader tool</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/04-media-downloader.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Batch site grabber tool</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/05-site-grabber.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Automated download scheduler</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/06-scheduler.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Data usage and bandwidth monitor</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.png</image>
     </screenshot>
   </screenshots>
 
   <releases>
-    <release version="0.2.99" date="2026-10-20"/>
+    <release version="0.3.0" date="2026-10-21">
+      <description>
+        <p>Bengal Download Manager 0.3.0 changes:</p>
+        <ul>
+          <li>Assets: Provide PNG format screenshots for AppStream catalog compatibility</li>
+          <li>Assets: Update, renumber, and optimize screenshots and feature branding posters</li>
+          <li>Options: Disable proxy credentials section when unchecked or unsupported</li>
+          <li>Assets: Create high-resolution branding posters for speed, ecosystem, and themes</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.99" date="2026-10-20">
+        <description>
+            <p>Bengal Download Manager 0.2.99 changes:</p>
+            <ul>
+                <li>Snap: Add common-id for AppStream metadata matching</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.98" date="2026-10-18">
+        <description>
+            <p>Bengal Download Manager 0.2.98 changes:</p>
+            <ul>
+                <li>I18n: Streamline translation workflow with Gemini AI integration</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.97" date="2026-10-17">
+        <description>
+            <p>Bengal Download Manager 0.2.97 changes:</p>
+            <ul>
+                <li>I18n: Sanitize broken menu mnemonics for Bengali and complex scripts</li>
+                <li>I18n: Replace Hind Siliguri with Noto Sans Bengali UI and Kalpurush to resolve broken conjuncts</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.96" date="2026-10-16">
+        <description>
+            <p>Bengal Download Manager 0.2.96 changes:</p>
+            <ul>
+                <li>I18n: Implement complete application localization and multilingual support</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.95" date="2026-10-14">
+        <description>
+            <p>Bengal Download Manager 0.2.95 changes:</p>
+            <ul>
+                <li>Ui: Add Chroma icons, highlighted text color option, adaptive selection contrast, and uncramped options sizing</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.94" date="2026-10-12">
+        <description>
+            <p>Bengal Download Manager 0.2.94 changes:</p>
+            <ul>
+                <li>Wayland: Resolve ctypes function prototype cache mutation segfault on KDE Plasma</li>
+            </ul>
+        </description>
+    </release>
   </releases>
 
   <provides>
