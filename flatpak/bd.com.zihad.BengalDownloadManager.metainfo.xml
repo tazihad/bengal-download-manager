@@ -40,7 +40,55 @@
   </screenshots>
 
   <releases>
-    <release version="0.2.99" date="2026-10-20"/>
+    <release version="0.2.99" date="2026-10-20">
+      <description>
+        <p>Bengal Download Manager 0.2.99 changes:</p>
+        <ul>
+          <li>Snap: Add common-id for AppStream metadata matching</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.98" date="2026-10-18">
+      <description>
+        <p>Bengal Download Manager 0.2.98 changes:</p>
+        <ul>
+          <li>I18n: Streamline translation workflow with Gemini AI integration</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.97" date="2026-10-17">
+      <description>
+        <p>Bengal Download Manager 0.2.97 changes:</p>
+        <ul>
+          <li>I18n: Sanitize broken menu mnemonics for Bengali and complex scripts</li>
+          <li>I18n: Replace Hind Siliguri with Noto Sans Bengali UI and Kalpurush to resolve broken conjuncts</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.96" date="2026-10-16">
+      <description>
+        <p>Bengal Download Manager 0.2.96 changes:</p>
+        <ul>
+          <li>I18n: Implement complete application localization and multilingual support</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.95" date="2026-10-14">
+      <description>
+        <p>Bengal Download Manager 0.2.95 changes:</p>
+        <ul>
+          <li>Ui: Add Chroma icons, highlighted text color option, adaptive selection contrast, and uncramped options sizing</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.94" date="2026-10-12">
+      <description>
+        <p>Bengal Download Manager 0.2.94 changes:</p>
+        <ul>
+          <li>Wayland: Resolve ctypes function prototype cache mutation segfault on KDE Plasma</li>
+        </ul>
+      </description>
+    </release>
   </releases>
 
   <provides>
