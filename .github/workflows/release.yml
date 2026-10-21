@@ -361,18 +361,6 @@ jobs:
 
           lines = []
 
-          # Insert Human-Friendly Release Notes generated via scripts/generate_appstream_notes.py
-          try:
-              import sys
-              sys.path.insert(0, os.path.abspath(".."))
-              from scripts.generate_appstream_notes import generate_notes_from_git, format_markdown_notes
-              bullet_notes = generate_notes_from_git(version, to_ref="HEAD")
-              if bullet_notes:
-                  lines.append(format_markdown_notes(version, bullet_notes))
-                  lines.append("\n---\n")
-          except Exception as e:
-              print(f"Warning: could not generate human-friendly release notes: {e}")
-
           has_linux = any(len(items) > 0 for items in linux_groups.values())
           if has_linux:
               lines.append("### 🐧 Linux\n")
@@ -482,6 +470,20 @@ jobs:
               lines.append("```")
               lines.append("</details>\n")
 
+          # Human-Friendly What's Changed
+          try:
+              import sys
+              sys.path.insert(0, os.path.abspath(".."))
+              from scripts.generate_appstream_notes import generate_notes_from_git, format_markdown_notes
+              bullet_notes = generate_notes_from_git(version, to_ref="HEAD")
+              if bullet_notes:
+                  lines.append("## What's Changed\n")
+                  for note in bullet_notes:
+                      lines.append(f"* {note}")
+                  lines.append(f"\n**Full Changelog**: https://github.com/{repo}/compare/{tag}...{version}")
+          except Exception as e:
+              print(f"Warning: could not generate human-friendly release notes: {e}")
+
           with open("../release_body.md", "w") as f:
               f.write("\n".join(lines))
           EOF
@@ -501,7 +503,7 @@ jobs:
           files: release_dist/*
           draft: false
           prerelease: ${{ contains(needs.prepare.outputs.tag, 'alpha') || contains(needs.prepare.outputs.tag, 'beta') || contains(needs.prepare.outputs.tag, 'rc') || inputs.is_prerelease }}
-          generate_release_notes: true
+          generate_release_notes: false
           append_body: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
