@@ -162,10 +162,27 @@ def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
             m = re.search(r'version="([^"]+)"', r)
             if m and m.group(1) == clean_ver:
                 continue
-            # Ensure indentation is clean
-            clean_r = "    " + r.strip()
-            clean_r = re.sub(r"\n\s*", "\n    ", clean_r)
-            filtered_releases.append(clean_r)
+            # Ensure clean 4-space indentation for inner lines
+            lines = [line.strip() for line in r.strip().splitlines() if line.strip()]
+            indented_lines = []
+            indent_level = 1
+            for line in lines:
+                if line.startswith("</release>"):
+                    indent_level = 1
+                elif line.startswith("</description>"):
+                    indent_level = 2
+                elif line.startswith("</ul>"):
+                    indent_level = 3
+                
+                indented_lines.append("    " * indent_level + line)
+                
+                if line.startswith("<release"):
+                    indent_level = 2
+                elif line.startswith("<description>"):
+                    indent_level = 3
+                elif line.startswith("<ul>"):
+                    indent_level = 4
+            filtered_releases.append("\n".join(indented_lines))
 
         # Retain top 10 historical releases
         all_releases = [new_release_block] + filtered_releases[:9]
