@@ -56,9 +56,9 @@
       <description>
         <p>Bengal Download Manager 0.3.2 changes:</p>
         <ul>
-          <li>Added autostart support for Flatpak via the XDG Desktop Background Portal</li>
-          <li>Ensured automatic startup works seamlessly without needing extra sandbox permissions</li>
-          <li>Updated application translations</li>
+          <li>Added Flatpak application logo to autostart desktop entry for user and system installations</li>
+          <li>Resolved missing autostart icon in system tray and application startup settings</li>
+          <li>Added autostart directory filesystem integration to Flatpak manifest</li>
         </ul>
       </description>
     </release>
