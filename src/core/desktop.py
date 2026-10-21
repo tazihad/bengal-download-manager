@@ -44,6 +44,24 @@ def choose_open_file_path(title: str = "Select File", folder: str = "") -> Optio
     return choose_portal_open_file_path(title=title, folder=folder)
 
 
+def is_running_in_flatpak() -> bool:
+    """Checks whether the application is running inside a Flatpak container sandbox."""
+    from core.utils import is_running_in_flatpak as _utils_is_flatpak
+    return _utils_is_flatpak()
+
+
+def is_user_flatpak() -> bool:
+    """Checks whether the application is running as a user (--user) Flatpak installation."""
+    from core.utils import is_user_flatpak as _utils_is_user_flatpak
+    return _utils_is_user_flatpak()
+
+
+def get_flatpak_autostart_icon() -> str:
+    """Resolves the canonical Flatpak icon path for autostart entries."""
+    from core.utils import get_flatpak_autostart_icon as _utils_get_icon
+    return _utils_get_icon()
+
+
 def is_autostart_enabled() -> bool:
     """Checks whether autostart is enabled in system desktop entries."""
     from core.utils import is_autostart_enabled as _utils_is_autostart
