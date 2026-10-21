@@ -124,6 +124,7 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --collect-all ui \
     --collect-all python_socks \
     --add-data "$RUNTIME_ASSETS_DIR:assets" \
+    --add-data "$ROOT_DIR/VERSION:." \
     --distpath "dist" \
     --workpath "$WORK_DIR" \
     --noconfirm src/main.py
@@ -135,8 +136,11 @@ mkdir -p "$BUILD_DIR/files/bin" \
         "$BUILD_DIR/files/share/applications" \
         "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
         "$BUILD_DIR/files/share/metainfo" \
+        "$BUILD_DIR/files/share/bengal-download-manager" \
         "$BUILD_DIR/files/share/app-info/xmls" \
         "$BUILD_DIR/files/share/app-info/icons/flatpak"
+
+cp "$ROOT_DIR/VERSION" "$BUILD_DIR/files/share/bengal-download-manager/VERSION"
 
 cp -a dist/bengal-download-manager/. "$BUILD_DIR/files/lib/bengal-download-manager/"
 chmod +x "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager"

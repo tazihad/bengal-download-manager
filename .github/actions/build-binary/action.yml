@@ -17,7 +17,7 @@ runs:
       run: |
         VERSION="${{ inputs.version }}"
         echo "Updating VERSION to $VERSION"
-        echo "VERSION = \"$VERSION\"" > src/core/version.py
+        python3 scripts/sync_version.py --set "$VERSION"
 
     - name: Build Application
       shell: bash

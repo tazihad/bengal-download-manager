@@ -40,6 +40,7 @@ add_custom_command(
             --collect-all ui
             --collect-all python_socks
             --add-data "${RUNTIME_ASSETS_DIR}${SEP}assets"
+            --add-data "${ROOT_DIR}/VERSION${SEP}."
             --distpath "${DIST_DIR}"
             --workpath "${WORK_BUILD_DIR}"
             --specpath "${SPEC_DIR}"
@@ -64,6 +65,12 @@ add_custom_target(
 
 # Install target for application binary
 install(PROGRAMS "${DIST_DIR}/${EXECUTABLE_NAME}" DESTINATION bin)
+
+# Install VERSION file into share/bengal-download-manager
+if(EXISTS "${ROOT_DIR}/VERSION")
+    install(FILES "${ROOT_DIR}/VERSION"
+            DESTINATION share/bengal-download-manager)
+endif()
 
 # Standard App ID for desktop and metainfo assets
 set(FLATPAK_ID "bd.com.zihad.BengalDownloadManager")

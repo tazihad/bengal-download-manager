@@ -63,7 +63,7 @@ except ImportError:
 
 echo "--- 2. Executing Snapcraft Build ---"
 if [ -z "${APP_VERSION:-}" ]; then
-    APP_VERSION=$($PY_BIN -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || echo "0.2.20")
+    APP_VERSION=$($PY_BIN -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || cat VERSION 2>/dev/null || echo "0.3.0")
     export APP_VERSION
 fi
 echo "Target snap version: $APP_VERSION"

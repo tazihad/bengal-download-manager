@@ -39,13 +39,13 @@ def read_root_version() -> str:
     if os.path.exists(VERSION_FILE):
         with open(VERSION_FILE, "r", encoding="utf-8") as f:
             return f.read().strip()
-    return "0.2.20"
+    return "0.3.0"
 
 
 def parse_semver(ver: str) -> tuple[int, int, int, str, int]:
     m = re.match(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([a-zA-Z]+)\.([0-9]+))?$", ver)
     if not m:
-        return 0, 2, 20, "", 0
+        return 0, 3, 0, "", 0
     major = int(m.group(1))
     minor = int(m.group(2))
     patch_num = int(m.group(3))
@@ -227,12 +227,39 @@ def update_html_landing_page(ver: str):
             f.write(content)
 
 
+def update_version_py(ver: str):
+    clean_ver = ver.lstrip("v")
+    if os.path.exists(VERSION_PY_FILE):
+        with open(VERSION_PY_FILE, "r", encoding="utf-8") as f:
+            content = f.read()
+        content = re.sub(
+            r'return\s+["\'][0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]*)?["\']',
+            f'return "{clean_ver}"',
+            content
+        )
+        with open(VERSION_PY_FILE, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    build_info_file = os.path.join(ROOT_DIR, "src", "core", "build_info.py")
+    if os.path.exists(build_info_file):
+        with open(build_info_file, "r", encoding="utf-8") as f:
+            b_content = f.read()
+        b_content = re.sub(
+            r'version\s*=\s*["\'][0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]*)?["\']',
+            f'version = "{clean_ver}"',
+            b_content
+        )
+        with open(build_info_file, "w", encoding="utf-8") as f:
+            f.write(b_content)
+
+
 def sync_all(ver: str, custom_notes: Optional[List[str]] = None):
     print(f"[*] Synchronizing SSOT version: {ver}")
     update_root_version(ver)
     update_snapcraft(ver)
     update_metainfo(ver, custom_notes=custom_notes)
     update_html_landing_page(ver)
+    update_version_py(ver)
     print("[✓] All manifests synchronized successfully.")
 
 
@@ -264,6 +291,15 @@ def check_consistency() -> bool:
             if 'version = { file = "VERSION" }' not in pyproject_content and f'version = "{root_ver}"' not in pyproject_content:
                 errors.append("pyproject.toml does not reference VERSION file dynamically or match root_ver")
 
+    # 4. src/core/version.py fallback check
+    if os.path.exists(VERSION_PY_FILE):
+        clean_root = root_ver.lstrip("v")
+        with open(VERSION_PY_FILE, "r", encoding="utf-8") as f:
+            m = re.search(r'return\s+["\']([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]*)?)["\']', f.read())
+            if not m or m.group(1) != clean_root:
+                found = m.group(1) if m else "None"
+                errors.append(f"src/core/version.py fallback ({found}) != VERSION ({clean_root})")
+
     if errors:
         print("[!] Version consistency check FAILED:")
         for err in errors:
@@ -281,6 +317,8 @@ def create_git_tag_and_commit(ver: str):
         SNAPCRAFT_FILE,
         METAINFO_FILE,
         PYPROJECT_FILE,
+        VERSION_PY_FILE,
+        os.path.join(ROOT_DIR, "src", "core", "build_info.py"),
         os.path.join(ROOT_DIR, "index.html"),
     ]
     staged = [f for f in files_to_stage if os.path.exists(f)]
