@@ -3,8 +3,15 @@ Unit tests for AppStream release notes generation and version synchronization.
 """
 
 import os
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
+
+# Ensure repository root is in sys.path so 'scripts' can be imported during tests
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from scripts.generate_appstream_notes import (
     clean_commit_message,
     format_appstream_xml,
