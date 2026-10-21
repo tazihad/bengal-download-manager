@@ -1036,18 +1036,18 @@ class OptionsDialog(QDialog):
         manual_layout.addWidget(self.chk_auth)
         
         auth_layout = QGridLayout()
-        lbl_user = QLabel(self.tr("Username:"))
-        lbl_user.setToolTip(self.tr("Username for proxy authentication"))
-        auth_layout.addWidget(lbl_user, 0, 0)
+        self.lbl_user = QLabel(self.tr("Username:"))
+        self.lbl_user.setToolTip(self.tr("Username for proxy authentication"))
+        auth_layout.addWidget(self.lbl_user, 0, 0)
         self.txt_user = QLineEdit()
         self.txt_user.setToolTip(self.tr("Username for proxy server authentication"))
         self.txt_user.textChanged.connect(self.save_proxy_data)
         self.txt_user.textChanged.connect(self.refresh_engine_status)
         auth_layout.addWidget(self.txt_user, 0, 1)
         
-        lbl_pass = QLabel(self.tr("Password:"))
-        lbl_pass.setToolTip(self.tr("Password for proxy authentication"))
-        auth_layout.addWidget(lbl_pass, 1, 0)
+        self.lbl_pass = QLabel(self.tr("Password:"))
+        self.lbl_pass.setToolTip(self.tr("Password for proxy authentication"))
+        auth_layout.addWidget(self.lbl_pass, 1, 0)
         self.txt_pass = QLineEdit()
         self.txt_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_pass.setToolTip(self.tr("Password for proxy server authentication"))
@@ -1763,12 +1763,42 @@ class OptionsDialog(QDialog):
         
         is_socks4 = hasattr(self, "rb_socks4") and self.rb_socks4.isChecked()
         auth = self.chk_auth.isChecked() and manual
-        self.txt_user.setEnabled(auth)
-        self.txt_pass.setEnabled(auth and not is_socks4)
+
+        if hasattr(self, "lbl_user"):
+            self.lbl_user.setEnabled(auth)
+        if hasattr(self, "txt_user"):
+            self.txt_user.setEnabled(auth)
+
+        pass_supported = not is_socks4
+        pass_enabled = auth and pass_supported
+
+        if hasattr(self, "lbl_pass"):
+            self.lbl_pass.setEnabled(pass_enabled)
+        if hasattr(self, "txt_pass"):
+            self.txt_pass.setEnabled(pass_enabled)
+
         if is_socks4:
             self.chk_auth.setText(self.tr("User identity required (SOCKS4)"))
+            if hasattr(self, "lbl_user"):
+                self.lbl_user.setToolTip(self.tr("User identity for SOCKS4 proxy"))
+            if hasattr(self, "txt_user"):
+                self.txt_user.setToolTip(self.tr("User identity for SOCKS4 proxy"))
+            if hasattr(self, "lbl_pass"):
+                self.lbl_pass.setToolTip(self.tr("SOCKS4 proxy protocol does not support password authentication"))
+            if hasattr(self, "txt_pass"):
+                self.txt_pass.setPlaceholderText(self.tr("Not supported by SOCKS4"))
+                self.txt_pass.setToolTip(self.tr("SOCKS4 proxy protocol does not support password authentication"))
         else:
             self.chk_auth.setText(self.tr("Authentication required"))
+            if hasattr(self, "lbl_user"):
+                self.lbl_user.setToolTip(self.tr("Username for proxy authentication"))
+            if hasattr(self, "txt_user"):
+                self.txt_user.setToolTip(self.tr("Username for proxy server authentication"))
+            if hasattr(self, "lbl_pass"):
+                self.lbl_pass.setToolTip(self.tr("Password for proxy authentication"))
+            if hasattr(self, "txt_pass"):
+                self.txt_pass.setPlaceholderText("")
+                self.txt_pass.setToolTip(self.tr("Password for proxy server authentication"))
 
     def save_proxy_data(self):
         mode = "manual" if self.rb_manual.isChecked() else "no_proxy"
