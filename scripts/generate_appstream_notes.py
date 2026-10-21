@@ -81,7 +81,8 @@ def get_sorted_git_tags() -> List[str]:
 def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
     """
     Finds the tag preceding target_version.
-    If target_version is None or matches the highest tag, returns the tag before it.
+    For pre-releases (e.g. 0.3.0-alpha.2), finds the tag preceding the base release series
+    or previous tag to accumulate changes properly.
     """
     tags = get_sorted_git_tags()
     if not tags:
@@ -91,12 +92,22 @@ def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
         return tags[0] if len(tags) > 0 else None
 
     clean_target = target_version.lstrip("v")
+    base_target = clean_target.split("-")[0]
+
+    # Find the first tag that belongs to an earlier version
+    for tag in tags:
+        clean_tag = tag.lstrip("v")
+        base_tag = clean_tag.split("-")[0]
+        if base_tag != base_target:
+            return tag
+
+    # Fallback to next tag in list if not found
     for i, tag in enumerate(tags):
         if tag.lstrip("v") == clean_target:
             if i + 1 < len(tags):
                 return tags[i + 1]
             return None
-    # If target_version is not yet tagged, previous tag is the latest existing tag
+
     return tags[0]
 
 
