@@ -1759,7 +1759,113 @@ def get_executable_command(start_minimized=False):
     return f'"{sys.executable}" "{main_py}"{min_flag}'
 
 
+def is_running_in_flatpak() -> bool:
+    """Checks whether the application is currently running inside a Flatpak sandbox."""
+    return os.path.exists("/.flatpak-info") or bool(os.environ.get("FLATPAK_ID"))
+
+
+def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) -> bool:
+    """
+    Configures autostart via the XDG Desktop Background Portal (org.freedesktop.portal.Background).
+    This is the standard mechanism for Flatpak sandboxes, creating or removing host autostart
+    entries without requiring host filesystem access permissions.
+    """
+    portal_success = False
+
+    # 1. Try invoking via gdbus CLI (which correctly marshals 'as' commandline arrays)
+    if shutil.which("gdbus"):
+        try:
+            cmd = [
+                "gdbus", "call", "--session",
+                "--dest", "org.freedesktop.portal.Desktop",
+                "--object-path", "/org/freedesktop/portal/desktop",
+                "--method", "org.freedesktop.portal.Background.RequestBackground",
+                "",
+            ]
+            if enabled:
+                cmd_args = ["bengal-download-manager"]
+                if start_minimized:
+                    cmd_args.append("--minimized")
+                formatted_args = ", ".join(f"'{a}'" for a in cmd_args)
+                body = (
+                    f"{{'reason': <'Launch Bengal Download Manager on system startup'>, "
+                    f"'autostart': <true>, 'commandline': <[{formatted_args}]>, "
+                    f"'dbus-activatable': <false>}}"
+                )
+            else:
+                body = (
+                    "{'reason': <'Disable Bengal Download Manager autostart'>, "
+                    "'autostart': <false>, 'dbus-activatable': <false>}"
+                )
+
+            res = subprocess.run(
+                cmd + [body],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False
+            )
+            if res.returncode == 0:
+                portal_success = True
+        except Exception as e:
+            print(f"Failed to call portal Background via gdbus: {e}")
+
+    # 2. Fallback to PyQt6 QDBus if gdbus is not present or failed
+    if not portal_success:
+        try:
+            from PyQt6.QtDBus import QDBusConnection, QDBusMessage
+            from PyQt6.QtCore import QVariant
+
+            bus = QDBusConnection.sessionBus()
+            if bus.isConnected():
+                msg = QDBusMessage.createMethodCall(
+                    "org.freedesktop.portal.Desktop",
+                    "/org/freedesktop/portal/desktop",
+                    "org.freedesktop.portal.Background",
+                    "RequestBackground"
+                )
+                opts = {
+                    "reason": QVariant("Launch Bengal Download Manager on system startup" if enabled else "Disable Bengal Download Manager autostart"),
+                    "autostart": QVariant(bool(enabled)),
+                    "dbus-activatable": QVariant(False),
+                }
+                msg.setArguments(["", opts])
+                reply = bus.call(msg)
+                if reply.type() != QDBusMessage.MessageType.ErrorMessage:
+                    portal_success = True
+        except Exception as e:
+            print(f"Failed to call portal Background via QDBus: {e}")
+
+    # Synchronize sandbox state so is_autostart_enabled() reflects current setting
+    filepath = get_autostart_filepath()
+    autostart_dir = os.path.dirname(filepath)
+    if enabled:
+        try:
+            os.makedirs(autostart_dir, exist_ok=True)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(
+                    f"[Desktop Entry]\n"
+                    f"Type=Application\n"
+                    f"Name=Bengal Download Manager\n"
+                    f"Exec=bengal-download-manager{' --minimized' if start_minimized else ''}\n"
+                    f"X-XDP-Autostart=true\n"
+                )
+        except Exception:
+            pass
+    else:
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception:
+            pass
+
+    return portal_success
+
+
 def set_autostart_enabled(enabled, start_minimized=False):
+    if is_running_in_flatpak():
+        return _set_flatpak_autostart_portal(enabled, start_minimized=start_minimized)
+
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
     if enabled:
