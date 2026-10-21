@@ -52,16 +52,26 @@
   </screenshots>
 
   <releases>
-    <release version="0.3.0" date="2026-10-21">
+    <release version="0.3.1" date="2026-10-21">
       <description>
-        <p>Bengal Download Manager 0.3.0 changes:</p>
+        <p>Bengal Download Manager 0.3.1 changes:</p>
         <ul>
-          <li>Assets: Provide PNG format screenshots for AppStream catalog compatibility</li>
-          <li>Assets: Update, renumber, and optimize screenshots and feature branding posters</li>
-          <li>Options: Disable proxy credentials section when unchecked or unsupported</li>
-          <li>Assets: Create high-resolution branding posters for speed, ecosystem, and themes</li>
+          <li>Resolved version display issue in Flatpak and Flathub builds</li>
+          <li>Improved application version reporting across packaging formats</li>
+          <li>Updated application translations</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.0" date="2026-10-21">
+        <description>
+            <p>Bengal Download Manager 0.3.0 changes:</p>
+            <ul>
+                <li>Assets: Provide PNG format screenshots for AppStream catalog compatibility</li>
+                <li>Assets: Update, renumber, and optimize screenshots and feature branding posters</li>
+                <li>Options: Disable proxy credentials section when unchecked or unsupported</li>
+                <li>Assets: Create high-resolution branding posters for speed, ecosystem, and themes</li>
+            </ul>
+        </description>
     </release>
     <release version="0.2.99" date="2026-10-20">
         <description>
