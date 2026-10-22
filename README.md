@@ -12,15 +12,17 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/tazihad/bengal-download-manager?style=flat-square&color=06b6d4&label=release)](https://github.com/tazihad/bengal-download-manager/releases/latest)
 [![bengal-download-manager](https://snapcraft.io/bengal-download-manager/badge.svg)](https://snapcraft.io/bengal-download-manager)
+[![Flathub](https://img.shields.io/flathub/v/bd.com.zihad.BengalDownloadManager?style=flat-square&color=4a90e2&label=flathub)](https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager)
 [![Downloads](https://img.shields.io/github/downloads/tazihad/bengal-download-manager/total?style=flat-square&color=22c55e)](https://github.com/tazihad/bengal-download-manager/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Snap%20%7C%20Flatpak%20%7C%20AppImage-8b5cf6?style=flat-square)](#build-instructions)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Snap%20%7C%20Flathub%20%7C%20Flatpak%20%7C%20AppImage-8b5cf6?style=flat-square)](#build-instructions)
 
 </div>
 
 ### Get App
 
 <a href="https://snapcraft.io/bengal-download-manager"><img src="https://snapcraft.io/en/dark/install.svg" alt="Get it from the Snap Store" height="48" /></a>
+<a href="https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager"><img src="https://flathub.org/api/badge?locale=en" alt="Get it on Flathub" height="48" /></a>
 <a href="https://github.com/tazihad/bengal-download-manager/releases/latest"><img src="assets/badges/badge_appimage.svg" alt="Download AppImage" height="48" /></a>
 <a href="https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref"><img src="assets/badges/badge_flatpak.svg" alt="Install via Flatpak" height="48" /></a>
 
@@ -109,16 +111,20 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 | Format | Supported Architectures | Quick Command / Link |
 | :--- | :--- | :--- |
 | **Snap Store** | `x86_64`, `arm64` | `sudo snap install bengal-download-manager` / [Snapcraft](https://snapcraft.io/bengal-download-manager) |
+| **Flathub** | `x86_64`, `aarch64` | `flatpak install flathub bd.com.zihad.BengalDownloadManager` / [Flathub](https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager) |
 | **Flatpak (Repository)** | `x86_64`, `aarch64` | `flatpak install https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref` |
 | **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 | **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 
 #### Flatpak Quick Start (Online Repository & Auto-Updates)
 ```bash
-# 1-Click / One-Command Install via Flatpakref
+# Install from Flathub
+flatpak install flathub bd.com.zihad.BengalDownloadManager
+
+# 1-Click / One-Command Install via Flatpakref (Git Source)
 flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref
 
-# Or Add Flathub-Standard Remote Repository
+# Or Add Flathub-Standard Remote Repository (Git Source)
 flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo
 flatpak install --user tazihad bd.com.zihad.BengalDownloadManager
 ```

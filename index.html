@@ -75,7 +75,7 @@
         "name": "Which Linux distributions are supported?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS via Flatpak, Snap Store, universal AppImage, or standalone binaries for both x86_64 and aarch64."
+          "text": "Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS via Flathub, Flatpak, Snap Store, universal AppImage, or standalone binaries for both x86_64 and aarch64."
         }
       },
       {
@@ -337,6 +337,13 @@
     }
 
     .badge-snap-dark {
+      height: 52px;
+      width: auto;
+      border-radius: 0;
+      display: block;
+    }
+
+    .badge-flathub {
       height: 52px;
       width: auto;
       border-radius: 0;
@@ -1074,11 +1081,16 @@
             </select>
           </div>
 
-          <!-- 3 Main Application Packages Row -->
+          <!-- Main Application Packages Row -->
           <div class="hero-badges-row">
             <!-- Snap Store Official Light Badge -->
             <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener" class="badge-link" title="Get it from the Snap Store">
               <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" class="badge-snap-dark" />
+            </a>
+
+            <!-- Flathub Official Badge -->
+            <a href="https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager" target="_blank" rel="noopener" class="badge-link" title="Get it on Flathub">
+              <img alt="Get it on Flathub" src="https://flathub.org/api/badge?locale=en" class="badge-flathub" />
             </a>
 
             <!-- AppImage Custom Store Badge -->
@@ -1373,7 +1385,7 @@
       <div class="install-nav">
         <button class="install-nav-btn active" onclick="switchTab('snap', this)">📦 Snap Store</button>
         <button class="install-nav-btn" onclick="switchTab('appimage', this)">🚀 AppImage</button>
-        <button class="install-nav-btn" onclick="switchTab('flatpak', this)">📦 Flatpak</button>
+        <button class="install-nav-btn" onclick="switchTab('flatpak', this)">📦 Flatpak &amp; Flathub</button>
       </div>
 
       <!-- Snap Panel -->
@@ -1440,11 +1452,28 @@
         </div>
       </div>
 
-      <!-- Flatpak Panel -->
+      <!-- Flatpak & Flathub Panel -->
       <div id="tab-flatpak" class="install-body">
+        <!-- Flathub Section -->
+        <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+          <div style="margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+            <a href="https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager" target="_blank" rel="noopener">
+              <img alt="Get it on Flathub" src="https://flathub.org/api/badge?locale=en" style="height: 52px;" />
+            </a>
+            <span style="font-size: 13px; color: var(--text-dim);">Official Flathub Release &bull; Sandboxed with auto-updates</span>
+          </div>
+
+          <div style="font-weight: 600; font-size: 13px; color: var(--plasma-amber); margin-bottom: 8px;">Install from Flathub:</div>
+          <div class="cli-box font-mono" style="margin-bottom: 10px;">
+            <button class="copy-btn" onclick="copyCode('flatpak install flathub bd.com.zihad.BengalDownloadManager', this)">Copy</button>
+            <code><span class="cli-prompt">$</span>flatpak install flathub bd.com.zihad.BengalDownloadManager</code>
+          </div>
+        </div>
+
+        <!-- Direct Git / Self-Hosted Repository Section -->
         <div style="margin-bottom: 20px;">
-          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Flatpak Repository (Recommended — Auto-Updateable)</div>
-          <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">GPG-signed, sandboxed desktop installation with automatic delta updates.</div>
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text);">Direct Repository (.flatpakref &amp; Git Source)</div>
+          <div style="font-size: 13.5px; color: var(--text-dim); margin-top: 2px;">GPG-signed, sandboxed desktop installation built directly from git source.</div>
         </div>
 
         <!-- Flatpakref Install Badge -->
@@ -1552,7 +1581,7 @@
             <span style="color: var(--plasma-blue); font-size: 1.25rem;">+</span>
           </button>
           <div class="faq-a">
-            Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS. It can be installed via Flatpak (1-click <code>.flatpakref</code>), Canonical Snap Store, universal AppImage, or standalone portable binaries for both <code>x86_64</code> (Intel/AMD) and <code>aarch64</code> (ARM64) systems.
+            Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS. It can be installed via Flathub, Flatpak (1-click <code>.flatpakref</code>), Canonical Snap Store, universal AppImage, or standalone portable binaries for both <code>x86_64</code> (Intel/AMD) and <code>aarch64</code> (ARM64) systems.
           </div>
         </div>
 
