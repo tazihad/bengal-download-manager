@@ -56,6 +56,19 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.7" date="2026-10-22">
+        <description>
+            <p>Bengal Download Manager 0.3.7 changes:</p>
+            <ul>
+                <li>Fixed the autostart option being silently disabled after upgrading</li>
+                <li>The main window now reappears automatically when no system tray is available</li>
+                <li>The tray menu correctly switches between Show and Hide</li>
+                <li>Turning off autostart now also clears the start-minimized option</li>
+                <li>Previous release notes are preserved in the app catalog</li>
+                <li>Running from source now reports the correct project version</li>
+            </ul>
+        </description>
+    </release>
     <release version="0.3.6" date="2026-10-22">
         <description>
             <p>Bengal Download Manager 0.3.6 changes:</p>
