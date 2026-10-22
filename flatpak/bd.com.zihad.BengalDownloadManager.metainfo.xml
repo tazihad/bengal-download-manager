@@ -13,8 +13,8 @@
     <name>tazihad</name>
   </developer>
 
-  <name>High speed downloader</name>
-  <summary>Download and manage files</summary>
+  <name>Bengal Download Manager</name>
+  <summary>High speed downloader</summary>
 
   <description>
     <p>
@@ -25,47 +25,57 @@
   </description>
 
   <screenshots>
-    <screenshot type="default" xml:lang="en">
+    <screenshot type="default">
       <caption>Bengal Download Manager in dark mode</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/01-main-app.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/01-main-app.png</image>
     </screenshot>
-    <screenshot xml:lang="en">
+    <screenshot>
       <caption>Bengal Download Manager in light mode</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/02-main-app-light-mode.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/02-main-app-light-mode.png</image>
     </screenshot>
-    <screenshot xml:lang="en">
+    <screenshot>
       <caption>Custom theme configuration</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/03-main-app-different-theme.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/03-main-app-different-theme.png</image>
     </screenshot>
-    <screenshot xml:lang="en">
+    <screenshot>
       <caption>Media and video downloader tool</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/04-media-downloader.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/04-media-downloader.png</image>
     </screenshot>
-    <screenshot xml:lang="en">
+    <screenshot>
       <caption>Batch site grabber tool</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/05-site-grabber.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/05-site-grabber.png</image>
     </screenshot>
-    <screenshot xml:lang="en">
+    <screenshot>
       <caption>Automated download scheduler</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/06-scheduler.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/06-scheduler.png</image>
     </screenshot>
-    <screenshot xml:lang="en">
+    <screenshot>
       <caption>Data usage and bandwidth monitor</caption>
-      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.webp</image>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.png</image>
     </screenshot>
   </screenshots>
 
   <releases>
-    <release version="0.3.5" date="2026-10-22">
+    <release version="0.3.6" date="2026-10-22">
       <description>
-        <p>Bengal Download Manager 0.3.5 changes:</p>
+        <p>Bengal Download Manager 0.3.6 changes:</p>
         <ul>
-          <li>Added official Flathub banner branding metadata with custom light and dark themes</li>
-          <li>Configured muted sage and deep pine brand styling for Flathub carousel and headers</li>
-          <li>Added local interactive banner preview and selection simulator tool</li>
-          <li>General stability and performance improvements</li>
+          <li>Revert to PNG screenshots for AppStream catalog compatibility</li>
+          <li>Update summary to High speed downloader</li>
+          <li>Metainfo and catalog improvements</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.5" date="2026-10-22">
+        <description>
+            <p>Bengal Download Manager 0.3.5 changes:</p>
+            <ul>
+                <li>Added official Flathub banner branding metadata with custom light and dark themes</li>
+                <li>Configured muted sage and deep pine brand styling for Flathub carousel and headers</li>
+                <li>Added local interactive banner preview and selection simulator tool</li>
+                <li>General stability and performance improvements</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.4" date="2026-10-22">
         <description>
@@ -139,14 +149,6 @@
             <ul>
                 <li>I18n: Sanitize broken menu mnemonics for Bengali and complex scripts</li>
                 <li>I18n: Replace Hind Siliguri with Noto Sans Bengali UI and Kalpurush to resolve broken conjuncts</li>
-            </ul>
-        </description>
-    </release>
-    <release version="0.2.96" date="2026-10-16">
-        <description>
-            <p>Bengal Download Manager 0.2.96 changes:</p>
-            <ul>
-                <li>I18n: Implement complete application localization and multilingual support</li>
             </ul>
         </description>
     </release>

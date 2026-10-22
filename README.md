@@ -63,15 +63,15 @@ Bengal Download Manager is a high-performance download management tool built wit
 ### Main Application (Dark & Light Mode)
 
 <p align="center">
-  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshots/01-main-app.webp" />
-  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshots/02-main-app-light-mode.webp" />
+  <img width="49%" alt="Bengal Download Manager Dark Mode" src="assets/screenshots/01-main-app.png" />
+  <img width="49%" alt="Bengal Download Manager Light Mode" src="assets/screenshots/02-main-app-light-mode.png" />
 </p>
 
 ### Media Downloader & Batch Site Grabber
 
 <p align="center">
-  <img width="49%" alt="Media and Video Stream Downloader" src="assets/screenshots/04-media-downloader.webp" />
-  <img width="49%" alt="Batch Site Grabber Tool" src="assets/screenshots/05-site-grabber.webp" />
+  <img width="49%" alt="Media and Video Stream Downloader" src="assets/screenshots/04-media-downloader.png" />
+  <img width="49%" alt="Batch Site Grabber Tool" src="assets/screenshots/05-site-grabber.png" />
 </p>
 
 ### Feature Branding Posters

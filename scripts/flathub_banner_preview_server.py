@@ -576,7 +576,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
               <div class="banner-summary" id="lightSummary">High-speed multi-threaded download manager powered by Aria2</div>
             </div>
             <div class="banner-right">
-              <img src="/assets/screenshots/01-main-app.webp" alt="App Screenshot" class="banner-screenshot">
+              <img src="/assets/screenshots/01-main-app.png" alt="App Screenshot" class="banner-screenshot">
             </div>
           </div>
         </div>
@@ -598,7 +598,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
               <div class="banner-summary" id="darkSummary">High-speed multi-threaded download manager powered by Aria2</div>
             </div>
             <div class="banner-right">
-              <img src="/assets/screenshots/01-main-app.webp" alt="App Screenshot" class="banner-screenshot">
+              <img src="/assets/screenshots/01-main-app.png" alt="App Screenshot" class="banner-screenshot">
             </div>
           </div>
         </div>
