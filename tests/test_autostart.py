@@ -251,3 +251,141 @@ def test_setup_tray_icon_retry_timer(qapp, monkeypatch):
     win._tray_retry_timer.stop()
     win.close()
 
+
+def test_is_autostart_enabled_null_settings_falls_through(tmp_path, monkeypatch):
+    """A null autostart_enabled value must not be reported as a false negative."""
+    import json
+
+    cfg_dir = tmp_path / "config" / "bengal-download-manager"
+    cfg_dir.mkdir(parents=True)
+    cfg_file = cfg_dir / "settings.json"
+    cfg_file.write_text(json.dumps({"autostart_enabled": None, "start_minimized": True}))
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/")))
+
+    # No desktop entry visible: falls through to the file checks -> False
+    assert not is_autostart_enabled()
+
+    # With a desktop entry present, the null value must not mask it
+    autostart_dir = tmp_path / "home" / ".config" / "autostart"
+    autostart_dir.mkdir(parents=True)
+    (autostart_dir / "bd.com.zihad.BengalDownloadManager.desktop").write_text("[Desktop Entry]\nName=BDM\n")
+    assert is_autostart_enabled()
+
+
+def test_set_autostart_preserves_malformed_settings(tmp_path, monkeypatch):
+    """A malformed settings.json must never be replaced by a partial payload."""
+    cfg_dir = tmp_path / "config" / "bengal-download-manager"
+    cfg_dir.mkdir(parents=True)
+    cfg_file = cfg_dir / "settings.json"
+    original = '{"theme": "BDM Dark", broken json'
+    cfg_file.write_text(original)
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("FLATPAK_ID", raising=False)
+    monkeypatch.delenv("SNAP", raising=False)
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/")))
+    orig_exists = os.path.exists
+    monkeypatch.setattr(os.path, "exists", lambda p: False if p == "/.flatpak-info" else orig_exists(p))
+
+    set_autostart_enabled(True)
+
+    # File is left untouched instead of being wiped down to two keys
+    assert cfg_file.read_text() == original
+
+
+def test_disable_autostart_clears_start_minimized(tmp_path, monkeypatch):
+    """Turning autostart off must clear the stale start_minimized flag."""
+    import json
+
+    cfg_dir = tmp_path / "config" / "bengal-download-manager"
+    cfg_dir.mkdir(parents=True)
+    cfg_file = cfg_dir / "settings.json"
+    cfg_file.write_text(json.dumps({"start_minimized": True, "theme": "BDM Dark"}))
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("FLATPAK_ID", raising=False)
+    monkeypatch.delenv("SNAP", raising=False)
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/")))
+    orig_exists = os.path.exists
+    monkeypatch.setattr(os.path, "exists", lambda p: False if p == "/.flatpak-info" else orig_exists(p))
+
+    set_autostart_enabled(False)
+
+    data = json.loads(cfg_file.read_text())
+    assert data["start_minimized"] is False
+    assert data["autostart_enabled"] is False
+    assert data["theme"] == "BDM Dark"
+
+
+def test_save_settings_never_persists_null_autostart(qapp, monkeypatch, tmp_path):
+    """load/save_settings must round-trip autostart_enabled as a real boolean."""
+    import json
+    from core.utils import get_config_dir
+    from ui.main_window import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("FLATPAK_ID", raising=False)
+    cfg_dir = get_config_dir()
+    cfg_file = os.path.join(cfg_dir, "settings.json")
+    # Legacy settings file: autostart_enabled key absent (upgrade from <= 0.3.3)
+    with open(cfg_file, "w", encoding="utf-8") as f:
+        json.dump({"theme": "BDM Dark"}, f)
+
+    monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self: None)
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+
+    win = MainWindow(start_ipc=False)
+    win.save_settings()
+
+    with open(cfg_file, "r", encoding="utf-8") as f:
+        saved = json.load(f)
+    assert saved["autostart_enabled"] is not None
+    assert isinstance(saved["autostart_enabled"], bool)
+    assert isinstance(saved["start_minimized"], bool)
+    win.close()
+
+
+def test_tray_action_label_tracks_visibility(qapp, monkeypatch):
+    """The tray toggle label must read Hide while visible and Show while hidden."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QSystemTrayIcon
+
+    monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self: None)
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: True)
+
+    win = MainWindow(start_ipc=False, start_minimized=False)
+    if win.action_tray_toggle is None:
+        pytest.skip("QSystemTrayIcon unavailable in this environment")
+
+    win.show()
+    assert win.action_tray_toggle.text() == "Hide"
+
+    win.hide()
+    assert win.action_tray_toggle.text() == "Show"
+    win.close()
+
+
+def test_tray_retry_gives_up_and_restores_hidden_window(qapp, monkeypatch):
+    """Without any tray host, a minimized launch must restore a visible window."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QSystemTrayIcon
+
+    monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self: None)
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: False)
+
+    win = MainWindow(start_ipc=False, start_minimized=True)
+    assert not win.isVisible()
+
+    # Drive the retry callback to its give-up threshold
+    win._tray_retry_count = 9
+    win._tray_retry_timer.timeout.emit()
+
+    assert not win._tray_retry_timer.isActive()
+    assert win.isVisible()
+    win.close()
+
