@@ -4,6 +4,11 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
 
+  <branding>
+    <color type="primary" scheme_preference="light">#4a6b63</color>
+    <color type="primary" scheme_preference="dark">#182c28</color>
+  </branding>
+
   <developer id="bd.com.zihad">
     <name>tazihad</name>
   </developer>
