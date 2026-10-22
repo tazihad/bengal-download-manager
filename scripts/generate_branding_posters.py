@@ -34,7 +34,7 @@ def get_screenshot_path(base_name: str) -> str:
                 return os.path.join(SCREENSHOTS_DIR, fname)
             if base_name == "extension" and "extension" in clean:
                 return os.path.join(SCREENSHOTS_DIR, fname)
-    return os.path.join(SCREENSHOTS_DIR, f"{base_name}.webp")
+    return os.path.join(SCREENSHOTS_DIR, f"{base_name}.png")
 
 
 def draw_pill(painter, x, y, text, icon_text="⚡", bg_color=QColor(255, 140, 0, 40), border_color=QColor(255, 140, 0, 160), text_color=QColor(255, 180, 50)):
