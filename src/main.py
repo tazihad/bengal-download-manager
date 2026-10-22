@@ -254,7 +254,21 @@ def main():
     except Exception:
         pass
 
-    window = MainWindow()
+    start_min = "--minimized" in sys.argv
+    if not start_min:
+        mem_watch = os.environ.get("MEMORY_PRESSURE_WATCH", "")
+        if "@autostart.service" in mem_watch:
+            try:
+                if os.path.exists(cfg_path):
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        s_data = json.load(f)
+                        if s_data.get("start_minimized", False):
+                            start_min = True
+            except Exception:
+                pass
+
+    window = MainWindow(start_minimized=start_min)
+    window.start_minimized = start_min
 
     # Start single instance server on primary instance if enabled
     if "--no-single-instance" not in sys.argv:
@@ -336,14 +350,13 @@ def main():
     heartbeat_timer.timeout.connect(lambda: None)
     heartbeat_timer.start(100)
 
-    if "--minimized" in sys.argv:
+    if start_min:
         window.start_minimized = True
+        window._is_in_tray = True
         QTimer.singleShot(0, window.hide)
         QTimer.singleShot(0, window.update_tray_action)
     else:
         window.start_minimized = False
-
-    if not getattr(window, "start_minimized", False):
         window.show()
 
     ret = app.exec()

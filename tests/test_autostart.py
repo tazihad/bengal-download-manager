@@ -196,3 +196,58 @@ def test_flatpak_icon_resolution_user_and_system(tmp_path, monkeypatch):
     assert not is_user_flatpak()
     sys_icon = get_flatpak_autostart_icon()
     assert "/var/lib/flatpak" in sys_icon
+
+
+def test_flatpak_autostart_persistent_settings_detection(tmp_path, monkeypatch):
+    """Verify is_autostart_enabled checks persistent settings.json inside Flatpak sandbox."""
+    import json
+    from core.utils import get_config_dir
+
+    cfg_dir = tmp_path / "config" / "bengal-download-manager"
+    cfg_dir.mkdir(parents=True)
+    settings_file = cfg_dir / "settings.json"
+    settings_file.write_text(json.dumps({"autostart_enabled": True, "start_minimized": True}))
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path / "sandbox_home" / p.lstrip("~/")))
+
+    # Even if sandbox desktop file does NOT exist, is_autostart_enabled returns True from settings
+    assert is_autostart_enabled()
+
+    # When autostart_enabled is False in settings, returns False
+    settings_file.write_text(json.dumps({"autostart_enabled": False, "start_minimized": False}))
+    assert not is_autostart_enabled()
+
+
+def test_mainwindow_start_minimized_tray_state(qapp, monkeypatch):
+    """Verify MainWindow(start_minimized=True) initializes immediately with _is_in_tray=True."""
+    from ui.main_window import MainWindow
+
+    # Prevent network/service initialization during unit test
+    monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self: None)
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+
+    win = MainWindow(start_ipc=False, start_minimized=True)
+    assert win.start_minimized is True
+    assert win._is_in_tray is True
+    assert not win.isVisible()
+    win.close()
+
+
+def test_setup_tray_icon_retry_timer(qapp, monkeypatch):
+    """Verify setup_tray_icon arms a retry timer if system tray host is initially unavailable."""
+    from ui.main_window import MainWindow
+    from PyQt6.QtWidgets import QSystemTrayIcon
+
+    monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self: None)
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable", lambda: False)
+
+    win = MainWindow(start_ipc=False, start_minimized=False)
+    assert win.tray_icon is None
+    assert hasattr(win, "_tray_retry_timer")
+    assert win._tray_retry_timer.isActive()
+    win._tray_retry_timer.stop()
+    win.close()
+

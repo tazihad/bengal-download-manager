@@ -73,7 +73,7 @@ from core.utils import (
     load_proxy_config, load_extension_config, get_aria2_proxy_url,
     show_in_folder, resolve_filename, open_file_generic, open_with, choose_portal_save_path,
     is_media_downloader_url, format_bytes, get_clean_env, is_debug_mode,
-    get_process_memory, get_user_downloads_dir
+    get_process_memory, get_user_downloads_dir, is_autostart_enabled
 )
 
 logger = logging.getLogger("bengal.main_window")
@@ -153,10 +153,11 @@ def _resolve_symbol(name: str, fallback):
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
-    def __init__(self, start_ipc=True):
+    def __init__(self, start_ipc=True, start_minimized=False):
         super().__init__()
         self.setObjectName("MainWindow")
         self.start_ipc = start_ipc
+        self.start_minimized = start_minimized or ("--minimized" in sys.argv)
         self.setWindowTitle("Bengal Download Manager")
         
         # Set window icon from global app icon
@@ -2131,8 +2132,27 @@ class MainWindow(QMainWindow):
         self.tray_icon = None
         self.action_tray_toggle = None
         if not QSystemTrayIcon.isSystemTrayAvailable():
+            # If system tray host (e.g. StatusNotifierWatcher / desktop shell) is still initializing, retry deferred
+            if not hasattr(self, "_tray_retry_timer"):
+                self._tray_retry_timer = QTimer(self)
+                self._tray_retry_count = 0
+                def _retry_tray():
+                    self._tray_retry_count += 1
+                    if QSystemTrayIcon.isSystemTrayAvailable():
+                        self._tray_retry_timer.stop()
+                        self._init_tray_icon()
+                    elif self._tray_retry_count >= 15:
+                        self._tray_retry_timer.stop()
+                self._tray_retry_timer.timeout.connect(_retry_tray)
+                self._tray_retry_timer.start(2000)
             return
 
+        self._init_tray_icon()
+
+    def _init_tray_icon(self):
+        """Initializes the QSystemTrayIcon instance and its context menu."""
+        if hasattr(self, "tray_icon") and self.tray_icon is not None:
+            return
         try:
             self.tray_icon = QSystemTrayIcon(self)
 
@@ -2148,7 +2168,8 @@ class MainWindow(QMainWindow):
             tray_menu = QMenu(self)
             
             # Show/Hide Action
-            self.action_tray_toggle = QAction("Hide", self) # Default to Hide as window starts visible
+            toggle_text = self.tr("Show") if getattr(self, "_is_in_tray", False) or not self.isVisible() else self.tr("Hide")
+            self.action_tray_toggle = QAction(toggle_text, self)
             self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
             self.action_tray_toggle.triggered.connect(self.toggle_window)
             
@@ -2166,6 +2187,7 @@ class MainWindow(QMainWindow):
             
             # Double click to show/hide
             self.tray_icon.activated.connect(self.on_tray_icon_activated)
+            self.update_tray_action()
         except Exception as e:
             print(f"Warning: System tray icon initialization failed ({e})")
             self.tray_icon = None
@@ -2250,10 +2272,10 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "action_tray_toggle") or self.action_tray_toggle is None:
             return
         if self.isVisible():
-            self.action_tray_toggle.setText("Hide")
+            self.action_tray_toggle.setText(self.tr("Hide"))
             self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
         else:
-            self.action_tray_toggle.setText("Show")
+            self.action_tray_toggle.setText(self.tr("Show"))
             self.action_tray_toggle.setIcon(get_themed_icon("show_hide"))
         
     def update_timestamp_display(self):
@@ -3386,6 +3408,7 @@ class MainWindow(QMainWindow):
                 "windowState": self.saveState().toHex().data().decode(),
                 "column_data": column_data,
                 "start_minimized": getattr(self, "start_minimized_on_autostart", False),
+                "autostart_enabled": getattr(self, "autostart_enabled_pref", is_autostart_enabled()),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
                 "theme": getattr(self, "settings", {}).get("theme", "BDM Auto (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
@@ -3813,6 +3836,7 @@ class MainWindow(QMainWindow):
                         self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                     
                     self.start_minimized_on_autostart = settings.get("start_minimized", False)
+                    self.autostart_enabled_pref = settings.get("autostart_enabled", None)
 
                     header = self.download_table.horizontalHeader()
                     if "column_data" in settings:

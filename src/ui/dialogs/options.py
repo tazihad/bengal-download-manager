@@ -2105,6 +2105,7 @@ class OptionsDialog(QDialog):
         # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, language, system_notifications, and dialog visibility to parent (MainWindow)
         if self.main_win:
             setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
+            setattr(self.main_win, "autostart_enabled_pref", self.chk_startup.isChecked())
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
             setattr(self.main_win, "precheck_delete_files_from_disk", precheck_delete)
@@ -2124,6 +2125,8 @@ class OptionsDialog(QDialog):
             setattr(self.main_win, "prefetch_download", prefetch_dl)
 
             if hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+                self.main_win.settings["start_minimized"] = self.chk_start_minimized.isChecked()
+                self.main_win.settings["autostart_enabled"] = self.chk_startup.isChecked()
                 self.main_win.settings["ui_scale"] = new_scale
                 self.main_win.settings["theme"] = new_theme
                 self.main_win.settings["accent"] = new_accent

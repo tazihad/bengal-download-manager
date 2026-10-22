@@ -1722,6 +1722,16 @@ def get_autostart_filepath():
 
 
 def is_autostart_enabled():
+    if is_running_in_flatpak():
+        try:
+            cfg_path = os.path.join(get_config_dir(), "settings.json")
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if "autostart_enabled" in data:
+                        return bool(data.get("autostart_enabled"))
+        except Exception:
+            pass
     filepath = get_autostart_filepath()
     if os.path.exists(filepath):
         return True
@@ -1887,6 +1897,21 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
         except Exception as e:
             print(f"Failed to call portal Background via QDBus: {e}")
 
+    # Persist autostart state in application settings so sandbox reliably tracks it
+    try:
+        cfg_path = os.path.join(get_config_dir(), "settings.json")
+        cfg_data = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg_data = json.load(f)
+        cfg_data["autostart_enabled"] = bool(enabled)
+        if enabled:
+            cfg_data["start_minimized"] = bool(start_minimized)
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg_data, f)
+    except Exception:
+        pass
+
     # 3. Synchronize host autostart .desktop entry and inject the Flatpak logo
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
@@ -1964,6 +1989,21 @@ X-Flatpak=bd.com.zihad.BengalDownloadManager
 
 
 def set_autostart_enabled(enabled, start_minimized=False):
+    # Persist autostart state in settings.json for all environments
+    try:
+        cfg_path = os.path.join(get_config_dir(), "settings.json")
+        cfg_data = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg_data = json.load(f)
+        cfg_data["autostart_enabled"] = bool(enabled)
+        if enabled:
+            cfg_data["start_minimized"] = bool(start_minimized)
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg_data, f)
+    except Exception:
+        pass
+
     if is_running_in_flatpak():
         return _set_flatpak_autostart_portal(enabled, start_minimized=start_minimized)
 
