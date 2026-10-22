@@ -56,6 +56,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.7" date="2026-10-22">
+      <description>
+        <p>Bengal Download Manager 0.3.7 changes:</p>
+        <ul>
+          <li>Fixed Start minimized in system tray not working in the Flatpak build</li>
+          <li>Autostart and start-minimized preferences are now saved and stay in sync</li>
+          <li>Existing Flatpak autostart entries are repaired automatically after updating</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.6" date="2026-10-22">
         <description>
             <p>Bengal Download Manager 0.3.6 changes:</p>
