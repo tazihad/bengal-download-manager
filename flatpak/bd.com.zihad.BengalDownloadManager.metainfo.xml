@@ -51,13 +51,23 @@
   </screenshots>
 
   <releases>
-    <release version="0.3.3" date="2026-10-21">
+    <release version="0.3.4" date="2026-10-22">
       <description>
-        <p>Bengal Download Manager 0.3.3 changes:</p>
+        <p>Bengal Download Manager 0.3.4 changes:</p>
         <ul>
-          <li>Assets: Remove png screenshots and switch metainfo to webp</li>
+          <li>Fixed Flatpak portal autostart and launch on system boot preferences</li>
+          <li>Resolved issue where Flatpak could not start minimized to the system tray on startup</li>
+          <li>Added automatic retry for system tray icon initialization if the desktop tray is loading</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.3" date="2026-10-21">
+        <description>
+            <p>Bengal Download Manager 0.3.3 changes:</p>
+            <ul>
+                <li>Assets: Remove png screenshots and switch metainfo to webp</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.2" date="2026-10-21">
         <description>
@@ -128,14 +138,6 @@
             <p>Bengal Download Manager 0.2.95 changes:</p>
             <ul>
                 <li>Ui: Add Chroma icons, highlighted text color option, adaptive selection contrast, and uncramped options sizing</li>
-            </ul>
-        </description>
-    </release>
-    <release version="0.2.94" date="2026-10-12">
-        <description>
-            <p>Bengal Download Manager 0.2.94 changes:</p>
-            <ul>
-                <li>Wayland: Resolve ctypes function prototype cache mutation segfault on KDE Plasma</li>
             </ul>
         </description>
     </release>

@@ -824,576 +824,576 @@
     <context>
         <name>MainWindow</name>
         <message>
-            <location filename="../src/ui/main_window.py" line="569" />
-            <location filename="../src/ui/main_window.py" line="488" />
+            <location filename="../src/ui/main_window.py" line="570" />
+            <location filename="../src/ui/main_window.py" line="489" />
             <source>Add URL</source>
             <translation>Add URL</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="570" />
-            <location filename="../src/ui/main_window.py" line="490" />
+            <location filename="../src/ui/main_window.py" line="571" />
+            <location filename="../src/ui/main_window.py" line="491" />
             <source>Add a new download URL address (Ctrl+N)</source>
             <translation>Add a new download URL address (Ctrl+N)</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="571" />
-            <location filename="../src/ui/main_window.py" line="493" />
+            <location filename="../src/ui/main_window.py" line="572" />
+            <location filename="../src/ui/main_window.py" line="494" />
             <source>Paste URL</source>
             <translation>Paste URL</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="572" />
-            <location filename="../src/ui/main_window.py" line="495" />
+            <location filename="../src/ui/main_window.py" line="573" />
+            <location filename="../src/ui/main_window.py" line="496" />
             <source>Paste URL address from clipboard (Ctrl+V)</source>
             <translation>Paste URL address from clipboard (Ctrl+V)</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="573" />
-            <location filename="../src/ui/main_window.py" line="498" />
+            <location filename="../src/ui/main_window.py" line="574" />
+            <location filename="../src/ui/main_window.py" line="499" />
             <source>Add Batch Download</source>
             <translation>Add Batch Download</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="574" />
-            <location filename="../src/ui/main_window.py" line="500" />
+            <location filename="../src/ui/main_window.py" line="575" />
+            <location filename="../src/ui/main_window.py" line="501" />
             <source>Add batch download from address pattern with wildcards (Ctrl+Shift+N)</source>
             <translation>Add batch download from address pattern with wildcards (Ctrl+Shift+N)</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="575" />
-            <location filename="../src/ui/main_window.py" line="503" />
+            <location filename="../src/ui/main_window.py" line="576" />
+            <location filename="../src/ui/main_window.py" line="504" />
             <source>Import Links from Clipboard</source>
             <translation>Import Links from Clipboard</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="576" />
-            <location filename="../src/ui/main_window.py" line="504" />
+            <location filename="../src/ui/main_window.py" line="577" />
+            <location filename="../src/ui/main_window.py" line="505" />
             <source>Import multiple download links from clipboard</source>
             <translation>Import multiple download links from clipboard</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="577" />
-            <location filename="../src/ui/main_window.py" line="507" />
+            <location filename="../src/ui/main_window.py" line="578" />
+            <location filename="../src/ui/main_window.py" line="508" />
             <source>Exit</source>
             <translation>Exit</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="578" />
-            <location filename="../src/ui/main_window.py" line="508" />
+            <location filename="../src/ui/main_window.py" line="579" />
+            <location filename="../src/ui/main_window.py" line="509" />
             <source>Exit Bengal Download Manager</source>
             <translation>Exit Bengal Download Manager</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="579" />
-            <location filename="../src/ui/main_window.py" line="511" />
+            <location filename="../src/ui/main_window.py" line="580" />
+            <location filename="../src/ui/main_window.py" line="512" />
             <source>Stop/Pause</source>
             <translation>Stop/Pause</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="580" />
-            <location filename="../src/ui/main_window.py" line="512" />
+            <location filename="../src/ui/main_window.py" line="581" />
+            <location filename="../src/ui/main_window.py" line="513" />
             <source>Pause or stop selected download(s)</source>
             <translation>Pause or stop selected download(s)</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="581" />
-            <location filename="../src/ui/main_window.py" line="516" />
+            <location filename="../src/ui/main_window.py" line="582" />
+            <location filename="../src/ui/main_window.py" line="517" />
             <source>Stop All</source>
             <translation>Stop All</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="582" />
-            <location filename="../src/ui/main_window.py" line="517" />
+            <location filename="../src/ui/main_window.py" line="583" />
+            <location filename="../src/ui/main_window.py" line="518" />
             <source>Pause or stop all currently active downloads</source>
             <translation>Pause or stop all currently active downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="583" />
-            <location filename="../src/ui/main_window.py" line="521" />
+            <location filename="../src/ui/main_window.py" line="584" />
+            <location filename="../src/ui/main_window.py" line="522" />
             <source>Stop All Queues</source>
             <translation>Stop All Queues</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="584" />
-            <location filename="../src/ui/main_window.py" line="522" />
+            <location filename="../src/ui/main_window.py" line="585" />
+            <location filename="../src/ui/main_window.py" line="523" />
             <source>Stop all active download queues except Synchronization queue</source>
             <translation>Stop all active download queues except Synchronization queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="585" />
-            <location filename="../src/ui/main_window.py" line="526" />
+            <location filename="../src/ui/main_window.py" line="586" />
+            <location filename="../src/ui/main_window.py" line="527" />
             <source>Resume</source>
             <translation>Resume</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="586" />
-            <location filename="../src/ui/main_window.py" line="527" />
+            <location filename="../src/ui/main_window.py" line="587" />
+            <location filename="../src/ui/main_window.py" line="528" />
             <source>Resume downloading selected file(s)</source>
             <translation>Resume downloading selected file(s)</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="587" />
-            <location filename="../src/ui/main_window.py" line="531" />
+            <location filename="../src/ui/main_window.py" line="588" />
+            <location filename="../src/ui/main_window.py" line="532" />
             <source>Download Now</source>
             <translation>Download Now</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="588" />
-            <location filename="../src/ui/main_window.py" line="532" />
+            <location filename="../src/ui/main_window.py" line="589" />
+            <location filename="../src/ui/main_window.py" line="533" />
             <source>Start downloading selected file immediately</source>
             <translation>Start downloading selected file immediately</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="589" />
-            <location filename="../src/ui/main_window.py" line="535" />
+            <location filename="../src/ui/main_window.py" line="590" />
+            <location filename="../src/ui/main_window.py" line="536" />
             <source>Redownload</source>
             <translation>Redownload</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="590" />
-            <location filename="../src/ui/main_window.py" line="536" />
+            <location filename="../src/ui/main_window.py" line="591" />
+            <location filename="../src/ui/main_window.py" line="537" />
             <source>Restart download from the beginning</source>
             <translation>Restart download from the beginning</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="2563" />
-            <location filename="../src/ui/main_window.py" line="591" />
-            <location filename="../src/ui/main_window.py" line="539" />
+            <location filename="../src/ui/main_window.py" line="2585" />
+            <location filename="../src/ui/main_window.py" line="592" />
+            <location filename="../src/ui/main_window.py" line="540" />
             <source>Delete</source>
             <translation>Delete</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="592" />
-            <location filename="../src/ui/main_window.py" line="540" />
+            <location filename="../src/ui/main_window.py" line="593" />
+            <location filename="../src/ui/main_window.py" line="541" />
             <source>Delete selected download(s) from the list (Delete key)</source>
             <translation>Delete selected download(s) from the list (Delete key)</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="593" />
-            <location filename="../src/ui/main_window.py" line="545" />
+            <location filename="../src/ui/main_window.py" line="594" />
+            <location filename="../src/ui/main_window.py" line="546" />
             <source>Clear Completed</source>
             <translation>Clear Completed</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="594" />
-            <location filename="../src/ui/main_window.py" line="546" />
+            <location filename="../src/ui/main_window.py" line="595" />
+            <location filename="../src/ui/main_window.py" line="547" />
             <source>Remove completed downloads from the list</source>
             <translation>Remove completed downloads from the list</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="595" />
-            <location filename="../src/ui/main_window.py" line="549" />
+            <location filename="../src/ui/main_window.py" line="596" />
+            <location filename="../src/ui/main_window.py" line="550" />
             <source>Options</source>
             <translation>Options</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="596" />
-            <location filename="../src/ui/main_window.py" line="550" />
+            <location filename="../src/ui/main_window.py" line="597" />
+            <location filename="../src/ui/main_window.py" line="551" />
             <source>Configure download manager options, connection limits, and engine settings</source>
             <translation>Configure download manager options, connection limits, and engine settings</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="597" />
-            <location filename="../src/ui/main_window.py" line="553" />
+            <location filename="../src/ui/main_window.py" line="598" />
+            <location filename="../src/ui/main_window.py" line="554" />
             <source>Scheduler</source>
             <translation>Scheduler</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="598" />
-            <location filename="../src/ui/main_window.py" line="554" />
+            <location filename="../src/ui/main_window.py" line="599" />
+            <location filename="../src/ui/main_window.py" line="555" />
             <source>Manage download queues and scheduling</source>
             <translation>Manage download queues and scheduling</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="599" />
-            <location filename="../src/ui/main_window.py" line="557" />
+            <location filename="../src/ui/main_window.py" line="600" />
+            <location filename="../src/ui/main_window.py" line="558" />
             <source>Site Grabber</source>
             <translation>Site Grabber</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="600" />
-            <location filename="../src/ui/main_window.py" line="558" />
+            <location filename="../src/ui/main_window.py" line="601" />
+            <location filename="../src/ui/main_window.py" line="559" />
             <source>Crawl websites and batch download media, documents, and files</source>
             <translation>Crawl websites and batch download media, documents, and files</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="601" />
-            <location filename="../src/ui/main_window.py" line="561" />
+            <location filename="../src/ui/main_window.py" line="602" />
+            <location filename="../src/ui/main_window.py" line="562" />
             <source>Media Downloader</source>
             <translation>Media Downloader</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="602" />
-            <location filename="../src/ui/main_window.py" line="562" />
+            <location filename="../src/ui/main_window.py" line="603" />
+            <location filename="../src/ui/main_window.py" line="563" />
             <source>Parse and download video or audio streams and playlists from media sites</source>
             <translation>Parse and download video or audio streams and playlists from media sites</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="603" />
-            <location filename="../src/ui/main_window.py" line="565" />
+            <location filename="../src/ui/main_window.py" line="604" />
+            <location filename="../src/ui/main_window.py" line="566" />
             <source>Open Downloads Folder</source>
             <translation>Open Downloads Folder</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="604" />
-            <location filename="../src/ui/main_window.py" line="566" />
+            <location filename="../src/ui/main_window.py" line="605" />
+            <location filename="../src/ui/main_window.py" line="567" />
             <source>Open default downloads directory</source>
             <translation>Open default downloads directory</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="620" />
+            <location filename="../src/ui/main_window.py" line="621" />
             <source>&amp;Tasks</source>
             <translation>&amp;Tasks</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="631" />
+            <location filename="../src/ui/main_window.py" line="632" />
             <source>&amp;File</source>
             <translation>&amp;File</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="640" />
+            <location filename="../src/ui/main_window.py" line="641" />
             <source>&amp;Downloads</source>
             <translation>&amp;Downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="656" />
+            <location filename="../src/ui/main_window.py" line="657" />
             <source>&amp;View</source>
             <translation>&amp;View</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="658" />
+            <location filename="../src/ui/main_window.py" line="659" />
             <source>Table style</source>
             <translation>Table style</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="663" />
+            <location filename="../src/ui/main_window.py" line="664" />
             <source>Classic</source>
             <translation>Classic</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="670" />
+            <location filename="../src/ui/main_window.py" line="671" />
             <source>Modern</source>
             <translation>Modern</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="679" />
+            <location filename="../src/ui/main_window.py" line="680" />
             <source>Sort by</source>
             <translation>Sort by</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="705" />
+            <location filename="../src/ui/main_window.py" line="706" />
             <source>&amp;Status Bar</source>
             <translation>&amp;Status Bar</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="708" />
+            <location filename="../src/ui/main_window.py" line="709" />
             <source>&amp;Show Status Bar</source>
             <translation>&amp;Show Status Bar</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="717" />
+            <location filename="../src/ui/main_window.py" line="718" />
             <source>&amp;Memory</source>
             <translation>&amp;Memory</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="724" />
+            <location filename="../src/ui/main_window.py" line="725" />
             <source>&amp;Aria2 Status</source>
             <translation>&amp;Aria2 Status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="731" />
+            <location filename="../src/ui/main_window.py" line="732" />
             <source>&amp;IPC Status</source>
             <translation>&amp;IPC Status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="738" />
+            <location filename="../src/ui/main_window.py" line="739" />
             <source>&amp;Media Status</source>
             <translation>&amp;Media Status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="745" />
+            <location filename="../src/ui/main_window.py" line="746" />
             <source>&amp;Speed</source>
             <translation>&amp;Speed</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="752" />
+            <location filename="../src/ui/main_window.py" line="753" />
             <source>&amp;Public IP</source>
             <translation>&amp;Public IP</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="759" />
+            <location filename="../src/ui/main_window.py" line="760" />
             <source>&amp;Proxy Status</source>
             <translation>&amp;Proxy Status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="765" />
+            <location filename="../src/ui/main_window.py" line="766" />
             <source>&amp;Toolbar</source>
             <translation>&amp;Toolbar</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="771" />
+            <location filename="../src/ui/main_window.py" line="772" />
             <source>&amp;Hide left panel</source>
             <translation>&amp;Hide left panel</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="778" />
+            <location filename="../src/ui/main_window.py" line="779" />
             <source>&amp;Data usage summary</source>
             <translation>&amp;Data usage summary</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="785" />
+            <location filename="../src/ui/main_window.py" line="786" />
             <source>&amp;Help</source>
             <translation>&amp;Help</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="786" />
+            <location filename="../src/ui/main_window.py" line="787" />
             <source>BDM &amp;Homepage</source>
             <translation>BDM &amp;Homepage</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="790" />
+            <location filename="../src/ui/main_window.py" line="791" />
             <source>&amp;File bug report</source>
             <translation>&amp;File bug report</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="796" />
+            <location filename="../src/ui/main_window.py" line="797" />
             <source>&amp;About Bengal DM</source>
             <translation>&amp;About Bengal DM</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3495" />
-            <location filename="../src/ui/main_window.py" line="962" />
+            <location filename="../src/ui/main_window.py" line="3518" />
+            <location filename="../src/ui/main_window.py" line="963" />
             <source>Categories</source>
             <translation>Categories</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3496" />
-            <location filename="../src/ui/main_window.py" line="962" />
+            <location filename="../src/ui/main_window.py" line="3519" />
+            <location filename="../src/ui/main_window.py" line="963" />
             <source>Download categories</source>
             <translation>Download categories</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3498" />
-            <location filename="../src/ui/main_window.py" line="964" />
+            <location filename="../src/ui/main_window.py" line="3521" />
+            <location filename="../src/ui/main_window.py" line="965" />
             <source>All Downloads</source>
             <translation>All Downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3499" />
-            <location filename="../src/ui/main_window.py" line="968" />
+            <location filename="../src/ui/main_window.py" line="3522" />
+            <location filename="../src/ui/main_window.py" line="969" />
             <source>Show all downloads regardless of category or status</source>
             <translation>Show all downloads regardless of category or status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3501" />
-            <location filename="../src/ui/main_window.py" line="973" />
+            <location filename="../src/ui/main_window.py" line="3524" />
+            <location filename="../src/ui/main_window.py" line="974" />
             <source>Compressed</source>
             <translation>Compressed</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3501" />
-            <location filename="../src/ui/main_window.py" line="973" />
+            <location filename="../src/ui/main_window.py" line="3524" />
+            <location filename="../src/ui/main_window.py" line="974" />
             <source>Filter downloads in Compressed category</source>
             <translation>Filter downloads in Compressed category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3502" />
-            <location filename="../src/ui/main_window.py" line="974" />
+            <location filename="../src/ui/main_window.py" line="3525" />
+            <location filename="../src/ui/main_window.py" line="975" />
             <source>Documents</source>
             <translation>Documents</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3502" />
-            <location filename="../src/ui/main_window.py" line="974" />
+            <location filename="../src/ui/main_window.py" line="3525" />
+            <location filename="../src/ui/main_window.py" line="975" />
             <source>Filter downloads in Documents category</source>
             <translation>Filter downloads in Documents category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3503" />
-            <location filename="../src/ui/main_window.py" line="975" />
+            <location filename="../src/ui/main_window.py" line="3526" />
+            <location filename="../src/ui/main_window.py" line="976" />
             <source>Music</source>
             <translation>Music</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3503" />
-            <location filename="../src/ui/main_window.py" line="975" />
+            <location filename="../src/ui/main_window.py" line="3526" />
+            <location filename="../src/ui/main_window.py" line="976" />
             <source>Filter downloads in Music category</source>
             <translation>Filter downloads in Music category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3504" />
-            <location filename="../src/ui/main_window.py" line="976" />
+            <location filename="../src/ui/main_window.py" line="3527" />
+            <location filename="../src/ui/main_window.py" line="977" />
             <source>Programs</source>
             <translation>Programs</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3504" />
-            <location filename="../src/ui/main_window.py" line="976" />
+            <location filename="../src/ui/main_window.py" line="3527" />
+            <location filename="../src/ui/main_window.py" line="977" />
             <source>Filter downloads in Programs category</source>
             <translation>Filter downloads in Programs category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3505" />
-            <location filename="../src/ui/main_window.py" line="977" />
+            <location filename="../src/ui/main_window.py" line="3528" />
+            <location filename="../src/ui/main_window.py" line="978" />
             <source>Video</source>
             <translation>Video</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3505" />
-            <location filename="../src/ui/main_window.py" line="977" />
+            <location filename="../src/ui/main_window.py" line="3528" />
+            <location filename="../src/ui/main_window.py" line="978" />
             <source>Filter downloads in Video category</source>
             <translation>Filter downloads in Video category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3514" />
-            <location filename="../src/ui/main_window.py" line="986" />
+            <location filename="../src/ui/main_window.py" line="3537" />
+            <location filename="../src/ui/main_window.py" line="987" />
             <source>Status</source>
             <translation>Status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3515" />
-            <location filename="../src/ui/main_window.py" line="986" />
+            <location filename="../src/ui/main_window.py" line="3538" />
+            <location filename="../src/ui/main_window.py" line="987" />
             <source>Filter by download status</source>
             <translation>Filter by download status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3517" />
-            <location filename="../src/ui/main_window.py" line="988" />
+            <location filename="../src/ui/main_window.py" line="3540" />
+            <location filename="../src/ui/main_window.py" line="989" />
             <source>Incomplete</source>
             <translation>Incomplete</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3518" />
-            <location filename="../src/ui/main_window.py" line="992" />
+            <location filename="../src/ui/main_window.py" line="3541" />
+            <location filename="../src/ui/main_window.py" line="993" />
             <source>Show active, paused, or pending downloads</source>
             <translation>Show active, paused, or pending downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3520" />
-            <location filename="../src/ui/main_window.py" line="994" />
+            <location filename="../src/ui/main_window.py" line="3543" />
+            <location filename="../src/ui/main_window.py" line="995" />
             <source>Finished</source>
             <translation>Finished</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3521" />
-            <location filename="../src/ui/main_window.py" line="998" />
+            <location filename="../src/ui/main_window.py" line="3544" />
+            <location filename="../src/ui/main_window.py" line="999" />
             <source>Show completed downloads</source>
             <translation>Show completed downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3523" />
-            <location filename="../src/ui/main_window.py" line="2556" />
-            <location filename="../src/ui/main_window.py" line="1001" />
+            <location filename="../src/ui/main_window.py" line="3546" />
+            <location filename="../src/ui/main_window.py" line="2578" />
+            <location filename="../src/ui/main_window.py" line="1002" />
             <source>Schedule</source>
             <translation>Schedule</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3524" />
-            <location filename="../src/ui/main_window.py" line="1001" />
+            <location filename="../src/ui/main_window.py" line="3547" />
+            <location filename="../src/ui/main_window.py" line="1002" />
             <source>Download scheduler and queues</source>
             <translation>Download scheduler and queues</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3526" />
-            <location filename="../src/ui/main_window.py" line="1003" />
+            <location filename="../src/ui/main_window.py" line="3549" />
+            <location filename="../src/ui/main_window.py" line="1004" />
             <source>Queues</source>
             <translation>Queues</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3527" />
-            <location filename="../src/ui/main_window.py" line="1006" />
+            <location filename="../src/ui/main_window.py" line="3550" />
+            <location filename="../src/ui/main_window.py" line="1007" />
             <source>Download queues and scheduler</source>
             <translation>Download queues and scheduler</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3531" />
-            <location filename="../src/ui/main_window.py" line="1019" />
+            <location filename="../src/ui/main_window.py" line="3554" />
+            <location filename="../src/ui/main_window.py" line="1020" />
             <source>Main download queue</source>
             <translation>Main download queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3531" />
-            <location filename="../src/ui/main_window.py" line="1019" />
+            <location filename="../src/ui/main_window.py" line="3554" />
+            <location filename="../src/ui/main_window.py" line="1020" />
             <source>Synchronization queue</source>
             <translation>Synchronization queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="4378" />
-            <location filename="../src/ui/main_window.py" line="3533" />
-            <location filename="../src/ui/main_window.py" line="2884" />
-            <location filename="../src/ui/main_window.py" line="1022" />
+            <location filename="../src/ui/main_window.py" line="4402" />
+            <location filename="../src/ui/main_window.py" line="3556" />
+            <location filename="../src/ui/main_window.py" line="2906" />
+            <location filename="../src/ui/main_window.py" line="1023" />
             <source>Queue: %1</source>
             <translation>Queue: %1</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="1717" />
+            <location filename="../src/ui/main_window.py" line="1718" />
             <source>Public IP copied to clipboard!</source>
             <translation>Public IP copied to clipboard!</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="2543" />
-            <source>Start now</source>
-            <translation>Start now</translation>
+            <location filename="../src/ui/main_window.py" line="2278" />
+            <location filename="../src/ui/main_window.py" line="2171" />
+            <source>Show</source>
+            <translation>Show</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="2547" />
-            <source>Stop</source>
-            <translation>Stop</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="2553" />
-            <source>Edit queue</source>
-            <translation>Edit queue</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="2568" />
-            <source>Create new queue</source>
-            <translation>Create new queue</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="4091" />
-            <source>Show progress window</source>
-            <translation>Show progress window</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="4360" />
-            <source>New Queue</source>
-            <translation>New Queue</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="4360" />
-            <source>Enter queue name:</source>
-            <translation>Enter queue name:</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="4597" />
-            <source>Batch Added</source>
-            <translation>Batch Added</translation>
-        </message>
-        <message>
-            <location filename="../src/ui/main_window.py" line="6564" />
-            <source>Stopped all download queues (Synchronization queue preserved)</source>
-            <translation>Stopped all download queues (Synchronization queue preserved)</translation>
-        </message>
-        <message>
+            <location filename="../src/ui/main_window.py" line="2275" />
+            <location filename="../src/ui/main_window.py" line="2171" />
             <source>Hide</source>
             <translation>Hide</translation>
         </message>
         <message>
-            <source>Media Status (Click to open Media Downloader)</source>
-            <translation>Media Status (Click to open Media Downloader)</translation>
+            <location filename="../src/ui/main_window.py" line="2565" />
+            <source>Start now</source>
+            <translation>Start now</translation>
         </message>
         <message>
-            <source>), self.tr(</source>
-            <translation>), self.tr(</translation>
+            <location filename="../src/ui/main_window.py" line="2569" />
+            <source>Stop</source>
+            <translation>Stop</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="2575" />
+            <source>Edit queue</source>
+            <translation>Edit queue</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="2590" />
+            <source>Create new queue</source>
+            <translation>Create new queue</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="4115" />
+            <source>Show progress window</source>
+            <translation>Show progress window</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="4384" />
+            <source>New Queue</source>
+            <translation>New Queue</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="4384" />
+            <source>Enter queue name:</source>
+            <translation>Enter queue name:</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="4621" />
+            <source>Batch Added</source>
+            <translation>Batch Added</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="6588" />
+            <source>Stopped all download queues (Synchronization queue preserved)</source>
+            <translation>Stopped all download queues (Synchronization queue preserved)</translation>
+        </message>
+        <message>
+            <source>Public IP: Unable to detect (offline or blocked)</source>
+            <translation>Public IP: Unable to detect (offline or blocked)</translation>
         </message>
         <message>
             <source>Public IP Address (Click to copy)</source>
             <translation>Public IP Address (Click to copy)</translation>
-        </message>
-        <message>
-            <source>Proxy Status (Click to configure)</source>
-            <translation>Proxy Status (Click to configure)</translation>
         </message>
         <message>
             <source>Aria2 RPC Status</source>
@@ -1404,20 +1404,24 @@
             <translation>No downloads in list</translation>
         </message>
         <message>
-            <source>)), self.tr(</source>
-            <translation>)), self.tr(</translation>
+            <source>Media Engine: Missing or not installed\nClick to open Media Downloader and install</source>
+            <translation>Media Engine: Missing or not installed\nClick to open Media Downloader and install</translation>
         </message>
         <message>
-            <source>Bengal Download Manager</source>
-            <translation>Bengal Download Manager</translation>
+            <source>IP: Detecting...</source>
+            <translation>IP: Detecting...</translation>
         </message>
         <message>
-            <source>Direct connection (Proxy host is empty)\nClick to configure</source>
-            <translation>Direct connection (Proxy host is empty)\nClick to configure</translation>
+            <source>Total Transfer Rate</source>
+            <translation>Total Transfer Rate</translation>
         </message>
         <message>
-            <source>Application Memory Usage (Resident Set Size)</source>
-            <translation>Application Memory Usage (Resident Set Size)</translation>
+            <source>● IPC: Ready</source>
+            <translation>● IPC: Ready</translation>
+        </message>
+        <message>
+            <source>Proxy: Direct</source>
+            <translation>Proxy: Direct</translation>
         </message>
         <message>
             <source>0 items</source>
@@ -1428,64 +1432,68 @@
             <translation>● Media: Ready</translation>
         </message>
         <message>
-            <source>IP: Detecting...</source>
-            <translation>IP: Detecting...</translation>
+            <source>)), self.tr(</source>
+            <translation>)), self.tr(</translation>
         </message>
         <message>
-            <source>Public IP: Unable to detect (offline or blocked)</source>
-            <translation>Public IP: Unable to detect (offline or blocked)</translation>
+            <source>), self.tr(</source>
+            <translation>), self.tr(</translation>
         </message>
         <message>
-            <source>),</source>
-            <translation>),</translation>
-        </message>
-        <message>
-            <source>Columns...</source>
-            <translation>Columns...</translation>
-        </message>
-        <message>
-            <source>Speed: 0 B/s</source>
-            <translation>Speed: 0 B/s</translation>
-        </message>
-        <message>
-            <source>Media Engine: Missing or not installed\nClick to open Media Downloader and install</source>
-            <translation>Media Engine: Missing or not installed\nClick to open Media Downloader and install</translation>
-        </message>
-        <message>
-            <source>) if can_show_progress else _fi(get_themed_icon(</source>
-            <translation>) if can_show_progress else _fi(get_themed_icon(</translation>
-        </message>
-        <message>
-            <source>Total Transfer Rate</source>
-            <translation>Total Transfer Rate</translation>
-        </message>
-        <message>
-            <source>Browser Extension IPC Status</source>
-            <translation>Browser Extension IPC Status</translation>
-        </message>
-        <message>
-            <source>● Aria2: Ready</source>
-            <translation>● Aria2: Ready</translation>
-        </message>
-        <message>
-            <source>● IPC: Ready</source>
-            <translation>● IPC: Ready</translation>
-        </message>
-        <message>
-            <source>Direct connection (No proxy configured)\nClick to configure</source>
-            <translation>Direct connection (No proxy configured)\nClick to configure</translation>
-        </message>
-        <message>
-            <source>Proxy: Direct</source>
-            <translation>Proxy: Direct</translation>
+            <source>Media Status (Click to open Media Downloader)</source>
+            <translation>Media Status (Click to open Media Downloader)</translation>
         </message>
         <message>
             <source>)),</source>
             <translation>)),</translation>
         </message>
         <message>
+            <source>Columns...</source>
+            <translation>Columns...</translation>
+        </message>
+        <message>
+            <source>● Aria2: Ready</source>
+            <translation>● Aria2: Ready</translation>
+        </message>
+        <message>
+            <source>) if can_show_progress else _fi(get_themed_icon(</source>
+            <translation>) if can_show_progress else _fi(get_themed_icon(</translation>
+        </message>
+        <message>
+            <source>),</source>
+            <translation>),</translation>
+        </message>
+        <message>
+            <source>Application Memory Usage (Resident Set Size)</source>
+            <translation>Application Memory Usage (Resident Set Size)</translation>
+        </message>
+        <message>
+            <source>Direct connection (No proxy configured)\nClick to configure</source>
+            <translation>Direct connection (No proxy configured)\nClick to configure</translation>
+        </message>
+        <message>
+            <source>Proxy Status (Click to configure)</source>
+            <translation>Proxy Status (Click to configure)</translation>
+        </message>
+        <message>
+            <source>Browser Extension IPC Status</source>
+            <translation>Browser Extension IPC Status</translation>
+        </message>
+        <message>
+            <source>Direct connection (Proxy host is empty)\nClick to configure</source>
+            <translation>Direct connection (Proxy host is empty)\nClick to configure</translation>
+        </message>
+        <message>
+            <source>Speed: 0 B/s</source>
+            <translation>Speed: 0 B/s</translation>
+        </message>
+        <message>
             <source>Memory: 0 B</source>
             <translation>Memory: 0 B</translation>
+        </message>
+        <message>
+            <source>Bengal Download Manager</source>
+            <translation>Bengal Download Manager</translation>
         </message>
     </context>
     <context>
@@ -2585,27 +2593,27 @@
             <translation>Select Directory</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2163" />
+            <location filename="../src/ui/dialogs/options.py" line="2166" />
             <source>UI Scale</source>
             <translation>UI Scale</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2165" />
+            <location filename="../src/ui/dialogs/options.py" line="2168" />
             <source>Language</source>
             <translation>Language</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2168" />
+            <location filename="../src/ui/dialogs/options.py" line="2171" />
             <source>and</source>
             <translation>and</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2169" />
+            <location filename="../src/ui/dialogs/options.py" line="2172" />
             <source>{items} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect.</source>
             <translation>{items} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2172" />
+            <location filename="../src/ui/dialogs/options.py" line="2175" />
             <source>Restart Required</source>
             <translation>Restart Required</translation>
         </message>
@@ -2677,44 +2685,8 @@
             <translation>Start download on application startup</translation>
         </message>
         <message>
-            <source>Show desktop system notification when downloads in this queue finish</source>
-            <translation>Show desktop system notification when downloads in this queue finish</translation>
-        </message>
-        <message>
-            <source>Number of retries for each file if downloading failed:</source>
-            <translation>Number of retries for each file if downloading failed:</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>Daily</translation>
-        </message>
-        <message>
-            <source>Show notification when download completes</source>
-            <translation>Show notification when download completes</translation>
-        </message>
-        <message>
-            <source>Once at</source>
-            <translation>Once at</translation>
-        </message>
-        <message>
-            <source>One-time downloading</source>
-            <translation>One-time downloading</translation>
-        </message>
-        <message>
-            <source>min</source>
-            <translation>min</translation>
-        </message>
-        <message>
-            <source>Stop download at</source>
-            <translation>Stop download at</translation>
-        </message>
-        <message>
-            <source>Start again every</source>
-            <translation>Start again every</translation>
-        </message>
-        <message>
-            <source>Periodic synchronization</source>
-            <translation>Periodic synchronization</translation>
+            <source>hours</source>
+            <translation>hours</translation>
         </message>
         <message>
             <source>Download</source>
@@ -2725,47 +2697,71 @@
             <translation>Start download at</translation>
         </message>
         <message>
-            <source>Scheduler</source>
-            <translation>Scheduler</translation>
+            <source>Number of retries for each file if downloading failed:</source>
+            <translation>Number of retries for each file if downloading failed:</translation>
         </message>
         <message>
-            <source>hours</source>
-            <translation>hours</translation>
+            <source>Show notification when download completes</source>
+            <translation>Show notification when download completes</translation>
+        </message>
+        <message>
+            <source>Once at</source>
+            <translation>Once at</translation>
+        </message>
+        <message>
+            <source>Show desktop system notification when downloads in this queue finish</source>
+            <translation>Show desktop system notification when downloads in this queue finish</translation>
+        </message>
+        <message>
+            <source>One-time downloading</source>
+            <translation>One-time downloading</translation>
         </message>
         <message>
             <source>files at the same time</source>
             <translation>files at the same time</translation>
         </message>
+        <message>
+            <source>Stop download at</source>
+            <translation>Stop download at</translation>
+        </message>
+        <message>
+            <source>Daily</source>
+            <translation>Daily</translation>
+        </message>
+        <message>
+            <source>Periodic synchronization</source>
+            <translation>Periodic synchronization</translation>
+        </message>
+        <message>
+            <source>Start again every</source>
+            <translation>Start again every</translation>
+        </message>
+        <message>
+            <source>min</source>
+            <translation>min</translation>
+        </message>
+        <message>
+            <source>Scheduler</source>
+            <translation>Scheduler</translation>
+        </message>
     </context>
     <context>
         <name>Details_panelDialog</name>
-        <message>
-            <source>Failed</source>
-            <translation>Failed</translation>
-        </message>
-        <message>
-            <source>Downloaded: 0 B of 0 B</source>
-            <translation>Downloaded: 0 B of 0 B</translation>
-        </message>
-        <message>
-            <source>Segments: 0 / 8</source>
-            <translation>Segments: 0 / 8</translation>
-        </message>
         <message>
             <source>0 B/s</source>
             <translation>0 B/s</translation>
         </message>
         <message>
-            <source>Active: 0</source>
-            <translation>Active: 0</translation>
+            <source>Click to open containing folder</source>
+            <translation>Click to open containing folder</translation>
         </message>
         <message>
-            <source>Active remaining bytes</source>
-            <translation>Active remaining bytes</translation>
+            <source>Toggle download details panel</source>
+            <translation>Toggle download details panel</translation>
         </message>
         <message>
-            <source>Close details panel</source>
-            <translation>Close details panel</translation>
+            <source>Downloaded: 0 B of 0 B</source>
+            <translation>Downloaded: 0 B of 0 B</translation>
         </message>
         <message>
             <source>0 B / 0 B</source>
@@ -2776,6 +2772,42 @@
             <translation>ETA --</translation>
         </message>
         <message>
+            <source>Live blocks: 480</source>
+            <translation>Live blocks: 480</translation>
+        </message>
+        <message>
+            <source>Active remaining bytes</source>
+            <translation>Active remaining bytes</translation>
+        </message>
+        <message>
+            <source>Close details panel</source>
+            <translation>Close details panel</translation>
+        </message>
+        <message>
+            <source>0% Idle</source>
+            <translation>0% Idle</translation>
+        </message>
+        <message>
+            <source>Added at: --</source>
+            <translation>Added at: --</translation>
+        </message>
+        <message>
+            <source>Segments: 0 / 8</source>
+            <translation>Segments: 0 / 8</translation>
+        </message>
+        <message>
+            <source>Active: 0</source>
+            <translation>Active: 0</translation>
+        </message>
+        <message>
+            <source>0.00%</source>
+            <translation>0.00%</translation>
+        </message>
+        <message>
+            <source>Failed</source>
+            <translation>Failed</translation>
+        </message>
+        <message>
             <source>Failed: 0</source>
             <translation>Failed: 0</translation>
         </message>
@@ -2783,195 +2815,171 @@
             <source>Downloaded bytes</source>
             <translation>Downloaded bytes</translation>
         </message>
-        <message>
-            <source>Toggle download details panel</source>
-            <translation>Toggle download details panel</translation>
-        </message>
-        <message>
-            <source>Added at: --</source>
-            <translation>Added at: --</translation>
-        </message>
-        <message>
-            <source>Live blocks: 480</source>
-            <translation>Live blocks: 480</translation>
-        </message>
-        <message>
-            <source>0.00%</source>
-            <translation>0.00%</translation>
-        </message>
-        <message>
-            <source>0% Idle</source>
-            <translation>0% Idle</translation>
-        </message>
-        <message>
-            <source>Click to open containing folder</source>
-            <translation>Click to open containing folder</translation>
-        </message>
     </context>
     <context>
         <name>Csd_titlebarDialog</name>
         <message>
-            <source>Maximize</source>
-            <translation>Maximize</translation>
+            <source>Close</source>
+            <translation>Close</translation>
         </message>
         <message>
-            <source>Restore" if is_max else "Maximize</source>
-            <translation>Restore" if is_max else "Maximize</translation>
+            <source>Maximize</source>
+            <translation>Maximize</translation>
         </message>
         <message>
             <source>Minimize</source>
             <translation>Minimize</translation>
         </message>
         <message>
-            <source>Close</source>
-            <translation>Close</translation>
+            <source>Restore" if is_max else "Maximize</source>
+            <translation>Restore" if is_max else "Maximize</translation>
         </message>
     </context>
     <context>
         <name>Data_usage_widgetDialog</name>
         <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
-        </message>
-        <message>
             <source>-- / --</source>
             <translation>-- / --</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
         </message>
     </context>
     <context>
         <name>ColumnDialog</name>
         <message>
-            <source>Column width (pixels):</source>
-            <translation>Column width (pixels):</translation>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
         </message>
         <message>
             <source>Move Down</source>
             <translation>Move Down</translation>
         </message>
         <message>
-            <source>Columns</source>
-            <translation>Columns</translation>
-        </message>
-        <message>
-            <source>OK</source>
-            <translation>OK</translation>
-        </message>
-        <message>
-            <source>Deselect All</source>
-            <translation>Deselect All</translation>
+            <source>Select All</source>
+            <translation>Select All</translation>
         </message>
         <message>
             <source>Move Up</source>
             <translation>Move Up</translation>
         </message>
         <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
+            <source>Columns</source>
+            <translation>Columns</translation>
         </message>
         <message>
-            <source>Select All</source>
-            <translation>Select All</translation>
+            <source>Column width (pixels):</source>
+            <translation>Column width (pixels):</translation>
+        </message>
+        <message>
+            <source>Deselect All</source>
+            <translation>Deselect All</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
         </message>
     </context>
     <context>
         <name>DuplicateDialog</name>
         <message>
-            <source>Open File</source>
-            <translation>Open File</translation>
-        </message>
-        <message>
-            <source>Restart download and overwrite existing file</source>
-            <translation>Restart download and overwrite existing file</translation>
-        </message>
-        <message>
             <source>Restart</source>
             <translation>Restart</translation>
-        </message>
-        <message>
-            <source>Open destination directory and highlight file</source>
-            <translation>Open destination directory and highlight file</translation>
-        </message>
-        <message>
-            <source>Duplicate Download</source>
-            <translation>Duplicate Download</translation>
-        </message>
-        <message>
-            <source>Open Folder</source>
-            <translation>Open Folder</translation>
-        </message>
-        <message>
-            <source>Resume</source>
-            <translation>Resume</translation>
-        </message>
-        <message>
-            <source>Resume downloading this existing item</source>
-            <translation>Resume downloading this existing item</translation>
         </message>
         <message>
             <source>Redownload</source>
             <translation>Redownload</translation>
         </message>
         <message>
-            <source>Cancel and discard this request</source>
-            <translation>Cancel and discard this request</translation>
-        </message>
-        <message>
-            <source>Save as a new copy with an auto-numbered filename</source>
-            <translation>Save as a new copy with an auto-numbered filename</translation>
-        </message>
-        <message>
-            <source>Restart download from beginning (0%)</source>
-            <translation>Restart download from beginning (0%)</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Open existing downloaded file</source>
-            <translation>Open existing downloaded file</translation>
+            <source>Open File</source>
+            <translation>Open File</translation>
         </message>
         <message>
             <source>Download Copy</source>
             <translation>Download Copy</translation>
         </message>
         <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Restart download from beginning (0%)</source>
+            <translation>Restart download from beginning (0%)</translation>
+        </message>
+        <message>
+            <source>Open destination directory and highlight file</source>
+            <translation>Open destination directory and highlight file</translation>
+        </message>
+        <message>
+            <source>Open existing downloaded file</source>
+            <translation>Open existing downloaded file</translation>
+        </message>
+        <message>
+            <source>Cancel and discard this request</source>
+            <translation>Cancel and discard this request</translation>
+        </message>
+        <message>
+            <source>Open Folder</source>
+            <translation>Open Folder</translation>
+        </message>
+        <message>
+            <source>Save as a new copy with an auto-numbered filename</source>
+            <translation>Save as a new copy with an auto-numbered filename</translation>
+        </message>
+        <message>
+            <source>Resume</source>
+            <translation>Resume</translation>
+        </message>
+        <message>
             <source>Download Already Exists</source>
             <translation>Download Already Exists</translation>
+        </message>
+        <message>
+            <source>Restart download and overwrite existing file</source>
+            <translation>Restart download and overwrite existing file</translation>
+        </message>
+        <message>
+            <source>Resume downloading this existing item</source>
+            <translation>Resume downloading this existing item</translation>
+        </message>
+        <message>
+            <source>Duplicate Download</source>
+            <translation>Duplicate Download</translation>
         </message>
     </context>
     <context>
         <name>RefreshDialog</name>
         <message>
-            <source>Address:</source>
-            <translation>Address:</translation>
-        </message>
-        <message>
-            <source>OK</source>
-            <translation>OK</translation>
-        </message>
-        <message>
-            <source>Paste from clipboard</source>
-            <translation>Paste from clipboard</translation>
-        </message>
-        <message>
             <source>Paste</source>
             <translation>Paste</translation>
+        </message>
+        <message>
+            <source>Refresh download address</source>
+            <translation>Refresh download address</translation>
         </message>
         <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
         </message>
         <message>
-            <source>Refresh download address</source>
-            <translation>Refresh download address</translation>
+            <source>Address:</source>
+            <translation>Address:</translation>
+        </message>
+        <message>
+            <source>Paste from clipboard</source>
+            <translation>Paste from clipboard</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
         </message>
     </context>
     <context>
         <name>RenameDialog</name>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Rename File</source>
+            <translation>Rename File</translation>
         </message>
         <message>
             <source>Enter new file name:</source>
@@ -2982,8 +2990,8 @@
             <translation>Cancel</translation>
         </message>
         <message>
-            <source>Rename File</source>
-            <translation>Rename File</translation>
+            <source>OK</source>
+            <translation>OK</translation>
         </message>
     </context>
     <context>
@@ -2993,32 +3001,32 @@
             <translation>Only current month</translation>
         </message>
         <message>
-            <source>Total data downloaded in current month</source>
-            <translation>Total data downloaded in current month</translation>
-        </message>
-        <message>
-            <source>Total data downloaded today</source>
-            <translation>Total data downloaded today</translation>
+            <source>Data Usage - Current Month</source>
+            <translation>Data Usage - Current Month</translation>
         </message>
         <message>
             <source>Today: 0 B</source>
             <translation>Today: 0 B</translation>
         </message>
         <message>
-            <source>Daily Activity Breakdown</source>
-            <translation>Daily Activity Breakdown</translation>
+            <source>Total data downloaded today</source>
+            <translation>Total data downloaded today</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Total data downloaded in current month</source>
+            <translation>Total data downloaded in current month</translation>
         </message>
         <message>
             <source>0 B</source>
             <translation>0 B</translation>
         </message>
         <message>
-            <source>Data Usage - Current Month</source>
-            <translation>Data Usage - Current Month</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>Close</translation>
+            <source>Daily Activity Breakdown</source>
+            <translation>Daily Activity Breakdown</translation>
         </message>
     </context>
     <context>
@@ -3026,6 +3034,34 @@
         <message>
             <source>Open downloaded file with default application</source>
             <translation>Open downloaded file with default application</translation>
+        </message>
+        <message>
+            <source>Don</source>
+            <translation>Don</translation>
+        </message>
+        <message>
+            <source>Download Completed</source>
+            <translation>Download Completed</translation>
+        </message>
+        <message>
+            <source>Show file in its containing folder</source>
+            <translation>Show file in its containing folder</translation>
+        </message>
+        <message>
+            <source>Click and drag this file directly to any folder, desktop, file manager, or application</source>
+            <translation>Click and drag this file directly to any folder, desktop, file manager, or application</translation>
+        </message>
+        <message>
+            <source>Open</source>
+            <translation>Open</translation>
+        </message>
+        <message>
+            <source>Choose application to open this file</source>
+            <translation>Choose application to open this file</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
         </message>
         <message>
             <source>Your file has been downloaded successfully and is ready to use.</source>
@@ -3040,30 +3076,6 @@
             <translation>Open Folder</translation>
         </message>
         <message>
-            <source>Don</source>
-            <translation>Don</translation>
-        </message>
-        <message>
-            <source>Download Completed</source>
-            <translation>Download Completed</translation>
-        </message>
-        <message>
-            <source>Choose application to open this file</source>
-            <translation>Choose application to open this file</translation>
-        </message>
-        <message>
-            <source>Open</source>
-            <translation>Open</translation>
-        </message>
-        <message>
-            <source>Click and drag this file directly to any folder, desktop, file manager, or application</source>
-            <translation>Click and drag this file directly to any folder, desktop, file manager, or application</translation>
-        </message>
-        <message>
-            <source>Show file in its containing folder</source>
-            <translation>Show file in its containing folder</translation>
-        </message>
-        <message>
             <source>Disable completion dialog popup for future downloads</source>
             <translation>Disable completion dialog popup for future downloads</translation>
         </message>
@@ -3071,17 +3083,9 @@
             <source>Open with...</source>
             <translation>Open with...</translation>
         </message>
-        <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
     </context>
     <context>
         <name>DeleteDialog</name>
-        <message>
-            <source>Delete Completed Downloads" if is_completed else "Delete</source>
-            <translation>Delete Completed Downloads" if is_completed else "Delete</translation>
-        </message>
         <message>
             <source>Yes</source>
             <translation>Yes</translation>
@@ -3094,201 +3098,221 @@
             <source>No</source>
             <translation>No</translation>
         </message>
+        <message>
+            <source>Delete Completed Downloads" if is_completed else "Delete</source>
+            <translation>Delete Completed Downloads" if is_completed else "Delete</translation>
+        </message>
     </context>
     <context>
         <name>PropertiesDialog</name>
         <message>
-            <source>Close properties window</source>
-            <translation>Close properties window</translation>
+            <source>File Information</source>
+            <translation>File Information</translation>
         </message>
         <message>
             <source>Open</source>
             <translation>Open</translation>
         </message>
         <message>
-            <source>File Information</source>
-            <translation>File Information</translation>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Close properties window</source>
+            <translation>Close properties window</translation>
         </message>
         <message>
             <source>Open this file with default application</source>
             <translation>Open this file with default application</translation>
         </message>
-        <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
     </context>
     <context>
         <name>Add_urlDialog</name>
         <message>
-            <source>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</source>
-            <translation>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</translation>
-        </message>
-        <message>
-            <source>Media Stream detected (go to Media Downloader)</source>
-            <translation>Media Stream detected (go to Media Downloader)</translation>
-        </message>
-        <message>
-            <source>Awaiting URL</source>
-            <translation>Awaiting URL</translation>
-        </message>
-        <message>
-            <source>Address:</source>
-            <translation>Address:</translation>
-        </message>
-        <message>
-            <source>Paste link from clipboard</source>
-            <translation>Paste link from clipboard</translation>
-        </message>
-        <message>
-            <source>Download Media</source>
-            <translation>Download Media</translation>
-        </message>
-        <message>
-            <source>Add download URL</source>
-            <translation>Add download URL</translation>
-        </message>
-        <message>
-            <source>Batch pattern detected (go to Batch Downloader)</source>
-            <translation>Batch pattern detected (go to Batch Downloader)</translation>
-        </message>
-        <message>
-            <source>Enter new address to download</source>
-            <translation>Enter new address to download</translation>
-        </message>
-        <message>
-            <source>Cancel and close dialog</source>
-            <translation>Cancel and close dialog</translation>
-        </message>
-        <message>
             <source>Paste</source>
             <translation>Paste</translation>
-        </message>
-        <message>
-            <source>📁 ~/Downloads</source>
-            <translation>📁 ~/Downloads</translation>
         </message>
         <message>
             <source>Enter or paste download address</source>
             <translation>Enter or paste download address</translation>
         </message>
         <message>
+            <source>📁 ~/Downloads</source>
+            <translation>📁 ~/Downloads</translation>
+        </message>
+        <message>
+            <source>Cancel and close dialog</source>
+            <translation>Cancel and close dialog</translation>
+        </message>
+        <message>
+            <source>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</source>
+            <translation>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</translation>
+        </message>
+        <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
         </message>
         <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
+            <source>Batch pattern detected (go to Batch Downloader)</source>
+            <translation>Batch pattern detected (go to Batch Downloader)</translation>
         </message>
         <message>
             <source>Add URL</source>
             <translation>Add URL</translation>
         </message>
         <message>
+            <source>Paste link from clipboard</source>
+            <translation>Paste link from clipboard</translation>
+        </message>
+        <message>
+            <source>Add download URL</source>
+            <translation>Add download URL</translation>
+        </message>
+        <message>
+            <source>Address:</source>
+            <translation>Address:</translation>
+        </message>
+        <message>
             <source>Batch Download</source>
             <translation>Batch Download</translation>
+        </message>
+        <message>
+            <source>Awaiting URL</source>
+            <translation>Awaiting URL</translation>
+        </message>
+        <message>
+            <source>Media Stream detected (go to Media Downloader)</source>
+            <translation>Media Stream detected (go to Media Downloader)</translation>
+        </message>
+        <message>
+            <source>Enter new address to download</source>
+            <translation>Enter new address to download</translation>
+        </message>
+        <message>
+            <source>Download Media</source>
+            <translation>Download Media</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
         </message>
     </context>
     <context>
         <name>File_infoDialog</name>
         <message>
-            <source>Category to organize and route the download file</source>
-            <translation>Category to organize and route the download file</translation>
-        </message>
-        <message>
-            <source>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</source>
-            <translation>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</translation>
-        </message>
-        <message>
-            <source>Browse folder to select save location</source>
-            <translation>Browse folder to select save location</translation>
-        </message>
-        <message>
-            <source>Begin downloading this file immediately</source>
-            <translation>Begin downloading this file immediately</translation>
+            <source>Full download source URL</source>
+            <translation>Full download source URL</translation>
         </message>
         <message>
             <source>Add download to list in paused state</source>
             <translation>Add download to list in paused state</translation>
         </message>
         <message>
-            <source>Don</source>
-            <translation>Don</translation>
-        </message>
-        <message>
-            <source>Full download source URL</source>
-            <translation>Full download source URL</translation>
-        </message>
-        <message>
-            <source>Download Later</source>
-            <translation>Download Later</translation>
-        </message>
-        <message>
-            <source>Download File Info</source>
-            <translation>Download File Info</translation>
-        </message>
-        <message>
-            <source>Destination path and filename for the download</source>
-            <translation>Destination path and filename for the download</translation>
-        </message>
-        <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Category to organize and route the download file</source>
+            <translation>Category to organize and route the download file</translation>
         </message>
         <message>
             <source>Detected content size and file type</source>
             <translation>Detected content size and file type</translation>
         </message>
         <message>
-            <source>...</source>
-            <translation>...</translation>
+            <source>Don</source>
+            <translation>Don</translation>
+        </message>
+        <message>
+            <source>Destination path and filename for the download</source>
+            <translation>Destination path and filename for the download</translation>
+        </message>
+        <message>
+            <source>Begin downloading this file immediately</source>
+            <translation>Begin downloading this file immediately</translation>
         </message>
         <message>
             <source>Cancel and discard download request</source>
             <translation>Cancel and discard download request</translation>
         </message>
         <message>
+            <source>Download Later</source>
+            <translation>Download Later</translation>
+        </message>
+        <message>
             <source>Start Download</source>
             <translation>Start Download</translation>
+        </message>
+        <message>
+            <source>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</source>
+            <translation>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</translation>
+        </message>
+        <message>
+            <source>...</source>
+            <translation>...</translation>
+        </message>
+        <message>
+            <source>Browse folder to select save location</source>
+            <translation>Browse folder to select save location</translation>
+        </message>
+        <message>
+            <source>Download File Info</source>
+            <translation>Download File Info</translation>
         </message>
     </context>
     <context>
         <name>Media_downloaderDialog</name>
         <message>
-            <source>Embed ID3 metadata (Artist, Album, Track number) into audio files</source>
-            <translation>Embed ID3 metadata (Artist, Album, Track number) into audio files</translation>
+            <source>Parse media formats or playlist items using yt-dlp</source>
+            <translation>Parse media formats or playlist items using yt-dlp</translation>
         </message>
         <message>
-            <source>Filter audio container / codec</source>
-            <translation>Filter audio container / codec</translation>
+            <source>Select All</source>
+            <translation>Select All</translation>
         </message>
         <message>
-            <source>Download video with audio merged</source>
-            <translation>Download video with audio merged</translation>
+            <source>Total: 0 items</source>
+            <translation>Total: 0 items</translation>
         </message>
         <message>
-            <source>No playlist detected in this URL</source>
-            <translation>No playlist detected in this URL</translation>
+            <source>Embed album cover artwork into downloaded audio tracks</source>
+            <translation>Embed album cover artwork into downloaded audio tracks</translation>
         </message>
         <message>
-            <source>Pipeline Engines &amp; Settings (Update Available)</source>
-            <translation>Pipeline Engines &amp; Settings (Update Available)</translation>
+            <source>📁 Open Binaries Folder</source>
+            <translation>📁 Open Binaries Folder</translation>
         </message>
         <message>
-            <source>Show individual audio and video streams table for advanced format selection</source>
-            <translation>Show individual audio and video streams table for advanced format selection</translation>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Download the entire playlist batch</source>
+            <translation>Download the entire playlist batch</translation>
         </message>
         <message>
             <source>Audio Format:</source>
             <translation>Audio Format:</translation>
         </message>
         <message>
-            <source>Prefix filenames with track order (e.g. 01 - Song)</source>
-            <translation>Prefix filenames with track order (e.g. 01 - Song)</translation>
+            <source>Save current quality, format choices, and selection mode for future downloads</source>
+            <translation>Save current quality, format choices, and selection mode for future downloads</translation>
         </message>
         <message>
-            <source>Pipeline Engines &amp; Settings</source>
-            <translation>Pipeline Engines &amp; Settings</translation>
+            <source>Quality / Bitrate:</source>
+            <translation>Quality / Bitrate:</translation>
+        </message>
+        <message>
+            <source>Video:</source>
+            <translation>Video:</translation>
+        </message>
+        <message>
+            <source>Filter tracks...</source>
+            <translation>Filter tracks...</translation>
+        </message>
+        <message>
+            <source>Type:</source>
+            <translation>Type:</translation>
         </message>
         <message>
             <source>Video Batch</source>
@@ -3299,36 +3323,104 @@
             <translation>Mode:</translation>
         </message>
         <message>
-            <source>Save all tracks inside a dedicated subfolder named after the playlist</source>
-            <translation>Save all tracks inside a dedicated subfolder named after the playlist</translation>
+            <source>Pipeline Engines</source>
+            <translation>Pipeline Engines</translation>
         </message>
         <message>
-            <source>Paste</source>
-            <translation>Paste</translation>
+            <source>Embed ID3 Tags</source>
+            <translation>Embed ID3 Tags</translation>
+        </message>
+        <message>
+            <source>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</source>
+            <translation>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</translation>
+        </message>
+        <message>
+            <source>0 of 0 items selected</source>
+            <translation>0 of 0 items selected</translation>
         </message>
         <message>
             <source>yt-dlp update channel (Stable or Nightly build)</source>
             <translation>yt-dlp update channel (Stable or Nightly build)</translation>
         </message>
         <message>
-            <source>Select quality (auto-merges Video + Audio)</source>
-            <translation>Select quality (auto-merges Video + Audio)</translation>
+            <source>No playlist detected in URL</source>
+            <translation>No playlist detected in URL</translation>
         </message>
         <message>
-            <source>Video:</source>
-            <translation>Video:</translation>
+            <source>Save all tracks inside a dedicated subfolder named after the playlist</source>
+            <translation>Save all tracks inside a dedicated subfolder named after the playlist</translation>
+        </message>
+        <message>
+            <source>Download</source>
+            <translation>Download</translation>
+        </message>
+        <message>
+            <source>Video Title</source>
+            <translation>Video Title</translation>
+        </message>
+        <message>
+            <source>Deselect All</source>
+            <translation>Deselect All</translation>
+        </message>
+        <message>
+            <source>Range:</source>
+            <translation>Range:</translation>
+        </message>
+        <message>
+            <source>Auto-start from extension</source>
+            <translation>Auto-start from extension</translation>
+        </message>
+        <message>
+            <source>● Checking...</source>
+            <translation>● Checking...</translation>
+        </message>
+        <message>
+            <source>Invert</source>
+            <translation>Invert</translation>
+        </message>
+        <message>
+            <source>Playlist Title</source>
+            <translation>Playlist Title</translation>
+        </message>
+        <message>
+            <source>Enter direct video URL or playlist link to analyze</source>
+            <translation>Enter direct video URL or playlist link to analyze</translation>
+        </message>
+        <message>
+            <source>Queue:</source>
+            <translation>Queue:</translation>
+        </message>
+        <message>
+            <source>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</source>
+            <translation>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</translation>
+        </message>
+        <message>
+            <source>Extract and download audio track only</source>
+            <translation>Extract and download audio track only</translation>
         </message>
         <message>
             <source>Select download queue for the downloaded item(s)</source>
             <translation>Select download queue for the downloaded item(s)</translation>
         </message>
         <message>
-            <source>Automatically start downloading media links sent from the browser extension using preselected quality</source>
-            <translation>Automatically start downloading media links sent from the browser extension using preselected quality</translation>
+            <source>No playlist detected in this URL</source>
+            <translation>No playlist detected in this URL</translation>
         </message>
         <message>
-            <source>Embed ID3 Tags</source>
-            <translation>Embed ID3 Tags</translation>
+            <source>Remember selection</source>
+            <translation>Remember selection</translation>
+        </message>
+        <message>
+            <source>Show individual audio and video streams table for advanced format selection</source>
+            <translation>Show individual audio and video streams table for advanced format selection</translation>
+        </message>
+        <message>
+            <source>Paste</source>
+            <translation>Paste</translation>
+        </message>
+        <message>
+            <source>Playlist</source>
+            <translation>Playlist</translation>
         </message>
         <message>
             <source>Update All</source>
@@ -3339,311 +3431,227 @@
             <translation>Enter URL</translation>
         </message>
         <message>
-            <source>Playlist</source>
-            <translation>Playlist</translation>
-        </message>
-        <message>
-            <source>Pipeline Engines</source>
-            <translation>Pipeline Engines</translation>
-        </message>
-        <message>
-            <source>Deselect All</source>
-            <translation>Deselect All</translation>
-        </message>
-        <message>
-            <source>FPS:</source>
-            <translation>FPS:</translation>
-        </message>
-        <message>
-            <source>Download single media</source>
-            <translation>Download single media</translation>
-        </message>
-        <message>
-            <source>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</source>
-            <translation>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</translation>
-        </message>
-        <message>
-            <source>Auto-start from extension</source>
-            <translation>Auto-start from extension</translation>
-        </message>
-        <message>
-            <source>Video</source>
-            <translation>Video</translation>
-        </message>
-        <message>
-            <source>Audio Only</source>
-            <translation>Audio Only</translation>
-        </message>
-        <message>
-            <source>Enter direct video URL or playlist link to analyze</source>
-            <translation>Enter direct video URL or playlist link to analyze</translation>
-        </message>
-        <message>
-            <source>📁 Open Binaries Folder</source>
-            <translation>📁 Open Binaries Folder</translation>
-        </message>
-        <message>
-            <source>Batch Mode:</source>
-            <translation>Batch Mode:</translation>
-        </message>
-        <message>
-            <source>Stop ongoing link analysis</source>
-            <translation>Stop ongoing link analysis</translation>
-        </message>
-        <message>
-            <source>Paste URL from clipboard (Ctrl+V)</source>
-            <translation>Paste URL from clipboard (Ctrl+V)</translation>
-        </message>
-        <message>
-            <source>Enter a video or playlist link above and click</source>
-            <translation>Enter a video or playlist link above and click</translation>
-        </message>
-        <message>
-            <source>Filter tracks...</source>
-            <translation>Filter tracks...</translation>
-        </message>
-        <message>
-            <source>Embed album cover artwork into downloaded audio tracks</source>
-            <translation>Embed album cover artwork into downloaded audio tracks</translation>
-        </message>
-        <message>
-            <source>Select All</source>
-            <translation>Select All</translation>
-        </message>
-        <message>
-            <source>Filter video framerate (e.g. 60 fps, 30 fps)</source>
-            <translation>Filter video framerate (e.g. 60 fps, 30 fps)</translation>
-        </message>
-        <message>
-            <source>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</source>
-            <translation>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</translation>
-        </message>
-        <message>
-            <source>Save current quality, format choices, and selection mode for future downloads</source>
-            <translation>Save current quality, format choices, and selection mode for future downloads</translation>
-        </message>
-        <message>
-            <source>Analyze</source>
-            <translation>Analyze</translation>
-        </message>
-        <message>
-            <source>Range:</source>
-            <translation>Range:</translation>
-        </message>
-        <message>
-            <source>Media Downloader</source>
-            <translation>Media Downloader</translation>
-        </message>
-        <message>
-            <source>Playlist Title</source>
-            <translation>Playlist Title</translation>
-        </message>
-        <message>
-            <source>Close Media Downloader window</source>
-            <translation>Close Media Downloader window</translation>
-        </message>
-        <message>
-            <source>Installed</source>
-            <translation>Installed</translation>
-        </message>
-        <message>
-            <source>Apply Range</source>
-            <translation>Apply Range</translation>
-        </message>
-        <message>
-            <source>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</source>
-            <translation>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</translation>
-        </message>
-        <message>
-            <source>to</source>
-            <translation>to</translation>
-        </message>
-        <message>
-            <source>Quality / Bitrate:</source>
-            <translation>Quality / Bitrate:</translation>
-        </message>
-        <message>
             <source>Embed Artwork</source>
             <translation>Embed Artwork</translation>
-        </message>
-        <message>
-            <source>Download the entire playlist batch</source>
-            <translation>Download the entire playlist batch</translation>
-        </message>
-        <message>
-            <source>No playlist detected in URL</source>
-            <translation>No playlist detected in URL</translation>
-        </message>
-        <message>
-            <source>Invert</source>
-            <translation>Invert</translation>
-        </message>
-        <message>
-            <source>Filter video container / codec</source>
-            <translation>Filter video container / codec</translation>
-        </message>
-        <message>
-            <source>Quality:</source>
-            <translation>Quality:</translation>
-        </message>
-        <message>
-            <source>Total: 0 items</source>
-            <translation>Total: 0 items</translation>
-        </message>
-        <message>
-            <source>Advanced Mode</source>
-            <translation>Advanced Mode</translation>
-        </message>
-        <message>
-            <source>Preserve album track ordering by prefixing track numbers</source>
-            <translation>Preserve album track ordering by prefixing track numbers</translation>
-        </message>
-        <message>
-            <source>Type:</source>
-            <translation>Type:</translation>
-        </message>
-        <message>
-            <source>Uploader: Unknown | Duration: 0s</source>
-            <translation>Uploader: Unknown | Duration: 0s</translation>
-        </message>
-        <message>
-            <source>● Checking...</source>
-            <translation>● Checking...</translation>
-        </message>
-        <message>
-            <source>Parse media formats or playlist items using yt-dlp</source>
-            <translation>Parse media formats or playlist items using yt-dlp</translation>
-        </message>
-        <message>
-            <source>Audio:</source>
-            <translation>Audio:</translation>
-        </message>
-        <message>
-            <source>Start download for selected format (merges video + audio + thumbnail + subtitles)</source>
-            <translation>Start download for selected format (merges video + audio + thumbnail + subtitles)</translation>
-        </message>
-        <message>
-            <source>0 of 0 items selected</source>
-            <translation>0 of 0 items selected</translation>
-        </message>
-        <message>
-            <source>⚙️ Media Options...</source>
-            <translation>⚙️ Media Options...</translation>
-        </message>
-        <message>
-            <source>Download</source>
-            <translation>Download</translation>
-        </message>
-        <message>
-            <source>Single</source>
-            <translation>Single</translation>
-        </message>
-        <message>
-            <source>Remember selection</source>
-            <translation>Remember selection</translation>
-        </message>
-        <message>
-            <source>Video Title</source>
-            <translation>Video Title</translation>
-        </message>
-        <message>
-            <source>Queue:</source>
-            <translation>Queue:</translation>
         </message>
         <message>
             <source>Audio</source>
             <translation>Audio</translation>
         </message>
         <message>
-            <source>Extract and download audio track only</source>
-            <translation>Extract and download audio track only</translation>
+            <source>Advanced Mode</source>
+            <translation>Advanced Mode</translation>
+        </message>
+        <message>
+            <source>Filter video framerate (e.g. 60 fps, 30 fps)</source>
+            <translation>Filter video framerate (e.g. 60 fps, 30 fps)</translation>
+        </message>
+        <message>
+            <source>to</source>
+            <translation>to</translation>
+        </message>
+        <message>
+            <source>Audio:</source>
+            <translation>Audio:</translation>
+        </message>
+        <message>
+            <source>Video</source>
+            <translation>Video</translation>
+        </message>
+        <message>
+            <source>Pipeline Engines &amp; Settings (Update Available)</source>
+            <translation>Pipeline Engines &amp; Settings (Update Available)</translation>
+        </message>
+        <message>
+            <source>Paste URL from clipboard (Ctrl+V)</source>
+            <translation>Paste URL from clipboard (Ctrl+V)</translation>
+        </message>
+        <message>
+            <source>Installed</source>
+            <translation>Installed</translation>
+        </message>
+        <message>
+            <source>Enter a video or playlist link above and click</source>
+            <translation>Enter a video or playlist link above and click</translation>
+        </message>
+        <message>
+            <source>⚙️ Media Options...</source>
+            <translation>⚙️ Media Options...</translation>
+        </message>
+        <message>
+            <source>Quality:</source>
+            <translation>Quality:</translation>
+        </message>
+        <message>
+            <source>Pipeline Engines &amp; Settings</source>
+            <translation>Pipeline Engines &amp; Settings</translation>
+        </message>
+        <message>
+            <source>Close Media Downloader window</source>
+            <translation>Close Media Downloader window</translation>
+        </message>
+        <message>
+            <source>Single</source>
+            <translation>Single</translation>
+        </message>
+        <message>
+            <source>Filter video container / codec</source>
+            <translation>Filter video container / codec</translation>
+        </message>
+        <message>
+            <source>Preserve album track ordering by prefixing track numbers</source>
+            <translation>Preserve album track ordering by prefixing track numbers</translation>
         </message>
         <message>
             <source>Create dedicated playlist subfolder</source>
             <translation>Create dedicated playlist subfolder</translation>
         </message>
         <message>
-            <source>Close</source>
-            <translation>Close</translation>
+            <source>Prefix filenames with track order (e.g. 01 - Song)</source>
+            <translation>Prefix filenames with track order (e.g. 01 - Song)</translation>
+        </message>
+        <message>
+            <source>Filter audio container / codec</source>
+            <translation>Filter audio container / codec</translation>
+        </message>
+        <message>
+            <source>Select quality (auto-merges Video + Audio)</source>
+            <translation>Select quality (auto-merges Video + Audio)</translation>
+        </message>
+        <message>
+            <source>Download video with audio merged</source>
+            <translation>Download video with audio merged</translation>
+        </message>
+        <message>
+            <source>Automatically start downloading media links sent from the browser extension using preselected quality</source>
+            <translation>Automatically start downloading media links sent from the browser extension using preselected quality</translation>
+        </message>
+        <message>
+            <source>Apply Range</source>
+            <translation>Apply Range</translation>
+        </message>
+        <message>
+            <source>Uploader: Unknown | Duration: 0s</source>
+            <translation>Uploader: Unknown | Duration: 0s</translation>
+        </message>
+        <message>
+            <source>Batch Mode:</source>
+            <translation>Batch Mode:</translation>
+        </message>
+        <message>
+            <source>FPS:</source>
+            <translation>FPS:</translation>
+        </message>
+        <message>
+            <source>Start download for selected format (merges video + audio + thumbnail + subtitles)</source>
+            <translation>Start download for selected format (merges video + audio + thumbnail + subtitles)</translation>
+        </message>
+        <message>
+            <source>Media Downloader</source>
+            <translation>Media Downloader</translation>
+        </message>
+        <message>
+            <source>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</source>
+            <translation>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</translation>
+        </message>
+        <message>
+            <source>Analyze</source>
+            <translation>Analyze</translation>
+        </message>
+        <message>
+            <source>Download single media</source>
+            <translation>Download single media</translation>
+        </message>
+        <message>
+            <source>Embed ID3 metadata (Artist, Album, Track number) into audio files</source>
+            <translation>Embed ID3 metadata (Artist, Album, Track number) into audio files</translation>
+        </message>
+        <message>
+            <source>Audio Only</source>
+            <translation>Audio Only</translation>
+        </message>
+        <message>
+            <source>Stop ongoing link analysis</source>
+            <translation>Stop ongoing link analysis</translation>
         </message>
     </context>
     <context>
         <name>ProgressDialog</name>
         <message>
-            <source>Hide</source>
-            <translation>Hide</translation>
-        </message>
-        <message>
-            <source>Limit download speed to avoid slowing down internet browsing.</source>
-            <translation>Limit download speed to avoid slowing down internet browsing.</translation>
-        </message>
-        <message>
-            <source>Start positions and download progress by connections</source>
-            <translation>Start positions and download progress by connections</translation>
+            <source>Show or hide multi-connection segment metrics panel</source>
+            <translation>Show or hide multi-connection segment metrics panel</translation>
         </message>
         <message>
             <source>KB/sec</source>
             <translation>KB/sec</translation>
         </message>
         <message>
-            <source>Use Speed Limiter</source>
-            <translation>Use Speed Limiter</translation>
+            <source>0 bytes</source>
+            <translation>0 bytes</translation>
         </message>
         <message>
-            <source>0.00 B/s</source>
-            <translation>0.00 B/s</translation>
-        </message>
-        <message>
-            <source>Connecting...</source>
-            <translation>Connecting...</translation>
+            <source>Limit download speed to avoid slowing down internet browsing.</source>
+            <translation>Limit download speed to avoid slowing down internet browsing.</translation>
         </message>
         <message>
             <source>Max speed:</source>
             <translation>Max speed:</translation>
         </message>
         <message>
-            <source>Hide progress window and continue downloading in the background</source>
-            <translation>Hide progress window and continue downloading in the background</translation>
+            <source>Pause or resume this download</source>
+            <translation>Pause or resume this download</translation>
         </message>
         <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Details &gt;&gt;</source>
-            <translation>Details &gt;&gt;</translation>
-        </message>
-        <message>
-            <source>Show or hide multi-connection segment metrics panel</source>
-            <translation>Show or hide multi-connection segment metrics panel</translation>
-        </message>
-        <message>
-            <source>Calculating...</source>
-            <translation>Calculating...</translation>
-        </message>
-        <message>
-            <source>Cancel download and stop worker thread</source>
-            <translation>Cancel download and stop worker thread</translation>
-        </message>
-        <message>
-            <source>0 bytes</source>
-            <translation>0 bytes</translation>
-        </message>
-        <message>
-            <source>Pause</source>
-            <translation>Pause</translation>
+            <source>Hide</source>
+            <translation>Hide</translation>
         </message>
         <message>
             <source>Unknown</source>
             <translation>Unknown</translation>
         </message>
         <message>
+            <source>Hide progress window and continue downloading in the background</source>
+            <translation>Hide progress window and continue downloading in the background</translation>
+        </message>
+        <message>
+            <source>Calculating...</source>
+            <translation>Calculating...</translation>
+        </message>
+        <message>
+            <source>Start positions and download progress by connections</source>
+            <translation>Start positions and download progress by connections</translation>
+        </message>
+        <message>
+            <source>Details &gt;&gt;</source>
+            <translation>Details &gt;&gt;</translation>
+        </message>
+        <message>
+            <source>Cancel download and stop worker thread</source>
+            <translation>Cancel download and stop worker thread</translation>
+        </message>
+        <message>
+            <source>Connecting...</source>
+            <translation>Connecting...</translation>
+        </message>
+        <message>
             <source>Overall download progress</source>
             <translation>Overall download progress</translation>
         </message>
         <message>
-            <source>Pause or resume this download</source>
-            <translation>Pause or resume this download</translation>
+            <source>0.00 B/s</source>
+            <translation>0.00 B/s</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Use Speed Limiter</source>
+            <translation>Use Speed Limiter</translation>
+        </message>
+        <message>
+            <source>Pause</source>
+            <translation>Pause</translation>
         </message>
     </context>
 </TS>
