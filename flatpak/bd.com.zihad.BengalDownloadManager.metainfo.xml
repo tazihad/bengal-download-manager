@@ -55,9 +55,10 @@
       <description>
         <p>Bengal Download Manager 0.3.4 changes:</p>
         <ul>
-          <li>Fixed Flatpak portal autostart and launch on system boot preferences</li>
-          <li>Resolved issue where Flatpak could not start minimized to the system tray on startup</li>
-          <li>Added automatic retry for system tray icon initialization if the desktop tray is loading</li>
+          <li>Resolved Flatpak autostart and start minimized in system tray</li>
+          <li>Improved system tray icon initialization on desktop startup</li>
+          <li>Added official Flathub integration and badges</li>
+          <li>Updated translation catalogs</li>
         </ul>
       </description>
     </release>
