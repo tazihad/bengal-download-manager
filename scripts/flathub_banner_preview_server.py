@@ -100,6 +100,58 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       color: #fff;
     }
 
+    /* Filter Chips */
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chip:hover {
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .chip.active {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .slider-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .slider-item input[type="range"] {
+      width: 110px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
     /* Preset Grid */
     .section-title {
       font-size: 1.1rem;
@@ -112,9 +164,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     .presets-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
       gap: 12px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
 
     .preset-card {
@@ -452,34 +504,57 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </header>
 
-    <!-- Presets Section -->
-    <div class="section-title">✨ Curated Color Palettes (Click to Preview)</div>
+    <!-- Presets Section with Filter Chips -->
+    <div class="section-title">✨ Curated Muted Palettes (Low Saturation &amp; Non-Glaring)</div>
+    <div class="filter-chips">
+      <button class="chip active" onclick="filterCategory('all', this)">All (12 Palettes)</button>
+      <button class="chip" onclick="filterCategory('earth', this)">🍂 Muted Earth &amp; Terracotta</button>
+      <button class="chip" onclick="filterCategory('cool', this)">❄️ Subtle Slate &amp; Tech Blue</button>
+      <button class="chip" onclick="filterCategory('deep', this)">🌲 Muted Pine, Dusk &amp; Charcoal</button>
+    </div>
     <div class="presets-grid" id="presetsGrid"></div>
 
     <!-- Live Controls Bar -->
     <div class="controls-panel">
-      <div class="pickers-group">
-        <div class="picker-item">
-          <span class="picker-label">☀️ Light Theme:</span>
-          <div class="color-input-wrapper">
-            <input type="color" id="lightPicker" value="#ea580c">
-            <input type="text" id="lightHex" class="hex-input" value="#ea580c" maxlength="7">
+      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div class="pickers-group">
+          <div class="picker-item">
+            <span class="picker-label">☀️ Light Theme:</span>
+            <div class="color-input-wrapper">
+              <input type="color" id="lightPicker" value="#b85d38">
+              <input type="text" id="lightHex" class="hex-input" value="#b85d38" maxlength="7">
+            </div>
+          </div>
+
+          <div class="picker-item">
+            <span class="picker-label">🌙 Dark Theme:</span>
+            <div class="color-input-wrapper">
+              <input type="color" id="darkPicker" value="#3a1e12">
+              <input type="text" id="darkHex" class="hex-input" value="#3a1e12" maxlength="7">
+            </div>
           </div>
         </div>
 
-        <div class="picker-item">
-          <span class="picker-label">🌙 Dark Theme:</span>
-          <div class="color-input-wrapper">
-            <input type="color" id="darkPicker" value="#7c2d12">
-            <input type="text" id="darkHex" class="hex-input" value="#7c2d12" maxlength="7">
-          </div>
+        <div class="apply-actions">
+          <button class="btn-apply" id="btnApply" onclick="applyBranding()">
+            💾 Apply to metainfo.xml
+          </button>
         </div>
       </div>
 
-      <div class="apply-actions">
-        <button class="btn-apply" id="btnApply" onclick="applyBranding()">
-          💾 Apply to metainfo.xml
-        </button>
+      <div class="slider-row" style="width: 100%;">
+        <span style="font-size: 0.8rem; font-weight: 700; color: #fff;">Quick Adjust:</span>
+        <div class="slider-item">
+          <span>Mute Saturation:</span>
+          <input type="range" id="satSlider" min="20" max="100" value="100" oninput="adjustSaturation(this.value)">
+          <span id="satVal">100%</span>
+        </div>
+        <div class="slider-item">
+          <span>Darken / Lighten:</span>
+          <input type="range" id="brightSlider" min="-30" max="30" value="0" oninput="adjustBrightness(this.value)">
+          <span id="brightVal">0%</span>
+        </div>
+        <button class="chip" style="padding: 3px 10px; font-size: 0.75rem;" onclick="resetSliders()">Reset Sliders</button>
       </div>
     </div>
 
@@ -541,46 +616,187 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   <script>
     const PRESETS = [
+      // Muted Earth & Terracotta (Subdued & Natural)
       {
-        name: "Royal Bengal Tiger (Signature)",
-        light: "#ea580c",
-        dark: "#7c2d12",
-        desc: "Signature tiger orange with deep ember terracotta."
+        category: "earth",
+        name: "Warm Terracotta & Dark Espresso",
+        light: "#b85d38",
+        dark: "#3a1e12",
+        desc: "Muted earthy terracotta and deep roasted espresso."
       },
       {
-        name: "Amber Flame & Midnight",
-        light: "#f59e0b",
-        dark: "#78350f",
-        desc: "Golden amber paired with rich espresso."
+        category: "earth",
+        name: "Smoked Ochre & Dark Roast",
+        light: "#a66a38",
+        dark: "#352013",
+        desc: "Subdued matte ochre and rich coffee bean."
       },
       {
-        name: "Plasma Cyan & Deep Navy",
-        light: "#0ea5e9",
+        category: "earth",
+        name: "Copper Wood & Dark Walnut",
+        light: "#965b3c",
+        dark: "#2d1b12",
+        desc: "Calm matte copper-wood and deep walnut."
+      },
+      {
+        category: "earth",
+        name: "Desert Sandstone & Deep Cocoa",
+        light: "#8c624b",
+        dark: "#2a1d17",
+        desc: "Soft taupe sandstone and dark roasted cocoa."
+      },
+      {
+        category: "earth",
+        name: "Subdued Brick & Black Mahogany",
+        light: "#7e4136",
+        dark: "#261311",
+        desc: "Vintage muted brick and deep mahogany."
+      },
+      {
+        category: "earth",
+        name: "Antique Bronze & Dark Umber",
+        light: "#8a6d45",
+        dark: "#2c2113",
+        desc: "Subtle antique bronze and dark umber."
+      },
+
+      // Subtle Slate & Tech Cool (Clean & Minimalist)
+      {
+        category: "cool",
+        name: "Nordic Slate & Midnight Blue",
+        light: "#475569",
         dark: "#0f172a",
-        desc: "Aria2 turbo speed cyan and plasma dark navy."
+        desc: "Sophisticated blue-gray slate and deep midnight navy."
       },
       {
-        name: "Sunset Blaze & Burnt Umber",
-        light: "#f97316",
-        dark: "#431407",
-        desc: "Vibrant sunset orange with dark roast umber."
+        category: "cool",
+        name: "Muted Steel Denim & Deep Navy",
+        light: "#3d5a80",
+        dark: "#1b263b",
+        desc: "Understated steel denim and deep navy night."
       },
       {
-        name: "KDE Breeze Blue & Slate",
-        light: "#3daee9",
-        dark: "#1e293b",
-        desc: "Native desktop KDE Breeze blue and slate."
+        category: "cool",
+        name: "Smoked Teal & Deep Marine",
+        light: "#3b6978",
+        dark: "#16232b",
+        desc: "Subdued ocean teal and marine shadow."
       },
       {
-        name: "Turbo Crimson & Cocoa",
-        light: "#dc2626",
-        dark: "#450a0a",
-        desc: "High-octane red with rich dark cocoa."
+        category: "cool",
+        name: "Charcoal Zinc & Black Onyx",
+        light: "#52525b",
+        dark: "#18181b",
+        desc: "Neutral matte zinc and deep onyx black."
+      },
+
+      // Muted Pine, Dusk & Rich Low-Key
+      {
+        category: "deep",
+        name: "Muted Sage & Deep Pine",
+        light: "#4a6b63",
+        dark: "#182c28",
+        desc: "Calming eucalyptus sage and deep spruce."
+      },
+      {
+        category: "deep",
+        name: "Dusk Mauve & Black Plum",
+        light: "#645069",
+        dark: "#211824",
+        desc: "Twilight dusty mauve and black velvet plum."
       }
     ];
 
-    let currentLight = "#ea580c";
-    let currentDark = "#7c2d12";
+    let currentLight = "#b85d38";
+    let currentDark = "#3a1e12";
+    let baseLight = "#b85d38";
+    let baseDark = "#3a1e12";
+    let currentCategory = "all";
+
+    // RGB / HSL utilities for saturation & brightness adjustment
+    function hexToHsl(hex) {
+      hex = hex.replace("#", "");
+      if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+      const r = parseInt(hex.substr(0, 2), 16) / 255;
+      const g = parseInt(hex.substr(2, 2), 16) / 255;
+      const b = parseInt(hex.substr(4, 2), 16) / 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+
+      if (max === min) {
+        h = s = 0;
+      } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+      return [h * 360, s * 100, l * 100];
+    }
+
+    function hslToHex(h, s, l) {
+      h /= 360; s /= 100; l /= 100;
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      const toHex = x => {
+        const hex = Math.round(Math.min(Math.max(x * 255, 0), 255)).toString(16);
+        return hex.length === 1 ? "0" + hex : hex;
+      };
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    function adjustSaturation(val) {
+      document.getElementById("satVal").textContent = val + "%";
+      applyColorTransforms();
+    }
+
+    function adjustBrightness(val) {
+      document.getElementById("brightVal").textContent = (val > 0 ? "+" : "") + val + "%";
+      applyColorTransforms();
+    }
+
+    function applyColorTransforms() {
+      const satScale = parseInt(document.getElementById("satSlider").value, 10) / 100;
+      const brightOffset = parseInt(document.getElementById("brightSlider").value, 10);
+
+      const [lh, ls, ll] = hexToHsl(baseLight);
+      const [dh, ds, dl] = hexToHsl(baseDark);
+
+      currentLight = hslToHex(lh, Math.max(0, Math.min(100, ls * satScale)), Math.max(5, Math.min(95, ll + brightOffset)));
+      currentDark = hslToHex(dh, Math.max(0, Math.min(100, ds * satScale)), Math.max(5, Math.min(95, dl + (brightOffset * 0.6))));
+
+      updateView();
+    }
+
+    function resetSliders() {
+      document.getElementById("satSlider").value = 100;
+      document.getElementById("satVal").textContent = "100%";
+      document.getElementById("brightSlider").value = 0;
+      document.getElementById("brightVal").textContent = "0%";
+      currentLight = baseLight;
+      currentDark = baseDark;
+      updateView();
+    }
 
     // Relative luminance calculation according to WCAG / Flathub getContrastColor
     function getLuminance(hex) {
@@ -632,17 +848,28 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       document.getElementById("xmlSnippet").textContent = xml;
     }
 
-    function initPresets() {
+    function filterCategory(cat, btn) {
+      currentCategory = cat;
+      document.querySelectorAll(".filter-chips .chip").forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+      renderPresets();
+    }
+
+    function renderPresets() {
       const container = document.getElementById("presetsGrid");
-      PRESETS.forEach((preset, idx) => {
+      container.innerHTML = "";
+      const filtered = currentCategory === "all" ? PRESETS : PRESETS.filter(p => p.category === currentCategory);
+
+      filtered.forEach((preset) => {
         const card = document.createElement("div");
-        card.className = `preset-card ${idx === 0 ? "active" : ""}`;
+        const isActive = (preset.light === baseLight && preset.dark === baseDark);
+        card.className = `preset-card ${isActive ? "active" : ""}`;
         card.onclick = () => {
           document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
           card.classList.add("active");
-          currentLight = preset.light;
-          currentDark = preset.dark;
-          updateView();
+          baseLight = preset.light;
+          baseDark = preset.dark;
+          resetSliders();
         };
 
         card.innerHTML = `
@@ -657,9 +884,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       });
     }
 
+    function initPresets() {
+      renderPresets();
+    }
+
     // Input event listeners
     document.getElementById("lightPicker").addEventListener("input", (e) => {
       currentLight = e.target.value;
+      baseLight = currentLight;
       document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
       updateView();
     });
@@ -669,6 +901,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       if (!val.startsWith("#")) val = "#" + val;
       if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
         currentLight = val.toLowerCase();
+        baseLight = currentLight;
         document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
         updateView();
       }
@@ -676,6 +909,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     document.getElementById("darkPicker").addEventListener("input", (e) => {
       currentDark = e.target.value;
+      baseDark = currentDark;
       document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
       updateView();
     });
@@ -685,6 +919,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       if (!val.startsWith("#")) val = "#" + val;
       if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
         currentDark = val.toLowerCase();
+        baseDark = currentDark;
         document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
         updateView();
       }
