@@ -48,6 +48,21 @@ EXCLUDE_PREFIXES = (
 )
 
 
+def _tag_sort_key(tag: str) -> Tuple[int, int, int, int, int]:
+    """Sortable semver-ish key for a release tag (stable sorts above pre-release)."""
+    m = re.match(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([a-zA-Z]+)\.([0-9]+))?$", tag)
+    if not m:
+        return (0, 0, 0, 0, 0)
+    is_stable = 1 if not m.group(4) else 0
+    return (
+        int(m.group(1)),
+        int(m.group(2)),
+        int(m.group(3)),
+        is_stable,
+        int(m.group(5) or 0),
+    )
+
+
 def get_sorted_git_tags() -> List[str]:
     """Returns all 'v*' semver tags sorted descending."""
     try:
@@ -58,21 +73,7 @@ def get_sorted_git_tags() -> List[str]:
             stderr=subprocess.DEVNULL,
         ).splitlines()
         tags = [t.strip() for t in raw if t.strip()]
-
-        def parse_tag(t: str) -> Tuple[int, int, int, int, int]:
-            m = re.match(r"^v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([a-zA-Z]+)\.([0-9]+))?$", t)
-            if not m:
-                return (0, 0, 0, 0, 0)
-            is_stable = 1 if not m.group(4) else 0
-            return (
-                int(m.group(1)),
-                int(m.group(2)),
-                int(m.group(3)),
-                is_stable,
-                int(m.group(5) or 0),
-            )
-
-        tags.sort(key=parse_tag, reverse=True)
+        tags.sort(key=_tag_sort_key, reverse=True)
         return tags
     except Exception:
         return []
@@ -80,35 +81,24 @@ def get_sorted_git_tags() -> List[str]:
 
 def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
     """
-    Finds the tag preceding target_version.
-    For pre-releases (e.g. 0.3.0-alpha.2), finds the tag preceding the base release series
-    or previous tag to accumulate changes properly.
+    Finds the highest tag strictly older than target_version.
+
+    For pre-releases (e.g. 0.3.0-alpha.2) this returns the previous release
+    series (e.g. v0.2.99), so the commit range accumulates correctly.
     """
     tags = get_sorted_git_tags()
     if not tags:
         return None
 
     if not target_version:
-        return tags[0] if len(tags) > 0 else None
+        return tags[0]
 
-    clean_target = target_version.lstrip("v")
-    base_target = clean_target.split("-")[0]
-
-    # Find the first tag that belongs to an earlier version
+    target_key = _tag_sort_key(target_version)
     for tag in tags:
-        clean_tag = tag.lstrip("v")
-        base_tag = clean_tag.split("-")[0]
-        if base_tag != base_target:
+        if _tag_sort_key(tag) < target_key:
             return tag
 
-    # Fallback to next tag in list if not found
-    for i, tag in enumerate(tags):
-        if tag.lstrip("v") == clean_target:
-            if i + 1 < len(tags):
-                return tags[i + 1]
-            return None
-
-    return tags[0]
+    return None
 
 
 def get_git_commits(

@@ -57,14 +57,14 @@
 
   <releases>
     <release version="0.3.6" date="2026-10-22">
-      <description>
-        <p>Bengal Download Manager 0.3.6 changes:</p>
-        <ul>
-          <li>Revert to PNG screenshots for AppStream catalog compatibility</li>
-          <li>Update summary to High speed downloader</li>
-          <li>Metainfo and catalog improvements</li>
-        </ul>
-      </description>
+        <description>
+            <p>Bengal Download Manager 0.3.6 changes:</p>
+            <ul>
+                <li>Revert to PNG screenshots for AppStream catalog compatibility</li>
+                <li>Update summary to High speed downloader</li>
+                <li>Metainfo and catalog improvements</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.5" date="2026-10-22">
         <description>
