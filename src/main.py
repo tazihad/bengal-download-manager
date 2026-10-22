@@ -124,7 +124,10 @@ def main():
     # UI scale factor configuration
     try:
         cfg_path = os.path.join(get_config_dir(), "settings.json")
-        if os.path.exists(cfg_path):
+    except Exception:
+        cfg_path = ""
+    try:
+        if cfg_path and os.path.exists(cfg_path):
             with open(cfg_path, "r") as f:
                 settings_data = json.load(f)
                 scale_str = settings_data.get("ui_scale", "100%")
@@ -254,18 +257,10 @@ def main():
     except Exception:
         pass
 
+    # Start minimized is requested explicitly by the autostart entry itself:
+    # both generated .desktop files and the XDG Background portal command line
+    # append --minimized. Do not infer it from environment heuristics.
     start_min = "--minimized" in sys.argv
-    if not start_min:
-        mem_watch = os.environ.get("MEMORY_PRESSURE_WATCH", "")
-        if "@autostart.service" in mem_watch:
-            try:
-                if os.path.exists(cfg_path):
-                    with open(cfg_path, "r", encoding="utf-8") as f:
-                        s_data = json.load(f)
-                        if s_data.get("start_minimized", False):
-                            start_min = True
-            except Exception:
-                pass
 
     window = MainWindow(start_minimized=start_min)
     window.start_minimized = start_min
@@ -358,6 +353,7 @@ def main():
     else:
         window.start_minimized = False
         window.show()
+        window.update_tray_action()
 
     ret = app.exec()
     try:

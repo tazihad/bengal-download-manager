@@ -778,6 +778,12 @@ class OptionsDialog(QDialog):
         self.chk_startup.toggled.connect(self.chk_start_minimized.setEnabled)
         self.chk_start_minimized.setToolTip(self.tr("Launch hidden in system tray when autostarting"))
         vbox_startup.addWidget(self.chk_start_minimized)
+
+        # Snapshot the state the dialog opened with, so pressing OK for an
+        # unrelated setting never rewrites an autostart entry the user did not
+        # touch (guards against a stale/unknown autostart state).
+        self._autostart_state_at_open = self.chk_startup.isChecked()
+        self._start_minimized_at_open = self.chk_start_minimized.isChecked()
         
         grp_startup.setLayout(vbox_startup)
         layout.addWidget(grp_startup)
@@ -2157,7 +2163,21 @@ class OptionsDialog(QDialog):
                 if callable(save_fn):
                     save_fn()
 
-        set_autostart_enabled(self.chk_startup.isChecked(), self.chk_start_minimized.isChecked())
+        # Only reconcile the autostart entry when the user actually changed the
+        # startup options. This prevents an unknown/stale state from silently
+        # deleting a working autostart registration.
+        autostart_wanted = self.chk_startup.isChecked()
+        start_min_wanted = self.chk_start_minimized.isChecked()
+        autostart_changed = autostart_wanted != getattr(
+            self, "_autostart_state_at_open", autostart_wanted
+        )
+        start_min_changed = start_min_wanted != getattr(
+            self, "_start_minimized_at_open", start_min_wanted
+        )
+        if autostart_changed or (autostart_wanted and start_min_changed):
+            set_autostart_enabled(autostart_wanted, start_min_wanted)
+            self._autostart_state_at_open = autostart_wanted
+            self._start_minimized_at_open = start_min_wanted
         self.save_proxy_data()
         self.save_extension_data()
 

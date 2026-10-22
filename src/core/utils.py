@@ -1721,6 +1721,50 @@ def get_autostart_filepath():
     return os.path.join(autostart_dir, filename)
 
 
+def _update_settings_file(updates: dict) -> bool:
+    """
+    Merge `updates` into settings.json without clobbering unrelated keys.
+
+    Returns False (without writing) when an existing settings file cannot be
+    parsed, so a malformed file is never replaced by a partial payload.
+    """
+    try:
+        cfg_path = os.path.join(get_config_dir(), "settings.json")
+    except Exception:
+        return False
+    cfg_data = {}
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+        except Exception:
+            return False
+        if not isinstance(loaded, dict):
+            return False
+        cfg_data = loaded
+
+    cfg_data.update(updates)
+
+    try:
+        tmp_path = f"{cfg_path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(cfg_data, f)
+        os.replace(tmp_path, cfg_path)
+        return True
+    except Exception:
+        return False
+
+
+def _can_write_autostart_entry(filepath: str) -> bool:
+    """Checks whether the autostart directory is writable (false inside a Flatpak sandbox)."""
+    parent = os.path.dirname(filepath)
+    try:
+        os.makedirs(parent, exist_ok=True)
+    except Exception:
+        return False
+    return os.access(parent, os.W_OK)
+
+
 def is_autostart_enabled():
     if is_running_in_flatpak():
         try:
@@ -1728,8 +1772,11 @@ def is_autostart_enabled():
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if "autostart_enabled" in data:
-                        return bool(data.get("autostart_enabled"))
+                    val = data.get("autostart_enabled") if isinstance(data, dict) else None
+                    # Treat null/absent as "unknown" and fall through to the
+                    # desktop entry checks instead of reporting a false negative.
+                    if val is not None:
+                        return bool(val)
         except Exception:
             pass
     filepath = get_autostart_filepath()
@@ -1897,25 +1944,17 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
         except Exception as e:
             print(f"Failed to call portal Background via QDBus: {e}")
 
-    # Persist autostart state in application settings so sandbox reliably tracks it
-    try:
-        cfg_path = os.path.join(get_config_dir(), "settings.json")
-        cfg_data = {}
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                cfg_data = json.load(f)
-        cfg_data["autostart_enabled"] = bool(enabled)
-        if enabled:
-            cfg_data["start_minimized"] = bool(start_minimized)
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg_data, f)
-    except Exception:
-        pass
+    if not portal_success:
+        print("Warning: could not register autostart with org.freedesktop.portal.Background")
 
-    # 3. Synchronize host autostart .desktop entry and inject the Flatpak logo
+    # 3. Synchronize the host autostart .desktop entry and inject the Flatpak logo.
+    # Inside a standard sandbox this directory is not writable, so the portal owns
+    # the entry; only attempt the sync where the path is actually accessible.
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
     if enabled:
+        if not _can_write_autostart_entry(filepath):
+            return portal_success
         try:
             os.makedirs(autostart_dir, exist_ok=True)
             icon_path = get_flatpak_autostart_icon()
@@ -1979,33 +2018,37 @@ X-Flatpak=bd.com.zihad.BengalDownloadManager
         except Exception as e:
             print(f"Failed to set flatpak autostart entry: {e}")
     else:
-        try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        except Exception as e:
-            print(f"Failed to remove autostart file {filepath}: {e}")
+        if _can_write_autostart_entry(filepath):
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception as e:
+                print(f"Failed to remove autostart file {filepath}: {e}")
 
     return portal_success
 
 
 def set_autostart_enabled(enabled, start_minimized=False):
-    # Persist autostart state in settings.json for all environments
-    try:
-        cfg_path = os.path.join(get_config_dir(), "settings.json")
-        cfg_data = {}
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                cfg_data = json.load(f)
-        cfg_data["autostart_enabled"] = bool(enabled)
-        if enabled:
-            cfg_data["start_minimized"] = bool(start_minimized)
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg_data, f)
-    except Exception:
-        pass
+    enabled = bool(enabled)
 
     if is_running_in_flatpak():
-        return _set_flatpak_autostart_portal(enabled, start_minimized=start_minimized)
+        success = _set_flatpak_autostart_portal(enabled, start_minimized=start_minimized)
+        # Only record the new state when the portal accepted it. On a failed
+        # enable the previous value is kept so the UI does not claim a
+        # registration that never happened; disabling is always authoritative.
+        if success or not enabled:
+            _update_settings_file({
+                "autostart_enabled": enabled if success else False,
+                "start_minimized": bool(start_minimized) if enabled else False,
+            })
+        return success
+
+    # Persist autostart state in settings.json for all environments. This also
+    # clears the stale "start minimized" flag when autostart is turned off.
+    _update_settings_file({
+        "autostart_enabled": bool(enabled),
+        "start_minimized": bool(start_minimized) if enabled else False,
+    })
 
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
