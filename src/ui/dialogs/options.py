@@ -14,7 +14,8 @@ from core.utils import (
     load_proxy_config, save_proxy_config, get_aria2_proxy_url,
     load_extension_config, save_extension_config, call_aria2_rpc,
     find_aria2, choose_portal_save_path, choose_portal_folder_path, choose_portal_open_file_path,
-    is_autostart_enabled, set_autostart_enabled, get_user_downloads_dir, get_user_home_dir
+    is_autostart_enabled, set_autostart_enabled, get_user_downloads_dir, get_user_home_dir,
+    get_flatpak_autostart_state, is_running_in_flatpak
 )
 from core.config import load_category_config, save_category_config
 from core.memory_guard import MemoryGuard
@@ -2108,10 +2109,34 @@ class OptionsDialog(QDialog):
         scale_changed = hasattr(self, 'initial_scale') and (self.initial_scale != new_scale)
         lang_changed = hasattr(self, 'initial_language') and (self.initial_language != new_lang_display)
 
+        # Reconcile the autostart entry *before* save_settings() persists the
+        # startup options, so settings.json always reflects the real portal
+        # registration instead of a checkbox value written too early.
+        autostart_wanted = self.chk_startup.isChecked()
+        start_min_wanted = (
+            self.chk_start_minimized.isChecked() if autostart_wanted else False
+        )
+        autostart_changed = autostart_wanted != getattr(
+            self, "_autostart_state_at_open", autostart_wanted
+        )
+        start_min_changed = start_min_wanted != getattr(
+            self, "_start_minimized_at_open", start_min_wanted
+        )
+        autostart_success = True
+        if autostart_changed or (autostart_wanted and start_min_changed):
+            autostart_success = set_autostart_enabled(autostart_wanted, start_min_wanted)
+            self._autostart_state_at_open = autostart_wanted
+            self._start_minimized_at_open = start_min_wanted
+            if self.main_win and isinstance(getattr(self.main_win, "settings", None), dict):
+                if is_running_in_flatpak():
+                    self.main_win.settings["flatpak_autostart"] = get_flatpak_autostart_state(
+                        autostart_wanted, start_min_wanted, autostart_success
+                    )
+
         # Save start_minimized_on_autostart, ui_scale, theme, accent, icon_theme, tray_icon, language, system_notifications, and dialog visibility to parent (MainWindow)
         if self.main_win:
-            setattr(self.main_win, "start_minimized_on_autostart", self.chk_start_minimized.isChecked())
-            setattr(self.main_win, "autostart_enabled_pref", self.chk_startup.isChecked())
+            setattr(self.main_win, "start_minimized_on_autostart", start_min_wanted)
+            setattr(self.main_win, "autostart_enabled_pref", autostart_wanted)
             is_notif = self.chk_system_notifications.isChecked() if hasattr(self, "chk_system_notifications") else False
             setattr(self.main_win, "system_notifications", is_notif)
             setattr(self.main_win, "precheck_delete_files_from_disk", precheck_delete)
@@ -2131,8 +2156,8 @@ class OptionsDialog(QDialog):
             setattr(self.main_win, "prefetch_download", prefetch_dl)
 
             if hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
-                self.main_win.settings["start_minimized"] = self.chk_start_minimized.isChecked()
-                self.main_win.settings["autostart_enabled"] = self.chk_startup.isChecked()
+                self.main_win.settings["start_minimized"] = start_min_wanted
+                self.main_win.settings["autostart_enabled"] = autostart_wanted
                 self.main_win.settings["ui_scale"] = new_scale
                 self.main_win.settings["theme"] = new_theme
                 self.main_win.settings["accent"] = new_accent
@@ -2163,21 +2188,6 @@ class OptionsDialog(QDialog):
                 if callable(save_fn):
                     save_fn()
 
-        # Only reconcile the autostart entry when the user actually changed the
-        # startup options. This prevents an unknown/stale state from silently
-        # deleting a working autostart registration.
-        autostart_wanted = self.chk_startup.isChecked()
-        start_min_wanted = self.chk_start_minimized.isChecked()
-        autostart_changed = autostart_wanted != getattr(
-            self, "_autostart_state_at_open", autostart_wanted
-        )
-        start_min_changed = start_min_wanted != getattr(
-            self, "_start_minimized_at_open", start_min_wanted
-        )
-        if autostart_changed or (autostart_wanted and start_min_changed):
-            set_autostart_enabled(autostart_wanted, start_min_wanted)
-            self._autostart_state_at_open = autostart_wanted
-            self._start_minimized_at_open = start_min_wanted
         self.save_proxy_data()
         self.save_extension_data()
 

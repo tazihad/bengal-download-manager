@@ -3431,6 +3431,11 @@ class MainWindow(QMainWindow):
                 "column_data": column_data,
                 "start_minimized": bool(getattr(self, "start_minimized_on_autostart", False)),
                 "autostart_enabled": bool(autostart_pref),
+                "flatpak_autostart": (
+                    self.settings.get("flatpak_autostart", {})
+                    if isinstance(getattr(self, "settings", None), dict)
+                    else {}
+                ),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
                 "theme": getattr(self, "settings", {}).get("theme", "BDM Auto (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),

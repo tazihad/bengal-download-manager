@@ -15,6 +15,10 @@ from core.utils import (
     is_running_in_flatpak,
     is_user_flatpak,
     get_flatpak_autostart_icon,
+    get_flatpak_autostart_commandline,
+    get_flatpak_autostart_state,
+    sync_flatpak_autostart,
+    FLATPAK_AUTOSTART_SETTINGS_KEY,
     LEGACY_AUTOSTART_FILENAMES,
 )
 
@@ -388,4 +392,259 @@ def test_tray_retry_gives_up_and_restores_hidden_window(qapp, monkeypatch):
     assert not win._tray_retry_timer.isActive()
     assert win.isVisible()
     win.close()
+
+
+def test_flatpak_portal_gdbus_uses_clean_environment(tmp_path, monkeypatch):
+    """gdbus must not inherit PyInstaller's LD_LIBRARY_PATH (which breaks GLib)."""
+    import subprocess
+    from unittest.mock import MagicMock
+    from core.utils import _set_flatpak_autostart_portal
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEI00000002b4J0PN")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/"))
+    )
+    monkeypatch.setattr(sys, "_MEIPASS", "/tmp/_MEI00000002b4J0PN", raising=False)
+
+    captured = {}
+
+    def mock_run(cmd, *args, **kwargs):
+        captured["cmd"] = cmd
+        captured["env"] = kwargs.get("env")
+        res = MagicMock()
+        res.returncode = 0
+        res.stdout = "(objectpath '/org/freedesktop/portal/desktop/request/1_1/t',)"
+        res.stderr = ""
+        return res
+
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    assert _set_flatpak_autostart_portal(True, start_minimized=True)
+    assert captured["env"] is not None
+    assert "LD_LIBRARY_PATH" not in captured["env"]
+    assert not any("_MEI" in value for value in captured["env"].values())
+    assert "'--minimized'" in " ".join(captured["cmd"])
+
+
+def test_flatpak_portal_qtdbus_fallback_includes_commandline(tmp_path, monkeypatch):
+    """The QDBus fallback must send commandline, otherwise --minimized is lost."""
+    from unittest.mock import MagicMock
+    import PyQt6.QtDBus as QtDBus
+    from core.utils import _set_flatpak_autostart_portal
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/"))
+    )
+    monkeypatch.setattr("core.utils.shutil.which", lambda name: None)
+
+    captured = {}
+
+    class FakeBus:
+        def isConnected(self):
+            return True
+
+        def call(self, msg):
+            captured["args"] = msg.arguments()
+            reply = MagicMock()
+            reply.type.return_value = QtDBus.QDBusMessage.MessageType.ReplyMessage
+            return reply
+
+    monkeypatch.setattr(
+        QtDBus.QDBusConnection, "sessionBus", staticmethod(lambda: FakeBus())
+    )
+
+    assert _set_flatpak_autostart_portal(True, start_minimized=True)
+    options = captured["args"][1]
+    assert options["autostart"] is True
+    assert options["commandline"] == ["bengal-download-manager", "--minimized"]
+
+
+def test_flatpak_autostart_records_portal_state(tmp_path, monkeypatch):
+    """settings.json must record autostart/minimized intent and portal state."""
+    import json
+    import subprocess
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/"))
+    )
+
+    def mock_run(cmd, *args, **kwargs):
+        res = MagicMock()
+        res.returncode = 0
+        res.stdout = "()"
+        res.stderr = ""
+        return res
+
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    cfg_file = tmp_path / "config" / "bengal-download-manager" / "settings.json"
+
+    assert set_autostart_enabled(True, start_minimized=True)
+    cfg = json.loads(cfg_file.read_text())
+    assert cfg["autostart_enabled"] is True
+    assert cfg["start_minimized"] is True
+    assert cfg[FLATPAK_AUTOSTART_SETTINGS_KEY]["registered"] is True
+    assert cfg[FLATPAK_AUTOSTART_SETTINGS_KEY]["commandline"] == [
+        "bengal-download-manager",
+        "--minimized",
+    ]
+
+    assert set_autostart_enabled(False)
+    cfg = json.loads(cfg_file.read_text())
+    assert cfg["autostart_enabled"] is False
+    assert cfg["start_minimized"] is False
+    assert cfg[FLATPAK_AUTOSTART_SETTINGS_KEY]["registered"] is True
+    assert cfg[FLATPAK_AUTOSTART_SETTINGS_KEY]["commandline"] == []
+
+
+def test_flatpak_autostart_failure_records_unregistered_state(tmp_path, monkeypatch):
+    """A failed portal call must not masquerade as a successful registration."""
+    import json
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/"))
+    )
+    monkeypatch.setattr(
+        "core.utils._set_flatpak_autostart_portal", lambda *a, **k: False
+    )
+
+    assert not set_autostart_enabled(True, start_minimized=True)
+    cfg_file = tmp_path / "config" / "bengal-download-manager" / "settings.json"
+    cfg = json.loads(cfg_file.read_text())
+    assert cfg["autostart_enabled"] is True
+    assert cfg["start_minimized"] is True
+    assert cfg[FLATPAK_AUTOSTART_SETTINGS_KEY]["registered"] is False
+    assert cfg[FLATPAK_AUTOSTART_SETTINGS_KEY]["commandline"] == []
+
+
+def test_sync_flatpak_autostart_repairs_drift(tmp_path, monkeypatch):
+    """A missing or stale portal commandline is re-registered exactly once."""
+    import json
+
+    cfg_dir = tmp_path / "config" / "bengal-download-manager"
+    cfg_dir.mkdir(parents=True)
+    cfg_file = cfg_dir / "settings.json"
+    cfg_file.write_text(
+        json.dumps(
+            {
+                "autostart_enabled": True,
+                "start_minimized": True,
+                "theme": "BDM Dark",
+            }
+        )
+    )
+
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/"))
+    )
+
+    calls = []
+
+    def fake_portal(enabled, start_minimized=False):
+        calls.append((enabled, start_minimized))
+        return True
+
+    monkeypatch.setattr("core.utils._set_flatpak_autostart_portal", fake_portal)
+
+    updates = []
+    assert sync_flatpak_autostart(on_update=updates.append)
+    assert calls == [(True, True)]
+    data = json.loads(cfg_file.read_text())
+    assert data["theme"] == "BDM Dark"
+    assert data[FLATPAK_AUTOSTART_SETTINGS_KEY]["registered"] is True
+    assert data[FLATPAK_AUTOSTART_SETTINGS_KEY]["commandline"] == [
+        "bengal-download-manager",
+        "--minimized",
+    ]
+    assert updates and updates[0]["registered"] is True
+
+    # No drift -> no portal call.
+    assert not sync_flatpak_autostart()
+    assert calls == [(True, True)]
+
+    # Stale registration without --minimized -> repaired once.
+    data[FLATPAK_AUTOSTART_SETTINGS_KEY] = {
+        "registered": True,
+        "commandline": ["bengal-download-manager"],
+    }
+    cfg_file.write_text(json.dumps(data))
+    assert sync_flatpak_autostart()
+    assert calls == [(True, True), (True, True)]
+
+
+def test_sync_flatpak_autostart_noops_outside_flatpak_and_when_disabled(
+    tmp_path, monkeypatch
+):
+    """Startup repair only applies to enabled Flatpak autostart."""
+    import json
+
+    cfg_dir = tmp_path / "config" / "bengal-download-manager"
+    cfg_dir.mkdir(parents=True)
+    cfg_file = cfg_dir / "settings.json"
+    cfg_file.write_text(json.dumps({"autostart_enabled": False, "start_minimized": True}))
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("FLATPAK_ID", raising=False)
+    monkeypatch.setattr(
+        os.path, "expanduser", lambda p: str(tmp_path / "home" / p.lstrip("~/"))
+    )
+    orig_exists = os.path.exists
+    monkeypatch.setattr(
+        os.path, "exists", lambda p: False if p == "/.flatpak-info" else orig_exists(p)
+    )
+
+    calls = []
+    monkeypatch.setattr(
+        "core.utils._set_flatpak_autostart_portal",
+        lambda *a, **k: calls.append(a) or True,
+    )
+
+    # Not Flatpak -> no repair even though autostart is disabled here.
+    assert not sync_flatpak_autostart()
+
+    # Flatpak, but autostart disabled -> no repair.
+    monkeypatch.setenv("FLATPAK_ID", "bd.com.zihad.BengalDownloadManager")
+    assert not sync_flatpak_autostart()
+    assert calls == []
+
+
+def test_save_settings_preserves_flatpak_autostart_block(qapp, monkeypatch, tmp_path):
+    """save_settings must not drop the recorded portal state block."""
+    import json
+    from core.utils import get_config_dir
+    from ui.main_window import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("FLATPAK_ID", raising=False)
+    cfg_dir = get_config_dir()
+    block = {
+        "registered": True,
+        "commandline": ["bengal-download-manager"],
+        "updated_at": 1,
+    }
+    with open(os.path.join(cfg_dir, "settings.json"), "w", encoding="utf-8") as f:
+        json.dump({"theme": "BDM Dark", FLATPAK_AUTOSTART_SETTINGS_KEY: block}, f)
+
+    monkeypatch.setattr(MainWindow, "start_aria2_daemon", lambda self: None)
+    monkeypatch.setattr(MainWindow, "load_data", lambda self: None)
+
+    win = MainWindow(start_ipc=False)
+    win.save_settings()
+
+    with open(os.path.join(cfg_dir, "settings.json"), "r", encoding="utf-8") as f:
+        saved = json.load(f)
+    assert saved[FLATPAK_AUTOSTART_SETTINGS_KEY] == block
+    win.close()
+
 
