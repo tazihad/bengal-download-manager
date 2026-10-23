@@ -5526,14 +5526,15 @@ class MainWindow(QMainWindow):
                 expected_size = results.get("size_bytes", 0) or getattr(prefetch_worker, 'total_bytes', 0)
                 actual_size = os.path.getsize(bdpart_path) if bdpart_path and os.path.exists(bdpart_path) else 0
                 
-                # Check if prefetch completed:
-                # 1) Worker explicitly finished with "Prefetch Complete"
-                # 2) Or file exists, reached expected size, and has no active .aria2 control file
+                # Check if prefetch completed. Only trust the worker's explicit
+                # completion status: download engines preallocate the .bdpart file
+                # to its final size, so a still-running prefetch already appears
+                # full-size on disk (as a sparse file). Inferring completion from
+                # os.path.getsize() would move an incomplete file to the final
+                # destination and falsely report "Complete".
                 bdpart_complete = False
-                if logic_status == "Prefetch Complete":
-                    bdpart_complete = True
-                elif bdpart_path and os.path.exists(bdpart_path) and not os.path.exists(bdpart_aria2):
-                    if expected_size > 0 and actual_size >= expected_size:
+                if logic_status == "Prefetch Complete" and bdpart_path and os.path.exists(bdpart_path):
+                    if expected_size <= 0 or actual_size >= expected_size:
                         bdpart_complete = True
                 
                 if bdpart_complete:
