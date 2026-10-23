@@ -57,22 +57,22 @@
 
   <releases>
     <release version="0.3.7" date="2026-10-23">
-      <description>
-        <p>Bengal Download Manager 0.3.7 changes:</p>
-        <ul>
-          <li>Fixed downloads sometimes appearing complete before the file was actually downloaded</li>
-          <li>Starting a download while background prefetching is still in progress now resumes the file correctly</li>
-          <li>Fixed Start minimized in system tray not working in the Flatpak build</li>
-          <li>Fixed the autostart option being silently disabled after upgrading</li>
-          <li>Autostart and start-minimized preferences are now saved and stay in sync</li>
-          <li>Turning off autostart now also clears the start-minimized option</li>
-          <li>Existing Flatpak autostart entries are repaired automatically after updating</li>
-          <li>The main window now reappears automatically when no system tray is available</li>
-          <li>The tray menu correctly switches between Show and Hide</li>
-          <li>Previous release notes are preserved in the app catalog</li>
-          <li>Running from source now reports the correct project version</li>
-        </ul>
-      </description>
+        <description>
+            <p>Bengal Download Manager 0.3.7 changes:</p>
+            <ul>
+                <li>Fixed downloads sometimes appearing complete before the file was actually downloaded</li>
+                <li>Starting a download while background prefetching is still in progress now resumes the file correctly</li>
+                <li>Fixed Start minimized in system tray not working in the Flatpak build</li>
+                <li>Fixed the autostart option being silently disabled after upgrading</li>
+                <li>Autostart and start-minimized preferences are now saved and stay in sync</li>
+                <li>Turning off autostart now also clears the start-minimized option</li>
+                <li>Existing Flatpak autostart entries are repaired automatically after updating</li>
+                <li>The main window now reappears automatically when no system tray is available</li>
+                <li>The tray menu correctly switches between Show and Hide</li>
+                <li>Previous release notes are preserved in the app catalog</li>
+                <li>Running from source now reports the correct project version</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.6" date="2026-10-22">
         <description>
