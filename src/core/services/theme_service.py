@@ -1339,6 +1339,13 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
     if not app:
         return
 
+    # Ensure consistent widget style (scrollbars, etc.) across all platforms.
+    # This prevents the KDE platform theme (in Flatpak on KDE) from drawing
+    # Breeze scrollbars that don't match the app's custom palette/QSS.
+    from PyQt6.QtWidgets import QStyleFactory
+    if "fusion" in [s.lower() for s in QStyleFactory.keys()]:
+        app.setStyle("Fusion")
+
     global _THEME_CHANGE_ACTIVE
     _THEME_CHANGE_ACTIVE = True
     QTimer.singleShot(250, _clear_theme_change_active)
