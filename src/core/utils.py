@@ -1721,6 +1721,50 @@ def get_autostart_filepath():
     return os.path.join(autostart_dir, filename)
 
 
+def _update_settings_file(updates: dict) -> bool:
+    """
+    Merge `updates` into settings.json without clobbering unrelated keys.
+
+    Returns False (without writing) when an existing settings file cannot be
+    parsed, so a malformed file is never replaced by a partial payload.
+    """
+    try:
+        cfg_path = os.path.join(get_config_dir(), "settings.json")
+    except Exception:
+        return False
+    cfg_data = {}
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+        except Exception:
+            return False
+        if not isinstance(loaded, dict):
+            return False
+        cfg_data = loaded
+
+    cfg_data.update(updates)
+
+    try:
+        tmp_path = f"{cfg_path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(cfg_data, f)
+        os.replace(tmp_path, cfg_path)
+        return True
+    except Exception:
+        return False
+
+
+def _can_write_autostart_entry(filepath: str) -> bool:
+    """Checks whether the autostart directory is writable (false inside a Flatpak sandbox)."""
+    parent = os.path.dirname(filepath)
+    try:
+        os.makedirs(parent, exist_ok=True)
+    except Exception:
+        return False
+    return os.access(parent, os.W_OK)
+
+
 def is_autostart_enabled():
     if is_running_in_flatpak():
         try:
@@ -1728,8 +1772,11 @@ def is_autostart_enabled():
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if "autostart_enabled" in data:
-                        return bool(data.get("autostart_enabled"))
+                    val = data.get("autostart_enabled") if isinstance(data, dict) else None
+                    # Treat null/absent as "unknown" and fall through to the
+                    # desktop entry checks instead of reporting a false negative.
+                    if val is not None:
+                        return bool(val)
         except Exception:
             pass
     filepath = get_autostart_filepath()
@@ -1826,14 +1873,58 @@ def get_flatpak_autostart_icon() -> str:
         return sys_candidates[0]
 
 
+FLATPAK_AUTOSTART_EXECUTABLE = "bengal-download-manager"
+FLATPAK_AUTOSTART_SETTINGS_KEY = "flatpak_autostart"
+
+
+def get_flatpak_autostart_commandline(start_minimized: bool = False) -> list:
+    """
+    Returns the command line the XDG Background portal should execute inside
+    the Flatpak sandbox when starting the application at login.
+
+    The portal rewrites this into
+    ``flatpak run --command=bengal-download-manager <app-id> [--minimized]``.
+    """
+    commandline = [FLATPAK_AUTOSTART_EXECUTABLE]
+    if start_minimized:
+        commandline.append("--minimized")
+    return commandline
+
+
+def get_flatpak_autostart_state(enabled: bool, start_minimized: bool, registered: bool) -> dict:
+    """
+    Builds the ``flatpak_autostart`` settings block that records what the
+    Background portal actually accepted, so startup drift can be detected and
+    repaired without guessing from the sandbox-invisible host entry.
+    """
+    return {
+        "registered": bool(registered),
+        "commandline": (
+            get_flatpak_autostart_commandline(start_minimized)
+            if registered and enabled
+            else []
+        ),
+        "updated_at": int(time.time()),
+    }
+
+
 def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) -> bool:
     """
     Configures autostart via the XDG Desktop Background Portal (org.freedesktop.portal.Background)
     and synchronizes the autostart .desktop entry with the appropriate system or user Flatpak icon.
     """
     portal_success = False
+    commandline = get_flatpak_autostart_commandline(start_minimized)
+    reason = (
+        "Launch Bengal Download Manager on system startup"
+        if enabled
+        else "Disable Bengal Download Manager autostart"
+    )
 
-    # 1. Try invoking via gdbus CLI (which correctly marshals 'as' commandline arrays)
+    # 1. Try invoking via gdbus CLI (which correctly marshals 'as' commandline arrays).
+    #    A frozen/PyInstaller build exports LD_LIBRARY_PATH=/tmp/_MEI..., which makes
+    #    the system gdbus load the bundled (ABI-mismatched) GLib and abort before it
+    #    can reach the portal. Always hand the child a sanitized environment.
     if shutil.which("gdbus"):
         try:
             cmd = [
@@ -1844,18 +1935,15 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
                 "",
             ]
             if enabled:
-                cmd_args = ["bengal-download-manager"]
-                if start_minimized:
-                    cmd_args.append("--minimized")
-                formatted_args = ", ".join(f"'{a}'" for a in cmd_args)
+                formatted_args = ", ".join(f"'{arg}'" for arg in commandline)
                 body = (
-                    f"{{'reason': <'Launch Bengal Download Manager on system startup'>, "
+                    f"{{'reason': <'{reason}'>, "
                     f"'autostart': <true>, 'commandline': <[{formatted_args}]>, "
                     f"'dbus-activatable': <false>}}"
                 )
             else:
                 body = (
-                    "{'reason': <'Disable Bengal Download Manager autostart'>, "
+                    f"{{'reason': <'{reason}'>, "
                     "'autostart': <false>, 'dbus-activatable': <false>}"
                 )
 
@@ -1864,14 +1952,19 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
                 capture_output=True,
                 text=True,
                 timeout=5,
-                check=False
+                check=False,
+                env=get_clean_env(),
             )
             if res.returncode == 0:
                 portal_success = True
+            elif getattr(res, "stderr", ""):
+                print(f"Portal Background gdbus call failed: {res.stderr.strip()}")
         except Exception as e:
             print(f"Failed to call portal Background via gdbus: {e}")
 
-    # 2. Fallback to PyQt6 QDBus if gdbus is not present or failed
+    # 2. Fallback to PyQt6 QDBus if gdbus is not present or failed. The
+    #    commandline option must be included here as well: dropping it makes the
+    #    portal write Exec=flatpak run <app-id> with no --minimized argument.
     if not portal_success:
         try:
             from PyQt6.QtDBus import QDBusConnection, QDBusMessage
@@ -1886,10 +1979,12 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
                     "RequestBackground"
                 )
                 opts = {
-                    "reason": QVariant("Launch Bengal Download Manager on system startup" if enabled else "Disable Bengal Download Manager autostart"),
+                    "reason": QVariant(reason),
                     "autostart": QVariant(bool(enabled)),
                     "dbus-activatable": QVariant(False),
                 }
+                if enabled:
+                    opts["commandline"] = QVariant(commandline)
                 msg.setArguments(["", opts])
                 reply = bus.call(msg)
                 if reply.type() != QDBusMessage.MessageType.ErrorMessage:
@@ -1897,25 +1992,17 @@ def _set_flatpak_autostart_portal(enabled: bool, start_minimized: bool = False) 
         except Exception as e:
             print(f"Failed to call portal Background via QDBus: {e}")
 
-    # Persist autostart state in application settings so sandbox reliably tracks it
-    try:
-        cfg_path = os.path.join(get_config_dir(), "settings.json")
-        cfg_data = {}
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                cfg_data = json.load(f)
-        cfg_data["autostart_enabled"] = bool(enabled)
-        if enabled:
-            cfg_data["start_minimized"] = bool(start_minimized)
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg_data, f)
-    except Exception:
-        pass
+    if not portal_success:
+        print("Warning: could not register autostart with org.freedesktop.portal.Background")
 
-    # 3. Synchronize host autostart .desktop entry and inject the Flatpak logo
+    # 3. Synchronize the host autostart .desktop entry and inject the Flatpak logo.
+    # Inside a standard sandbox this directory is not writable, so the portal owns
+    # the entry; only attempt the sync where the path is actually accessible.
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
     if enabled:
+        if not _can_write_autostart_entry(filepath):
+            return portal_success
         try:
             os.makedirs(autostart_dir, exist_ok=True)
             icon_path = get_flatpak_autostart_icon()
@@ -1979,33 +2066,41 @@ X-Flatpak=bd.com.zihad.BengalDownloadManager
         except Exception as e:
             print(f"Failed to set flatpak autostart entry: {e}")
     else:
-        try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        except Exception as e:
-            print(f"Failed to remove autostart file {filepath}: {e}")
+        if _can_write_autostart_entry(filepath):
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception as e:
+                print(f"Failed to remove autostart file {filepath}: {e}")
 
     return portal_success
 
 
 def set_autostart_enabled(enabled, start_minimized=False):
-    # Persist autostart state in settings.json for all environments
-    try:
-        cfg_path = os.path.join(get_config_dir(), "settings.json")
-        cfg_data = {}
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                cfg_data = json.load(f)
-        cfg_data["autostart_enabled"] = bool(enabled)
-        if enabled:
-            cfg_data["start_minimized"] = bool(start_minimized)
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg_data, f)
-    except Exception:
-        pass
+    enabled = bool(enabled)
+    start_minimized = bool(start_minimized) if enabled else False
 
     if is_running_in_flatpak():
-        return _set_flatpak_autostart_portal(enabled, start_minimized=start_minimized)
+        success = _set_flatpak_autostart_portal(enabled, start_minimized=start_minimized)
+        # Record both the requested state and what the portal actually accepted.
+        # `registered` is what the startup drift repair consults, so a failed
+        # call is retried on the next launch instead of leaving a silent stale
+        # entry behind.
+        _update_settings_file({
+            "autostart_enabled": enabled,
+            "start_minimized": start_minimized,
+            FLATPAK_AUTOSTART_SETTINGS_KEY: get_flatpak_autostart_state(
+                enabled, start_minimized, success
+            ),
+        })
+        return success
+
+    # Persist autostart state in settings.json for all environments. This also
+    # clears the stale "start minimized" flag when autostart is turned off.
+    _update_settings_file({
+        "autostart_enabled": bool(enabled),
+        "start_minimized": bool(start_minimized) if enabled else False,
+    })
 
     filepath = get_autostart_filepath()
     autostart_dir = os.path.dirname(filepath)
@@ -2069,6 +2164,53 @@ X-GNOME-Autostart-enabled=true
                 print(f"Failed to remove autostart file {filepath}: {e}")
                 success = False
         return success
+
+
+def sync_flatpak_autostart(on_update=None) -> bool:
+    """
+    Repairs a drifted or missing Flatpak Background portal registration.
+
+    Older builds could fall back to a QDBus call that omitted the
+    ``commandline`` option, leaving the host entry as ``flatpak run <app-id>``
+    without ``--minimized``. Comparing the recorded command line with the
+    desired one lets an upgraded build repair that entry once on next launch.
+
+    ``on_update`` (optional) receives the refreshed ``flatpak_autostart``
+    block so a running MainWindow can keep its in-memory settings in sync.
+
+    Returns True only when a repair call was issued and accepted.
+    """
+    if not is_running_in_flatpak():
+        return False
+
+    try:
+        cfg_path = os.path.join(get_config_dir(), "settings.json")
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+    except Exception:
+        return False
+
+    if not isinstance(settings, dict) or not settings.get("autostart_enabled"):
+        return False
+
+    start_minimized = bool(settings.get("start_minimized"))
+    desired_commandline = get_flatpak_autostart_commandline(start_minimized)
+    recorded = settings.get(FLATPAK_AUTOSTART_SETTINGS_KEY)
+    if not isinstance(recorded, dict):
+        recorded = {}
+
+    if recorded.get("registered") and recorded.get("commandline") == desired_commandline:
+        return False
+
+    success = _set_flatpak_autostart_portal(True, start_minimized=start_minimized)
+    state = get_flatpak_autostart_state(True, start_minimized, success)
+    _update_settings_file({FLATPAK_AUTOSTART_SETTINGS_KEY: state})
+    if callable(on_update):
+        try:
+            on_update(state)
+        except Exception:
+            pass
+    return success
 
 
 POPULAR_MEDIA_DOMAINS = {

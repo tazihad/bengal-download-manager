@@ -195,3 +195,66 @@ class TestMainWindowPrefetchLogic:
         main_win._stop_worker_entry(mock_worker)
         mock_worker.stop.assert_called_once()
         mock_worker.wait.assert_called()
+
+    def _make_prefetch_accept_case(self, tmp_path, final_status):
+        """Build a fake accepted dialog plus a prefetch worker whose .bdpart is
+        preallocated to the final size (sparse), as both engines really do."""
+        total_size = 8 * 1024 * 1024
+        bdpart = tmp_path / "sample.flatpak.bdpart"
+        with open(bdpart, "wb") as fh:
+            fh.truncate(total_size)
+
+        worker = MagicMock()
+        worker.final_status = final_status
+        worker.save_path = str(bdpart)
+        worker.filename = "sample.flatpak"
+
+        dialog = MagicMock()
+        dialog.get_results.return_value = {
+            "action": "start",
+            "filename": "sample.flatpak",
+            "save_path": str(tmp_path / "downloads" / "sample.flatpak"),
+            "size_str": "8.00 MB",
+            "size_bytes": total_size,
+            "category": "General",
+        }
+        file_info = {
+            "url": "https://example.com/sample.flatpak",
+            "filename": "sample.flatpak",
+            "size_bytes": total_size,
+            "size_str": "8.00 MB",
+            "referer": "https://example.com",
+            "user_agent": "TestUA",
+            "cookies": "",
+            "supports_range": True,
+        }
+        return worker, dialog, file_info
+
+    def test_in_progress_prefetch_is_not_marked_complete(self, main_win, tmp_path):
+        """A sparse, full-size .bdpart is not proof the prefetch finished.
+
+        Regression: prefetch preallocates the file, so clicking Start while the
+        prefetch is still running used to move the incomplete file to the final
+        destination and add a bogus "Complete" row.
+        """
+        worker, dialog, file_info = self._make_prefetch_accept_case(tmp_path, final_status="")
+
+        with patch.object(main_win, "_add_completed_download") as add_completed, \
+             patch.object(main_win, "start_download") as start_download:
+            main_win._handle_download_dialog_accepted(dialog, file_info, worker, None)
+
+        add_completed.assert_not_called()
+        start_download.assert_called_once()
+
+    def test_completed_prefetch_is_still_instant_complete(self, main_win, tmp_path):
+        """Genuinely finished prefetches keep the instant-complete fast path."""
+        worker, dialog, file_info = self._make_prefetch_accept_case(
+            tmp_path, final_status="Prefetch Complete"
+        )
+
+        with patch.object(main_win, "_add_completed_download") as add_completed, \
+             patch.object(main_win, "start_download") as start_download:
+            main_win._handle_download_dialog_accepted(dialog, file_info, worker, None)
+
+        add_completed.assert_called_once()
+        start_download.assert_not_called()

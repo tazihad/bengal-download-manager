@@ -96,3 +96,95 @@ def test_update_metainfo_preserves_history(monkeypatch):
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+
+def test_update_metainfo_preserves_curated_notes_for_existing_version(monkeypatch):
+    """Re-running --set for a released version must not replace hand-written notes."""
+    sample_metainfo = """<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>bd.com.zihad.BengalDownloadManager</id>
+  <releases>
+    <release version="0.3.6" date="2026-10-22">
+      <description>
+        <p>Bengal Download Manager 0.3.6 changes:</p>
+        <ul>
+          <li>Curated release note that must survive CI</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>
+"""
+    with tempfile.NamedTemporaryFile("w+", delete=False, encoding="utf-8") as tf:
+        tf.write(sample_metainfo)
+        temp_path = tf.name
+
+    try:
+        import scripts.sync_version as sv
+        monkeypatch.setattr(sv, "METAINFO_FILE", temp_path)
+
+        # No custom notes: preserve what is already there instead of generating
+        sv.update_metainfo("0.3.6")
+
+        with open(temp_path, "r", encoding="utf-8") as f:
+            updated = f.read()
+
+        assert "Curated release note that must survive CI" in updated
+        assert "General maintenance, bug fixes" not in updated
+
+        tree = ET.fromstring(updated)
+        release_elems = tree.find("releases").findall("release")
+        assert len(release_elems) == 1
+        assert release_elems[0].attrib["version"] == "0.3.6"
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def test_update_metainfo_keeps_full_history(monkeypatch):
+    """Release sync must not prune historical release notes."""
+    releases = "\n".join(
+        f'    <release version="0.2.{i}" date="2026-10-01"><description><p>Note {i}</p></description></release>'
+        for i in range(15, 0, -1)
+    )
+    sample_metainfo = f"""<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>bd.com.zihad.BengalDownloadManager</id>
+  <releases>
+{releases}
+  </releases>
+</component>
+"""
+    with tempfile.NamedTemporaryFile("w+", delete=False, encoding="utf-8") as tf:
+        tf.write(sample_metainfo)
+        temp_path = tf.name
+
+    try:
+        import scripts.sync_version as sv
+        monkeypatch.setattr(sv, "METAINFO_FILE", temp_path)
+
+        sv.update_metainfo("0.2.16", custom_notes=["New release"])
+
+        with open(temp_path, "r", encoding="utf-8") as f:
+            updated = f.read()
+
+        tree = ET.fromstring(updated)
+        release_elems = tree.find("releases").findall("release")
+        assert len(release_elems) == 16
+        assert release_elems[0].attrib["version"] == "0.2.16"
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def test_get_previous_tag_is_strictly_older():
+    """get_previous_tag must return the tag immediately below the target version."""
+    from scripts.generate_appstream_notes import get_previous_tag, get_sorted_git_tags
+
+    if not get_sorted_git_tags():
+        import pytest
+        pytest.skip("No git tags available in this checkout")
+
+    assert get_previous_tag("0.3.6") == "v0.3.5"
+    assert get_previous_tag("0.3.5") == "v0.3.4"
+    assert get_previous_tag("v0.3.6") == "v0.3.5"
