@@ -117,6 +117,61 @@ class TestAria2WorkerFormatting:
             mock_rpc.assert_called_once()
 
 
+class TestAria2WorkerStop:
+    """Regression tests ensuring stop() truly cancels (removes) rather than pauses."""
+
+    @pytest.fixture
+    def worker(self, tmp_path, qapp):
+        from core.workers.aria2 import Aria2Worker
+        w = Aria2Worker(
+            url="https://example.com/file.zip",
+            download_id=0,
+            save_dir=str(tmp_path),
+        )
+        return w
+
+    def test_stop_sets_is_running_false(self, worker):
+        worker.gid = None
+        worker.stop()
+        assert worker.is_running is False
+
+    def test_stop_sets_pause_flags(self, worker):
+        worker.gid = None
+        worker.stop()
+        assert worker.is_pause_requested is True
+        assert worker.is_paused is True
+
+    def test_stop_calls_aria2_remove(self, worker):
+        worker.gid = "test-gid-abc"
+        called = []
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            mock_rpc.side_effect = lambda method, params=None, **kw: called.append(method)
+            worker.stop()
+        assert "aria2.remove" in called
+
+    def test_stop_calls_aria2_remove_download_result(self, worker):
+        worker.gid = "test-gid-abc"
+        called = []
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            mock_rpc.side_effect = lambda method, params=None, **kw: called.append(method)
+            worker.stop()
+        assert "aria2.removeDownloadResult" in called
+
+    def test_stop_does_not_call_aria2_pause(self, worker):
+        worker.gid = "test-gid-abc"
+        called = []
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            mock_rpc.side_effect = lambda method, params=None, **kw: called.append(method)
+            worker.stop()
+        assert "aria2.pause" not in called
+
+    def test_stop_no_gid_makes_no_rpc_calls(self, worker):
+        worker.gid = None
+        with patch("core.workers.aria2.call_aria2_rpc") as mock_rpc:
+            worker.stop()
+            mock_rpc.assert_not_called()
+
+
 class TestFileInfoFetcherFormatting:
     @pytest.fixture
     def fetcher(self, tmp_path, qapp):

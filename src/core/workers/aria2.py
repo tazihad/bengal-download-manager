@@ -510,10 +510,13 @@ class Aria2Worker(QThread):
             time.sleep(0.2)
 
     def stop(self):
+        """Cancel and remove the download from the Aria2 engine."""
         self.is_running = False
+        self.is_pause_requested = True
+        self.is_paused = True
         if self.gid:
             if is_debug_mode():
-                logger.debug("[Aria2Worker] Stopping GID %s", self.gid)
+                logger.debug("[Aria2Worker] Cancelling GID %s", self.gid)
             try:
                 self.call_rpc("aria2.remove", [self.gid])
             except Exception:
@@ -523,17 +526,6 @@ class Aria2Worker(QThread):
             except Exception:
                 pass
             self.log_signal.emit("Removing download from Aria2...")
-
-    def stop(self):
-        """Stops the worker thread and terminates its internal loop."""
-        self.is_running = False
-        self.is_pause_requested = True
-        self.is_paused = True
-        if self.gid:
-            try:
-                self.call_rpc("aria2.pause", [self.gid])
-            except Exception:
-                pass
 
     def pause(self):
         self.is_pause_requested = True
