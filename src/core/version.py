@@ -24,7 +24,21 @@ def _get_version():
             except Exception:
                 pass
 
-    # 2. Check installed Flatpak / system AppStream metainfo
+    # 2. Check repository / bundled root VERSION file (authoritative SSOT)
+    try:
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        version_file = os.path.join(root_dir, "VERSION")
+        if os.path.exists(version_file):
+            with open(version_file, "r", encoding="utf-8") as f:
+                v = f.read().strip()
+                if v:
+                    return v[1:] if v.startswith("v") else v
+    except Exception:
+        pass
+
+    # 3. Check installed Flatpak / system AppStream metainfo. This runs after the
+    # repository VERSION file so running from source never reports the version of
+    # a separately installed package.
     metainfo_paths = [
         "/app/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml",
         "/app/share/bengal-download-manager/VERSION",
@@ -43,21 +57,9 @@ def _get_version():
                     with open(mpath, "r", encoding="utf-8") as f:
                         v = f.read().strip()
                         if v:
-                            return v
+                            return v[1:] if v.startswith("v") else v
             except Exception:
                 pass
-
-    # 3. Check repository / unbundled root VERSION file
-    try:
-        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        version_file = os.path.join(root_dir, "VERSION")
-        if os.path.exists(version_file):
-            with open(version_file, "r", encoding="utf-8") as f:
-                v = f.read().strip()
-                if v:
-                    return v
-    except Exception:
-        pass
 
     # 4. Check git tags if running inside git clone
     try:
@@ -118,7 +120,7 @@ def _get_version():
     except Exception:
         pass
 
-    return "0.3.6"
+    return "0.3.7-alpha.4"
 
 VERSION = _get_version()
 

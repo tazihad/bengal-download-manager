@@ -132,6 +132,30 @@ def update_snapcraft(ver: str):
         f.write(content)
 
 
+def _normalize_release_indent(release_block: str) -> str:
+    """Ensures clean 4-space indentation for an existing <release> block."""
+    lines = [line.strip() for line in release_block.strip().splitlines() if line.strip()]
+    indented_lines = []
+    indent_level = 1
+    for line in lines:
+        if line.startswith("</release>"):
+            indent_level = 1
+        elif line.startswith("</description>"):
+            indent_level = 2
+        elif line.startswith("</ul>"):
+            indent_level = 3
+
+        indented_lines.append("    " * indent_level + line)
+
+        if line.startswith("<release"):
+            indent_level = 2
+        elif line.startswith("<description>"):
+            indent_level = 3
+        elif line.startswith("<ul>"):
+            indent_level = 4
+    return "\n".join(indented_lines)
+
+
 def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     if not os.path.exists(METAINFO_FILE):
         return
@@ -141,56 +165,41 @@ def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     with open(METAINFO_FILE, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Generate release notes list (app src changes only for AppStream in-app notes)
-    if custom_notes:
-        notes = custom_notes
-    else:
-        notes = generate_notes_from_git(clean_ver, app_src_only=True)
-
-    new_release_block = format_appstream_xml(clean_ver, today, notes, indent="    ")
-
     # Parse existing releases blocks
     releases_match = re.search(r"<releases>(.*?)</releases>", content, flags=re.DOTALL)
+
+    same_version_block = None
+    filtered_releases = []
     if releases_match:
         inner_releases = releases_match.group(1).strip()
         # Find all individual <release ...>.*?</release> or self-closing <release .../>
         existing_releases = re.findall(r"<release\s+[^>]*?(?:/>|>.*?</release>)", inner_releases, flags=re.DOTALL)
 
-        # Filter out existing release of same version to avoid duplicates
-        filtered_releases = []
         for r in existing_releases:
             m = re.search(r'version="([^"]+)"', r)
             if m and m.group(1) == clean_ver:
+                same_version_block = r
                 continue
-            # Ensure clean 4-space indentation for inner lines
-            lines = [line.strip() for line in r.strip().splitlines() if line.strip()]
-            indented_lines = []
-            indent_level = 1
-            for line in lines:
-                if line.startswith("</release>"):
-                    indent_level = 1
-                elif line.startswith("</description>"):
-                    indent_level = 2
-                elif line.startswith("</ul>"):
-                    indent_level = 3
-                
-                indented_lines.append("    " * indent_level + line)
-                
-                if line.startswith("<release"):
-                    indent_level = 2
-                elif line.startswith("<description>"):
-                    indent_level = 3
-                elif line.startswith("<ul>"):
-                    indent_level = 4
-            filtered_releases.append("\n".join(indented_lines))
+            filtered_releases.append(_normalize_release_indent(r))
 
-        # Retain top 10 historical releases
-        all_releases = [new_release_block] + filtered_releases[:9]
+    # Preserve hand-written release notes when the version already exists and no
+    # new notes were supplied (e.g. CI `sync_version.py --set <tag>`). This stops
+    # a release build from replacing curated notes with generic generated text.
+    if same_version_block is not None and not custom_notes:
+        release_block = _normalize_release_indent(same_version_block)
+    else:
+        # Generate release notes list (app src changes only for AppStream in-app notes)
+        notes = custom_notes or generate_notes_from_git(clean_ver, app_src_only=True)
+        release_block = format_appstream_xml(clean_ver, today, notes, indent="    ")
+
+    if releases_match:
+        # Keep the full release history instead of silently pruning it.
+        all_releases = [release_block] + filtered_releases
         formatted_inner = "\n" + "\n".join(all_releases) + "\n  "
         new_releases_section = f"<releases>{formatted_inner}</releases>"
         content = re.sub(r"<releases>.*?</releases>", new_releases_section, content, flags=re.DOTALL)
     else:
-        new_releases_section = f"<releases>\n{new_release_block}\n  </releases>"
+        new_releases_section = f"<releases>\n{release_block}\n  </releases>"
         content = content.replace("</component>", f"  {new_releases_section}\n</component>")
 
     with open(METAINFO_FILE, "w", encoding="utf-8") as f:

@@ -11,11 +11,12 @@
 <div align="center">
 
 [![Latest Release](https://img.shields.io/github/v/release/tazihad/bengal-download-manager?style=flat-square&color=06b6d4&label=release)](https://github.com/tazihad/bengal-download-manager/releases/latest)
-[![bengal-download-manager](https://snapcraft.io/bengal-download-manager/badge.svg)](https://snapcraft.io/bengal-download-manager)
+[![snapcraft](https://img.shields.io/snapcraft/v/bengal-download-manager/latest/stable?style=flat-square&logo=snapcraft&logoColor=white&label=snapcraft)](https://snapcraft.io/bengal-download-manager)
 [![Flathub](https://img.shields.io/flathub/v/bd.com.zihad.BengalDownloadManager?style=flat-square&color=4a90e2&label=flathub)](https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager)
+[![flathub downloads](https://img.shields.io/badge/dynamic/json?color=informational&label=flathub%20downloads&logo=flathub&logoColor=white&query=%24.installs_total&url=https%3A%2F%2Fflathub.org%2Fapi%2Fv2%2Fstats%2Fbd.com.zihad.BengalDownloadManager&style=flat-square)](https://klausenbusk.github.io/flathub-stats/#ref=bd.com.zihad.BengalDownloadManager&interval=infinity&downloadType=installs)
 [![Downloads](https://img.shields.io/github/downloads/tazihad/bengal-download-manager/total?style=flat-square&color=22c55e)](https://github.com/tazihad/bengal-download-manager/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Snap%20%7C%20Flathub%20%7C%20Flatpak%20%7C%20AppImage-8b5cf6?style=flat-square)](#build-instructions)
+[![Platform: Linux](https://img.shields.io/badge/platform-Linux-8b5cf6?style=flat-square)](#build-instructions)
 
 </div>
 

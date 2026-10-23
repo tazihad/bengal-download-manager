@@ -410,8 +410,19 @@ class MainWindow(QMainWindow):
         self.aria2_process = self.aria2_daemon_manager.process
         return self.aria2_process
 
+    def _stop_tray_retry_timer(self):
+        """Stops the deferred system-tray initialization timer, if armed."""
+        timer = getattr(self, "_tray_retry_timer", None)
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:
+                pass
+
     def close(self):
         self._is_closing = True
+        if getattr(self, "is_quitting", False):
+            self._stop_tray_retry_timer()
         if hasattr(self, "_active_retry_timers"):
             for t in list(self._active_retry_timers):
                 try:
@@ -441,6 +452,7 @@ class MainWindow(QMainWindow):
             return
 
         from core.shutdown import perform_application_shutdown
+        self._stop_tray_retry_timer()
         perform_application_shutdown(self)
         event.accept()
         QApplication.quit()
@@ -2141,10 +2153,16 @@ class MainWindow(QMainWindow):
                     if QSystemTrayIcon.isSystemTrayAvailable():
                         self._tray_retry_timer.stop()
                         self._init_tray_icon()
-                    elif self._tray_retry_count >= 15:
+                    elif self._tray_retry_count >= 10:
                         self._tray_retry_timer.stop()
+                        # No tray host will ever appear (e.g. GNOME without an
+                        # AppIndicator extension): never leave the user with a
+                        # hidden, unretrievable window.
+                        if getattr(self, "start_minimized", False) or getattr(self, "_is_in_tray", False):
+                            print("Warning: system tray unavailable; restoring main window")
+                            self.restore_window()
                 self._tray_retry_timer.timeout.connect(_retry_tray)
-                self._tray_retry_timer.start(2000)
+                self._tray_retry_timer.start(1500)
             return
 
         self._init_tray_icon()
@@ -3403,12 +3421,21 @@ class MainWindow(QMainWindow):
             if not hasattr(self, "_show_details_panel_pref") and hasattr(self, "details_panel") and self.details_panel:
                 show_details = not self.details_panel.isHidden()
 
+            autostart_pref = getattr(self, "autostart_enabled_pref", None)
+            if autostart_pref is None:
+                autostart_pref = is_autostart_enabled()
+
             settings = {
                 "geometry": self.saveGeometry().toHex().data().decode(),
                 "windowState": self.saveState().toHex().data().decode(),
                 "column_data": column_data,
-                "start_minimized": getattr(self, "start_minimized_on_autostart", False),
-                "autostart_enabled": getattr(self, "autostart_enabled_pref", is_autostart_enabled()),
+                "start_minimized": bool(getattr(self, "start_minimized_on_autostart", False)),
+                "autostart_enabled": bool(autostart_pref),
+                "flatpak_autostart": (
+                    self.settings.get("flatpak_autostart", {})
+                    if isinstance(getattr(self, "settings", None), dict)
+                    else {}
+                ),
                 "ui_scale": getattr(self, "settings", {}).get("ui_scale", "100%"),
                 "theme": getattr(self, "settings", {}).get("theme", "BDM Auto (Default)"),
                 "accent": getattr(self, "settings", {}).get("accent", "BDM (Default)"),
@@ -3577,6 +3604,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "status_bar_timer") and self.status_bar_timer.isActive():
             self.status_bar_timer.stop()
         MemoryGuard.clean_and_trim()
+        self.update_tray_action()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -3588,6 +3616,7 @@ class MainWindow(QMainWindow):
         self._flush_pending_tray_updates()
         if getattr(self, "_show_details_panel_pref", False):
             self.update_details_panel()
+        self.update_tray_action()
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -3836,7 +3865,13 @@ class MainWindow(QMainWindow):
                         self.restoreState(QByteArray.fromHex(settings["windowState"].encode()))
                     
                     self.start_minimized_on_autostart = settings.get("start_minimized", False)
-                    self.autostart_enabled_pref = settings.get("autostart_enabled", None)
+                    autostart_val = settings.get("autostart_enabled")
+                    if autostart_val is None:
+                        # Missing/null (e.g. upgraded from <= 0.3.3): fall back to
+                        # the real desktop/portal state instead of persisting None.
+                        self.autostart_enabled_pref = is_autostart_enabled()
+                    else:
+                        self.autostart_enabled_pref = bool(autostart_val)
 
                     header = self.download_table.horizontalHeader()
                     if "column_data" in settings:
@@ -5491,14 +5526,15 @@ class MainWindow(QMainWindow):
                 expected_size = results.get("size_bytes", 0) or getattr(prefetch_worker, 'total_bytes', 0)
                 actual_size = os.path.getsize(bdpart_path) if bdpart_path and os.path.exists(bdpart_path) else 0
                 
-                # Check if prefetch completed:
-                # 1) Worker explicitly finished with "Prefetch Complete"
-                # 2) Or file exists, reached expected size, and has no active .aria2 control file
+                # Check if prefetch completed. Only trust the worker's explicit
+                # completion status: download engines preallocate the .bdpart file
+                # to its final size, so a still-running prefetch already appears
+                # full-size on disk (as a sparse file). Inferring completion from
+                # os.path.getsize() would move an incomplete file to the final
+                # destination and falsely report "Complete".
                 bdpart_complete = False
-                if logic_status == "Prefetch Complete":
-                    bdpart_complete = True
-                elif bdpart_path and os.path.exists(bdpart_path) and not os.path.exists(bdpart_aria2):
-                    if expected_size > 0 and actual_size >= expected_size:
+                if logic_status == "Prefetch Complete" and bdpart_path and os.path.exists(bdpart_path):
+                    if expected_size <= 0 or actual_size >= expected_size:
                         bdpart_complete = True
                 
                 if bdpart_complete:
