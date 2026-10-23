@@ -263,6 +263,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
@@ -316,12 +318,39 @@ jobs:
           python3 - << 'EOF'
           import os
           import re
+          import xml.etree.ElementTree as ET
 
           tag = os.environ.get("TAG", "")
           base_url = os.environ.get("BASE_URL", "")
           version = os.environ.get("VERSION", "")
           repo = os.environ.get("REPOSITORY", "tazihad/bengal-download-manager")
           has_gpg = os.environ.get("HAS_GPG", "false") == "true"
+          repo_root = os.getcwd()
+
+          def load_curated_notes(release_version):
+              """Read the user-facing notes from the AppStream metainfo entry."""
+              clean_version = release_version.split("-")[0]
+              metainfo_path = os.path.join(
+                  repo_root,
+                  "flatpak",
+                  "bd.com.zihad.BengalDownloadManager.metainfo.xml",
+              )
+              try:
+                  tree = ET.parse(metainfo_path)
+              except Exception as exc:
+                  print(f"Notice: could not read AppStream metadata: {exc}")
+                  return []
+
+              for release in tree.getroot().iter("release"):
+                  if release.get("version") != clean_version:
+                      continue
+                  notes = []
+                  for item in release.findall("./description/ul/li"):
+                      text = "".join(item.itertext()).strip()
+                      if text:
+                          notes.append(text)
+                  return notes
+              return []
 
           os.chdir("release_dist")
           special_files = {"SHA256SUMS", "SHA256SUMS.sig", "SHA256SUMS.txt"}
@@ -474,8 +503,9 @@ jobs:
           try:
               import sys
               sys.path.insert(0, os.path.abspath(".."))
-              from scripts.generate_appstream_notes import generate_notes_from_git, format_markdown_notes, get_previous_tag
-              bullet_notes = generate_notes_from_git(version, to_ref="HEAD")
+              from scripts.generate_appstream_notes import generate_notes_from_git, get_previous_tag
+              curated_notes = load_curated_notes(version)
+              bullet_notes = curated_notes or generate_notes_from_git(version, to_ref="HEAD")
               lines.append("## What's Changed\n")
               if bullet_notes:
                   lines.append("### Highlights")
@@ -507,7 +537,7 @@ jobs:
                   except Exception as err:
                       print(f"Notice: could not fetch previous release notes for {prev_tag}: {err}")
 
-              lines.append(f"\n**Full Changelog**: https://github.com/{repo}/compare/{prev_tag if prev_tag else tag}...{version}")
+              lines.append(f"\n**Full Changelog**: https://github.com/{repo}/compare/{prev_tag if prev_tag else tag}...{tag}")
           except Exception as e:
               print(f"Warning: could not generate human-friendly release notes: {e}")
 

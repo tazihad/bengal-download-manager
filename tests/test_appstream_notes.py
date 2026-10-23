@@ -188,3 +188,17 @@ def test_get_previous_tag_is_strictly_older():
     assert get_previous_tag("0.3.6") == "v0.3.5"
     assert get_previous_tag("0.3.5") == "v0.3.4"
     assert get_previous_tag("v0.3.6") == "v0.3.5"
+
+
+def test_get_previous_tag_skips_prereleases_for_stable_target(monkeypatch):
+    """Stable releases compare against the previous stable tag, not an alpha."""
+    import scripts.generate_appstream_notes as notes
+
+    monkeypatch.setattr(
+        notes,
+        "get_sorted_git_tags",
+        lambda: ["v0.3.7-alpha.4", "v0.3.7-alpha.3", "v0.3.6", "v0.3.5"],
+    )
+
+    assert notes.get_previous_tag("0.3.7") == "v0.3.6"
+    assert notes.get_previous_tag("0.3.7-alpha.4") == "v0.3.7-alpha.3"

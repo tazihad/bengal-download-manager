@@ -83,8 +83,9 @@ def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
     """
     Finds the highest tag strictly older than target_version.
 
-    For pre-releases (e.g. 0.3.0-alpha.2) this returns the previous release
-    series (e.g. v0.2.99), so the commit range accumulates correctly.
+    Stable targets skip pre-release tags, so a stable release covers the full
+    cycle since the previous stable release (e.g. 0.3.7 -> v0.3.6). Pre-release
+    targets use the immediately preceding tag (e.g. alpha.2 -> alpha.1).
     """
     tags = get_sorted_git_tags()
     if not tags:
@@ -94,9 +95,14 @@ def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
         return tags[0]
 
     target_key = _tag_sort_key(target_version)
+    target_is_stable = target_key[3] == 1
     for tag in tags:
-        if _tag_sort_key(tag) < target_key:
-            return tag
+        tag_key = _tag_sort_key(tag)
+        if tag_key >= target_key:
+            continue
+        if target_is_stable and tag_key[3] == 0:
+            continue
+        return tag
 
     return None
 
