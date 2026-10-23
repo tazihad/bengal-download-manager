@@ -57,12 +57,12 @@
 
   <releases>
     <release version="0.3.8" date="2026-10-23">
-      <description>
-        <p>Bengal Download Manager 0.3.8 changes:</p>
-        <ul>
-          <li>Force Fusion widget style to prevent Breeze scrollbars in Flatpak on KDE</li>
-        </ul>
-      </description>
+        <description>
+            <p>Bengal Download Manager 0.3.8 changes:</p>
+            <ul>
+                <li>Force Fusion widget style to prevent Breeze scrollbars in Flatpak on KDE</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.7" date="2026-10-23">
         <description>
