@@ -317,7 +317,7 @@ def verify_source_status(version: Optional[str] = None, timeout: float = 3.0) ->
             from core.version import VERSION
             version = VERSION
         except Exception:
-            version = "0.3.8"
+            version = "0.3.9-alpha.1"
 
     cache_key = (
         version,
