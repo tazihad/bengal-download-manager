@@ -191,3 +191,30 @@ class TestFormatHelpers:
         from ui.components.details_panel import format_speed_string
         assert isinstance(format_speed_string(1024), str)
         assert isinstance(format_speed_string(0), str)
+
+
+class TestDataUsageWidget:
+    def test_header_matches_value_text_color(self, qapp):
+        """The section header must not follow the accent colour.
+
+        Accent colours are chosen for selection backgrounds, not body text;
+        rendering "Today's data usage" in the accent made it noticeably
+        harder to read than the data value underneath it.
+        """
+        from PyQt6.QtGui import QPalette
+        from ui.components.data_usage_widget import DataUsageWidget
+
+        widget = DataUsageWidget()
+        widget.ensurePolished()
+        header_color = widget.lbl_header.palette().color(QPalette.ColorRole.WindowText)
+        value_color = widget.lbl_downloaded_val.palette().color(
+            QPalette.ColorRole.WindowText
+        )
+        assert header_color == value_color
+
+        import re
+        header_block = re.search(
+            r"QLabel\.sectionHeader\s*\{(.*?)\}", widget.styleSheet(), re.S
+        ).group(1)
+        assert "palette(window-text)" in header_block
+        assert "palette(highlight)" not in header_block

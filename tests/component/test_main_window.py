@@ -158,6 +158,25 @@ class TestMainWindowSettings:
         assert get_color_contrast_ratio(text, bg) >= 4.5
         assert get_color_contrast_ratio(border, bg) >= 3.0
 
+    def test_toolbar_icons_change_on_hover_and_press(self, main_window):
+        from PyQt6.QtCore import QEvent
+
+        button = main_window.toolbar.widgetForAction(main_window.action_add_url)
+        normal_key = button.icon().cacheKey()
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, QEvent(QEvent.Type.Enter)
+        )
+        hover_key = button.icon().cacheKey()
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, QEvent(QEvent.Type.MouseButtonPress)
+        )
+        pressed_key = button.icon().cacheKey()
+
+        assert hover_key != normal_key
+        assert pressed_key != hover_key
+
 
 class TestMainWindowViewState:
     def test_table_style_default(self, main_window):

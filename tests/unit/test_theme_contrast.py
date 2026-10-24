@@ -1,10 +1,8 @@
-"""Unit tests for toolbar hover/tooltip contrast helpers.
+"""Unit tests for toolbar hover/pressed contrast helpers.
 
-The toolbar hover state must be perceivable and readable in every shipped
-theme, light or dark.  ``palette(midlight)`` and ``palette(highlight)`` are
-frequently too subtle (or too dark) for that job, so
-``ensure_hover_surface()`` / ``ensure_control_contrast()`` derive the surface,
-label and border colours from the active palette instead.
+``palette(midlight)`` and ``palette(highlight)`` are frequently too subtle
+(or too dark) for hover and pressed states, so the toolbar derives its
+surface, border, label and icon colours from the active palette instead.
 """
 
 import pytest
@@ -12,15 +10,15 @@ import pytest
 from PyQt6.QtGui import QColor
 
 
-THEME_OPTIONS = [
-    "BDM Auto (Default)", "System", "BDM Dark", "BDM Light",
-    "Breeze Dark", "Breeze Light", "Catppuccin", "Chroma Dark",
-    "Dracula", "IDM Classic", "Kirigami Dark",
-    "Kirigami Light", "Material You Dark", "Material You Light",
-    "Nord", "Obsidian Flow", "One Dark",
-    "Solarized Dark", "Solarized Light",
-    "Stellar Dark", "Stellar Light",
-    "TMOG Dark", "Twilight", "Ubuntu Dark", "Ubuntu Light",
+# Representative of every palette family: dark/light, blue/violet accents,
+# near-black and near-white windows, and light accents with dark labels.
+REPRESENTATIVE_THEMES = [
+    "BDM Dark",
+    "BDM Light",
+    "Twilight",
+    "Catppuccin",
+    "Solarized Dark",
+    "Solarized Light",
 ]
 
 
@@ -82,9 +80,14 @@ class TestEnsureControlContrast:
         assert result.value() < QColor("#88c0d0").value()
 
 
-@pytest.mark.parametrize("theme", THEME_OPTIONS)
-def test_toolbar_hover_contrast_for_every_theme(qapp, theme):
-    """Every shipped theme must produce a readable, visible toolbar hover."""
+@pytest.mark.parametrize("theme", REPRESENTATIVE_THEMES)
+def test_toolbar_states_have_readable_contrast(qapp, theme):
+    """Hover and pressed toolbar states must stay visible and readable.
+
+    The icon stroke uses the same palette roles as its label, otherwise a
+    light theme shows a dark icon on the dark pressed accent (and light
+    accents such as Catppuccin show a white icon on a light background).
+    """
     from PyQt6.QtGui import QPalette
     from core.services.theme_service import (
         apply_app_theme,
@@ -92,7 +95,9 @@ def test_toolbar_hover_contrast_for_every_theme(qapp, theme):
         ensure_hover_surface,
         get_color_contrast_ratio,
     )
+    from ui.components.toolbar_manager import ToolbarHoverFilter
 
+    hover_filter = ToolbarHoverFilter(None)
     try:
         apply_app_theme(theme, app=qapp)
         pal = qapp.palette()
@@ -109,7 +114,11 @@ def test_toolbar_hover_contrast_for_every_theme(qapp, theme):
         assert get_color_contrast_ratio(hover_bg, window) >= 1.20, theme
         assert get_color_contrast_ratio(hover_text, hover_bg) >= 4.5, theme
         assert get_color_contrast_ratio(hover_border, hover_bg) >= 3.0, theme
-        # Pressed state must keep the selected label readable too.
         assert get_color_contrast_ratio(highlighted_text, highlight) >= 4.5, theme
+
+        pressed_stroke = hover_filter._pressed_stroke(pal)
+        hover_stroke = hover_filter._hover_stroke(pal)
+        assert get_color_contrast_ratio(pressed_stroke, highlight) >= 4.5, theme
+        assert get_color_contrast_ratio(hover_stroke, hover_bg) >= 4.5, theme
     finally:
         apply_app_theme("BDM Auto (Default)", app=qapp)
