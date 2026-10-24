@@ -142,6 +142,141 @@ class TestMainWindowSettings:
         assert isinstance(ss, str)
         assert "QToolBar" in ss
 
+    def test_toolbar_hover_has_readable_contrast(self, main_window):
+        import re
+        from PyQt6.QtGui import QColor, QPalette
+        from core.services.theme_service import get_color_contrast_ratio
+
+        ss = main_window.get_toolbar_stylesheet()
+        hover = re.search(r"QToolButton:hover\s*\{(.*?)\}", ss, re.S).group(1)
+        bg = QColor(re.search(r"background-color:\s*(#[0-9a-fA-F]{6})", hover).group(1))
+        text = QColor(re.search(r"color:\s*(#[0-9a-fA-F]{6})", hover).group(1))
+        border = QColor(re.search(r"border:\s*1px solid\s*(#[0-9a-fA-F]{6})", hover).group(1))
+
+        window = main_window.palette().color(QPalette.ColorRole.Window)
+        assert get_color_contrast_ratio(bg, window) >= 1.20
+        assert get_color_contrast_ratio(text, bg) >= 4.5
+        assert get_color_contrast_ratio(border, bg) >= 3.0
+
+    def test_toolbar_icons_change_on_hover_and_press(self, main_window):
+        from PyQt6.QtCore import QEvent, QPointF, Qt
+        from PyQt6.QtGui import QMouseEvent
+
+        def _press(button, qt_button):
+            return QMouseEvent(
+                QEvent.Type.MouseButtonPress,
+                QPointF(5, 5),
+                QPointF(5, 5),
+                qt_button,
+                qt_button,
+                Qt.KeyboardModifier.NoModifier,
+            )
+
+        button = main_window.toolbar.widgetForAction(main_window.action_add_url)
+        normal_key = button.icon().cacheKey()
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, QEvent(QEvent.Type.Enter)
+        )
+        hover_key = button.icon().cacheKey()
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, _press(button, Qt.MouseButton.LeftButton)
+        )
+        pressed_key = button.icon().cacheKey()
+
+        assert hover_key != normal_key
+        assert pressed_key != hover_key
+
+        # Leave without press - restores to normal
+        main_window.toolbar_hover_filter.eventFilter(
+            button, QEvent(QEvent.Type.Leave)
+        )
+        after_leave_key = button.icon().cacheKey()
+        assert after_leave_key == normal_key, "Should return to normal on leave"
+        main_window.toolbar_hover_filter._restore_icon(button)
+
+    def test_toolbar_right_click_keeps_hover_icon(self, main_window):
+        """Right click must not force the pressed icon.
+
+        QToolButton never enters the stylesheet ``:pressed`` state on a
+        secondary click, so its label and surface stay in the hover look.
+        Using the pressed (highlighted-text) stroke there would render a
+        white icon on the light toolbar with a dark label.
+        """
+        from PyQt6.QtCore import QEvent, QPointF, Qt
+        from PyQt6.QtGui import QMouseEvent
+
+        button = main_window.toolbar.widgetForAction(main_window.action_add_url)
+        main_window.toolbar_hover_filter.eventFilter(
+            button, QEvent(QEvent.Type.Enter)
+        )
+        hover_key = button.icon().cacheKey()
+
+        event = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(5, 5),
+            QPointF(5, 5),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        main_window.toolbar_hover_filter.eventFilter(button, event)
+
+        assert button.icon().cacheKey() == hover_key
+        main_window.toolbar_hover_filter._restore_icon(button)
+
+    def test_toolbar_drag_out_restores_normal_icon(self, main_window):
+        """Dragging off a pressed toolbar button must drop the pressed icon.
+
+        QAbstractButton un-presses itself while the pointer is dragged
+        outside, so its label/surface return to normal immediately; the icon
+        has to follow, otherwise the white pressed stroke is left stranded
+        on the light toolbar.
+        """
+        from PyQt6.QtCore import QEvent, QPointF, Qt
+        from PyQt6.QtGui import QMouseEvent
+
+        def _move(pos, held):
+            return QMouseEvent(
+                QEvent.Type.MouseMove,
+                QPointF(pos),
+                QPointF(pos),
+                Qt.MouseButton.NoButton,
+                Qt.MouseButton.LeftButton if held else Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+
+        button = main_window.toolbar.widgetForAction(main_window.action_add_url)
+        # Shared module-scoped window: start from the action's normal icon.
+        main_window.toolbar_hover_filter._restore_icon(button)
+        normal_key = button.icon().cacheKey()
+        inside = button.rect().center()
+        outside = inside - button.rect().bottomRight() * 3
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, _move(inside, held=False)
+        )
+        main_window.toolbar_hover_filter.eventFilter(
+            button, _move(inside, held=True)
+        )
+        pressed_key = button.icon().cacheKey()
+        assert pressed_key != normal_key
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, _move(outside, held=True)
+        )
+        assert button.icon().cacheKey() == normal_key, (
+            "Dragging off the button should restore the normal icon"
+        )
+
+        main_window.toolbar_hover_filter.eventFilter(
+            button, _move(inside, held=True)
+        )
+        assert button.icon().cacheKey() == pressed_key, (
+            "Dragging back in while held should re-apply the pressed icon"
+        )
+
 
 class TestMainWindowViewState:
     def test_table_style_default(self, main_window):

@@ -82,7 +82,7 @@ class DataUsageWidget(QFrame):
             QLabel.sectionHeader {
                 font-weight: bold;
                 font-size: 11px;
-                color: palette(highlight);
+                color: palette(window-text);
             }
             QLabel.secondaryLabel {
                 font-size: 10px;

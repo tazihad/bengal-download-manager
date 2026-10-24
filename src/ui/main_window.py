@@ -112,6 +112,8 @@ from core.services.theme_service import (
     apply_titlebar_theme,
     detect_accent,
     ensure_adaptive_icon_theme,
+    ensure_control_contrast,
+    ensure_hover_surface,
     format_timestamp_relative,
     get_app_icon,
     get_monochrome_app_icon,
@@ -304,6 +306,7 @@ class MainWindow(QMainWindow):
         self.listener_thread = TcpListenerThread(init_ipc_port, self.ipc_emitter)
         
         self.active_fetchers = [] # Prevent fetcher threads from being garbage collected
+        self._processing_urls = set()  # Track URLs currently being fetched to prevent duplicate fetchers
 
         if self.start_ipc:
             self.listener_thread.start()
@@ -824,7 +827,18 @@ class MainWindow(QMainWindow):
         return True
 
     def get_toolbar_stylesheet(self) -> str:
-        glow_text_color = "#ffffff" if self.is_dark_theme() else "#000000"
+        app = QApplication.instance()
+        pal = app.palette() if app else self.palette()
+        hover_bg = ensure_hover_surface(pal.color(QPalette.ColorRole.Window))
+        hover_text = ensure_control_contrast(
+            pal.color(QPalette.ColorRole.WindowText),
+            hover_bg,
+            min_contrast=4.5,
+        )
+        hover_border = ensure_control_contrast(
+            pal.color(QPalette.ColorRole.Link),
+            hover_bg,
+        )
         return f"""
             QToolBar {{
                 background-color: palette(window);
@@ -842,15 +856,15 @@ class MainWindow(QMainWindow):
                 opacity: 1.0;
             }}
             QToolButton:hover {{
-                color: {glow_text_color};
-                background-color: palette(midlight);
-                border: 1px solid palette(highlight);
+                color: {hover_text.name()};
+                background-color: {hover_bg.name()};
+                border: 1px solid {hover_border.name()};
                 font-weight: bold;
                 opacity: 1.0;
             }}
             QToolButton:pressed {{
                 background-color: palette(highlight);
-                color: {glow_text_color};
+                color: palette(highlighted-text);
                 border: 1px solid palette(highlight);
                 font-weight: bold;
             }}
@@ -5119,6 +5133,12 @@ class MainWindow(QMainWindow):
         canon_name = _canonical_fn(url)
 
         if not allow_duplicate:
+            # 0. Check if this URL is already being processed (prevents race condition on rapid drops)
+            if url in self._processing_urls:
+                if is_debug_mode():
+                    logger.debug("[MainWindow] URL already being processed, skipping: %s", url)
+                return
+
             # 1. Check if a fetcher worker is already actively fetching info for this URL / filename
             for fetcher in getattr(self, 'active_fetchers', []):
                 if hasattr(fetcher, 'url') and (fetcher.url == url or (_canonical_fn(fetcher.url) == canon_name and canon_name)):
@@ -5144,6 +5164,10 @@ class MainWindow(QMainWindow):
                         return
 
         # 4. Start the fetcher
+        # Track this URL as being processed to prevent duplicate fetchers on rapid drops
+        if not allow_duplicate:
+            self._processing_urls.add(url)
+
         from core.workers import FileInfoFetcherWorker
         fetcher = FileInfoFetcherWorker(url, user_agent=user_agent, cookies=cookies, referrer=referrer)
         self.active_fetchers.append(fetcher)
@@ -5303,7 +5327,12 @@ class MainWindow(QMainWindow):
         # Remove the finished thread from memory
         if fetcher in self.active_fetchers:
             self.active_fetchers.remove(fetcher)
-            
+        
+        # Remove URL from processing set to allow future downloads of the same URL
+        url = file_info.get("url") if isinstance(file_info, dict) else None
+        if url and url in self._processing_urls:
+            self._processing_urls.discard(url)
+             
         # Trigger existing popup dialog!
         self.on_file_info_fetched(file_info)
 

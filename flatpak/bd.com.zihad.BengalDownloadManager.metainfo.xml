@@ -60,8 +60,13 @@
       <description>
         <p>Bengal Download Manager 0.3.10 changes:</p>
         <ul>
+<<<<<<< HEAD
+          <li>Fix race condition causing duplicate downloads when dragging/dropping URLs</li>
+          <li>Add _processing_urls tracking to prevent concurrent fetchers for same URL</li>
+=======
           <li>Fixed media downloads that could get stuck and never finish</li>
           <li>Fixed download cancel showing the wrong status in the progress window</li>
+>>>>>>> origin/main
         </ul>
       </description>
     </release>
