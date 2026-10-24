@@ -120,7 +120,11 @@ def _get_version():
     except Exception:
         pass
 
+<<<<<<< HEAD
     return "0.3.10-alpha.6"
+=======
+    return "0.3.10-alpha.6"
+>>>>>>> origin/main
 
 VERSION = _get_version()
 
