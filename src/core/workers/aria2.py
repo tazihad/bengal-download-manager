@@ -510,10 +510,13 @@ class Aria2Worker(QThread):
             time.sleep(0.2)
 
     def stop(self):
+        """Cancel and remove the download from the Aria2 engine."""
         self.is_running = False
+        self.is_pause_requested = True
+        self.is_paused = True
         if self.gid:
             if is_debug_mode():
-                logger.debug("[Aria2Worker] Stopping GID %s", self.gid)
+                logger.debug("[Aria2Worker] Cancelling GID %s", self.gid)
             try:
                 self.call_rpc("aria2.remove", [self.gid])
             except Exception:
@@ -524,17 +527,6 @@ class Aria2Worker(QThread):
                 pass
             self.log_signal.emit("Removing download from Aria2...")
 
-    def stop(self):
-        """Stops the worker thread and terminates its internal loop."""
-        self.is_running = False
-        self.is_pause_requested = True
-        self.is_paused = True
-        if self.gid:
-            try:
-                self.call_rpc("aria2.pause", [self.gid])
-            except Exception:
-                pass
-
     def pause(self):
         self.is_pause_requested = True
         self.is_paused = True
@@ -542,7 +534,10 @@ class Aria2Worker(QThread):
         if self.gid:
             if is_debug_mode():
                 logger.debug("[Aria2Worker] Pausing GID %s", self.gid)
-            self.call_rpc("aria2.pause", [self.gid])
+            try:
+                self.call_rpc("aria2.pause", [self.gid])
+            except Exception:
+                pass
             self.log_signal.emit("Pausing download in Aria2...")
 
     def resume(self):
@@ -553,12 +548,18 @@ class Aria2Worker(QThread):
         if self.gid:
             if is_debug_mode():
                 logger.debug("[Aria2Worker] Resuming GID %s", self.gid)
-            self.call_rpc("aria2.unpause", [self.gid])
+            try:
+                self.call_rpc("aria2.unpause", [self.gid])
+            except Exception:
+                pass
             self.log_signal.emit("Resuming download in Aria2...")
 
     def set_global_speed_limit(self, limit):
         if self.gid:
-            self.call_rpc("aria2.changeOption", [self.gid, {"max-download-limit": str(int(limit))}])
+            try:
+                self.call_rpc("aria2.changeOption", [self.gid, {"max-download-limit": str(int(limit))}])
+            except Exception:
+                pass
 
     def format_bytes(self, size, precision=2, pad=False):
         power = 1024
