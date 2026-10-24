@@ -4729,8 +4729,18 @@ class MainWindow(QMainWindow):
                 logger.debug("[MainWindow] process_incoming_url: Empty URL, skipping.")
             return
 
-        from core.utils import is_media_downloader_url, is_canonical_media_page_url, is_generic_media_title, POPULAR_MEDIA_DOMAINS
         from urllib.parse import urlparse
+
+        parsed_incoming = urlparse(url)
+        if parsed_incoming.scheme not in ("http", "https"):
+            if is_debug_mode():
+                logger.debug(
+                    "[MainWindow] process_incoming_url: Rejecting URL without http/https scheme: %s",
+                    url[:300],
+                )
+            return
+
+        from core.utils import is_media_downloader_url, is_canonical_media_page_url, is_generic_media_title, POPULAR_MEDIA_DOMAINS
 
         if is_debug_mode():
             logger.debug("[MainWindow] Parsed IPC input: url=%s, is_media_flag=%s, quality=%r, title=%r, size_str=%s",
