@@ -1816,16 +1816,23 @@ def get_themed_icon(name: str, fallback=None, glow: bool = False) -> QIcon:
 
     from ui.icons import get_monochrome_icon
 
+    app = QApplication.instance()
+    palette = app.palette() if app else QPalette()
+    # Active mode is used for menu item hover; match the menu text color (highlighted-text)
+    # Toolbar icons (ToolbarHoverFilter) use a lighter hover surface so they use WindowText
+    # for hover and HighlightedText only for pressed; menu icons use HighlightedText for
+    # Active mode since menu hover uses the full highlight background.
+    active_clr = palette.color(QPalette.ColorRole.HighlightedText)
+
     if icon_theme_lower in ("bdm dark (default)", "bdm dark", "bdmdark"):
-        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), glow=glow)
+        icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), active_color=active_clr, glow=glow)
     elif icon_theme_lower in ("bdm light", "bdmlight"):
-        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), glow=glow)
+        icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), active_color=active_clr, glow=glow)
     else:
-        app = QApplication.instance()
         if is_dark_theme(app):
-            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), glow=glow)
+            icon = get_monochrome_icon(name, color=QColor("#ffffff"), selected_color=QColor("#000000"), active_color=active_clr, glow=glow)
         else:
-            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), glow=glow)
+            icon = get_monochrome_icon(name, color=QColor("#232629"), selected_color=QColor("#000000"), active_color=active_clr, glow=glow)
 
     if not icon.isNull():
         return icon
