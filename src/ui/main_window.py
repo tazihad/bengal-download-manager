@@ -306,6 +306,7 @@ class MainWindow(QMainWindow):
         self.listener_thread = TcpListenerThread(init_ipc_port, self.ipc_emitter)
         
         self.active_fetchers = [] # Prevent fetcher threads from being garbage collected
+        self._processing_urls = set()  # Track URLs currently being fetched to prevent duplicate fetchers
 
         if self.start_ipc:
             self.listener_thread.start()
@@ -5132,6 +5133,12 @@ class MainWindow(QMainWindow):
         canon_name = _canonical_fn(url)
 
         if not allow_duplicate:
+            # 0. Check if this URL is already being processed (prevents race condition on rapid drops)
+            if url in self._processing_urls:
+                if is_debug_mode():
+                    logger.debug("[MainWindow] URL already being processed, skipping: %s", url)
+                return
+
             # 1. Check if a fetcher worker is already actively fetching info for this URL / filename
             for fetcher in getattr(self, 'active_fetchers', []):
                 if hasattr(fetcher, 'url') and (fetcher.url == url or (_canonical_fn(fetcher.url) == canon_name and canon_name)):
@@ -5157,6 +5164,10 @@ class MainWindow(QMainWindow):
                         return
 
         # 4. Start the fetcher
+        # Track this URL as being processed to prevent duplicate fetchers on rapid drops
+        if not allow_duplicate:
+            self._processing_urls.add(url)
+
         from core.workers import FileInfoFetcherWorker
         fetcher = FileInfoFetcherWorker(url, user_agent=user_agent, cookies=cookies, referrer=referrer)
         self.active_fetchers.append(fetcher)
@@ -5316,7 +5327,12 @@ class MainWindow(QMainWindow):
         # Remove the finished thread from memory
         if fetcher in self.active_fetchers:
             self.active_fetchers.remove(fetcher)
-            
+        
+        # Remove URL from processing set to allow future downloads of the same URL
+        url = file_info.get("url") if isinstance(file_info, dict) else None
+        if url and url in self._processing_urls:
+            self._processing_urls.discard(url)
+             
         # Trigger existing popup dialog!
         self.on_file_info_fetched(file_info)
 
