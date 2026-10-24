@@ -62,6 +62,8 @@
         <ul>
           <li>Fixed media downloads that could get stuck and never finish</li>
           <li>Fixed download cancel showing the wrong status in the progress window</li>
+          <li>Improved toolbar hover visibility, borders, and icon glow across all light and dark themes</li>
+          <li>Fixed hard-to-read pressed toolbar labels on several themes</li>
         </ul>
       </description>
     </release>
