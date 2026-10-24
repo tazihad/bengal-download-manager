@@ -186,7 +186,7 @@ class DownloadController(QObject):
 
     def stop_all(self) -> None:
         """
-        Cancels all registered download workers
+        Gracefully pauses or cancels all registered download workers
         and clears active speed measurements.
         """
         with self._lock:
@@ -194,9 +194,9 @@ class DownloadController(QObject):
 
         for key, entry in entries_snapshot:
             worker = getattr(entry, "worker", entry)
-            if worker is not None and hasattr(worker, "stop"):
+            if worker is not None and hasattr(worker, "pause"):
                 try:
-                    worker.stop()
+                    worker.pause()
                 except Exception:
                     pass
 

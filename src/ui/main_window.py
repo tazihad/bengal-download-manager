@@ -6244,14 +6244,14 @@ class MainWindow(QMainWindow):
                 item = self.download_table.item(r, 0)
                 if not item:
                     continue
-                item.setData(Qt.ItemDataRole.UserRole + 11, "Cancelled")
+                item.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
                 key = self._get_item_key(item)
                 if key in self.active_downloads:
                     dialog = self.active_downloads[key]
                     worker = getattr(dialog, 'worker', dialog)
-                    if worker is not None and hasattr(worker, 'stop'):
+                    if worker is not None and hasattr(worker, 'pause'):
                         try:
-                            worker.stop()
+                            worker.pause()
                         except Exception:
                             pass
                     from core.media_downloader import YtDlpDownloadWorker
@@ -6263,7 +6263,7 @@ class MainWindow(QMainWindow):
                     
                     if hasattr(dialog, 'lbl_main_status'):
                         try:
-                            dialog.lbl_main_status.setText("Cancelled")
+                            dialog.lbl_main_status.setText("Paused")
                             dialog.btn_pause.setText("Resume")
                             dialog.btn_cancel.setText("Close")
                             dialog.lbl_speed.setText("0.00 B/s")
@@ -6280,12 +6280,12 @@ class MainWindow(QMainWindow):
                 if not status_item:
                     status_item = QTableWidgetItem()
                     self.download_table.setItem(r, 2, status_item)
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Cancelled")
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                final_display = pct_data if pct_data and "%" in str(pct_data) else "Cancelled"
-                self._set_status_text(r, final_display, logic_status="Cancelled")
+                final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                self._set_status_text(r, final_display, logic_status="Paused")
 
-                # Reset Time Left and Rate on cancel
+                # Reset Time Left and Rate on pause
                 self._set_sortable_item(r, 3, "", parse_time_to_sec)
                 self._set_sortable_item(r, 4, "", parse_size_to_bytes)
 
@@ -6555,14 +6555,14 @@ class MainWindow(QMainWindow):
             else:
                 for key, entry in list(self.active_downloads.items()):
                     worker = getattr(entry, 'worker', entry)
-                    if worker is not None and hasattr(worker, 'stop'):
+                    if worker is not None and hasattr(worker, 'pause'):
                         try:
-                            worker.stop()
+                            worker.pause()
                         except Exception:
                             pass
             self.update_status_bar_speed()
 
-            # Update all rows in download_table to ensure active, queued, and pending downloads are cancelled
+            # Update all rows in download_table to ensure active, queued, and pending downloads are paused
             for r in range(self.download_table.rowCount()):
                 item_ref = self.download_table.item(r, 0)
                 if not item_ref:
@@ -6573,14 +6573,14 @@ class MainWindow(QMainWindow):
                 if current_status in ["Complete", "Finished"] or display_status in ["Complete", "Finished"] or item_ref.data(Qt.ItemDataRole.UserRole + 11) == "Complete":
                     continue
 
-                item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Cancelled")
+                item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Paused")
                 if not status_item:
                     status_item = QTableWidgetItem()
                     self.download_table.setItem(r, 2, status_item)
-                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Cancelled")
+                status_item.setData(Qt.ItemDataRole.UserRole + 1, "Paused")
                 pct_data = status_item.data(Qt.ItemDataRole.UserRole)
-                final_display = pct_data if pct_data and "%" in str(pct_data) else "Cancelled"
-                self._set_status_text(r, final_display, logic_status="Cancelled")
+                final_display = pct_data if pct_data and "%" in str(pct_data) else "Paused"
+                self._set_status_text(r, final_display, logic_status="Paused")
 
                 self._set_sortable_item(r, 3, "", parse_time_to_sec)
                 self._set_sortable_item(r, 4, "", parse_size_to_bytes)
