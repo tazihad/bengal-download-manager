@@ -30,10 +30,20 @@ class DownloadStore(QObject):
         super().__init__(parent)
         self._items: Dict[str, dict] = {}
         self._ordered_keys: List[str] = []
+        self._key_counter: int = 0
 
     def _make_key(self, item_data: dict) -> str:
         """Derives a stable unique identifier for a download record."""
-        return item_data.get("url") or item_data.get("path") or str(id(item_data))
+        url = item_data.get("url")
+        path = item_data.get("path")
+        if url:
+            return url
+        if path:
+            return path
+        # Fallback: use a monotonically increasing counter instead of id(),
+        # which is unstable across runs and can collide after garbage collection.
+        self._key_counter += 1
+        return f"_internal_{self._key_counter}"
 
     def load_from_database(self) -> List[dict]:
         """Loads downloads from SQLite persistence into the in-memory repository."""

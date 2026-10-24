@@ -14,9 +14,14 @@ class FakeWorker(QObject):
         self.is_paused = False
         self.is_pause_requested = False
         self.paused = False
+        self.stopped = False
 
     def pause(self):
         self.paused = True
+        self.is_paused = True
+
+    def stop(self):
+        self.stopped = True
         self.is_paused = True
 
 
@@ -197,14 +202,14 @@ class TestDownloadControllerPause:
         ctrl.stop_all()
         assert received
 
-    def test_stop_all_pauses_workers(self, ctrl):
+    def test_stop_all_stops_workers(self, ctrl):
         w1 = FakeWorker()
         w2 = FakeWorker()
         ctrl.register("a", w1)
         ctrl.register("b", w2)
         ctrl.stop_all()
-        assert w1.paused is True
-        assert w2.paused is True
+        assert w1.stopped is True
+        assert w2.stopped is True
 
 
 class TestDownloadControllerActiveCount:

@@ -534,7 +534,10 @@ class Aria2Worker(QThread):
         if self.gid:
             if is_debug_mode():
                 logger.debug("[Aria2Worker] Pausing GID %s", self.gid)
-            self.call_rpc("aria2.pause", [self.gid])
+            try:
+                self.call_rpc("aria2.pause", [self.gid])
+            except Exception:
+                pass
             self.log_signal.emit("Pausing download in Aria2...")
 
     def resume(self):
@@ -545,12 +548,18 @@ class Aria2Worker(QThread):
         if self.gid:
             if is_debug_mode():
                 logger.debug("[Aria2Worker] Resuming GID %s", self.gid)
-            self.call_rpc("aria2.unpause", [self.gid])
+            try:
+                self.call_rpc("aria2.unpause", [self.gid])
+            except Exception:
+                pass
             self.log_signal.emit("Resuming download in Aria2...")
 
     def set_global_speed_limit(self, limit):
         if self.gid:
-            self.call_rpc("aria2.changeOption", [self.gid, {"max-download-limit": str(int(limit))}])
+            try:
+                self.call_rpc("aria2.changeOption", [self.gid, {"max-download-limit": str(int(limit))}])
+            except Exception:
+                pass
 
     def format_bytes(self, size, precision=2, pad=False):
         power = 1024
