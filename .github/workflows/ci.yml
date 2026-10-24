@@ -17,6 +17,7 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
