@@ -853,7 +853,12 @@ class YtDlpDownloadWorker(QThread):
                                 last_seg_update = now_time
                                 self._emit_segment_updates(self.current_bytes, self.total_bytes, speed_bps)
 
-                self.process.wait()
+                try:
+                    self.process.wait(timeout=300)
+                except subprocess.TimeoutExpired:
+                    logger.warning("[YtDlpDownload] Process PID %s did not terminate within timeout, killing", self.process.pid)
+                    self.process.kill()
+                    self.process.wait()
                 rc = self.process.returncode
                 if is_debug:
                     logger.debug("[YtDlpDownload] Process PID %s finished with returncode %s", self.process.pid, rc)
