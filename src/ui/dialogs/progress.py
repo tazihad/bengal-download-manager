@@ -664,6 +664,12 @@ class DownloadProgressDialog(QDialog):
     def closeEvent(self, event):
         if not getattr(self, "is_completed", False):
             if hasattr(self, "worker") and self.worker:
+                # If cancel was already clicked, worker.stop() was already called
+                # and finished_signal already emitted with "Cancelled".
+                # Don't override with "Paused".
+                if getattr(self, "btn_cancel", None) and self.btn_cancel.text() == "Close":
+                    event.accept()
+                    return
                 # Closing the dialog pauses (not cancels) so the row stays
                 # "Paused" and the user can resume from the main window later.
                 if hasattr(self.worker, "pause") and callable(self.worker.pause):
