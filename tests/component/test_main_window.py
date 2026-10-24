@@ -142,6 +142,22 @@ class TestMainWindowSettings:
         assert isinstance(ss, str)
         assert "QToolBar" in ss
 
+    def test_toolbar_hover_has_readable_contrast(self, main_window):
+        import re
+        from PyQt6.QtGui import QColor, QPalette
+        from core.services.theme_service import get_color_contrast_ratio
+
+        ss = main_window.get_toolbar_stylesheet()
+        hover = re.search(r"QToolButton:hover\s*\{(.*?)\}", ss, re.S).group(1)
+        bg = QColor(re.search(r"background-color:\s*(#[0-9a-fA-F]{6})", hover).group(1))
+        text = QColor(re.search(r"color:\s*(#[0-9a-fA-F]{6})", hover).group(1))
+        border = QColor(re.search(r"border:\s*1px solid\s*(#[0-9a-fA-F]{6})", hover).group(1))
+
+        window = main_window.palette().color(QPalette.ColorRole.Window)
+        assert get_color_contrast_ratio(bg, window) >= 1.20
+        assert get_color_contrast_ratio(text, bg) >= 4.5
+        assert get_color_contrast_ratio(border, bg) >= 3.0
+
 
 class TestMainWindowViewState:
     def test_table_style_default(self, main_window):

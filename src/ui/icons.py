@@ -335,7 +335,22 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
 
     if glow_color is None:
         if app:
-            glow_color = app.palette().color(QPalette.ColorRole.Highlight)
+            # Link carries the raw accent; Highlight is the *selection*
+            # background and is darkened for selected-text readability, which
+            # makes it a poor (low-contrast) glow colour on dark surfaces.
+            glow_color = app.palette().color(QPalette.ColorRole.Link)
+            try:
+                from core.services.theme_service import (
+                    ensure_control_contrast,
+                    ensure_hover_surface,
+                )
+
+                hover_bg = ensure_hover_surface(
+                    app.palette().color(QPalette.ColorRole.Window)
+                )
+                glow_color = ensure_control_contrast(glow_color, hover_bg)
+            except Exception:
+                pass
         else:
             glow_color = QColor("#3daee9")
 
@@ -345,10 +360,11 @@ def get_monochrome_icon(name: str, color: QColor = None, selected_color: QColor 
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         if is_glow:
-            # 1. Subtle accent glow halo pass
+            # 1. Subtle accent glow halo pass (thin enough to highlight the
+            #    stroke instead of blurring it)
             gc = QColor(glow_color)
-            gc.setAlpha(110)
-            glow_pen = QPen(gc, 4.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            gc.setAlpha(95)
+            glow_pen = QPen(gc, 3.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
             painter.setPen(glow_pen)
             draw_icon_path(painter, name, size * 2)
             # 2. Main bold stroke pass

@@ -365,6 +365,57 @@ def ensure_contrast_selection_bg(hl_color: QColor, text_color: QColor, min_contr
         return res_bg
 
 
+def _blend_colors(fg: QColor, bg: QColor, alpha: float) -> QColor:
+    """Returns ``fg`` blended over ``bg`` at the given alpha (0.0 - 1.0)."""
+    a = max(0.0, min(1.0, alpha))
+    return QColor(
+        round(fg.red() * a + bg.red() * (1.0 - a)),
+        round(fg.green() * a + bg.green() * (1.0 - a)),
+        round(fg.blue() * a + bg.blue() * (1.0 - a)),
+    )
+
+
+def ensure_hover_surface(window: QColor, min_surface: float = 1.22) -> QColor:
+    """
+    Returns the smallest shading of ``window`` that is actually perceptible
+    as a hover surface.
+
+    ``palette(midlight)`` (``window.lighter(120)``) is only 1.02-1.10:1
+    against the window in most themes, and in themes whose window is already
+    near-black (e.g. Solarized Dark) it is almost invisible.  Instead of a
+    fixed lighten factor, this walks away from the window (lighter on dark
+    themes, darker on light themes) until the target ratio is reached.  Hover
+    text is corrected separately by :func:`ensure_control_contrast`, so themes
+    with already-marginal text contrast still get a readable hover label.
+    """
+    base = QColor(window)
+    target = QColor("#ffffff") if base.value() < 128 else QColor("#000000")
+    for step in range(4, 25):
+        candidate = _blend_colors(target, base, step / 100.0)
+        if get_color_contrast_ratio(candidate, base) >= min_surface:
+            return candidate
+    return _blend_colors(target, base, 0.24)
+
+
+def ensure_control_contrast(color: QColor, background: QColor, min_contrast: float = 3.0) -> QColor:
+    """
+    Moves a text/border/accent colour toward white or black until it reaches
+    the requested contrast ratio against ``background``.
+
+    Used for toolbar hover borders, hover labels and icon glow so decorative
+    accents remain visible (WCAG 1.4.11 non-text contrast) and labels stay
+    readable (WCAG 1.4.3) on both light and dark surfaces.
+    """
+    if get_color_contrast_ratio(color, background) >= min_contrast:
+        return QColor(color)
+    target = QColor("#ffffff") if background.value() < 128 else QColor("#000000")
+    for step in range(1, 101):
+        candidate = _blend_colors(target, color, step / 100.0)
+        if get_color_contrast_ratio(candidate, background) >= min_contrast:
+            return candidate
+    return target
+
+
 def _build_palette(bg, text, base, alt, btn, link, hl, hl_text, accent=None, highlight_text=None):
     if accent and str(accent).lower() == "system":
         sys_acc = detect_accent("auto", app=QApplication.instance())
@@ -1580,16 +1631,11 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 font-weight: normal;
                 opacity: 1.0;
             }
-            QToolBar QToolButton:hover {
-                color: palette(window-text);
-                background-color: palette(midlight);
-                border: 1px solid palette(highlight);
-                font-weight: bold;
-                opacity: 1.0;
-            }
             QToolBar QToolButton:pressed {
                 background-color: palette(highlight);
                 color: palette(highlighted-text);
+                border: 1px solid palette(highlight);
+                font-weight: bold;
             }
             QToolBar QToolButton:disabled {
                 opacity: 0.30;
@@ -1623,6 +1669,31 @@ def apply_app_theme(theme_name, accent_name=None, icon_theme_name=None, tray_ico
                 border-radius: 4px;
             }
         """)
+
+    # Toolbar hover: midlight/highlight are frequently too subtle (or too dark)
+    # to read as a hover surface in dark themes. Derive a perceptible,
+    # contrast-safe surface, label and border from the active palette so the
+    # same rule works for both light and dark themes.
+    _pal = app.palette()
+    _hover_bg = ensure_hover_surface(_pal.color(QPalette.ColorRole.Window))
+    _hover_text = ensure_control_contrast(
+        _pal.color(QPalette.ColorRole.WindowText),
+        _hover_bg,
+        min_contrast=4.5,
+    )
+    _hover_border = ensure_control_contrast(
+        _pal.color(QPalette.ColorRole.Link),
+        _hover_bg,
+    )
+    app.setStyleSheet(app.styleSheet() + f"""
+        QToolBar QToolButton:hover {{
+            color: {_hover_text.name()};
+            background-color: {_hover_bg.name()};
+            border: 1px solid {_hover_border.name()};
+            font-weight: bold;
+            opacity: 1.0;
+        }}
+    """)
 
     for w in app.allWidgets():
         try:

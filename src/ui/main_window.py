@@ -112,6 +112,8 @@ from core.services.theme_service import (
     apply_titlebar_theme,
     detect_accent,
     ensure_adaptive_icon_theme,
+    ensure_control_contrast,
+    ensure_hover_surface,
     format_timestamp_relative,
     get_app_icon,
     get_monochrome_app_icon,
@@ -824,7 +826,18 @@ class MainWindow(QMainWindow):
         return True
 
     def get_toolbar_stylesheet(self) -> str:
-        glow_text_color = "#ffffff" if self.is_dark_theme() else "#000000"
+        app = QApplication.instance()
+        pal = app.palette() if app else self.palette()
+        hover_bg = ensure_hover_surface(pal.color(QPalette.ColorRole.Window))
+        hover_text = ensure_control_contrast(
+            pal.color(QPalette.ColorRole.WindowText),
+            hover_bg,
+            min_contrast=4.5,
+        )
+        hover_border = ensure_control_contrast(
+            pal.color(QPalette.ColorRole.Link),
+            hover_bg,
+        )
         return f"""
             QToolBar {{
                 background-color: palette(window);
@@ -842,15 +855,15 @@ class MainWindow(QMainWindow):
                 opacity: 1.0;
             }}
             QToolButton:hover {{
-                color: {glow_text_color};
-                background-color: palette(midlight);
-                border: 1px solid palette(highlight);
+                color: {hover_text.name()};
+                background-color: {hover_bg.name()};
+                border: 1px solid {hover_border.name()};
                 font-weight: bold;
                 opacity: 1.0;
             }}
             QToolButton:pressed {{
                 background-color: palette(highlight);
-                color: {glow_text_color};
+                color: palette(highlighted-text);
                 border: 1px solid palette(highlight);
                 font-weight: bold;
             }}
