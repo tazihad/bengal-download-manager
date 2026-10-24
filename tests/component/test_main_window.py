@@ -345,3 +345,23 @@ class TestMainWindowCategoryTree:
     def test_sidebar_queue_names_exists(self, main_window):
         assert hasattr(main_window, "_sidebar_queue_names")
         assert isinstance(main_window._sidebar_queue_names, list)
+
+
+class TestProcessIncomingURL:
+    def test_rejects_url_without_scheme(self, main_window):
+        from unittest.mock import patch
+        with patch("core.workers.FileInfoFetcherWorker") as mock_fetcher:
+            main_window.process_incoming_url("bengal-download-manager-0.3.10-alpha.6-aarch64.flatpak")
+            mock_fetcher.assert_not_called()
+
+    def test_rejects_local_file_path(self, main_window):
+        from unittest.mock import patch
+        with patch("core.workers.FileInfoFetcherWorker") as mock_fetcher:
+            main_window.process_incoming_url("/home/zihad/Downloads/file.flatpak")
+            mock_fetcher.assert_not_called()
+
+    def test_accepts_https_url(self, main_window):
+        from unittest.mock import patch
+        with patch("core.workers.FileInfoFetcherWorker") as mock_fetcher:
+            main_window.process_incoming_url("https://example.com/file.flatpak")
+            mock_fetcher.assert_called_once()
