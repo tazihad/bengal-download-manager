@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core24
-version: '0.3.10'
+version: '0.3.11-alpha.1'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -37,7 +37,6 @@ apps:
     # match the running app with its metadata (icons, keywords, screenshots).
     common-id: bd.com.zihad.BengalDownloadManager
     desktop: usr/share/applications/bengal-download-manager.desktop
-    autostart: bengal-download-manager.desktop
     extensions: [ gnome ]
     plugs:
       - desktop
