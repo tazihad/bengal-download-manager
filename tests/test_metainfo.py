@@ -58,7 +58,7 @@ def test_template_covers_name_summary_description_and_captions():
     assert "Bengal Download Manager" in texts
     assert "High speed downloader" in texts
     # One feature bullet and one screenshot caption must be translatable too
-    assert any(text.startswith("Multi-threaded segment acceleration") for text in texts)
+    assert any(text.startswith("Speeds up big downloads") for text in texts)
     assert any("dark mode" in text for text in texts)
     # The developer name belongs to a person and must not be exported
     assert "tazihad" not in texts
@@ -85,12 +85,12 @@ def test_render_injects_xml_lang_translations(tmp_path, monkeypatch):
             ("Bengal Download Manager", "বেঙ্গল ডাউনলোড ম্যানেজার", None),
             ("High speed downloader", "উচ্চ গতির ডাউনলোডার", None),
             (
-                "Multi-threaded segment acceleration for maximum speed",
-                "সর্বোচ্চ গতির জন্য মাল্টি-থ্রেডেড সেগমেন্ট অ্যাক্সিলারেশন",
+                "Speeds up big downloads by grabbing several parts at once",
+                "বড় ফাইল দ্রুত ডাউনলোড করতে টুকরো টুকরো পাসে নেয়",
                 None,
             ),
             # Unfinished entries must be skipped, not exported half-baked
-            ("Proxy support, speed limits, and automatic category sorting", "অসম্পূর্ণ", "unfinished"),
+            ("Lets you cap speeds and files sort themselves into folders", "অসম্পূর্ণ", "unfinished"),
         ],
     )
 
@@ -109,9 +109,9 @@ def test_render_injects_xml_lang_translations(tmp_path, monkeypatch):
     ]
     assert len(localized) == 1
     bullets = [li.text for li in localized[0].iter("li")]
-    assert "সর্বোচ্চ গতির জন্য মাল্টি-থ্রেডেড সেগমেন্ট অ্যাক্সিলারেশন" in bullets
+    assert "বড় ফাইল দ্রুত ডাউনলোড করতে টুকরো টুকরো পাসে নেয়" in bullets
     # Untranslated and unfinished strings keep the English source text
-    assert "Proxy support, speed limits, and automatic category sorting" in bullets
+    assert "Lets you cap speeds and files sort themselves into folders" in bullets
     assert "অসম্পূর্ণ" not in rendered
 
     # Release notes are shared across all languages, never duplicated
