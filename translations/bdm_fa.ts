@@ -3625,4 +3625,82 @@
             <translation>مکث یا ادامه این دانلود</translation>
         </message>
     </context>
+    <context>
+        <name>Metainfo</name>
+        <message>
+            <source>Bengal Download Manager</source>
+            <extracomment>Application name (product name, usually kept as-is)</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>High speed downloader</source>
+            <extracomment>One-line summary shown in app catalogs</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Bengal Download Manager is a lightweight, open-source download manager for the Linux desktop. It accelerates large downloads, captures links from your browser, and keeps every file organized in one place.</source>
+            <extracomment>App description paragraph</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Multi-threaded segment acceleration for maximum speed</source>
+            <extracomment>App description feature bullet</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>One-click capture of downloads from Chrome and Firefox</source>
+            <extracomment>App description feature bullet</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Video and audio downloads from popular media sites</source>
+            <extracomment>App description feature bullet</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Batch website grabbing and scheduled downloads</source>
+            <extracomment>App description feature bullet</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Proxy support, speed limits, and automatic category sorting</source>
+            <extracomment>App description feature bullet</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Bengal Download Manager in dark mode</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Bengal Download Manager in light mode</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Custom theme configuration</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Media and video downloader tool</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Batch site grabber tool</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Automated download scheduler</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+        <message>
+            <source>Data usage and bandwidth monitor</source>
+            <extracomment>Screenshot caption</extracomment>
+            <translation />
+        </message>
+    </context>
 </TS>

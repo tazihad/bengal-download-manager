@@ -52,6 +52,11 @@ if [ -f assets/logo.svg ]; then
 fi
 install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.desktop AppDir/usr/share/applications/bd.com.zihad.BengalDownloadManager.desktop
 install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.desktop AppDir/usr/share/applications/bengal-download-manager.desktop
+
+# Ensure the generated AppStream metadata is up to date
+echo "=== Regenerating localized AppStream metadata ==="
+uv run python scripts/i18n.py metainfo
+
 if [ -f flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml ]; then
     install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml AppDir/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml
     install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml AppDir/usr/share/appdata/bd.com.zihad.BengalDownloadManager.appdata.xml
