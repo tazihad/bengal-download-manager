@@ -72,7 +72,7 @@
   <releases>
     <release version="0.3.12" date="2026-10-25">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.12</url>
-        <description>
+        <description translate="no">
             <p>Bengal Download Manager 0.3.12 changes:</p>
             <ul>
                 <li>Fix metainv/desktop categories: replace invalid FileTransfer with Utility</li>

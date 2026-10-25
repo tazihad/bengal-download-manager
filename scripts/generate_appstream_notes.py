@@ -266,7 +266,7 @@ def format_appstream_xml(
     lines = [
         f'{indent}<release version="{clean_version}" date="{release_date}">',
         f'{indent}  <url type="details">{RELEASE_DETAILS_URL.format(version=clean_version)}</url>',
-        f"{indent}  <description>",
+        f"{indent}  <description translate=\"no\">",
         f"{indent}    <p>Bengal Download Manager {clean_version} changes:</p>",
         f"{indent}    <ul>",
     ]
