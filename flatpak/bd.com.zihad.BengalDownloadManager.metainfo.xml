@@ -57,12 +57,12 @@
 
   <releases>
     <release version="0.3.11" date="2026-10-25">
-      <description>
-        <p>Bengal Download Manager 0.3.11 changes:</p>
-        <ul>
-          <li>General maintenance, bug fixes, and performance improvements.</li>
-        </ul>
-      </description>
+        <description>
+            <p>Bengal Download Manager 0.3.11 changes:</p>
+            <ul>
+                <li>General maintenance, bug fixes, and performance improvements.</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.10" date="2026-10-24">
         <description>
