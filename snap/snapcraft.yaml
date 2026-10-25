@@ -37,6 +37,7 @@ apps:
     # match the running app with its metadata (icons, keywords, screenshots).
     common-id: bd.com.zihad.BengalDownloadManager
     desktop: usr/share/applications/bengal-download-manager.desktop
+    autostart: bengal-download-manager.desktop
     extensions: [ gnome ]
     plugs:
       - desktop
