@@ -1821,6 +1821,11 @@ def is_running_in_flatpak() -> bool:
     return os.path.exists("/.flatpak-info") or bool(os.environ.get("FLATPAK_ID"))
 
 
+def is_running_in_snap() -> bool:
+    """Checks whether the application is currently running inside a Snap sandbox."""
+    return bool(os.environ.get("SNAP"))
+
+
 def is_user_flatpak() -> bool:
     """Detects whether the running Flatpak instance is installed as user or system."""
     if os.path.exists("/.flatpak-info"):
