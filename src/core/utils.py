@@ -2059,7 +2059,7 @@ Exec={exec_cmd}
 Icon={icon_path}
 Terminal=false
 StartupWMClass=bd.com.zihad.BengalDownloadManager
-Categories=Network;FileTransfer;
+Categories=Network;Utility;
 X-GNOME-Autostart-enabled=true
 X-XDP-Autostart=bd.com.zihad.BengalDownloadManager
 X-Flatpak=bd.com.zihad.BengalDownloadManager
@@ -2127,7 +2127,7 @@ Exec={exec_cmd}
 Icon={icon_val}
 Terminal=false
 StartupWMClass={wmclass}
-Categories=Network;FileTransfer;
+Categories=Network;Utility;
 X-GNOME-Autostart-enabled=true
 """
         try:

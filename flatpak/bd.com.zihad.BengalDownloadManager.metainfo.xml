@@ -5,8 +5,8 @@
   <project_license>MIT</project_license>
 
   <branding>
-    <color type="primary" scheme_preference="light">#4a6b63</color>
-    <color type="primary" scheme_preference="dark">#182c28</color>
+    <color type="primary" scheme_preference="light">#bdbdbd</color>
+    <color type="primary" scheme_preference="dark">#171717</color>
   </branding>
 
   <developer id="bd.com.zihad">
@@ -17,17 +17,13 @@
   <summary>High speed downloader</summary>
 
   <description>
-    <p>
-      Bengal Download Manager is a lightweight, open-source download manager
-      for the Linux desktop. It accelerates large downloads, captures links
-      from your browser, and keeps every file organized in one place.
-    </p>
+    <p> A friendly download helper for your Linux computer. It speeds up large files, catches links straight from your browser, and keeps everything neatly sorted in one place. </p>
     <ul>
-      <li>Multi-threaded segment acceleration for maximum speed</li>
-      <li>One-click capture of downloads from Chrome and Firefox</li>
-      <li>Video and audio downloads from popular media sites</li>
-      <li>Batch website grabbing and scheduled downloads</li>
-      <li>Proxy support, speed limits, and automatic category sorting</li>
+      <li>Speeds up big downloads by grabbing several parts at once</li>
+      <li>Saves files from Chrome and Firefox with a single click</li>
+      <li>Downloads video and music from popular websites</li>
+      <li>Grabs whole websites at once and can run on a schedule</li>
+      <li>Lets you cap speeds and files sort themselves into folders</li>
     </ul>
   </description>
 
@@ -252,7 +248,7 @@
 
   <categories>
     <category>Network</category>
-    <category>FileTransfer</category>
+    <category>Utility</category>
   </categories>
 
   <content_rating type="oars-1.1" />
