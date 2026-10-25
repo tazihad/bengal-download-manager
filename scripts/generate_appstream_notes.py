@@ -13,6 +13,11 @@ from typing import List, Optional, Tuple
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# Public release page linked from AppStream <release> entries. Software centers
+# render this as a "release details" link, so it must stay in sync with the tags
+# pushed to the upstream repository.
+RELEASE_DETAILS_URL = "https://github.com/tazihad/bengal-download-manager/releases/tag/v{version}"
+
 # Conventional Commit mapping to user-friendly category labels
 CATEGORY_MAP = {
     "feat": "Features",
@@ -260,6 +265,7 @@ def format_appstream_xml(
     clean_version = version.lstrip("v").split("-")[0]
     lines = [
         f'{indent}<release version="{clean_version}" date="{release_date}">',
+        f'{indent}  <url type="details">{RELEASE_DETAILS_URL.format(version=clean_version)}</url>',
         f"{indent}  <description>",
         f"{indent}    <p>Bengal Download Manager {clean_version} changes:</p>",
         f"{indent}    <ul>",

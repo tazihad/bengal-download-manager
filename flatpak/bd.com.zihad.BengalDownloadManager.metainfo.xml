@@ -18,11 +18,23 @@
 
   <description>
     <p>
-      Bengal Download Manager is a lightweight, open-source download manager.
-      It features multi-threaded segment acceleration, browser extension
-      integration, proxy support, and category organization.
+      Bengal Download Manager is a lightweight, open-source download manager
+      for the Linux desktop. It accelerates large downloads, captures links
+      from your browser, and keeps every file organized in one place.
     </p>
+    <ul>
+      <li>Multi-threaded segment acceleration for maximum speed</li>
+      <li>One-click capture of downloads from Chrome and Firefox</li>
+      <li>Video and audio downloads from popular media sites</li>
+      <li>Batch website grabbing and scheduled downloads</li>
+      <li>Proxy support, speed limits, and automatic category sorting</li>
+    </ul>
   </description>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
 
   <screenshots>
     <screenshot type="default">
@@ -57,6 +69,7 @@
 
   <releases>
     <release version="0.3.11" date="2026-10-25">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.11</url>
         <description>
             <p>Bengal Download Manager 0.3.11 changes:</p>
             <ul>
@@ -65,6 +78,7 @@
         </description>
     </release>
     <release version="0.3.10" date="2026-10-24">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.10</url>
         <description>
             <p>Bengal Download Manager 0.3.10 changes:</p>
             <ul>
@@ -73,6 +87,7 @@
         </description>
     </release>
     <release version="0.3.9" date="2026-10-24">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.9</url>
         <description>
             <p>Bengal Download Manager 0.3.9 changes:</p>
             <ul>
@@ -84,6 +99,7 @@
         </description>
     </release>
     <release version="0.3.8" date="2026-10-23">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.8</url>
         <description>
             <p>Bengal Download Manager 0.3.8 changes:</p>
             <ul>
@@ -92,6 +108,7 @@
         </description>
     </release>
     <release version="0.3.7" date="2026-10-23">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.7</url>
         <description>
             <p>Bengal Download Manager 0.3.7 changes:</p>
             <ul>
@@ -110,6 +127,7 @@
         </description>
     </release>
     <release version="0.3.6" date="2026-10-22">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.6</url>
         <description>
             <p>Bengal Download Manager 0.3.6 changes:</p>
             <ul>
@@ -120,6 +138,7 @@
         </description>
     </release>
     <release version="0.3.5" date="2026-10-22">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.5</url>
         <description>
             <p>Bengal Download Manager 0.3.5 changes:</p>
             <ul>
@@ -131,6 +150,7 @@
         </description>
     </release>
     <release version="0.3.4" date="2026-10-22">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.4</url>
         <description>
             <p>Bengal Download Manager 0.3.4 changes:</p>
             <ul>
@@ -142,6 +162,7 @@
         </description>
     </release>
     <release version="0.3.3" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.3</url>
         <description>
             <p>Bengal Download Manager 0.3.3 changes:</p>
             <ul>
@@ -150,6 +171,7 @@
         </description>
     </release>
     <release version="0.3.2" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.2</url>
         <description>
             <p>Bengal Download Manager 0.3.2 changes:</p>
             <ul>
@@ -160,6 +182,7 @@
         </description>
     </release>
     <release version="0.3.1" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.1</url>
         <description>
             <p>Bengal Download Manager 0.3.1 changes:</p>
             <ul>
@@ -170,6 +193,7 @@
         </description>
     </release>
     <release version="0.3.0" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.0</url>
         <description>
             <p>Bengal Download Manager 0.3.0 changes:</p>
             <ul>
@@ -181,6 +205,7 @@
         </description>
     </release>
     <release version="0.2.99" date="2026-10-20">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.99</url>
         <description>
             <p>Bengal Download Manager 0.2.99 changes:</p>
             <ul>
@@ -189,6 +214,7 @@
         </description>
     </release>
     <release version="0.2.98" date="2026-10-18">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.98</url>
         <description>
             <p>Bengal Download Manager 0.2.98 changes:</p>
             <ul>
@@ -197,6 +223,7 @@
         </description>
     </release>
     <release version="0.2.97" date="2026-10-17">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.97</url>
         <description>
             <p>Bengal Download Manager 0.2.97 changes:</p>
             <ul>
@@ -212,8 +239,11 @@
   </provides>
 
   <url type="homepage">https://github.com/tazihad/bengal-download-manager</url>
+  <url type="vcs-browser">https://github.com/tazihad/bengal-download-manager</url>
   <url type="bugtracker">https://github.com/tazihad/bengal-download-manager/issues</url>
-  <url type="help">https://github.com/tazihad/bengal-download-manager/issues</url>
+  <url type="help">https://github.com/tazihad/bengal-download-manager/blob/main/docs/README.md</url>
+
+  <translation type="qt">bdm</translation>
 
   <launchable type="desktop-id">bd.com.zihad.BengalDownloadManager.desktop</launchable>
 
