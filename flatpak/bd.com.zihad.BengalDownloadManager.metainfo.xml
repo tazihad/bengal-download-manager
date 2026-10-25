@@ -6,7 +6,7 @@
 
   <branding>
     <color type="primary" scheme_preference="light">#bdbdbd</color>
-    <color type="primary" scheme_preference="dark">#171717</color>
+    <color type="primary" scheme_preference="dark">#1d1d1d</color>
   </branding>
 
   <developer id="bd.com.zihad">
