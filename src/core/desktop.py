@@ -227,6 +227,7 @@ def ensure_desktop_integration() -> None:
                     "StartupWMClass=bd.com.zihad.BengalDownloadManager" not in content_existing
                     or "Icon=bd.com.zihad.BengalDownloadManager" not in content_existing
                     or "X-GNOME-UsesNotifications=true" not in content_existing
+                    or "Categories=Network;FileTransfer;" not in content_existing
                     or f"Exec={exec_cmd}" not in content_existing
                 ):
                     need_write = True
@@ -243,7 +244,7 @@ Exec={exec_cmd}
 Icon=bd.com.zihad.BengalDownloadManager
 Terminal=false
 Type=Application
-Categories=Network;Utility;
+Categories=Network;FileTransfer;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 Keywords=download;manager;aria2;multithread;
 StartupWMClass=bd.com.zihad.BengalDownloadManager
