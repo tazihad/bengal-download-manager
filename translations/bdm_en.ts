@@ -3667,34 +3667,34 @@
             <translation>High speed downloader</translation>
         </message>
         <message>
-            <source>Bengal Download Manager is a lightweight, open-source download manager for the Linux desktop. It accelerates large downloads, captures links from your browser, and keeps every file organized in one place.</source>
+            <source>A friendly download helper for your Linux computer. It speeds up large files, catches links straight from your browser, and keeps everything neatly sorted in one place.</source>
             <extracomment>App description paragraph</extracomment>
-            <translation>Bengal Download Manager is a lightweight, open-source download manager for the Linux desktop. It accelerates large downloads, captures links from your browser, and keeps every file organized in one place.</translation>
+            <translation>A friendly download helper for your Linux computer. It speeds up large files, catches links straight from your browser, and keeps everything neatly sorted in one place.</translation>
         </message>
         <message>
-            <source>Multi-threaded segment acceleration for maximum speed</source>
+            <source>Speeds up big downloads by grabbing several parts at once</source>
             <extracomment>App description feature bullet</extracomment>
-            <translation>Multi-threaded segment acceleration for maximum speed</translation>
+            <translation>Speeds up big downloads by grabbing several parts at once</translation>
         </message>
         <message>
-            <source>One-click capture of downloads from Chrome and Firefox</source>
+            <source>Saves files from your browser with a single click</source>
             <extracomment>App description feature bullet</extracomment>
-            <translation>One-click capture of downloads from Chrome and Firefox</translation>
+            <translation>Saves files from your browser with a single click</translation>
         </message>
         <message>
-            <source>Video and audio downloads from popular media sites</source>
+            <source>Downloads video and music from popular websites</source>
             <extracomment>App description feature bullet</extracomment>
-            <translation>Video and audio downloads from popular media sites</translation>
+            <translation>Downloads video and music from popular websites</translation>
         </message>
         <message>
-            <source>Batch website grabbing and scheduled downloads</source>
+            <source>Grabs whole websites at once and can run on a schedule</source>
             <extracomment>App description feature bullet</extracomment>
-            <translation>Batch website grabbing and scheduled downloads</translation>
+            <translation>Grabs whole websites at once and can run on a schedule</translation>
         </message>
         <message>
-            <source>Proxy support, speed limits, and automatic category sorting</source>
+            <source>Lets you cap speeds and files sort themselves into folders</source>
             <extracomment>App description feature bullet</extracomment>
-            <translation>Proxy support, speed limits, and automatic category sorting</translation>
+            <translation>Lets you cap speeds and files sort themselves into folders</translation>
         </message>
         <message>
             <source>Bengal Download Manager in dark mode</source>

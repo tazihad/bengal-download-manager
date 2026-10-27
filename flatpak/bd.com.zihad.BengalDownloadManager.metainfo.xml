@@ -15,6 +15,21 @@
 
   <name>Bengal Download Manager</name>
   <summary>High speed downloader</summary>
+  <summary xml:lang="ar">محمل عالي السرعة</summary>
+  <summary xml:lang="bn">দ্রুত গতির ডাউনলোডার</summary>
+  <summary xml:lang="de">Hochgeschwindigkeits-Downloader</summary>
+  <summary xml:lang="es">Descargador de alta velocidad</summary>
+  <summary xml:lang="fa">دانلود کننده با سرعت بالا</summary>
+  <summary xml:lang="fr">Téléchargeur haute vitesse</summary>
+  <summary xml:lang="hi">हाई स्पीड डाउनलोडर</summary>
+  <summary xml:lang="id">Penyedot cepat</summary>
+  <summary xml:lang="it">Scaricatore ad alta velocità</summary>
+  <summary xml:lang="ja">高速ダウンローダー</summary>
+  <summary xml:lang="ko">고속 다운로더</summary>
+  <summary xml:lang="pt-BR">Downloadador de alta velocidade</summary>
+  <summary xml:lang="ru">Скачиватель высокой скорости</summary>
+  <summary xml:lang="tr">Hızlı indirici</summary>
+  <summary xml:lang="zh-CN">高速下载器</summary>
 
   <description>
     <p> A friendly download helper for your Linux computer. It speeds up large files, catches links straight from your browser, and keeps everything neatly sorted in one place. </p>

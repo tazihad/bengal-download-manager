@@ -3635,72 +3635,72 @@
         <message>
             <source>High speed downloader</source>
             <extracomment>One-line summary shown in app catalogs</extracomment>
-            <translation />
+            <translation>Downloadador de alta velocidade</translation>
         </message>
         <message>
-            <source>Bengal Download Manager is a lightweight, open-source download manager for the Linux desktop. It accelerates large downloads, captures links from your browser, and keeps every file organized in one place.</source>
+            <source>A friendly download helper for your Linux computer. It speeds up large files, catches links straight from your browser, and keeps everything neatly sorted in one place.</source>
             <extracomment>App description paragraph</extracomment>
             <translation />
         </message>
         <message>
-            <source>Multi-threaded segment acceleration for maximum speed</source>
+            <source>Speeds up big downloads by grabbing several parts at once</source>
             <extracomment>App description feature bullet</extracomment>
             <translation />
         </message>
         <message>
-            <source>One-click capture of downloads from Chrome and Firefox</source>
+            <source>Saves files from your browser with a single click</source>
             <extracomment>App description feature bullet</extracomment>
             <translation />
         </message>
         <message>
-            <source>Video and audio downloads from popular media sites</source>
+            <source>Downloads video and music from popular websites</source>
             <extracomment>App description feature bullet</extracomment>
             <translation />
         </message>
         <message>
-            <source>Batch website grabbing and scheduled downloads</source>
+            <source>Grabs whole websites at once and can run on a schedule</source>
             <extracomment>App description feature bullet</extracomment>
             <translation />
         </message>
         <message>
-            <source>Proxy support, speed limits, and automatic category sorting</source>
+            <source>Lets you cap speeds and files sort themselves into folders</source>
             <extracomment>App description feature bullet</extracomment>
             <translation />
         </message>
         <message>
             <source>Bengal Download Manager in dark mode</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Bengal Download Manager no modo escuro</translation>
         </message>
         <message>
             <source>Bengal Download Manager in light mode</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Bengal Download Manager no modo claro</translation>
         </message>
         <message>
             <source>Custom theme configuration</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Configuração de tema personalizado</translation>
         </message>
         <message>
             <source>Media and video downloader tool</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Ferramenta de download de mídia e vídeo</translation>
         </message>
         <message>
             <source>Batch site grabber tool</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Ferramenta grabber de sites em lote</translation>
         </message>
         <message>
             <source>Automated download scheduler</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Agendador automático de downloads</translation>
         </message>
         <message>
             <source>Data usage and bandwidth monitor</source>
             <extracomment>Screenshot caption</extracomment>
-            <translation />
+            <translation>Monitor de uso de dados e largura de banda</translation>
         </message>
     </context>
 </TS>
