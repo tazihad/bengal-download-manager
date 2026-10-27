@@ -399,6 +399,16 @@ def main():
 
     if new_ver:
         sync_all(new_ver, custom_notes=custom_notes)
+
+        # Auto-consistency check before any commit/tag: if the manifests
+        # are out of sync, abort before committing or tagging.
+        if not check_consistency():
+            print(
+                "[!] Version manifests are inconsistent. Aborting commit/tag. "
+                "Fix the mismatches and re-run."
+            )
+            sys.exit(1)
+
         if args.commit or args.tag:
             create_git_tag_and_commit(new_ver)
     else:
