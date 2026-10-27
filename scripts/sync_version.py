@@ -6,7 +6,6 @@ Authoritative source: Root `VERSION` file.
 Usage:
   python3 scripts/sync_version.py --check
   python3 scripts/sync_version.py --set 0.2.20
-  python3 scripts/sync_version.py --version 0.2.20
   python3 scripts/sync_version.py --bump patch [--tag] [--commit]
   python3 scripts/sync_version.py --bump minor
   python3 scripts/sync_version.py --bump major
@@ -365,7 +364,6 @@ def main():
     parser = argparse.ArgumentParser(description="Single Source of Truth Version Synchronizer")
     parser.add_argument("--check", action="store_true", help="Check manifest consistency against VERSION")
     parser.add_argument("--set", type=str, metavar="VER", help="Set specific version string across all manifests")
-    parser.add_argument("--version", type=str, metavar="VER", help="Set specific version string across all manifests (shorthand for --set)")
     parser.add_argument("--bump", choices=["patch", "minor", "major", "alpha"], help="Bump semantic version")
     parser.add_argument("--graduate", action="store_true", help="Graduate pre-release version (e.g. 0.3.34-alpha) to stable version (0.3.34)")
     parser.add_argument("--notes", type=str, help="Custom release notes separated by newlines or semicolon")
@@ -390,12 +388,7 @@ def main():
             custom_notes = [n.strip().lstrip("-*• ") for n in args.notes.split(";") if n.strip()]
 
     new_ver = None
-    if args.set and args.version:
-        print("Error: --set and --version are mutually exclusive; use only one.")
-        sys.exit(2)
-    if args.version:
-        new_ver = args.version.strip().lstrip("v")
-    elif args.set:
+    if args.set:
         new_ver = args.set.strip().lstrip("v")
     elif args.graduate:
         curr_ver = read_root_version()
