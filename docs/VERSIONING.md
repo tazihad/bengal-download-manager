@@ -19,115 +19,130 @@ The root file **`VERSION`** is the single authoritative source of truth for the 
 ```
                               ┌─────────────────────────┐
                               │  Canonical SSOT:        │
-                              │  `VERSION` (e.g. 0.2.25)│
+                              │  `VERSION` (e.g. 0.3.12)│
                               └────────────┬────────────┘
                                            │
-                           `python3 scripts/sync_version.py`
+                            `uv run python scripts/sync_version.py`
                                            │
-         ┌───────────────────┬─────────────┴─────────────────────────┐
-         ▼                   ▼                                       ▼
-  ┌──────────────┐    ┌──────────────┐                        ┌──────────────┐
-  │  snapcraft   │    │   flatpak    │                        │  In-App UI   │
-  │    .yaml     │    │ metainfo.xml │                        │ (version.py) │
-  └──────────────┘    └──────────────┘                        └──────────────┘
+          ┌───────────────────┬─────────────┴─────────────────────────┐
+          ▼                   ▼                                       ▼
+   ┌──────────────┐    ┌──────────────┐                        ┌──────────────┐
+   │  snapcraft   │    │   flatpak    │                        │  In-App UI   │
+   │    .yaml     │    │ metainfo.xml │                        │ (version.py) │
+   └──────────────┘    └──────────────┘                        └──────────────┘
 ```
+
+All commands below use `uv run python` per project convention (see AGENTS.md).
 
 ---
 
-## 2. Manual Developer Workflows
+## 2. Command Reference
 
-The repository provides [`scripts/sync_version.py`](file:///run/media/zihad/data/dev/bengal-download-manager/scripts/sync_version.py) to manage application version manifests atomically.
+Run from the repository root:
 
-### Option A: Set an Explicit Version (Recommended)
 ```bash
-# 1. Update VERSION, snapcraft.yaml, metainfo.xml, and runtime
-python3 scripts/sync_version.py --set 0.2.25
+# Check all manifests match VERSION (exits non-zero on mismatch)
+uv run python scripts/sync_version.py --check
 
-# 2. Check that all files are 100% in sync
-python3 scripts/sync_version.py --check
+# Set an exact version across all manifests
+uv run python scripts/sync_version.py --set 0.3.12-alpha.3
 
-# 3. Commit and push to GitHub
-git commit -am "chore(release): bump version to 0.2.25"
-git push origin main
+# Auto-bump: patch / minor / major / alpha
+uv run python scripts/sync_version.py --bump patch --tag --commit
+
+# Graduate an alpha/prerelease back to stable (strips -alpha.N suffix)
+uv run python scripts/sync_version.py --graduate --tag --commit
 ```
+
+Flags `--tag` and `--commit` are optional and work with `--set`, `--bump`, and `--graduate`.
+
+**Auto consistency check:** Any command that writes a new version (`--set`, `--bump`, `--graduate`) automatically runs `--check` before committing or tagging. If manifests are out of sync, it aborts with an error message — no commit, no tag.
 
 ---
 
-### Option B: One-Shot Bump + Commit + Git Tag (Atomic Release)
-```bash
-# Automatically increments patch (e.g., 0.2.24 -> 0.2.25), updates manifests, creates commit & tag
-python3 scripts/sync_version.py --bump patch --commit --tag
+## 3. Alpha vs Stable Release Usage
 
-# Push the release commit and tag together
-git push origin main --tags
+The version string itself determines release type:
+* **Stable**: `X.Y.Z` (no suffix), e.g. `0.3.12`
+* **Alpha / prerelease**: `X.Y.Z-alpha.N` (with `-alpha.N` suffix), e.g. `0.3.12-alpha.3`
+
+### Release an Alpha
+
+```bash
+# Example: current is 0.3.12-alpha.1 -> release 0.3.12-alpha.3
+uv run python scripts/sync_version.py --set 0.3.12-alpha.3 --tag --commit
 ```
 
----
+This writes `0.3.12-alpha.3` to `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, `src/core/version.py`, and `src/core/build_info.py`, then creates git tag `v0.3.12-alpha.3` and a commit.
 
-### Option C: Create an Alpha / Pre-Release
 ```bash
-# Automatically detects latest release tag in Git and advances to upcoming alpha (e.g. 0.2.26-alpha.1)
-python3 scripts/sync_version.py --bump alpha --commit --tag
-
-# Push branch and tag to GitHub
+# Push the alpha branch and tag (do NOT merge to main)
 git push origin <branch-name> --tags
 ```
 
----
+### Release a Stable Version
 
-### Option D: Graduate a Pre-Release / Alpha Branch to Stable
-When merging a feature or alpha branch back into `main`:
 ```bash
-# Automatically strips -alpha suffix (e.g. 0.3.34-alpha.1 -> 0.3.34) and synchronizes all manifests
-python3 scripts/sync_version.py --graduate
+# Example: graduate or set stable 0.3.12
+uv run python scripts/sync_version.py --set 0.3.12 --tag --commit
 
-# Commit and proceed to merge into main
-git commit -am "chore: graduate version to stable release"
+# Or graduate the current alpha to stable
+uv run python scripts/sync_version.py --graduate --tag --commit
+```
+
+```bash
+# Push the stable branch and tag
+git push origin <branch-name> --tags
+```
+
+### Increment the Next Alpha
+
+When the current version is already an alpha (e.g. `0.3.12-alpha.3`):
+
+```bash
+# Advances to 0.3.12-alpha.4 automatically
+uv run python scripts/sync_version.py --bump alpha --tag --commit
 ```
 
 ---
 
-### Option E: If You Prefer Editing Files by Hand in Your Editor
-1. **Edit the `VERSION` file**:
-   ```bash
-   echo "0.2.25" > VERSION
-   ```
+## 4. Branch & Merge Rules
 
-2. **Sync the other manifest files with one command**:
-   ```bash
-   python3 scripts/sync_version.py --set $(cat VERSION)
-   ```
-   *(This automatically writes `0.2.25` to `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, and `src/core/version.py`).*
-
-3. **Verify consistency**:
-   ```bash
-   python3 scripts/sync_version.py --check
-   ```
-
-4. **Commit and Push**:
-   ```bash
-   git add .
-   git commit -m "chore(release): bump version to 0.2.25"
-   git push origin main
-   ```
+* Do all version bumps on a feature/release branch, **not** on `main`.
+* Open a PR against `main` but **do not merge** until you are ready to release.
+* `main` is updated only when a stable release is graduated and merged.
+* Push tags separately: `git push origin <branch-name> --tags`.
 
 ---
 
-## 3. How Release Channels React to Your Push
+## 5. Verify Before Committing
+
+Always run the consistency check after setting a version:
+
+```bash
+uv run python scripts/sync_version.py --check
+# Expect: [✓] All manifests match canonical VERSION: 0.3.12-alpha.3
+```
+
+If `--check` reports mismatches, fix them before committing.
+
+---
+
+## 6. How Release Channels React to Your Push
 
 | Channel | Trigger Mechanism |
 |---|---|
-| **GitHub Releases** | Triggered only when a release tag (e.g. `v0.2.45`) is pushed or manually dispatched via `workflow_dispatch`. Merging PRs or pushing to branches never triggers a release. |
+| **GitHub Releases** | Triggered only when a release tag (e.g. `v0.3.12`) is pushed or manually dispatched via `workflow_dispatch`. Merging PRs or pushing to branches never triggers a release. |
 | **Snap Store (snapcraft.io)** | Snapcraft.io's build service reads `version` from `snap/snapcraft.yaml` upon release tag push or build dispatch. |
 | **Flatpak / Flathub** | Uses the updated `<release version="..." .../>` in `bd.com.zihad.BengalDownloadManager.metainfo.xml`. |
 | **In-App (Help -> About)** | Automatically displays version from `VERSION` and `SNAP_VERSION`. |
 
 ---
 
-## 4. Release Lifecycle & CI/CD Pipeline
+## 7. Release Lifecycle & CI/CD Pipeline
 
 1. **Pull Requests & Commits (`ci.yml`)**:
-   - `python3 scripts/sync_version.py --check` automatically executes on every commit and PR.
+   - `uv run python scripts/sync_version.py --check` automatically executes on every commit and PR.
    - If any manifest does not match `VERSION`, CI fails immediately with actionable instructions.
    - Branch merges and pushes run tests and validation, but do not create releases.
 
@@ -141,8 +156,8 @@ git commit -am "chore: graduate version to stable release"
 
 ---
 
-## 5. Guidelines for AI Agents and Contributors
+## 8. Guidelines for AI Agents and Contributors
 
 1. **Never edit application version strings manually in individual package manifests**. Always use `scripts/sync_version.py --set <ver>` or `--bump <type>`.
-2. **Run `python3 scripts/sync_version.py --check` before committing** any changes related to versioning or packaging.
+2. **Run `uv run python scripts/sync_version.py --check` before committing** any changes related to versioning or packaging.
 3. **Browser extension versioning is independent**: `extension/manifest.json` is decoupled from app version bumps and managed independently.
