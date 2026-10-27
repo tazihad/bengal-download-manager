@@ -507,10 +507,18 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <!-- Presets Section with Filter Chips -->
     <div class="section-title">✨ Curated Muted Palettes (Low Saturation &amp; Non-Glaring)</div>
     <div class="filter-chips">
-      <button class="chip active" onclick="filterCategory('all', this)">All (12 Palettes)</button>
+      <button class="chip active" onclick="filterCategory('all', this)">All (55 Palettes)</button>
       <button class="chip" onclick="filterCategory('earth', this)">🍂 Muted Earth &amp; Terracotta</button>
       <button class="chip" onclick="filterCategory('cool', this)">❄️ Subtle Slate &amp; Tech Blue</button>
       <button class="chip" onclick="filterCategory('deep', this)">🌲 Muted Pine, Dusk &amp; Charcoal</button>
+      <button class="chip" onclick="filterCategory('mint', this)">🌿 Mint &amp; Teal (Fresh)</button>
+      <button class="chip" onclick="filterCategory('forest', this)">🌲 Forest &amp; Sage</button>
+      <button class="chip" onclick="filterCategory('slate', this)">🪨 Slate &amp; Stone</button>
+      <button class="chip" onclick="filterCategory('ocean', this)">🌊 Ocean &amp; Marine</button>
+      <button class="chip" onclick="filterCategory('dusk', this)">🌅 Dusk &amp; Plum</button>
+      <button class="chip" onclick="filterCategory('sand', this)">🏖️ Sand &amp; Sun</button>
+      <button class="chip" onclick="filterCategory('charcoal', this)">⚫ Charcoal &amp; Monochrome</button>
+      <button class="chip" onclick="filterCategory('indigo', this)">🔷 Indigo &amp; Violet</button>
     </div>
     <div class="presets-grid" id="presetsGrid"></div>
 
@@ -704,6 +712,323 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         light: "#645069",
         dark: "#211824",
         desc: "Twilight dusty mauve and black velvet plum."
+      },
+
+      // Mint & Teal (Complementary to download-manager icon - calm & fresh)
+      {
+        category: "mint",
+        name: "Mint Ice & Deep Seafoam",
+        light: "#b2dfdb",
+        dark: "#004d40",
+        desc: "Soft mint ice and deep seafoam teal."
+      },
+      {
+        category: "mint",
+        name: "Aqua Mist & Dark Spruce",
+        light: "#b2f2bb",
+        dark: "#1b5e20",
+        desc: "Pale aqua mist and rich spruce green."
+      },
+      {
+        category: "mint",
+        name: "Pale Turquoise & Deep Peacock",
+        light: "#80deea",
+        dark: "#006064",
+        desc: "Muted turquoise and deep peacock blue."
+      },
+      {
+        category: "mint",
+        name: "Powder Aqua & Midnight Jade",
+        light: "#80cbc4",
+        dark: "#004d40",
+        desc: "Light powder aqua and dark midnight jade."
+      },
+      {
+        category: "mint",
+        name: "Mint Whisper & Pine Shadow",
+        light: "#c8e6c9",
+        dark: "#1b5e20",
+        desc: "Very light mint whisper and deep pine shadow."
+      },
+      {
+        category: "mint",
+        name: "Your Mint & Teal",
+        light: "#00C9A7",
+        dark: "#00E0BC",
+        desc: "Fresh mint light with bright teal dark — your suggestion."
+      },
+      {
+        category: "mint",
+        name: "Sea Glass & Deep Emerald",
+        light: "#a5d6a7",
+        dark: "#1b5e20",
+        desc: "Frosted sea glass and rich emerald depth."
+      },
+      {
+        category: "mint",
+        name: "Mellow Mint & Forest Dusk",
+        light: "#c8e6c9",
+        dark: "#1b5e20",
+        desc: "Mellow mint and dim forest dusk."
+      },
+
+      // Forest & Sage (Natural, grounded)
+      {
+        category: "forest",
+        name: "Olive Sage & Deep Juniper",
+        light: "#9ccc65",
+        dark: "#33691e",
+        desc: "Muted olive sage and deep juniper pine."
+      },
+      {
+        category: "forest",
+        name: "Moss Green & Dark Thicket",
+        light: "#a5d6a7",
+        dark: "#1b5e20",
+        desc: "Soft moss green and dark forest thicket."
+      },
+      {
+        category: "forest",
+        name: "Pine Needle & Night Canopy",
+        light: "#81c784",
+        dark: "#1b5e20",
+        desc: "Muted pine needle and night tree canopy."
+      },
+      {
+        category: "forest",
+        name: "Sage Mist & Deep Spruce",
+        light: "#a5d6a7",
+        dark: "#004d40",
+        desc: "Light sage mist and deep spruce green."
+      },
+      {
+        category: "forest",
+        name: "Leaf Green & Blackwood",
+        light: "#9ccc65",
+        dark: "#1b5e20",
+        desc: "Calm leaf green and blackwood shadow."
+      },
+
+      // Slate & Stone (Neutral, professional)
+      {
+        category: "slate",
+        name: "Blue Slate & Charcoal Stone",
+        light: "#78909c",
+        dark: "#263238",
+        desc: "Muted blue slate and charcoal stone."
+      },
+      {
+        category: "slate",
+        name: "Ash Gray & Deep Onyx",
+        light: "#90a4ae",
+        dark: "#263238",
+        desc: "Soft ash gray and deep onyx black."
+      },
+      {
+        category: "slate",
+        name: "Steel Gray & Midnight Coal",
+        light: "#78909c",
+        dark: "#17252a",
+        desc: "Understated steel gray and midnight coal."
+      },
+      {
+        category: "slate",
+        name: "Slate Blue & Night Harbor",
+        light: "#90a4ae",
+        dark: "#17252a",
+        desc: "Calm slate blue and night harbor depth."
+      },
+      {
+        category: "slate",
+        name: "Cement Gray & Iron Black",
+        light: "#b0bec5",
+        dark: "#263238",
+        desc: "Neutral cement gray and iron black."
+      },
+
+      // Ocean & Marine (Cool, expansive)
+      {
+        category: "ocean",
+        name: "Muted Navy & Deep Abyss",
+        light: "#7986cb",
+        dark: "#1a237e",
+        desc: "Muted cornflower navy and deep abyss blue."
+      },
+      {
+        category: "ocean",
+        name: "Ocean Mist & Deep Trench",
+        light: "#80deea",
+        dark: "#006064",
+        desc: "Light ocean mist and deep trench teal."
+      },
+      {
+        category: "ocean",
+        name: "Steel Blue & Midnight Current",
+        light: "#90caf9",
+        dark: "#0d47a1",
+        desc: "Muted steel blue and deep midnight current."
+      },
+      {
+        category: "ocean",
+        name: "Pacific Fog & Deep Reef",
+        light: "#b3e5fc",
+        dark: "#00695c",
+        desc: "Pale pacific fog and deep reef teal."
+      },
+      {
+        category: "ocean",
+        name: "Muted Cerulean & Night Dive",
+        light: "#90caf9",
+        dark: "#0d47a1",
+        desc: "Muted cerulean and dark night dive blue."
+      },
+
+      // Dusk & Plum (Soft, muted purple)
+      {
+        category: "dusk",
+        name: "Dusk Lavender & Deep Amethyst",
+        light: "#b39ddb",
+        dark: "#4a148c",
+        desc: "Soft dusk lavender and deep amethyst."
+      },
+      {
+        category: "dusk",
+        name: "Muted Plum & Black Iris",
+        light: "#ce93d8",
+        dark: "#4a148c",
+        desc: "Calm muted plum and dark black iris."
+      },
+      {
+        category: "dusk",
+        name: "Twilight Mauve & Night Violet",
+        light: "#e1bee7",
+        dark: "#6a1b9a",
+        desc: "Soft twilight mauve and deep night violet."
+      },
+      {
+        category: "dusk",
+        name: "Heather Gray & Deep Violet",
+        light: "#b39ddb",
+        dark: "#4a148c",
+        desc: "Muted heather and deep violet shadow."
+      },
+      {
+        category: "dusk",
+        name: "Orchid Mist & Black Iris",
+        light: "#f3e5f5",
+        dark: "#4a148c",
+        desc: "Very light orchid mist and dark black iris."
+      },
+
+      // Sand & Sun (Muted warm neutrals)
+      {
+        category: "sand",
+        name: "Warm Sand & Deep Terracotta",
+        light: "#d7ccc8",
+        dark: "#3e2723",
+        desc: "Muted warm sand and deep terracotta clay."
+      },
+      {
+        category: "sand",
+        name: "Pale Clay & Dark Adobe",
+        light: "#efebe9",
+        dark: "#3e2723",
+        desc: "Pale clay and dark adobe earth."
+      },
+      {
+        category: "sand",
+        name: "Desert Dune & Black Cocoa",
+        light: "#d7ccc8",
+        dark: "#212121",
+        desc: "Soft desert dune and black cocoa brown."
+      },
+      {
+        category: "sand",
+        name: "Beige Mist & Deep Carob",
+        light: "#efebe9",
+        dark: "#212121",
+        desc: "Pale beige mist and deep carob brown."
+      },
+      {
+        category: "sand",
+        name: "Sun-bleached Linen & Black Coffee",
+        light: "#d7ccc8",
+        dark: "#3e2723",
+        desc: "Sun-bleached linen and deep black coffee."
+      },
+
+      // Charcoal & Monochrome (Timeless)
+      {
+        category: "charcoal",
+        name: "Warm Gray & Deep Charcoal",
+        light: "#9e9e9e",
+        dark: "#212121",
+        desc: "Neutral warm gray and deep charcoal."
+      },
+      {
+        category: "charcoal",
+        name: "Silver Mist & Black Obsidian",
+        light: "#bdbdbd",
+        dark: "#171717",
+        desc: "Light silver mist and black obsidian."
+      },
+      {
+        category: "charcoal",
+        name: "Stone Gray & Night Ink",
+        light: "#9e9e9e",
+        dark: "#171717",
+        desc: "Muted stone gray and deep night ink."
+      },
+      {
+        category: "charcoal",
+        name: "Fog Gray & Charcoal Void",
+        light: "#bdbdbd",
+        dark: "#212121",
+        desc: "Pale fog gray and charcoal void black."
+      },
+      {
+        category: "charcoal",
+        name: "Platinum & Black Pearl",
+        light: "#e0e0e0",
+        dark: "#171717",
+        desc: "Soft platinum and deep black pearl."
+      },
+
+      // Indigo & Violet-Blue (Calm creative)
+      {
+        category: "indigo",
+        name: "Muted Indigo & Deep Night",
+        light: "#9fa8da",
+        dark: "#1a237e",
+        desc: "Soft muted indigo and deep night blue."
+      },
+      {
+        category: "indigo",
+        name: "Periwinkle Mist & Dark Royal",
+        light: "#c5cae9",
+        dark: "#283593",
+        desc: "Light periwinkle mist and dark royal indigo."
+      },
+      {
+        category: "indigo",
+        name: "Lavender Blue & Deep Cobalt",
+        light: "#9fa8da",
+        dark: "#1a237e",
+        desc: "Calm lavender blue and deep cobalt."
+      },
+      {
+        category: "indigo",
+        name: "Wisteria Fog & Night Indigo",
+        light: "#c5cae9",
+        dark: "#1a237e",
+        desc: "Soft wisteria fog and deep night indigo."
+      },
+      {
+        category: "indigo",
+        name: "Powder Periwinkle & Deep Sapphire",
+        light: "#c5cae9",
+        dark: "#0d47a1",
+        desc: "Light powder periwinkle and deep sapphire."
       }
     ];
 

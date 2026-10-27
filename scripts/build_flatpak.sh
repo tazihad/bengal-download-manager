@@ -161,22 +161,12 @@ done
 mkdir -p "$BUILD_DIR/files/share/icons/hicolor/scalable/apps"
 cp assets/logo.svg "$BUILD_DIR/files/share/icons/hicolor/scalable/apps/$APP_ID.svg" 2>/dev/null || true
 cp flatpak/$APP_ID.desktop "$BUILD_DIR/files/share/applications/$APP_ID.desktop"
-cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
-# Dynamically inject the exact version into AppStream metainfo XML
-TODAY=$(date +'%Y-%m-%d')
-$PY_BIN -c '
-import sys, re
-ver = sys.argv[1]
-today = sys.argv[2]
-path = sys.argv[3]
-with open(path, "r") as f:
-    content = f.read()
-new_release = f"<releases>\n    <release version=\"{ver}\" date=\"{today}\"/>\n  </releases>"
-content = re.sub(r"<releases>.*?</releases>", new_release, content, flags=re.DOTALL)
-with open(path, "w") as f:
-    f.write(content)
-' "$VERSION" "$TODAY" "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
+# Regenerate the localized AppStream metadata from the .in template + catalogs
+echo "=== Regenerating localized AppStream metadata ==="
+$PY_BIN scripts/i18n.py metainfo
+
+cp flatpak/$APP_ID.metainfo.xml "$BUILD_DIR/files/share/metainfo/$APP_ID.metainfo.xml"
 
 # Compose AppStream catalog metadata if appstreamcli is present
 if command -v appstreamcli >/dev/null 2>&1; then

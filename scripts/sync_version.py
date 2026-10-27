@@ -23,7 +23,11 @@ from typing import List, Optional
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
 SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yaml")
-METAINFO_FILE = os.path.join(ROOT_DIR, "flatpak", "bd.com.zihad.BengalDownloadManager.metainfo.xml")
+# Release entries are authored in the .in template; the plain .xml is generated
+# from it (plus the translation catalogs) by scripts/i18n.py.
+METAINFO_TEMPLATE = os.path.join(ROOT_DIR, "flatpak", "bd.com.zihad.BengalDownloadManager.metainfo.xml.in")
+METAINFO_GENERATED = METAINFO_TEMPLATE[:-3]
+METAINFO_FILE = METAINFO_TEMPLATE
 PYPROJECT_FILE = os.path.join(ROOT_DIR, "pyproject.toml")
 VERSION_PY_FILE = os.path.join(ROOT_DIR, "src", "core", "version.py")
 
@@ -205,6 +209,23 @@ def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     with open(METAINFO_FILE, "w", encoding="utf-8") as f:
         f.write(content)
 
+    _refresh_generated_metainfo()
+
+
+def _refresh_generated_metainfo():
+    """
+    Re-render flatpak/<app-id>.metainfo.xml after the template changed.
+    Skipped when callers point METAINFO_FILE elsewhere (e.g. unit tests).
+    """
+    if os.path.abspath(METAINFO_FILE) != os.path.abspath(METAINFO_TEMPLATE):
+        return
+    try:
+        from scripts.i18n import generate_metainfo
+    except ImportError:
+        sys.path.insert(0, ROOT_DIR)
+        from scripts.i18n import generate_metainfo
+    generate_metainfo()
+
 
 def update_html_landing_page(ver: str):
     html_files = [
@@ -325,6 +346,7 @@ def create_git_tag_and_commit(ver: str):
         VERSION_FILE,
         SNAPCRAFT_FILE,
         METAINFO_FILE,
+        METAINFO_GENERATED,
         PYPROJECT_FILE,
         VERSION_PY_FILE,
         os.path.join(ROOT_DIR, "src", "core", "build_info.py"),
@@ -377,6 +399,16 @@ def main():
 
     if new_ver:
         sync_all(new_ver, custom_notes=custom_notes)
+
+        # Auto-consistency check before any commit/tag: if the manifests
+        # are out of sync, abort before committing or tagging.
+        if not check_consistency():
+            print(
+                "[!] Version manifests are inconsistent. Aborting commit/tag. "
+                "Fix the mismatches and re-run."
+            )
+            sys.exit(1)
+
         if args.commit or args.tag:
             create_git_tag_and_commit(new_ver)
     else:

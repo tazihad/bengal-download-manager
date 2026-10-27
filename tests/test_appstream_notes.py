@@ -40,6 +40,11 @@ def test_format_appstream_xml():
     assert root.tag == "release"
     assert root.attrib["version"] == "0.2.99"
     assert root.attrib["date"] == "2026-10-21"
+
+    # Release notes must link to the matching upstream release page
+    details = root.find("url[@type='details']")
+    assert details is not None
+    assert details.text == "https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.99"
     
     desc = root.find("description")
     assert desc is not None

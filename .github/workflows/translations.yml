@@ -13,6 +13,7 @@ on:
     paths:
       - 'translations/**'
       - 'scripts/i18n.py'
+      - 'flatpak/*.metainfo.xml.in'
 
 concurrency:
   group: translations-${{ github.ref }}
@@ -44,10 +45,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [[ -n $(git status --porcelain assets/translations/) ]]; then
-            git add assets/translations/
-            git commit -m "i18n: compile updated translation catalogs [skip ci]"
+          git add assets/translations/ flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml
+          if ! git diff --cached --quiet; then
+            git commit -m "i18n: compile translation catalogs and AppStream metadata [skip ci]"
             git push
           else
-            echo "No changes to binary .qm translation files."
+            echo "No changes to binary .qm catalogs or generated AppStream metadata."
           fi

@@ -575,9 +575,9 @@ class OptionsDialog(QDialog):
         lyt_confirm.setContentsMargins(10, 8, 10, 8)
         lyt_confirm.setSpacing(8)
 
-        self.chk_precheck_delete_files = QCheckBox(self.tr("Pre-check \"Also delete files from disk (permanently)\" in delete dialog"))
+        self.chk_precheck_delete_files = QCheckBox(self.tr("Pre-check delete files from disk permanently"))
         self.chk_precheck_delete_files.setToolTip(
-            self.tr("When deleting downloads, automatically check the option to permanently remove downloaded files from disk.")
+            self.tr("When deleting downloads, permanently remove downloaded files from disk by default.")
         )
 
         precheck_delete = False

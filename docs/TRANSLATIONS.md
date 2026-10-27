@@ -2,20 +2,32 @@
 
 Bengal Download Manager is localized using standard Qt Linguist XML (`.ts`) translation files and compiled `.qm` binary catalogs. Translations across all supported languages are powered by **Google Gemini AI** and managed directly through the project CLI tooling.
 
+This includes both **in-app UI strings** and **AppStream catalog metadata** (application name, summary, description, screenshot captions) that appear in software centers such as Flathub, GNOME Software, and KDE Discover.
+
 ---
 
 ## 🌐 1. Architecture & Translation Files
 
 * **Source Strings**: [`translations/bdm_en.ts`](../translations/bdm_en.ts) (Extracted from Python & PyQt6 source code).
-* **Target Translations**: [`translations/bdm_<lang>.ts`](../translations/) (Language-specific XML catalogs).
+* **AppStream Metadata Template**: [`flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml.in`](../flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml.in) (English strings with translator comments).
+* **Target Translations**: [`translations/bdm_<lang>.ts`](../translations/) (Language-specific XML catalogs, now including a `Metainfo` context).
 * **Compiled Catalogs**: [`assets/translations/bdm_<lang>.qm`](../assets/translations/) (High-performance binary catalogs loaded by `QTranslator` at runtime).
+* **Generated AppStream File**: [`flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml`](../flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml) (Emits `<name xml:lang="...">`, `<description xml:lang="...">` etc. from the catalogs).
 * **Supported Languages**: Defined in [`src/core/services/language_service.py`](../src/core/services/language_service.py).
 
 ---
 
 ## 🛠️ 2. Translation Workflow via CLI
 
-The project includes [`scripts/i18n.py`](../scripts/i18n.py) for managing the complete localization lifecycle.
+The project includes [`scripts/i18n.py`](../scripts/i18n.py) for managing the complete localization lifecycle, including AppStream catalog metadata.
+
+### Step 0: Sync AppStream Metadata Strings into Catalogs
+After modifying the `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml.in` template, sync its translatable strings into every `translations/bdm_*.ts` so translators see them:
+```bash
+uv run python scripts/i18n.py metainfo --sync-catalogs
+```
+* Adds/updates the `Metainfo` context in each catalog with hints for translators.
+* Regenerates `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml` from the template + catalogs.
 
 ### Step 1: Extract New UI Strings
 Whenever UI code, dialogs, buttons, menus, or tooltips are added or modified:
@@ -48,9 +60,15 @@ Options:
 * `--batch-size <n>`: Number of strings per batch request (default: `60`).
 
 ### Step 3: Compile Translation Catalogs
-Compile all `.ts` files into binary `.qm` catalogs for runtime:
+Compile all `.ts` files into binary `.qm` catalogs for runtime **and** regenerate the localized AppStream metadata:
 ```bash
 uv run python scripts/i18n.py compile
+```
+
+### Step 3b: Regenerate AppStream Metadata Only
+When translation catalogs are already up to date and only the AppStream XML needs refreshing:
+```bash
+uv run python scripts/i18n.py metainfo
 ```
 
 ### Step 4: Check Translation Status
@@ -76,7 +94,13 @@ The translation pipeline in `scripts/i18n.py` enforces strict localization rules
 
 ## 🚀 4. CI/CD Validation & Compilation
 
-The [Translations GitHub Action](https://github.com/tazihad/bengal-download-manager/actions/workflows/translations.yml) runs on every push and pull request modifying `translations/**` or `scripts/i18n.py`:
+The [Translations GitHub Action](https://github.com/tazihad/bengal-download-manager/actions/workflows/translations.yml) runs on every push and pull request modifying `translations/**`, `scripts/i18n.py`, or `flatpak/*.metainfo.xml.in`:
 1. Compiles all `.ts` files to `.qm` binary catalogs.
-2. Validates translation status and integrity.
-3. Automatically commits compiled `.qm` files back to `main` if changes occurred.
+2. Regenerates the localized `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml` from the template and catalogs.
+3. Validates translation status and integrity.
+4. Automatically commits compiled `.qm` files **and** the generated AppStream metadata back to `main` if changes occurred.
+
+To validate locally that the generated AppStream XML is in sync (exits non-zero if out of date):
+```bash
+uv run python scripts/i18n.py metainfo --check
+```

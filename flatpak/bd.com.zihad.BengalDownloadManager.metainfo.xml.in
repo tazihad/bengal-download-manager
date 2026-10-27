@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>bd.com.zihad.BengalDownloadManager</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#bdbdbd</color>
+    <color type="primary" scheme_preference="dark">#1d1d1d</color>
+  </branding>
+
+  <developer id="bd.com.zihad">
+    <name>tazihad</name>
+  </developer>
+
+  <!-- Translators: "Bengal Download Manager" is a product name. Prefer the
+       established local name over a literal translation. -->
+  <name>Bengal Download Manager</name>
+  <summary>High speed downloader</summary>
+
+  <!-- Translators: Keep the introduction to 1-2 sentences and each feature
+       bullet on a single, short line. -->
+  <description>
+    <p> A friendly download helper for your Linux computer. It speeds up large files, catches links straight from your browser, and keeps everything neatly sorted in one place. </p>
+    <ul>
+      <li>Speeds up big downloads by grabbing several parts at once</li>
+      <li>Saves files from your browser with a single click</li>
+      <li>Downloads video and music from popular websites</li>
+      <li>Grabs whole websites at once and can run on a schedule</li>
+      <li>Lets you cap speeds and files sort themselves into folders</li>
+    </ul>
+  </description>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <!-- Translators: Screenshot captions appear in app catalogs such as Flathub. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Bengal Download Manager in dark mode</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/01-main-app.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Bengal Download Manager in light mode</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/02-main-app-light-mode.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Custom theme configuration</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/03-main-app-different-theme.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Media and video downloader tool</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/04-media-downloader.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Batch site grabber tool</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/05-site-grabber.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Automated download scheduler</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/06-scheduler.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Data usage and bandwidth monitor</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.png</image>
+    </screenshot>
+  </screenshots>
+
+  <!-- Release notes stay in English: they mirror the upstream release tags. -->
+  <releases>
+    <release version="0.3.12" date="2026-10-25">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.12</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.12 changes:</p>
+        <ul>
+                <li>Refreshed the app store listing with a clearer description and updated branding</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.11" date="2026-10-25">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.11</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.11 changes:</p>
+        <ul>
+                <li>General maintenance, bug fixes, and performance improvements.</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.10" date="2026-10-24">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.10</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.10 changes:</p>
+        <ul>
+                <li>Fixed duplicate download windows when clicking or dragging links from the browser</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.9" date="2026-10-24">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.9</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.9 changes:</p>
+        <ul>
+                <li>Aria2: Cancel download on stop instead of pausing</li>
+                <li>UI Stop and Stop All buttons now pause downloads instead of cancelling them, so downloads can be resumed later</li>
+                <li>Aria2 pause/resume/speed-limit calls are now resilient to a missing Aria2 engine</li>
+                <li>Download store keys are now stable across application restarts</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.8" date="2026-10-23">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.8</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.8 changes:</p>
+        <ul>
+                <li>Force Fusion widget style to prevent Breeze scrollbars in Flatpak on KDE</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.7" date="2026-10-23">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.7</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.7 changes:</p>
+        <ul>
+                <li>Fixed downloads sometimes appearing complete before the file was actually downloaded</li>
+                <li>Starting a download while background prefetching is still in progress now resumes the file correctly</li>
+                <li>Fixed Start minimized in system tray not working in the Flatpak build</li>
+                <li>Fixed the autostart option being silently disabled after upgrading</li>
+                <li>Autostart and start-minimized preferences are now saved and stay in sync</li>
+                <li>Turning off autostart now also clears the start-minimized option</li>
+                <li>Existing Flatpak autostart entries are repaired automatically after updating</li>
+                <li>The main window now reappears automatically when no system tray is available</li>
+                <li>The tray menu correctly switches between Show and Hide</li>
+                <li>Previous release notes are preserved in the app catalog</li>
+                <li>Running from source now reports the correct project version</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.6" date="2026-10-22">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.6</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.6 changes:</p>
+        <ul>
+                <li>Revert to PNG screenshots for AppStream catalog compatibility</li>
+                <li>Update summary to High speed downloader</li>
+                <li>Metainfo and catalog improvements</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.5" date="2026-10-22">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.5</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.5 changes:</p>
+        <ul>
+                <li>Added official Flathub banner branding metadata with custom light and dark themes</li>
+                <li>Configured muted sage and deep pine brand styling for Flathub carousel and headers</li>
+                <li>Added local interactive banner preview and selection simulator tool</li>
+                <li>General stability and performance improvements</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.4" date="2026-10-22">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.4</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.4 changes:</p>
+        <ul>
+                <li>Resolved Flatpak autostart and start minimized in system tray</li>
+                <li>Improved system tray icon initialization on desktop startup</li>
+                <li>Added official Flathub integration and badges</li>
+                <li>Updated translation catalogs</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.3" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.3</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.3 changes:</p>
+        <ul>
+                <li>Assets: Remove png screenshots and switch metainfo to webp</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.2" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.2</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.2 changes:</p>
+        <ul>
+                <li>Added autostart support for Flatpak via the XDG Desktop Background Portal</li>
+                <li>Ensured automatic startup works seamlessly without extra sandbox permissions</li>
+                <li>Updated application translations</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.1" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.1</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.1 changes:</p>
+        <ul>
+                <li>Resolved version display issue in Flatpak and Flathub builds</li>
+                <li>Improved application version reporting across packaging formats</li>
+                <li>Updated application translations</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.3.0" date="2026-10-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.0</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.0 changes:</p>
+        <ul>
+                <li>Assets: Provide PNG format screenshots for AppStream catalog compatibility</li>
+                <li>Assets: Update, renumber, and optimize screenshots and feature branding posters</li>
+                <li>Options: Disable proxy credentials section when unchecked or unsupported</li>
+                <li>Assets: Create high-resolution branding posters for speed, ecosystem, and themes</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.99" date="2026-10-20">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.99</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.2.99 changes:</p>
+        <ul>
+                <li>Snap: Add common-id for AppStream metadata matching</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.98" date="2026-10-18">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.98</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.2.98 changes:</p>
+        <ul>
+                <li>I18n: Streamline translation workflow with Gemini AI integration</li>
+            </ul>
+        </description>
+    </release>
+    <release version="0.2.97" date="2026-10-17">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.2.97</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.2.97 changes:</p>
+        <ul>
+                <li>I18n: Sanitize broken menu mnemonics for Bengali and complex scripts</li>
+                <li>I18n: Replace Hind Siliguri with Noto Sans Bengali UI and Kalpurush to resolve broken conjuncts</li>
+            </ul>
+        </description>
+    </release>
+  </releases>
+
+  <provides>
+    <binary>bengal-download-manager</binary>
+  </provides>
+
+  <url type="homepage">https://zihad.com.bd/bengal-download-manager</url>
+  <url type="vcs-browser">https://github.com/tazihad/bengal-download-manager</url>
+  <url type="bugtracker">https://github.com/tazihad/bengal-download-manager/issues</url>
+  <url type="help">https://github.com/tazihad/bengal-download-manager/blob/main/docs/README.md</url>
+
+  <translation type="qt">bdm</translation>
+
+  <launchable type="desktop-id">bd.com.zihad.BengalDownloadManager.desktop</launchable>
+
+
+  <categories>
+    <category>Network</category>
+    <category>FileTransfer</category>
+  </categories>
+
+  <content_rating type="oars-1.1"/>
+</component>
