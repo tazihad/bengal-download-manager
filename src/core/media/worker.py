@@ -763,6 +763,15 @@ class YtDlpDownloadWorker(QThread):
                             self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Merging", "--", "--", int(self.current_bytes), int(self.total_bytes)))
                             self._emit_segment_updates(int(self.current_bytes), int(self.total_bytes), 0.0, status_text="Merging")
 
+                    # Capture EmbedThumbnail when yt-dlp embeds thumbnail into merged file
+                    m_thumb = re.search(r"\[EmbedThumbnail\]", line_str, re.IGNORECASE)
+                    if m_thumb:
+                        if self._media_status != "Processing":
+                            self._media_status = "Processing"
+                            import time
+                            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Processing", "--", "--", int(self.current_bytes), int(self.total_bytes)))
+                            self._emit_segment_updates(int(self.current_bytes), int(self.total_bytes), 0.0, status_text="Processing")
+
                     # Capture MoveFiles when yt-dlp moves finished file from temp to home
                     m_move = re.search(r"\[MoveFiles\]\s+Moving file\s+\"?[^\"]+\"?\s+to\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
                     if m_move:

@@ -155,7 +155,7 @@ def _resolve_symbol(name: str, fallback):
 
 # Minimum dwell (ms) before a non-terminal status change is applied to the UI,
 # preventing rapid status flickering on small/fast downloads.
-STATUS_DWELL_MS = 800
+STATUS_DWELL_MS = 300
 
 
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
@@ -6509,10 +6509,11 @@ class MainWindow(QMainWindow):
             
             if final_display != old_status or display_status != old_logic_status:
                 # Dwell-time guard: non-terminal status changes require minimum dwell
-                # to prevent rapid flickering; terminal states apply immediately.
+                # to prevent rapid flickering; terminal states and short-lived media
+                # transitions (Merging/Processing/Finalizing) apply immediately.
                 now_mono = time.monotonic()
-                terminal = display_status in ("Complete", "Error", "Cancelled")
-                if not terminal:
+                immediate = display_status in ("Complete", "Error", "Cancelled", "Merging", "Processing", "Finalizing")
+                if not immediate:
                     last_change = self._status_dwell.get(key, 0.0)
                     if now_mono - last_change < (STATUS_DWELL_MS / 1000.0):
                         # Skip status text update; still update progress/speed/time below.

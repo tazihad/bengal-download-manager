@@ -13,7 +13,7 @@ import time
 
 # Minimum dwell (ms) before a non-terminal status change is applied to the UI,
 # preventing rapid status flickering on small/fast downloads.
-STATUS_DWELL_MS = 800
+STATUS_DWELL_MS = 300
 
 class DownloadProgressDialog(QDialog):
     def __init__(self, worker, parent=None):
@@ -525,6 +525,7 @@ class DownloadProgressDialog(QDialog):
             "Aria2 download completed successfully.": "Complete",
         }
         TERMINAL_STATUSES = {"Complete", "Error", "Cancelled"}
+        IMMEDIATE_STATUSES = TERMINAL_STATUSES | {"Merging", "Processing", "Finalizing"}
 
         raw_display = None
         if clean_text in LOG_TO_STATUS:
@@ -539,7 +540,7 @@ class DownloadProgressDialog(QDialog):
 
         # Dwell-time guard: non-terminal status changes require minimum dwell
         now_mono = time.monotonic()
-        if raw_display not in TERMINAL_STATUSES:
+        if raw_display not in IMMEDIATE_STATUSES:
             if now_mono - self._status_dwell_time < (STATUS_DWELL_MS / 1000.0):
                 return
             self._status_dwell_time = now_mono
@@ -594,6 +595,7 @@ class DownloadProgressDialog(QDialog):
             "Queued": "Queued",
         }
         TERMINAL_STATUSES = {"Complete", "Error", "Cancelled"}
+        IMMEDIATE_STATUSES = TERMINAL_STATUSES | {"Merging", "Processing", "Finalizing"}
         ACTIVE_STATUSES = {"Downloading", "Preparing", "Analyzing", "Starting", "Merging", "Processing", "Finalizing", "Resuming"}
 
         # Map worker status to canonical display status
@@ -603,7 +605,7 @@ class DownloadProgressDialog(QDialog):
 
         # Dwell-time guard: non-terminal status changes require minimum dwell
         now_mono = time.monotonic()
-        if raw_display not in TERMINAL_STATUSES:
+        if raw_display not in IMMEDIATE_STATUSES:
             if now_mono - self._status_dwell_time < (STATUS_DWELL_MS / 1000.0):
                 # Skip status text update; still update progress/speed/time below.
                 pass
@@ -667,6 +669,7 @@ class DownloadProgressDialog(QDialog):
         import os
         is_path_complete = isinstance(status, str) and bool(status) and (os.path.isabs(status) and os.path.exists(status))
         TERMINAL_STATUSES = {"Complete", "Error", "Cancelled"}
+        IMMEDIATE_STATUSES = TERMINAL_STATUSES | {"Merging", "Processing", "Finalizing"}
 
         if status == "Complete" or is_path_complete:
             self.is_completed = True
@@ -687,7 +690,7 @@ class DownloadProgressDialog(QDialog):
 
         # Terminal states always apply immediately
         now_mono = time.monotonic()
-        if raw_display not in TERMINAL_STATUSES:
+        if raw_display not in IMMEDIATE_STATUSES:
             if now_mono - self._status_dwell_time < (STATUS_DWELL_MS / 1000.0):
                 return
         self._status_dwell_time = now_mono
