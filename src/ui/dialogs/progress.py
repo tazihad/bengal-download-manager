@@ -9,6 +9,12 @@ from PyQt6.QtGui import QFont
 from core.utils import show_in_folder, load_extension_config, wrap_url_tooltip
 from core.memory_guard import MemoryGuard
 
+import time
+
+# Minimum dwell (ms) before a non-terminal status change is applied to the UI,
+# preventing rapid status flickering on small/fast downloads.
+STATUS_DWELL_MS = 800
+
 class DownloadProgressDialog(QDialog):
     def __init__(self, worker, parent=None):
         super().__init__(parent)
@@ -28,6 +34,7 @@ class DownloadProgressDialog(QDialog):
         self.segment_bars = []
         self.current_bytes = 0
         self.total_bytes = 0
+        self._status_dwell_time = 0.0
         self.update_window_size()
         
         self.worker.log_signal.connect(self.append_log)
@@ -387,9 +394,9 @@ class DownloadProgressDialog(QDialog):
     def toggle_pause(self):
         if self.btn_pause.text() == "Pause":
             self.worker.pause()
-            self.btn_pause.setText("Resume")
-            self.lbl_main_status.setText("Paused")
-            self.btn_cancel.setText("Close") 
+            self.btn_pause.setText(self.tr("Resume"))
+            self.lbl_main_status.setText(self.tr("Paused"))
+            self.btn_cancel.setText(self.tr("Close")) 
             self.lbl_speed.setText("0.00 B/s")
             self.lbl_time.setText("-")
             if hasattr(self.worker, "main_progress_signal"):
@@ -397,11 +404,11 @@ class DownloadProgressDialog(QDialog):
                 self.worker.main_progress_signal.emit(self.worker.row_index, data)
         elif self.btn_pause.text() == "Resume":
             self.worker.resume()
-            self.btn_pause.setText("Pause")
-            self.lbl_main_status.setText("Resuming...")
-            self.btn_cancel.setText("Cancel") 
+            self.btn_pause.setText(self.tr("Pause"))
+            self.lbl_main_status.setText(self.tr("Resuming"))
+            self.btn_cancel.setText(self.tr("Cancel")) 
             if hasattr(self.worker, "main_progress_signal"):
-                data = (self.worker.filename, self.worker.format_bytes(self.total_bytes, precision=2, pad=False) if self.total_bytes > 0 else "Unknown", "Resuming...", "", "0.00 B/s", self.current_bytes, self.total_bytes, 0)
+                data = (self.worker.filename, self.worker.format_bytes(self.total_bytes, precision=2, pad=False) if self.total_bytes > 0 else "Unknown", "Resuming", "", "0.00 B/s", self.current_bytes, self.total_bytes, 0)
                 self.worker.main_progress_signal.emit(self.worker.row_index, data)
         elif self.btn_pause.text() == "Open Folder":
             import os
@@ -504,20 +511,42 @@ class DownloadProgressDialog(QDialog):
         if not text:
             return
         clean_text = text.strip()
-        if clean_text in ("Resuming download...", "Resuming...", "Resume GET..."):
-            display_text = "Resuming..."
-        elif clean_text in ("Pausing download...", "Paused", "Download paused."):
-            display_text = "Paused"
-        elif clean_text in ("Connecting to server...", "Connecting to Aria2 engine...", "Connecting..."):
-            display_text = "Connecting..."
-        elif clean_text in ("Download completed.", "Aria2 download completed successfully."):
-            display_text = "Complete"
+        LOG_TO_STATUS = {
+            "Resuming download...": "Resuming",
+            "Resuming...": "Resuming",
+            "Resume GET...": "Resuming",
+            "Pausing download...": "Paused",
+            "Paused": "Paused",
+            "Download paused.": "Paused",
+            "Connecting to server...": "Starting",
+            "Connecting to Aria2 engine...": "Starting",
+            "Connecting...": "Starting",
+            "Download completed.": "Complete",
+            "Aria2 download completed successfully.": "Complete",
+        }
+        TERMINAL_STATUSES = {"Complete", "Error", "Cancelled"}
+
+        raw_display = None
+        if clean_text in LOG_TO_STATUS:
+            raw_display = LOG_TO_STATUS[clean_text]
         elif clean_text.startswith("Critical Error:") or clean_text.startswith("Error"):
-            display_text = "Error"
+            raw_display = "Error"
             self.lbl_main_status.setStyleSheet("font-weight: bold; color: red;")
         else:
             return
-        self.lbl_main_status.setText(display_text)
+
+        display_status = self.tr(raw_display)
+
+        # Dwell-time guard: non-terminal status changes require minimum dwell
+        now_mono = time.monotonic()
+        if raw_display not in TERMINAL_STATUSES:
+            if now_mono - self._status_dwell_time < (STATUS_DWELL_MS / 1000.0):
+                return
+            self._status_dwell_time = now_mono
+        else:
+            self._status_dwell_time = now_mono
+
+        self.lbl_main_status.setText(display_status)
 
     def update_progress(self, current, total):
         self.current_bytes = current
@@ -540,18 +569,50 @@ class DownloadProgressDialog(QDialog):
         self.lbl_speed.setText(data[4])
         self.lbl_time.setText(data[3])
         
-        # Map worker status to display status
+        # Canonical one-word worker status -> display status mapping
+        CANONICAL_STATUS = {
+            "Connecting to server...": "Starting",
+            "Connecting to Aria2 engine...": "Starting",
+            "Connecting...": "Starting",
+            "Receiving data...": "Downloading",
+            "Resume GET...": "Resuming",
+            "Resuming...": "Resuming",
+            "Complete": "Complete",
+            "Prefetch Complete": "Complete",
+            "Error": "Error",
+            "Prefetch Error": "Error",
+            "Cancelled": "Cancelled",
+            "Prefetch Cancelled": "Cancelled",
+            "Paused": "Paused",
+            "Preparing": "Preparing",
+            "Analyzing": "Analyzing",
+            "Starting": "Starting",
+            "Downloading": "Downloading",
+            "Merging": "Merging",
+            "Processing": "Processing",
+            "Finalizing": "Finalizing",
+            "Queued": "Queued",
+        }
+        TERMINAL_STATUSES = {"Complete", "Error", "Cancelled"}
+        ACTIVE_STATUSES = {"Downloading", "Preparing", "Analyzing", "Starting", "Merging", "Processing", "Finalizing", "Resuming"}
+
+        # Map worker status to canonical display status
         worker_status = data[2] if len(data) > 2 else ""
-        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
-            display_status = "Downloading"
-        elif worker_status == "Connecting...":
-            display_status = "Connecting..."
-        elif worker_status == "Complete":
-            display_status = "Complete"
-        elif worker_status == "Resume GET...":
-            display_status = "Resuming..."
+        raw_display = CANONICAL_STATUS.get(worker_status, worker_status if worker_status else "Downloading")
+        display_status = self.tr(raw_display)
+
+        # Dwell-time guard: non-terminal status changes require minimum dwell
+        now_mono = time.monotonic()
+        if raw_display not in TERMINAL_STATUSES:
+            if now_mono - self._status_dwell_time < (STATUS_DWELL_MS / 1000.0):
+                # Skip status text update; still update progress/speed/time below.
+                pass
+            else:
+                self._status_dwell_time = now_mono
+                self.lbl_main_status.setText(display_status)
         else:
-            display_status = worker_status
+            self._status_dwell_time = now_mono
+            self.lbl_main_status.setText(display_status)
 
         # Update internal byte counts if high-precision data is available (indices 5 and 6)
         if len(data) > 6:
@@ -574,21 +635,22 @@ class DownloadProgressDialog(QDialog):
             percent = "Unknown %" if current_bytes > 0 else "0.00%"
 
         self.lbl_downloaded.setText(f"{self.worker.format_bytes(current_bytes, precision=2, pad=False)} ({percent})")
-        self.lbl_main_status.setText(display_status)
-        
-        if display_status in ["Downloading", "Resuming...", "Connecting..."]:
-            self.btn_pause.setText("Pause")
-            self.btn_cancel.setText("Cancel")
+
+        # Button state based on canonical display status (untranslated for comparison)
+        cmp_status = raw_display
+        if cmp_status in ACTIVE_STATUSES:
+            self.btn_pause.setText(self.tr("Pause"))
+            self.btn_cancel.setText(self.tr("Cancel"))
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
-        elif display_status == "Paused":
-            self.btn_pause.setText("Resume")
-            self.btn_cancel.setText("Close")
+        elif cmp_status == "Paused":
+            self.btn_pause.setText(self.tr("Resume"))
+            self.btn_cancel.setText(self.tr("Close"))
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
-        elif display_status in ["Cancelled", "Error"]:
-            self.btn_pause.setText("Resume")
-            self.btn_cancel.setText("Close")
+        elif cmp_status in ["Cancelled", "Error"]:
+            self.btn_pause.setText(self.tr("Resume"))
+            self.btn_cancel.setText(self.tr("Close"))
             self.btn_pause.setEnabled(True)
             self.btn_cancel.setEnabled(True)
 
@@ -604,21 +666,32 @@ class DownloadProgressDialog(QDialog):
     def on_finished(self, row, status):
         import os
         is_path_complete = isinstance(status, str) and bool(status) and (os.path.isabs(status) and os.path.exists(status))
+        TERMINAL_STATUSES = {"Complete", "Error", "Cancelled"}
+
         if status == "Complete" or is_path_complete:
             self.is_completed = True
-            display_status = "Complete"
+            raw_display = "Complete"
             if is_path_complete and hasattr(self, "worker") and self.worker:
                 self.worker.target_path = status
         elif status == "Cancelled":
-            display_status = "Cancelled"
+            raw_display = "Cancelled"
         elif status == "Error":
-            display_status = "Error"
+            raw_display = "Error"
             self.lbl_main_status.setStyleSheet("font-weight: bold; color: red;")
         elif status == "Paused":
-            display_status = "Paused"
+            raw_display = "Paused"
         else:
-            display_status = status
-            
+            raw_display = status
+
+        display_status = self.tr(raw_display)
+
+        # Terminal states always apply immediately
+        now_mono = time.monotonic()
+        if raw_display not in TERMINAL_STATUSES:
+            if now_mono - self._status_dwell_time < (STATUS_DWELL_MS / 1000.0):
+                return
+        self._status_dwell_time = now_mono
+
         self.lbl_main_status.setText(display_status)
         
         if display_status == "Complete":
