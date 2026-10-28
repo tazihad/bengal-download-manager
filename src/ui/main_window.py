@@ -206,6 +206,9 @@ class MainWindow(QMainWindow):
         self._pending_tray_updates = {}
         self._status_dwell = {}  # item_key -> last status change timestamp (monotonic)
         self._rate_dwell = {}  # item_key -> last rate change timestamp (monotonic)
+        self._size_dwell = {}  # item_key -> last size change timestamp (monotonic)
+        self._time_dwell = {}  # item_key -> last time-left change timestamp (monotonic)
+        self._date_dwell = {}  # item_key -> last date change timestamp (monotonic)
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
@@ -6499,7 +6502,15 @@ class MainWindow(QMainWindow):
             else:
                 size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
 
-            self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+            # Size dwell guard: limit Size column updates to ~300ms
+            # to prevent flicker from rapid stdout line emissions
+            now_mono = time.monotonic()
+            last_size_time = self._size_dwell.get(key, 0.0)
+            size_item = self.download_table.item(row, 1)
+            last_size_text = size_item.text() if size_item else ""
+            if now_mono - last_size_time >= 0.3 or size_display != last_size_text:
+                self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+                self._size_dwell[key] = now_mono
             
             # Col 2: Status (Resolved centrally via IDM State Architecture)
             worker_status = data[2] if len(data) > 2 else ""
@@ -6546,7 +6557,15 @@ class MainWindow(QMainWindow):
             else:
                 time_val = data[3] if len(data) > 3 else ""
                 rate_val = data[4] if len(data) > 4 else ""
-                self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+
+                # Time-left dwell guard: limit Time Left column updates to ~300ms
+                now_mono = time.monotonic()
+                last_time_time = self._time_dwell.get(key, 0.0)
+                time_item = self.download_table.item(row, 3)
+                last_time_text = time_item.text() if time_item else ""
+                if now_mono - last_time_time >= 0.3 or time_val != last_time_text:
+                    self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+                    self._time_dwell[key] = now_mono
 
                 # Rate dwell guard: limit Transfer Rate column updates to ~300ms
                 # to prevent flicker from rapid stdout line emissions
@@ -6572,7 +6591,12 @@ class MainWindow(QMainWindow):
             if not last_try_item:
                 self._set_timestamp_item(row, 5, formatted_last_try)
             elif last_try_item.text() != formatted_last_try:
-                last_try_item.setText(formatted_last_try)
+                # Date dwell guard: limit Date column updates to ~300ms
+                now_mono = time.monotonic()
+                last_date_time = self._date_dwell.get(key, 0.0)
+                if now_mono - last_date_time >= 0.3:
+                    last_try_item.setText(formatted_last_try)
+                    self._date_dwell[key] = now_mono
             
             if comp_bytes > 0:
                 item_ref.setData(Qt.ItemDataRole.UserRole + 25, comp_bytes)
