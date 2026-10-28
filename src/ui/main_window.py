@@ -6495,12 +6495,19 @@ class MainWindow(QMainWindow):
             tot_bytes = data[6] if len(data) > 6 else 0
             comp_bytes = data[5] if len(data) > 5 else 0
 
+            # Determine if download has started transferring
+            worker_status = data[2] if len(data) > 2 else ""
+
             if tot_bytes > 0:
                 size_display = format_bytes(tot_bytes)
             elif comp_bytes > 0:
                 size_display = format_bytes(comp_bytes)
+            elif worker_status == "Downloading" or worker_status.startswith("Receiving data"):
+                # Download started but size still not fetched → "Unknown"
+                size_display = "Unknown"
             else:
-                size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
+                # Download hasn't started yet (Preparing/Starting/Queued) → "Fetching"
+                size_display = data[1] if len(data) > 1 and data[1] else "Fetching"
 
             # Size dwell guard: limit Size column updates to ~300ms
             # to prevent flicker from rapid stdout line emissions
@@ -6513,7 +6520,6 @@ class MainWindow(QMainWindow):
                 self._size_dwell[key] = now_mono
             
             # Col 2: Status (Resolved centrally via IDM State Architecture)
-            worker_status = data[2] if len(data) > 2 else ""
             final_display, display_status, pct_str, is_active = self._get_display_state(item_ref, worker_status, comp_bytes, tot_bytes)
 
             if pct_str and pct_str != "Complete" and status_item:
