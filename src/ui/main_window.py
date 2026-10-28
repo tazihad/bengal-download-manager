@@ -6495,6 +6495,9 @@ class MainWindow(QMainWindow):
             tot_bytes = data[6] if len(data) > 6 else 0
             comp_bytes = data[5] if len(data) > 5 else 0
 
+            # Col 1: Size (Display total file size if known)
+            worker_status = data[2] if len(data) > 2 else ""
+
             if tot_bytes > 0:
                 size_display = format_bytes(tot_bytes)
             elif comp_bytes > 0:
