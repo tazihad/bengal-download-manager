@@ -700,6 +700,7 @@ class YtDlpDownloadWorker(QThread):
                 current_stream_total = 0.0
                 current_dest_file = ""
                 speed_bps = 0.0
+                ema_speed_bps = 0.0
                 eta_str = "--"
                 is_media_stream = True
                 last_seg_update = 0.0
@@ -866,7 +867,12 @@ class YtDlpDownloadWorker(QThread):
                                 speed_str = speed_match.group(1).replace("/s", "").strip()
                                 new_speed_bps = parse_size_str_to_bytes(speed_str)
                                 if new_speed_bps > 0:
-                                    speed_bps = new_speed_bps
+                                    SPEED_EMA_ALPHA = 0.25
+                                    if ema_speed_bps <= 0:
+                                        ema_speed_bps = float(new_speed_bps)
+                                    else:
+                                        ema_speed_bps = SPEED_EMA_ALPHA * float(new_speed_bps) + (1.0 - SPEED_EMA_ALPHA) * ema_speed_bps
+                                    speed_bps = ema_speed_bps
                                 speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
                                 last_known_speed_fmt = speed_fmt
                             else:
