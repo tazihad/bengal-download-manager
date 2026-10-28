@@ -703,6 +703,7 @@ class YtDlpDownloadWorker(QThread):
                 eta_str = "--"
                 is_media_stream = True
                 last_seg_update = 0.0
+                last_known_speed_fmt = "--"
                 collected_errors = []
 
                 for line in self.process.stdout:
@@ -863,13 +864,19 @@ class YtDlpDownloadWorker(QThread):
                                 speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
                             if speed_match:
                                 speed_str = speed_match.group(1).replace("/s", "").strip()
-                                speed_bps = parse_size_str_to_bytes(speed_str)
+                                new_speed_bps = parse_size_str_to_bytes(speed_str)
+                                if new_speed_bps > 0:
+                                    speed_bps = new_speed_bps
+                                speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
+                                last_known_speed_fmt = speed_fmt
+                            else:
+                                # Keep last known speed instead of dropping to "--" on unparseable lines (e.g. "Unknown B/s")
+                                speed_fmt = last_known_speed_fmt
 
                             eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
                             if eta_match:
                                 eta_str = eta_match.group(1)
 
-                            speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
                             size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
 
                             # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion

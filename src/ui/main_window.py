@@ -205,6 +205,7 @@ class MainWindow(QMainWindow):
         self.download_controller.aggregate_speed_changed.connect(lambda total, count: self.update_status_bar_speed())
         self._pending_tray_updates = {}
         self._status_dwell = {}  # item_key -> last status change timestamp (monotonic)
+        self._rate_dwell = {}  # item_key -> last rate change timestamp (monotonic)
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
@@ -6541,11 +6542,21 @@ class MainWindow(QMainWindow):
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
                 if hasattr(self, "active_speeds"):
                     self.active_speeds.pop(key, None)
+                self._rate_dwell.pop(key, None)
             else:
                 time_val = data[3] if len(data) > 3 else ""
                 rate_val = data[4] if len(data) > 4 else ""
                 self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
-                self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+
+                # Rate dwell guard: limit Transfer Rate column updates to ~300ms
+                # to prevent flicker from rapid stdout line emissions
+                now_mono = time.monotonic()
+                last_rate_time = self._rate_dwell.get(key, 0.0)
+                rate_item = self.download_table.item(row, 4)
+                last_rate_text = rate_item.text() if rate_item else ""
+                if now_mono - last_rate_time >= 0.3 or rate_val != last_rate_text:
+                    self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+                    self._rate_dwell[key] = now_mono
                 if hasattr(self, "active_speeds"):
                     raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
                     if raw_speed is not None:
