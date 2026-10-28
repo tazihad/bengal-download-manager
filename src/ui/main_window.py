@@ -5910,7 +5910,7 @@ class MainWindow(QMainWindow):
             if size_bytes > 0:
                 size_str = format_bytes(size_bytes)
             else:
-                size_str = "unavailable"
+                size_str = "Unavailable"
         
         # Check if URL already exists in table to prevent duplicate rows
         for r in range(self.download_table.rowCount()):
