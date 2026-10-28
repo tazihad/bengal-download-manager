@@ -5778,7 +5778,7 @@ class MainWindow(QMainWindow):
         item_name.setData(Qt.ItemDataRole.UserRole + 22, supports_range) # Range support flag
         
         # Determine explicit metadata bindings
-        size_str = size_data[0] if size_data else "?"
+        size_str = size_data[0] if size_data else "Fetching"
         
         self.download_table.setItem(row, 0, item_name)
         self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
