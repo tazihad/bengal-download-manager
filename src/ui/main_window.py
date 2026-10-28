@@ -5028,7 +5028,7 @@ class MainWindow(QMainWindow):
                 from core.utils import format_bytes
                 size_is_approximate = bool(size_str and str(size_str).startswith("~"))
                 init_size_str = None
-                if size_str and str(size_str).strip() not in ("Calculating...", "Probing...", "Size unavailable"):
+                if size_str and str(size_str).strip() not in ("Calculating...", "Probing...", "Unavailable"):
                     init_size_str = str(size_str).strip()
                 elif size_bytes > 0:
                     init_size_str = (("~" if size_is_approximate else "") + format_bytes(size_bytes))
@@ -7537,7 +7537,7 @@ class MainWindow(QMainWindow):
                 if total_size_bytes > 0:
                     size_str = (("~" if size_is_approximate else "") + format_bytes(total_size_bytes))
                 else:
-                    size_str = "Size unavailable"
+                    size_str = "Unavailable"
             file_info = {
                 "url": url,
                 "filename": filename,

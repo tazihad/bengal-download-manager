@@ -1217,7 +1217,7 @@ class MediaInfoFetcherWorker(QThread):
                     final_title = clean_title
 
             filename = sanitize_media_filename(final_title, ext=resolved_ext)
-            size_str = (("~" if is_approx else "") + format_bytes(size_bytes)) if size_bytes > 0 else "Size unavailable"
+            size_str = (("~" if is_approx else "") + format_bytes(size_bytes)) if size_bytes > 0 else "Unavailable"
 
             resolved_format_spec = self.format_spec
             if sel_fmts:
@@ -1250,7 +1250,7 @@ class MediaInfoFetcherWorker(QThread):
             title = self.custom_title or "media"
             filename = sanitize_media_filename(title, ext=self.initial_ext)
             fb_size = self.fallback_size_bytes or 0
-            size_str = format_bytes(fb_size) if fb_size > 0 else "Size unavailable"
+            size_str = format_bytes(fb_size) if fb_size > 0 else "Unavailable"
             self.finished_signal.emit({
                 "url": self.url,
                 "filename": filename,
