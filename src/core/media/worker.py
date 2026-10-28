@@ -670,7 +670,7 @@ class YtDlpDownloadWorker(QThread):
                 if is_debug:
                     logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
                 self._media_status = "Preparing"
-                self.main_progress_signal.emit(self.row_index, (self.filename, "--", "Preparing", "--", "--", 0, 0))
+                self.main_progress_signal.emit(self.row_index, (self.filename, "Fetching", "Preparing", "--", "--", 0, 0))
                 self.init_segments_signal.emit(self.max_connections)
                 self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Preparing")
 
@@ -910,7 +910,7 @@ class YtDlpDownloadWorker(QThread):
                                         else:
                                             eta_str = f"{m}:{s:02d}"
 
-                            size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "--"
+                            size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Unknown"
 
                             # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
                             if total_bytes > 0:
