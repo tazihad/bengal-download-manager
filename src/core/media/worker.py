@@ -701,6 +701,7 @@ class YtDlpDownloadWorker(QThread):
                 current_dest_file = ""
                 speed_bps = 0.0
                 ema_speed_bps = 0.0
+                ema_eta_seconds = 0.0
                 eta_str = "--"
                 is_media_stream = True
                 last_seg_update = 0.0
@@ -881,7 +882,33 @@ class YtDlpDownloadWorker(QThread):
 
                             eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
                             if eta_match:
-                                eta_str = eta_match.group(1)
+                                raw_eta_str = eta_match.group(1)
+                                # Parse ETA to seconds and smooth with EMA to avoid wild jumps
+                                eta_seconds = 0.0
+                                try:
+                                    parts = raw_eta_str.split(":")
+                                    if len(parts) == 3:
+                                        eta_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                                    elif len(parts) == 2:
+                                        eta_seconds = int(parts[0]) * 60 + int(parts[1])
+                                    elif raw_eta_str.isdigit():
+                                        eta_seconds = int(raw_eta_str)
+                                except ValueError:
+                                    eta_seconds = 0.0
+                                if eta_seconds > 0:
+                                    ETA_EMA_ALPHA = 0.25
+                                    if ema_eta_seconds <= 0:
+                                        ema_eta_seconds = eta_seconds
+                                    else:
+                                        ema_eta_seconds = ETA_EMA_ALPHA * eta_seconds + (1.0 - ETA_EMA_ALPHA) * ema_eta_seconds
+                                    if ema_eta_seconds > 0:
+                                        h = int(ema_eta_seconds // 3600)
+                                        m = int((ema_eta_seconds % 3600) // 60)
+                                        s = int(ema_eta_seconds % 60)
+                                        if h > 0:
+                                            eta_str = f"{h}:{m:02d}:{s:02d}"
+                                        else:
+                                            eta_str = f"{m}:{s:02d}"
 
                             size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "--"
 
