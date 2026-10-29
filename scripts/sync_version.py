@@ -40,7 +40,11 @@ try:
     )
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from scripts.generate_appstream_notes import format_appstream_xml, generate_notes_from_git
+    from scripts.generate_appstream_notes import (
+        format_appstream_xml,
+        generate_notes_from_git,
+        get_tag_date_utc,
+    )
 
 
 def read_root_version() -> str:
