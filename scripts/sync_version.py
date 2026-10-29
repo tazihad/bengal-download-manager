@@ -33,7 +33,11 @@ VERSION_PY_FILE = os.path.join(ROOT_DIR, "src", "core", "version.py")
 
 # Import AppStream release notes generator helper
 try:
-    from scripts.generate_appstream_notes import format_appstream_xml, generate_notes_from_git
+    from scripts.generate_appstream_notes import (
+        format_appstream_xml,
+        generate_notes_from_git,
+        get_tag_date_utc,
+    )
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from scripts.generate_appstream_notes import format_appstream_xml, generate_notes_from_git
@@ -163,8 +167,8 @@ def _normalize_release_indent(release_block: str) -> str:
 def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     if not os.path.exists(METAINFO_FILE):
         return
-    today = datetime.date.today().isoformat()
     clean_ver = ver.split("-")[0] if "-" in ver else ver
+    release_date = get_tag_date_utc(clean_ver) or datetime.date.today().isoformat()
 
     with open(METAINFO_FILE, "r", encoding="utf-8") as f:
         content = f.read()
@@ -194,7 +198,7 @@ def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     else:
         # Generate release notes list (app src changes only for AppStream in-app notes)
         notes = custom_notes or generate_notes_from_git(clean_ver, app_src_only=True)
-        release_block = format_appstream_xml(clean_ver, today, notes, indent="    ")
+        release_block = format_appstream_xml(clean_ver, release_date, notes, indent="    ")
 
     if releases_match:
         # Keep the full release history instead of silently pruning it.
@@ -313,6 +317,20 @@ def check_consistency() -> bool:
             if not m or m.group(1) != clean_root:
                 found = m.group(1) if m else "None"
                 errors.append(f"metainfo.xml version ({found}) != base VERSION ({clean_root})")
+
+        # 2b. Metainfo release date for the canonical version: non-null and valid YYYY-MM-DD.
+        with open(METAINFO_FILE, "r", encoding="utf-8") as f:
+            content = f.read()
+        m = re.search(r'<release\s+version="' + re.escape(clean_root) + r'"\s+date="([^"]*)"', content)
+        if not m or not m.group(1):
+            errors.append(f"metainfo.xml release {clean_root} has a null/empty date")
+        else:
+            try:
+                datetime.date.fromisoformat(m.group(1))
+            except ValueError:
+                errors.append(
+                    f"metainfo.xml release {clean_root} has an invalid date '{m.group(1)}' (expected YYYY-MM-DD)"
+                )
 
     # 3. pyproject.toml check
     if os.path.exists(PYPROJECT_FILE):
