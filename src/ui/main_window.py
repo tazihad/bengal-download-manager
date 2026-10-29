@@ -817,6 +817,17 @@ class MainWindow(QMainWindow):
         self.action_bug_report.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/issues")))
         help_menu.addAction(self.action_bug_report)
 
+        # Browser Extension submenu (Firefox & Chromium-based browsers)
+        ext_menu = help_menu.addMenu(self.tr("&Browser Extension"))
+
+        ext_firefox = QAction(self.tr("&Firefox Add-ons Store"), self)
+        ext_firefox.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
+        ext_menu.addAction(ext_firefox)
+
+        ext_chromium = QAction(self.tr("&Chromium / Chrome (GitHub Releases)"), self)
+        ext_chromium.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
+        ext_menu.addAction(ext_chromium)
+
         help_menu.addSeparator()
 
         about_action = QAction(self.tr("&About Bengal DM"), self)
