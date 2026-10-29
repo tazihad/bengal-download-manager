@@ -7616,7 +7616,7 @@ class MainWindow(QMainWindow):
             dialog.accepted.connect(lambda: self._handle_media_download_dialog_accepted(
                 dialog, file_info, item_name, format_spec, is_audio_only, cookies_browser, cookies_file, referrer, user_agent, cookies
             ))
-            dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_name))
+            dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(None, dialog_id))
 
             dialog.show()
             dialog.raise_()
