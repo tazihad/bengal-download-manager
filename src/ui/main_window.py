@@ -7598,7 +7598,7 @@ class MainWindow(QMainWindow):
 
             self.download_table.setItem(row, 0, item_name)
             self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
-            self._set_status_text(row, "Paused")
+            self._set_status_text(row, "Pending")
             self._set_sortable_item(row, 3, "", parse_time_to_sec)
             self._set_sortable_item(row, 4, "", parse_size_to_bytes)
             self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
