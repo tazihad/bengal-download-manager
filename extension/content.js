@@ -2575,65 +2575,44 @@
     listEl.innerHTML = '';
 
     if (downloadMethod === 'direct') {
-      // Fetch direct formats from listForFrame IPC (same source as the removed floating menu)
-      chrome.runtime.sendMessage({ action: 'listForFrame' }, (res) => {
-        const candidates = (res && res.items) || [];
-        const youtube = /(^|\.)youtube\.com$/.test(location.hostname);
-        const videoUrl = (() => {
-          try {
-            const u = new URL(activeVideo.currentSrc || activeVideo.src || activeVideo.querySelector('source')?.src, location.href);
-            return /^https?:$/.test(u.protocol) ? u.href : null;
-          } catch { return null; }
-        })();
-        if (!youtube && videoUrl && !candidates.some(item => item.url === videoUrl)) {
-          candidates.unshift({url: videoUrl, title: document.title, quality: 'Alternate', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
-        }
+      const tiers = getDirectTiers();
 
-        if (candidates.length === 0) {
-          const notice = document.createElement('div');
-          notice.className = 'bdm-notice';
-          notice.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No Alternate media links detected. Play the video and try again.';
-          listEl.appendChild(notice);
-          return;
-        }
+      if (tiers.length === 0) {
+        const notice = document.createElement('div');
+        notice.className = 'bdm-notice';
+        notice.textContent = 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.';
+        listEl.appendChild(notice);
+        return;
+      }
 
-        candidates.forEach((item) => {
-          const row = document.createElement('div');
-          row.className = 'bdm-item';
+      tiers.forEach((tier) => {
+        const row = document.createElement('div');
+        row.className = 'bdm-item';
 
-          const left = document.createElement('div');
-          left.className = 'bdm-item-left';
-          const badge = document.createElement('span');
-          badge.className = `bdm-res-badge`.trim();
-          badge.textContent = item.quality || 'Alternate';
-          const label = document.createElement('span');
-          label.className = 'bdm-res-label';
-          label.textContent = item.quality || 'Alternate';
-          left.append(badge, label);
+        const left = document.createElement('div');
+        left.className = 'bdm-item-left';
+        const badge = document.createElement('span');
+        badge.className = `bdm-res-badge ${tier.cls || ''}`.trim();
+        badge.textContent = tier.badge || '';
+        const label = document.createElement('span');
+        label.className = 'bdm-res-label';
+        label.textContent = tier.label || '';
+        left.append(badge, label);
 
-          const right = document.createElement('div');
-          right.className = 'bdm-item-right';
-          const size = document.createElement('span');
-          size.className = 'bdm-res-size';
-          size.textContent = '';
-          right.append(size, createDownloadIcon());
+        const right = document.createElement('div');
+        right.className = 'bdm-item-right';
+        const size = document.createElement('span');
+        size.className = 'bdm-res-size';
+        size.textContent = tier.size || '';
+        right.append(size, createDownloadIcon());
 
-          row.append(left, right);
-          row.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Route through action: 'download' → /resolve-direct → start_direct_download → DirectMuxWorker (audio+video mux)
-            chrome.runtime.sendMessage({
-              action: 'download',
-              item: { ...item, startNow: false },
-              tabId: undefined
-            }, (resp) => {
-              // Fire-and-forget; response handled silently
-            });
-            closeDropdown();
-          });
-
-          listEl.appendChild(row);
+        row.append(left, right);
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          triggerDownload(tier);
         });
+
+        listEl.appendChild(row);
       });
       return;
     }
