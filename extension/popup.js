@@ -308,20 +308,7 @@ document.getElementById('site-toggle-row').addEventListener('click', (e) => {
   }
 });
 
-// Download method selector (preselected from Options > Media tab)
-function updateMethodUI(method) {
-  const value = method === 'direct' ? 'direct' : 'standard';
-  document.querySelectorAll('input[name="download-method"]').forEach((radio) => {
-    radio.checked = radio.value === value;
-  });
-}
-
-document.querySelectorAll('input[name="download-method"]').forEach((radio) => {
-  radio.addEventListener('change', (e) => {
-    if (!e.target.checked) return;
-    chrome.storage.local.set({ downloadMethod: e.target.value });
-  });
-});
+// Download method selector moved to extension settings > Media tab
 
 chrome.storage.local.get({
   theme: "system",
@@ -331,11 +318,9 @@ chrome.storage.local.get({
   bdmVersion: "",
   enableInterception: true,
   blacklistUrls: [],
-  downloadMethod: "standard"
 }, async (items) => {
   applyTheme(items.theme || "system");
   updateGlobalToggleUI(items.enableInterception !== false);
-  updateMethodUI(items.downloadMethod);
 
   // Detect active tab domain
   try {
