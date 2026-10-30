@@ -35,6 +35,8 @@
   let enableInterception = true;
   let blacklistUrls = [];
   let videoPanelPosition = 'top-right';
+  let downloadMethod = 'standard';
+  let directFormats = { videoId: '', formats: [] };
 
   const POPULAR_MEDIA_HOSTS = [
     'youtube.com', 'youtu.be',
@@ -346,11 +348,13 @@
   // 1. Inject inject.js into main world to access YouTube/HTML5 player APIs
   try {
     if (chrome.runtime && chrome.runtime.getURL) {
-      const script = document.createElement('script');
-      script.src = chrome.runtime.getURL('inject.js');
-      script.async = true;
-      (document.head || document.documentElement).appendChild(script);
-      script.onload = () => script.remove();
+      ['inject.js', 'direct-inject.js'].forEach((file) => {
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL(file);
+        script.async = true;
+        (document.head || document.documentElement).appendChild(script);
+        script.onload = () => script.remove();
+      });
     }
   } catch (e) {}
 
@@ -361,6 +365,15 @@
       platformMediaInfo = event.data.data;
       ytMediaInfo = event.data.data;
       if (activeVideo && isDropdownOpen) {
+        populateDropdown();
+      }
+    }
+    if (event.data.type === '__BDM_DIRECT_FORMATS__') {
+      directFormats = {
+        videoId: event.data.videoId || '',
+        formats: Array.isArray(event.data.formats) ? event.data.formats : []
+      };
+      if (activeVideo && isDropdownOpen && downloadMethod === 'direct') {
         populateDropdown();
       }
     }
@@ -440,13 +453,15 @@
       enableInterception: true,
       enableMediaSniffing: true,
       videoPanelPosition: 'top-right',
-      blacklistUrls: []
+      blacklistUrls: [],
+      downloadMethod: 'standard'
     }, (items) => {
       if (!isExtensionValid() || chrome.runtime.lastError) return;
       enableInterception = items.enableInterception !== false;
       enableMediaSniffing = items.enableMediaSniffing !== false;
       blacklistUrls = Array.isArray(items.blacklistUrls) ? items.blacklistUrls : [];
       if (items.videoPanelPosition) videoPanelPosition = items.videoPanelPosition;
+      downloadMethod = items.downloadMethod === 'direct' ? 'direct' : 'standard';
       if (!enableMediaSniffing || !isAppConnected || isSiteBlacklisted()) {
         hideWidget('init_disabled_or_blacklisted');
       }
@@ -511,6 +526,13 @@
           if (changes.videoPanelPosition !== undefined) {
             videoPanelPosition = changes.videoPanelPosition.newValue || 'top-right';
             updateWidgetPosition();
+          }
+          if (changes.downloadMethod !== undefined) {
+            downloadMethod = changes.downloadMethod.newValue === 'direct' ? 'direct' : 'standard';
+            updateMethodToggleUI();
+            if (activeVideo && isDropdownOpen) {
+              populateDropdown();
+            }
           }
 
           if (shouldCheckVisibility) {
@@ -1033,6 +1055,50 @@
       color: #34d399;
       font-weight: 500;
     }
+
+    /* Download method toggle */
+    .bdm-method-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 12px;
+      background: #0d1013;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .bdm-method-toggle {
+      display: flex;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .bdm-method-btn {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: #9ca3af;
+      font: inherit;
+      font-weight: 600;
+      padding: 3px 9px;
+      cursor: pointer;
+    }
+
+    .bdm-method-btn.active {
+      background: rgba(96, 165, 250, 0.18);
+      color: #93c5fd;
+    }
+
+    .bdm-notice {
+      padding: 14px 12px;
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: #9ca3af;
+      text-align: center;
+    }
   `;
   shadow.appendChild(style);
 
@@ -1065,6 +1131,13 @@
         </div>
       </div>
       <div class="bdm-list" id="bdmList"></div>
+      <div class="bdm-method-bar">
+        <span>Method</span>
+        <div class="bdm-method-toggle" id="bdmMethodToggle">
+          <button type="button" class="bdm-method-btn active" data-method="standard">Standard</button>
+          <button type="button" class="bdm-method-btn" data-method="direct">Direct</button>
+        </div>
+      </div>
       <div class="bdm-footer" id="bdmFooter">
         <span id="bdmFooterText">Bengal Download Manager</span>
       </div>
@@ -1081,6 +1154,28 @@
   const listEl = shadow.getElementById('bdmList');
   const footerEl = shadow.getElementById('bdmFooter');
   const footerTextEl = shadow.getElementById('bdmFooterText');
+  const methodToggleEl = shadow.getElementById('bdmMethodToggle');
+
+  function updateMethodToggleUI() {
+    if (!methodToggleEl) return;
+    methodToggleEl.querySelectorAll('.bdm-method-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.method === downloadMethod);
+    });
+  }
+
+  methodToggleEl.addEventListener('click', (event) => {
+    const btn = event.target.closest('.bdm-method-btn');
+    if (!btn) return;
+    event.stopPropagation();
+    const method = btn.dataset.method === 'direct' ? 'direct' : 'standard';
+    if (method === downloadMethod) return;
+    downloadMethod = method;
+    updateMethodToggleUI();
+    chrome.storage.local.set({ downloadMethod: method });
+    if (activeVideo && isDropdownOpen) {
+      populateDropdown();
+    }
+  });
 
   // 5. Inactivity & Idle Transparency Management
   let isHovered = false;
@@ -2320,6 +2415,142 @@
     return filtered;
   }
 
+  function extFromMime(mimeType) {
+    const mime = String(mimeType || '').toLowerCase();
+    if (mime.startsWith('audio/mp4') || mime.startsWith('audio/m4a') || mime.startsWith('audio/aac')) return '.m4a';
+    if (mime.startsWith('audio/mpeg')) return '.mp3';
+    if (mime.startsWith('audio/webm') || mime.startsWith('video/webm')) return '.webm';
+    if (mime.startsWith('video/quicktime')) return '.mov';
+    if (mime.startsWith('video/x-flv')) return '.flv';
+    return '.mp4';
+  }
+
+  function extFromUrl(u) {
+    try {
+      const match = new URL(u).pathname.toLowerCase().match(/\.([a-z0-9]{2,4})$/);
+      const ext = match ? match[1] : '';
+      if (['mp4', 'm4v', 'webm', 'mkv', 'mov', 'm4a', 'mp3', 'flv'].includes(ext)) return `.${ext}`;
+    } catch (e) {}
+    return '.mp4';
+  }
+
+  // A URL is only safe for Direct when it points at a complete progressive file.
+  // Range requests, DASH/HLS segments and SABR URLs would download a few KB instead.
+  const SEGMENT_PARAM_RE = /[?&](range|rn|rbuf|sq|sabr|bytestart|byteend)=/i;
+
+  function isProgressiveMediaUrl(u) {
+    if (!u || !/^https?:\/\//i.test(u)) return false;
+    if (/\.(m3u8|mpd|m4s|ts|m2ts)(\?|$)/i.test(u)) return false;
+    if (SEGMENT_PARAM_RE.test(u)) return false;
+    if (/\/sq\//i.test(u)) return false;
+    return true;
+  }
+
+  function pickFallbackDirectUrl() {
+    if (activeVideo && activeVideo.tagName !== 'IFRAME') {
+      for (const candidate of [activeVideo.currentSrc, activeVideo.src]) {
+        if (isProgressiveMediaUrl(candidate)) return candidate;
+      }
+    }
+    if (activeIframeData && isProgressiveMediaUrl(activeIframeData.streamUrl)) {
+      return activeIframeData.streamUrl;
+    }
+    for (const stream of (sniffedMediaStreams || []).slice().reverse()) {
+      if (!stream || !isProgressiveMediaUrl(stream.url)) continue;
+      const type = String(stream.contentType || '').toLowerCase();
+      const isProgressiveType = /^(video\/(mp4|webm|quicktime|x-matroska|x-flv)|audio\/(mp4|mpeg|webm|ogg))/.test(type);
+      const hasMediaExt = /\.(mp4|m4v|webm|mkv|mov|m4a|mp3|flv|aac|ogg)(\?|$)/i.test(stream.url);
+      if (isProgressiveType || hasMediaExt) return stream.url;
+    }
+    return '';
+  }
+
+  function getDirectTiers() {
+    const info = directFormats || { videoId: '', formats: [] };
+    const currentId = (ytMediaInfo && ytMediaInfo.videoId) || '';
+    const matchesCurrent = !currentId || !info.videoId || currentId === info.videoId;
+
+    const formats = matchesCurrent && Array.isArray(info.formats) ? info.formats : [];
+    const tiers = [];
+    const seen = new Set();
+
+    formats.forEach((format) => {
+      if (!isProgressiveMediaUrl(format.url)) return;
+      const ext = extFromMime(format.mimeType);
+      const sizeBytes = Number(format.contentLength) || 0;
+      const size = sizeBytes > 0 ? formatFileSize(sizeBytes, false) : '';
+
+      if (format.isAudioOnly) {
+        tiers.push({
+          quality: 'Audio Only',
+          badge: 'AUDIO',
+          label: 'Audio Only',
+          height: 0,
+          bitrate: 0,
+          cls: 'audio',
+          isAudio: true,
+          isMuxed: false,
+          streamUrl: format.url,
+          ext: ext,
+          sizeBytes: sizeBytes,
+          size: size
+        });
+        return;
+      }
+
+      const height = Number(format.height) || parseInt(String(format.qualityLabel || ''), 10) || 0;
+      const key = height ? String(height) : String(format.itag || format.url);
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const label = format.qualityLabel || (height ? `${height}p` : 'MP4');
+      tiers.push({
+        quality: label,
+        badge: height ? `${height}p` : 'MP4',
+        label: label,
+        height: height,
+        bitrate: 0,
+        cls: height >= 720 ? 'hd' : '',
+        isMuxed: true,
+        streamUrl: format.url,
+        ext: ext,
+        sizeBytes: sizeBytes,
+        size: size
+      });
+    });
+
+    // Generic sites: the <video> element (or a sniffed media stream) already points at a
+    // muxed mp4/webm file, so it can be downloaded as-is. Manifests stay out of Direct.
+    // Media platforms (YouTube etc.) never use this fallback: their sniffed URLs are
+    // DASH/HLS segments, not whole files.
+    if (tiers.length === 0 && !isPopularMediaHost(window.location.hostname)) {
+      const fallbackUrl = pickFallbackDirectUrl();
+      if (fallbackUrl) {
+        const ext = extFromUrl(fallbackUrl);
+        const sizeBytes = findMatchingFileSizeBytes(fallbackUrl, activeVideo) || 0;
+        const vh = (activeIframeData && activeIframeData.videoHeight) || (activeVideo && activeVideo.videoHeight) || 0;
+        tiers.push({
+          quality: vh ? `${vh}p` : 'Direct',
+          badge: vh ? `${vh}p` : 'Direct',
+          label: vh ? `${vh}p (Media Stream)` : 'Media Stream',
+          height: vh,
+          bitrate: 0,
+          cls: vh >= 720 ? 'hd' : '',
+          isAudio: /^\.(m4a|mp3)$/i.test(ext),
+          isMuxed: true,
+          streamUrl: fallbackUrl,
+          ext: ext,
+          sizeBytes: sizeBytes,
+          size: sizeBytes > 0 ? formatFileSize(sizeBytes, false) : ''
+        });
+      }
+    }
+
+    const videos = tiers.filter(t => !t.isAudio).sort((a, b) => b.height - a.height);
+    const audios = tiers.filter(t => t.isAudio);
+    return videos.concat(audios);
+  }
+
   // 10. Render Dropdown Contents
   function populateDropdown() {
     if (!activeVideo) return;
@@ -2335,27 +2566,46 @@
     const durStr = formatDuration(dur);
     durationEl.textContent = durStr ? `Duration: ${durStr}` : 'Streaming';
 
+    updateMethodToggleUI();
+
+    if (downloadMethod === 'direct') {
+      window.postMessage({ type: '__BDM_GET_DIRECT_FORMATS__' }, '*');
+    }
+
     listEl.innerHTML = '';
-    const resolutions = getSupportedResolutions(activeVideo);
+    const resolutions = downloadMethod === 'direct'
+      ? getDirectTiers()
+      : getSupportedResolutions(activeVideo);
+
+    if (downloadMethod === 'direct' && resolutions.length === 0) {
+      const notice = document.createElement('div');
+      notice.className = 'bdm-notice';
+      notice.textContent = 'Direct unavailable on this video. Switch to Standard.';
+      listEl.appendChild(notice);
+    }
 
     resolutions.forEach((tier) => {
       const row = document.createElement('div');
       row.className = 'bdm-item';
-      row.innerHTML = `
-        <div class="bdm-item-left">
-          <span class="bdm-res-badge ${tier.cls}">${tier.badge}</span>
-          <span class="bdm-res-label">${tier.label}</span>
-        </div>
-        <div class="bdm-item-right">
-          <span class="bdm-res-size">${tier.size}</span>
-          <svg class="bdm-dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </div>
-      `;
 
+      const left = document.createElement('div');
+      left.className = 'bdm-item-left';
+      const badge = document.createElement('span');
+      badge.className = `bdm-res-badge ${tier.cls || ''}`.trim();
+      badge.textContent = tier.badge || '';
+      const label = document.createElement('span');
+      label.className = 'bdm-res-label';
+      label.textContent = tier.label || '';
+      left.append(badge, label);
+
+      const right = document.createElement('div');
+      right.className = 'bdm-item-right';
+      const size = document.createElement('span');
+      size.className = 'bdm-res-size';
+      size.textContent = tier.size || '';
+      right.append(size, createDownloadIcon());
+
+      row.append(left, right);
       row.addEventListener('click', (e) => {
         e.stopPropagation();
         triggerDownload(tier);
@@ -2365,42 +2615,77 @@
     });
   }
 
+  function createDownloadIcon() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'bdm-dl-icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4');
+    const polyline = document.createElementNS(ns, 'polyline');
+    polyline.setAttribute('points', '7 10 12 15 17 10');
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', '12');
+    line.setAttribute('y1', '15');
+    line.setAttribute('x2', '12');
+    line.setAttribute('y2', '3');
+    svg.append(path, polyline, line);
+    return svg;
+  }
+
   // 11. Trigger Download via Bengal DM
   function triggerDownload(tier) {
     if (!activeVideo) return;
     const rawTitle = getVideoTitle(activeVideo);
     const title = isGenericTitle(rawTitle) ? "" : rawTitle;
+    const usingDirect = downloadMethod === 'direct';
     let targetUrl = "";
 
-    const mediaPageUrl = getMediaPageUrl(activeVideo);
-    if (mediaPageUrl) {
-      targetUrl = mediaPageUrl;
-    } else {
-      // 1. Direct stream URL attached to tier (e.g. master m3u8)
-      if (tier.streamUrl && (tier.streamUrl.startsWith('http://') || tier.streamUrl.startsWith('https://'))) {
+    if (usingDirect) {
+      // Direct never sends a page URL: the desktop would have to run yt-dlp to extract it.
+      if (tier.streamUrl && /^https?:\/\//i.test(tier.streamUrl)) {
         targetUrl = tier.streamUrl;
-      } else if (sniffedMediaStreams.length > 0) {
-        // 2. Sniffed m3u8 or media stream from background (prefer master playlist)
-        const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
-        const m3u8 = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
-        const direct = sniffedMediaStreams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url));
-        targetUrl = m3u8 ? m3u8.url : (direct ? direct.url : sniffedMediaStreams[0].url);
-      } else if (activeIframeData && activeIframeData.currentSrc && (activeIframeData.currentSrc.startsWith('http://') || activeIframeData.currentSrc.startsWith('https://'))) {
-        targetUrl = activeIframeData.currentSrc;
-      } else if (activeIframeData && activeIframeData.streamUrl && (activeIframeData.streamUrl.startsWith('http://') || activeIframeData.streamUrl.startsWith('https://'))) {
-        targetUrl = activeIframeData.streamUrl;
-      } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && (activeVideo.currentSrc.startsWith('http://') || activeVideo.currentSrc.startsWith('https://'))) {
-        targetUrl = activeVideo.currentSrc;
-      } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && (activeVideo.src.startsWith('http://') || activeVideo.src.startsWith('https://'))) {
-        targetUrl = activeVideo.src;
-      } else if (cachedTabInfo && cachedTabInfo.url && isCanonicalMediaPage(cachedTabInfo.url)) {
-        targetUrl = cachedTabInfo.url;
-      } else if (isCanonicalMediaPage(window.location.href)) {
-        targetUrl = window.location.href;
+      } else {
+        return;
+      }
+    } else {
+      const mediaPageUrl = getMediaPageUrl(activeVideo);
+      if (mediaPageUrl) {
+        targetUrl = mediaPageUrl;
+      } else {
+        // 1. Direct stream URL attached to tier (e.g. master m3u8)
+        if (tier.streamUrl && (tier.streamUrl.startsWith('http://') || tier.streamUrl.startsWith('https://'))) {
+          targetUrl = tier.streamUrl;
+        } else if (sniffedMediaStreams.length > 0) {
+          // 2. Sniffed m3u8 or media stream from background (prefer master playlist)
+          const masterStream = sniffedMediaStreams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
+          const m3u8 = masterStream || sniffedMediaStreams.find(s => s.url.includes('.m3u8') || s.url.includes('.mpd'));
+          const direct = sniffedMediaStreams.slice().reverse().find(s => /\.(mp4|webm|vid)(\?|$)/i.test(s.url));
+          targetUrl = m3u8 ? m3u8.url : (direct ? direct.url : sniffedMediaStreams[0].url);
+        } else if (activeIframeData && activeIframeData.currentSrc && (activeIframeData.currentSrc.startsWith('http://') || activeIframeData.currentSrc.startsWith('https://'))) {
+          targetUrl = activeIframeData.currentSrc;
+        } else if (activeIframeData && activeIframeData.streamUrl && (activeIframeData.streamUrl.startsWith('http://') || activeIframeData.streamUrl.startsWith('https://'))) {
+          targetUrl = activeIframeData.streamUrl;
+        } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && (activeVideo.currentSrc.startsWith('http://') || activeVideo.currentSrc.startsWith('https://'))) {
+          targetUrl = activeVideo.currentSrc;
+        } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && (activeVideo.src.startsWith('http://') || activeVideo.src.startsWith('https://'))) {
+          targetUrl = activeVideo.src;
+        } else if (cachedTabInfo && cachedTabInfo.url && isCanonicalMediaPage(cachedTabInfo.url)) {
+          targetUrl = cachedTabInfo.url;
+        } else if (isCanonicalMediaPage(window.location.href)) {
+          targetUrl = window.location.href;
+        }
       }
     }
 
     if (!targetUrl) {
+      if (usingDirect) return;
       if (activeVideo.tagName !== 'IFRAME' && activeVideo.currentSrc && activeVideo.currentSrc.startsWith('http')) {
         targetUrl = activeVideo.currentSrc;
       } else if (activeVideo.tagName !== 'IFRAME' && activeVideo.src && activeVideo.src.startsWith('http')) {
@@ -2426,18 +2711,28 @@
       footerEl.classList.add('opening');
       footerTextEl.textContent = 'Downloading with Bengal DM.';
 
+      const directFilename = usingDirect ? `${title || 'video'}${tier.ext || '.mp4'}` : title;
+
       chrome.runtime.sendMessage({
         action: "send_to_bengal",
         url: finalTarget,
         referrer: (cachedTabInfo && cachedTabInfo.url) || window.location.href,
         isMedia: true,
+        method: usingDirect ? 'direct' : 'standard',
         title: title,
-        filename: title,
+        filename: directFilename,
         quality: tier.quality,
         sizeBytes: tier.sizeBytes || 0,
         sizeStr: tier.size || "",
         ext: tier.ext || ""
       }, (response) => {
+        if (usingDirect && response && response.success === false) {
+          footerEl.classList.remove('opening');
+          footerTextEl.textContent = response.error === 'resolve_failed'
+            ? 'Direct could not resolve this video. Try Standard.'
+            : 'Direct unavailable for this video. Switch to Standard.';
+          return;
+        }
         setTimeout(() => {
           closeDropdown();
         }, 1200);
@@ -2445,7 +2740,7 @@
     };
 
     const isPopular = isPopularMediaHost(window.location.hostname);
-    if (!isPopular && isHtmlOrEmbedUrl(targetUrl)) {
+    if (!usingDirect && !isPopular && isHtmlOrEmbedUrl(targetUrl)) {
       chrome.runtime.sendMessage({ action: "get_sniffed_media" }, (res) => {
         if (res && Array.isArray(res.streams) && res.streams.length > 0) {
           const master = res.streams.find(s => s.url.includes('master.m3u8') || s.url.includes('master.mpd'));
@@ -3014,4 +3309,201 @@
 
   window.addEventListener('scroll', updateWidgetPosition, { passive: true, capture: true });
   window.addEventListener('resize', updateWidgetPosition, { passive: true });
+
+  // =========================================================================
+  // Bengal DM - Awesome Downloader Style: Direct Download Button on Each Video
+  // =========================================================================
+  (function initDirectDownloadButtons() {
+    const directButtons = new Map(); // video -> {host, shadow, button, chooser, dismissed, mo}
+    const directUrl = (value) => { try { const u = new URL(value, location.href); return /^https?:$/.test(u.protocol) ? u.href : null; } catch { return null; } };
+
+    function createDirectButton(video) {
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;z-index:2147483647;display:none;pointer-events:auto';
+      const shadow = host.attachShadow({mode: 'open'});
+      shadow.innerHTML = `
+        <style>
+          :host{font:12px system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}
+          .bar{display:flex;align-items:stretch}
+          .download{background:linear-gradient(145deg,#242932,#15181f);color:#f9fafb;border:1px solid rgba(255,255,255,0.18);cursor:default;box-shadow:0 4px 16px rgba(0,0,0,0.55);height:27px;border-radius:6px;padding:3px 10px;font:12px system-ui}
+          .download:hover{background:linear-gradient(145deg,#2c323d,#1a1e27);border-color:rgba(255,255,255,0.32);transform:scale(1.05)}
+          .download:active{transform:scale(0.96)}
+          .dismiss{width:22px;padding:0;border-radius:0 6px 6px 0;font-size:16px;line-height:20px;background:#1e2229;color:#d1d5db;border:1px solid rgba(255,255,255,0.24)}
+          .dismiss:hover{background:#ef4444;color:#fff}
+          .chooser{position:fixed;background:#14171d;color:#f3f4f6;padding:8px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.75);width:min(410px,calc(100vw - 10px));max-height:min(330px,55vh);overflow:auto;z-index:2147483648}
+          .chooser p{margin:0 0 8px;font-size:12px;color:#9ca3af}
+          .row{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:6px;box-shadow:none;padding:8px 10px;font:12px system-ui;color:#e5e7eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+          .row:hover{background:rgba(61,174,233,0.12)}
+          .row:disabled{color:#6b7280;opacity:0.6}
+          .row:active{background:rgba(61,174,233,0.22)}
+          .row .q{font-weight:700;color:#93c5fd}
+          .row .f{color:#9ca3af;font-size:11px}
+          .row .a{color:#34d399;font-size:11px}
+        </style>
+        <div class="bar">
+          <button class="download" type="button">\u2B07 Download Video</button>
+          <button class="dismiss" type="button" title="Hide this download panel" aria-label="Hide this download panel">\u00D7</button>
+        </div>`;
+      const button = shadow.querySelector('.download');
+      const dismiss = shadow.querySelector('.dismiss');
+      const record = {video, host, shadow, dismissed: false, chooser: null, mo: null};
+      directButtons.set(video, record);
+      document.documentElement.appendChild(host);
+
+      const collectUrls = () => {
+        const urls = [video.currentSrc, video.src, ...Array.from(video.querySelectorAll('source')).map(s => s.src)].map(directUrl).filter(Boolean);
+        if (urls.length) {
+          chrome.runtime.sendMessage({
+            action: 'remember',
+            items: urls.map(url => ({url, title: document.title, mime: '', quality: '', bitrate: 0, format: '', separateAudio: false, reason: '', unsupported: false, codecs: '', masterUrl: undefined, audioUrl: undefined}))
+          }).catch(() => {});
+        }
+      };
+
+      video.addEventListener('loadedmetadata', collectUrls);
+      record.mo = new MutationObserver(collectUrls);
+      record.mo.observe(video, {attributes: true, attributeFilter: ['src'], subtree: true, childList: true});
+      collectUrls();
+
+      dismiss.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        record.dismissed = true;
+        if (record.chooser) { record.chooser.remove(); record.chooser = null; }
+        host.style.display = 'none';
+      });
+
+      button.addEventListener('click', async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (record.chooser) { record.chooser.remove(); record.chooser = null; positionDirectButtons(); return; }
+        closeAllDirectChoosers(record);
+
+        const chooser = document.createElement('div');
+        chooser.className = 'chooser';
+        record.chooser = chooser;
+        shadow.append(chooser);
+        positionDirectButtons();
+
+        const hint = document.createElement('p');
+        hint.textContent = 'Checking available video formats…';
+        chooser.append(hint);
+
+        try {
+          const result = await new Promise((resolve) => {
+            chrome.runtime.sendMessage({action: 'listForFrame'}, (res) => resolve(res || {ok: false, items: []}));
+          });
+          if (!result.ok) throw new Error(result.error || 'Could not list video formats.');
+
+          hint.textContent = 'Choose a format to download';
+          const candidates = result.items || [];
+          const youtube = /(^|\.)youtube\.com$/.test(location.hostname);
+          const videoUrl = directUrl(video.currentSrc || video.src || video.querySelector('source')?.src);
+          if (!youtube && videoUrl && !candidates.some(item => item.url === videoUrl)) {
+            candidates.unshift({url: videoUrl, title: document.title, quality: 'Direct', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
+          }
+          if (!candidates.length) {
+            hint.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No direct media links detected. Play the video and try again.';
+            return;
+          }
+
+          candidates.forEach((item, index) => {
+            const row = document.createElement('button');
+            row.className = 'row';
+            row.type = 'button';
+            row.disabled = !!item.unsupported;
+            row.title = item.reason || '';
+            const format = item.format || (/\.m3u8(?:[?#]|$)/i.test(item.url) ? 'HLS' : /\.(mp4|webm|mp3|m4a|mov)(?:[?#]|$)/i.exec(item.url)?.[1]?.toUpperCase() || 'Media');
+            const title = item.title || document.title || 'Video';
+            row.textContent = `${index + 1}. ${item.quality || format} \u00B7 ${format} \u00B7 ${item.audioState}${item.bitrate ? ' \u00B7 ' + Math.round(item.bitrate / 1000) + ' kbps' : ''} \u2014 ${title}`;
+            row.onclick = async (ev) => {
+              ev.preventDefault(); ev.stopPropagation();
+              row.disabled = true;
+              hint.textContent = 'Sending to Bengal DM…';
+              try {
+                const response = await new Promise((resolve) => {
+                  chrome.runtime.sendMessage({
+                    action: 'download',
+                    item: {...item, startNow: false},
+                    tabId: undefined
+                  }, (res) => resolve(res || {ok: false, error: 'No response'}));
+                });
+                hint.textContent = response.ok ? 'Download opened in Bengal DM.' : (response.error || 'Failed');
+              } catch (error) {
+                hint.textContent = error.message || 'Failed';
+              }
+              row.disabled = !!item.unsupported;
+            };
+            chooser.append(row);
+          });
+          positionDirectButtons();
+        } catch (error) {
+          hint.textContent = error.message;
+        }
+      });
+    }
+
+    function positionDirectButtons() {
+      if (document.hidden) return;
+      for (const [video, record] of directButtons) {
+        if (!video.isConnected) {
+          record.mo?.disconnect();
+          record.host.remove();
+          directButtons.delete(video);
+          continue;
+        }
+        if (record.dismissed) continue;
+        const rect = video.getBoundingClientRect();
+        const visible = rect.width > 100 && rect.height > 60 && rect.top >= 0 && rect.top < innerHeight - 30 && rect.right > 0 && rect.left < innerWidth;
+        record.host.style.display = visible ? 'block' : 'none';
+        if (!visible) continue;
+
+        const width = record.host.offsetWidth || 180;
+        const height = record.host.offsetHeight || 27;
+        const above = rect.top >= height + 6;
+        record.host.style.top = `${Math.max(5, Math.min(innerHeight - height - 5, above ? rect.top - height - 4 : rect.top + 4))}px`;
+        record.host.style.left = `${Math.max(5, Math.min(innerWidth - width - 5, rect.right - width - 8))}px`;
+
+        const chooser = record.chooser;
+        if (chooser) {
+          const chooserWidth = Math.min(410, innerWidth - 10);
+          const chooserHeight = Math.min(chooser.scrollHeight || 330, Math.min(330, innerHeight * 0.55));
+          const hostRect = record.host.getBoundingClientRect();
+          chooser.style.left = `${Math.max(5, Math.min(innerWidth - chooserWidth - 5, hostRect.right - chooserWidth))}px`;
+          const below = hostRect.bottom + 4;
+          const aboveMenu = hostRect.top - chooserHeight - 4;
+          chooser.style.top = `${below + chooserHeight <= innerHeight - 5 ? below : Math.max(5, aboveMenu)}px`;
+        }
+      }
+    }
+
+    function closeAllDirectChoosers(except) {
+      for (const [, record] of directButtons) {
+        if (record === except) continue;
+        if (record.chooser) { record.chooser.remove(); record.chooser = null; }
+      }
+    }
+
+    function scanDirectVideos() {
+      for (const video of document.querySelectorAll('video')) {
+        if (!directButtons.has(video)) {
+          createDirectButton(video);
+        }
+      }
+      positionDirectButtons();
+    }
+
+    const directMutationObserver = new MutationObserver(scanDirectVideos);
+    directMutationObserver.observe(document.documentElement, {subtree: true, childList: true});
+    setInterval(scanDirectVideos, 3000);
+    scanDirectVideos();
+
+    document.addEventListener('pointerdown', (e) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      const inside = [...directButtons.values()].some(record => path.includes(record.host));
+      if (!inside) closeAllDirectChoosers();
+    }, {capture: true});
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAllDirectChoosers();
+    }, {capture: true});
+  })();
 })();

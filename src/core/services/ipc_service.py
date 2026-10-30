@@ -151,6 +151,46 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"status": "batch_received"}')
                 return
 
+        # Resolve one muxed stream URL for Direct downloads. yt-dlp only locates the URL;
+        # the transfer itself is dispatched to Aria2, so nothing is muxed with FFmpeg.
+        if clean_path == "/resolve-direct":
+            page_url = payload.get("url", "") if isinstance(payload, dict) else ""
+            if not page_url or not str(page_url).lower().startswith(("http://", "https://")):
+                status = 400
+                body_out = json.dumps({"success": False, "error": "Missing or invalid URL"})
+            else:
+                status = 200
+                try:
+                    from core.media.direct import resolve_single_file_url
+
+                    resolved = resolve_single_file_url(
+                        page_url=str(page_url),
+                        cookies=str(payload.get("cookies", "") or ""),
+                        user_agent=str(payload.get("userAgent", "") or ""),
+                        referrer=str(payload.get("referrer", "") or ""),
+                        video_itag=str(payload.get("videoItag", "") or "") or None,
+                        audio_itag=str(payload.get("audioItag", "") or "") or None,
+                    )
+                    body_out = json.dumps({
+                        "success": bool(resolved),
+                        "resolvedUrl": (resolved or {}).get("url", ""),
+                        "ext": (resolved or {}).get("ext", ""),
+                        "sizeBytes": (resolved or {}).get("sizeBytes", 0),
+                    })
+                    if is_debug_mode():
+                        logger.debug("[IPC] Direct URL resolution for %s -> %s", str(page_url)[:120], body_out[:240])
+                except Exception as e:
+                    if is_debug_mode():
+                        logger.warning("[IPC] Direct URL resolution failed: %s", e)
+                    body_out = json.dumps({"success": False, "error": str(e)})
+
+            self.send_response(status)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(body_out.encode('utf-8'))
+            return
+
         # Check for media sizes / probe requests (used exclusively by browser extension media popup)
         if clean_path in ("/media-sizes", "/probe-media", "/media-info"):
             url = payload.get("url", "") if isinstance(payload, dict) else ""
@@ -212,6 +252,10 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         quality = ""
         size_bytes = 0
         size_str = ""
+        method = ""
+        filename = ""
+        ext = ""
+        page_extract = False
         
         if isinstance(payload, dict) and payload:
             url = payload.get("url", "")
@@ -223,6 +267,10 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             quality = str(payload.get("quality", "")).strip()
             size_bytes = int(payload.get("sizeBytes", 0) or 0)
             size_str = str(payload.get("sizeStr", "") or "").strip()
+            method = str(payload.get("method", "") or "").strip()
+            filename = str(payload.get("filename", "") or "").strip()
+            ext = str(payload.get("ext", "") or "").strip()
+            page_extract = bool(payload.get("pageExtract", False))
             if is_debug_mode():
                 logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s",
                              url, title, quality, is_media, size_str or size_bytes)
@@ -242,6 +290,10 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 "title": title,
                 "sizeBytes": size_bytes,
                 "sizeStr": size_str,
+                "method": method,
+                "filename": filename,
+                "ext": ext,
+                "pageExtract": page_extract,
             }
             raw_msg = json.dumps(payload_data)
             if is_debug_mode():
