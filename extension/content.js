@@ -1130,7 +1130,6 @@
           <span id="bdmDuration">00:00</span>
         </div>
       </div>
-      <div class="bdm-list" id="bdmList"></div>
       <div class="bdm-method-bar">
         <span>Media download</span>
         <div class="bdm-method-toggle" id="bdmMethodToggle">
@@ -1138,6 +1137,7 @@
           <button type="button" class="bdm-method-btn" data-method="direct" title="Downloads the video stream directly from the page">Alternate</button>
         </div>
       </div>
+      <div class="bdm-list" id="bdmList"></div>
       <div class="bdm-footer" id="bdmFooter">
         <span id="bdmFooterText">Bengal Download Manager</span>
       </div>
@@ -2608,7 +2608,7 @@
           badge.textContent = item.quality || 'Alternate';
           const label = document.createElement('span');
           label.className = 'bdm-res-label';
-          label.textContent = item.title || document.title || 'Video';
+          label.textContent = item.quality || 'Alternate';
           left.append(badge, label);
 
           const right = document.createElement('div');
