@@ -2237,23 +2237,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         let finalUrl = url;
         let audioUrl = "";
         if (needsAudioMerge) {
-          // Resolve the chosen quality's video + audio track pair. yt-dlp locates the signed
-          // stream URLs; Aria2 transfers both and the desktop muxes them with FFmpeg, so the
-          // saved file always carries audio (never a silent video-only download).
-          const selection = item.sabrSelection || {};
-          const resolved = await resolveDirectStreamUrl(
-            pageUrl,
-            '',
-            navigator.userAgent,
-            pageUrl,
-            selection
-          );
-          if (!resolved || !resolved.videoUrl) {
-            sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Default mode.'});
-            return true;
+          // If the item already carries direct stream URLs (e.g. googlevideo.com),
+          // use them directly — instant, no yt-dlp re-resolution needed.
+          const isDirectStreamUrl = url && url.startsWith('http') && !/youtube\.com\/(watch|embed|v|live|shorts)\b/i.test(url);
+          if (isDirectStreamUrl && item.audioUrl) {
+            finalUrl = url;
+            audioUrl = item.audioUrl || '';
+          } else {
+            // Fall back to yt-dlp resolution (slow path) when direct URLs are unavailable.
+            const selection = item.sabrSelection || {};
+            const resolved = await resolveDirectStreamUrl(
+              pageUrl,
+              '',
+              navigator.userAgent,
+              pageUrl,
+              selection
+            );
+            if (!resolved || !resolved.videoUrl) {
+              sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Default mode.'});
+              return true;
+            }
+            finalUrl = resolved.videoUrl;
+            audioUrl = resolved.audioUrl || '';
           }
-          finalUrl = resolved.videoUrl;
-          audioUrl = resolved.audioUrl || '';
         }
         const success = await sendToBengalDM({
           url: finalUrl,

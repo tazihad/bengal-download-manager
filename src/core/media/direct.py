@@ -475,23 +475,10 @@ def _fetch_size_bytes(url: str, user_agent: str = "", cookies: str = "", referre
     def _headers(req_headers: dict) -> int:
         try:
             req = urllib.request.Request(url, headers=req_headers, method="HEAD")
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=3) as resp:
                 cl = resp.headers.get("Content-Length") or resp.headers.get("content-length")
                 if cl:
                     return int(cl)
-        except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
-            pass
-        try:
-            req = urllib.request.Request(
-                url, headers={**req_headers, "Range": "bytes=0-0"}, method="GET"
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                cl = resp.headers.get("Content-Length") or resp.headers.get("content-length")
-                if cl:
-                    return int(cl)
-                cr = resp.headers.get("Content-Range") or resp.headers.get("content-range")
-                if cr and "/" in cr:
-                    return int(cr.rsplit("/", 1)[1])
         except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
             pass
         return 0
