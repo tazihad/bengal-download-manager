@@ -1132,10 +1132,10 @@
       </div>
       <div class="bdm-list" id="bdmList"></div>
       <div class="bdm-method-bar">
-        <span>Method</span>
+        <span>Media download</span>
         <div class="bdm-method-toggle" id="bdmMethodToggle">
-          <button type="button" class="bdm-method-btn active" data-method="standard">Standard</button>
-          <button type="button" class="bdm-method-btn" data-method="direct">Direct</button>
+          <button type="button" class="bdm-method-btn active" data-method="standard" title="Uses Bengal Download Manager's backend to fetch and prepare your video">Default</button>
+          <button type="button" class="bdm-method-btn" data-method="direct" title="Downloads the video stream directly from the page">Alternate</button>
         </div>
       </div>
       <div class="bdm-footer" id="bdmFooter">
@@ -2530,8 +2530,8 @@
         const sizeBytes = findMatchingFileSizeBytes(fallbackUrl, activeVideo) || 0;
         const vh = (activeIframeData && activeIframeData.videoHeight) || (activeVideo && activeVideo.videoHeight) || 0;
         tiers.push({
-          quality: vh ? `${vh}p` : 'Direct',
-          badge: vh ? `${vh}p` : 'Direct',
+          quality: vh ? `${vh}p` : 'Alternate',
+          badge: vh ? `${vh}p` : 'Alternate',
           label: vh ? `${vh}p (Media Stream)` : 'Media Stream',
           height: vh,
           bitrate: 0,
@@ -2580,7 +2580,7 @@
     if (downloadMethod === 'direct' && resolutions.length === 0) {
       const notice = document.createElement('div');
       notice.className = 'bdm-notice';
-      notice.textContent = 'Direct unavailable on this video. Switch to Standard.';
+      notice.textContent = 'Alternate unavailable on this video. Switch to Default.';
       listEl.appendChild(notice);
     }
 
@@ -2729,8 +2729,8 @@
         if (usingDirect && response && response.success === false) {
           footerEl.classList.remove('opening');
           footerTextEl.textContent = response.error === 'resolve_failed'
-            ? 'Direct could not resolve this video. Try Standard.'
-            : 'Direct unavailable for this video. Switch to Standard.';
+            ? 'Alternate could not resolve this video. Try Default.'
+            : 'Alternate unavailable for this video. Switch to Default.';
           return;
         }
         setTimeout(() => {
@@ -3398,10 +3398,10 @@
           const youtube = /(^|\.)youtube\.com$/.test(location.hostname);
           const videoUrl = directUrl(video.currentSrc || video.src || video.querySelector('source')?.src);
           if (!youtube && videoUrl && !candidates.some(item => item.url === videoUrl)) {
-            candidates.unshift({url: videoUrl, title: document.title, quality: 'Direct', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
+            candidates.unshift({url: videoUrl, title: document.title, quality: 'Alternate', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
           }
           if (!candidates.length) {
-            hint.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No direct media links detected. Play the video and try again.';
+            hint.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No Alternate media links detected. Play the video and try again.';
             return;
           }
 

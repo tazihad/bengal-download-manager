@@ -2222,11 +2222,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
     }
     if (!needsAudioMerge && (/\.mpd(?:[?#]|$)/i.test(url) || /\.m3u8(?:[?#]|$)/i.test(url) || /\.mpd/i.test(item.mime || ''))) {
-      sendResponse({ok: false, error: 'DASH/HLS manifests are unsupported in Direct mode. Use Standard.'});
+      sendResponse({ok: false, error: 'DASH/HLS manifests are unsupported in Alternate mode. Use Default.'});
       return true;
     }
     if (!needsAudioMerge && /\.(m4s|ts|aac)(?:[?#]|$)/i.test(url)) {
-      sendResponse({ok: false, error: 'Media fragments are unsupported in Direct mode.'});
+      sendResponse({ok: false, error: 'Media fragments are unsupported in Alternate mode.'});
       return true;
     }
 
@@ -2249,7 +2249,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             selection
           );
           if (!resolved || !resolved.videoUrl) {
-            sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Standard mode.'});
+            sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Default mode.'});
             return true;
           }
           finalUrl = resolved.videoUrl;
