@@ -4713,6 +4713,7 @@ class MainWindow(QMainWindow):
         req_method = ""
         req_filename = ""
         req_audio_url = ""
+        req_sabr = None
 
         is_json = False
         if isinstance(data, str) and data.strip().startswith("{"):
@@ -4732,6 +4733,8 @@ class MainWindow(QMainWindow):
                 req_method = str(j.get("method") or "").strip()
                 req_filename = str(j.get("filename") or "").strip()
                 req_audio_url = str(j.get("audioUrl") or "").strip()
+                raw_sabr = j.get("sabr")
+                req_sabr = raw_sabr if isinstance(raw_sabr, dict) and raw_sabr else None
                 is_json = True
             except Exception:
                 is_json = False
@@ -4739,6 +4742,7 @@ class MainWindow(QMainWindow):
                 req_method = ""
                 req_filename = ""
                 req_audio_url = ""
+                req_sabr = None
 
         if not is_json:
             parts = str(data).split("|")
@@ -4795,6 +4799,7 @@ class MainWindow(QMainWindow):
                 "sizeBytes": size_bytes,
                 "sizeStr": size_str,
                 "audioUrl": req_audio_url,
+                "sabr": req_sabr,
             })
             if not handled:
                 logger.warning("[Direct] URL is not directly downloadable: %s", url[:200])
@@ -5553,7 +5558,7 @@ class MainWindow(QMainWindow):
         # This happens BEFORE showing the dialog, so the file starts downloading immediately
         prefetch_worker = None
         prefetch_key = None
-        if prefetch_enabled and not silent and show_start:
+        if prefetch_enabled and not silent and show_start and not file_info.get("sabr_session"):
             # Start prefetch download directly (single connection, temp .bdpart file)
             # We create the worker manually to avoid adding to the table
             prefetch_worker, prefetch_key = self._start_prefetch_download(
@@ -5708,7 +5713,9 @@ class MainWindow(QMainWindow):
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
                 referer=file_info.get("referer") or file_info.get("url"),
-                supports_range=file_info.get("supports_range", True)
+                supports_range=file_info.get("supports_range", True),
+                direct_audio_url=file_info.get("direct_audio_url"),
+                sabr_session=file_info.get("sabr_session"),
             )
         elif results["action"] == 'later':
             # "Download Later" - stop prefetch worker, keep partial files for resume, add to table as Paused
@@ -5733,7 +5740,9 @@ class MainWindow(QMainWindow):
                 show_dialog=False,
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
-                referer=file_info.get("referer") or file_info.get("url")
+                referer=file_info.get("referer") or file_info.get("url"),
+                direct_audio_url=file_info.get("direct_audio_url"),
+                sabr_session=file_info.get("sabr_session")
             )
 
     def _handle_download_dialog_rejected(self, prefetch_worker, prefetch_key):
@@ -5778,7 +5787,7 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True, direct_audio_url=None):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True, direct_audio_url=None, sabr_session=None):
         if is_debug_mode():
             logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s, prefetch=%s, supports_range=%s",
                          url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name, prefetch, supports_range)
@@ -5823,6 +5832,9 @@ class MainWindow(QMainWindow):
         # Direct adaptive picks download this audio stream alongside the video URL.
         if direct_audio_url:
             item_name.setData(Qt.ItemDataRole.UserRole + 30, direct_audio_url)
+        # SABR session rows stream via the Deno helper instead of the Aria2 engine.
+        if sabr_session:
+            item_name.setData(Qt.ItemDataRole.UserRole + 31, sabr_session)
         # Mark as prefetch if applicable
         if prefetch:
             item_name.setData(Qt.ItemDataRole.UserRole + 21, True)  # Prefetch flag
@@ -5869,7 +5881,7 @@ class MainWindow(QMainWindow):
             queue_max = self._get_queue_max_concurrent(target_queue)
             active_in_queue = self._get_active_count_for_queue(target_queue)
             if active_in_queue < queue_max:
-                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range, direct_audio_url=direct_audio_url)
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range, direct_audio_url=direct_audio_url, sabr_session=sabr_session)
             else:
                 # Slot full for this queue — mark as queued; _try_start_queued will pick it up
                 self._set_status_text(row, "Queued")
@@ -6039,7 +6051,7 @@ class MainWindow(QMainWindow):
             dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
             dialog.show()
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None, direct_audio_url=None):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None, direct_audio_url=None, sabr_session=None):
         silent = getattr(self, "settings", {}).get("silent_download", False)
         pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
         pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
@@ -6160,6 +6172,51 @@ class MainWindow(QMainWindow):
             except: save_dir = get_user_downloads_dir()
 
         temp_dir = config.get("temp_dir")
+
+        if sabr_session is None:
+            sabr_session = item_ref.data(Qt.ItemDataRole.UserRole + 31)
+        if sabr_session:
+            from core.workers.sabr_stream import SabrStreamWorker
+
+            target_filename = resume_filename if resume_filename else item_ref.text()
+            worker = SabrStreamWorker(
+                sabr_session, item_ref.row(), save_dir, target_filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referrer or url,
+            )
+
+            gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+            item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            worker.generation = gen
+
+            item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
+            item_ref.setText(worker.filename)
+            item_ref.setToolTip(worker.filename)
+
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, status, ref=item_ref: self.download_finished(ref, status))
+
+            key = self._get_item_key(item_ref)
+            if should_show_progress:
+                progress_dialog = DownloadProgressDialog(worker, None)
+                progress_dialog.show()
+                progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                self.active_downloads[key] = progress_dialog
+                progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                progress_dialog.finished.connect(self._try_start_queued)
+            else:
+                self.active_downloads[key] = worker
+                worker.finished_signal.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                worker.finished_signal.connect(self._try_start_queued)
+                worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
+                if not worker.isRunning():
+                    worker.start()
+
+            self._set_status_text(item_ref.row(), "Downloading")
+            self._set_row_bold(item_ref.row(), True)
+            self.update_ui_states()
+            return
 
         if direct_audio_url is None:
             direct_audio_url = item_ref.data(Qt.ItemDataRole.UserRole + 30)

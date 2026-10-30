@@ -268,3 +268,88 @@ class TestStartDirectDownload:
 
         assert created["filename"].endswith(".m4a")
         assert stub_window.download_calls[0][1]["custom_save_dir"] == created["dir"]
+
+
+class TestSabrSessionDispatch:
+    @staticmethod
+    def _session():
+        import base64
+
+        from core.media.sabr import validate_sabr_session
+
+        return validate_sabr_session({
+            "videoId": "U-o5jaxPL-M",
+            "serverAbrStreamingUrl": (
+                "https://rr1---sn-ab5szn7l.googlevideo.com/videoplayback"
+                "?expire=2000000000&id=U-o5jaxPL-M&sabr=1"
+            ),
+            "videoPlaybackUstreamerConfig": "Ct4BEqUDAv8B",
+            "clientInfo": {"clientName": 1, "clientVersion": "2.20260101.00.00"},
+            "formats": [
+                {"itag": 299, "mimeType": "video/mp4", "contentLength": "10000000"},
+                {"itag": 140, "mimeType": "audio/mp4", "contentLength": "1000000"},
+            ],
+            "videoItag": 299,
+            "audioItag": 140,
+            "requestBody": base64.b64encode(b"\x08\x01").decode(),
+        })
+
+    def test_valid_session_dispatches_without_aria2(self, stub_window):
+        from core.media.direct import start_direct_download
+
+        session = self._session()
+        handled = start_direct_download(
+            stub_window,
+            {
+                "url": session["serverAbrStreamingUrl"],
+                "title": "SABR Clip",
+                "ext": "mp4",
+                "method": "direct",
+                "sabr": session,
+            },
+        )
+
+        assert handled is True
+        assert "start_aria2_daemon" not in stub_window.events
+        assert len(stub_window.download_calls) == 1
+        sent_url, kwargs = stub_window.download_calls[0]
+        assert sent_url == session["serverAbrStreamingUrl"]
+        assert kwargs["sabr_session"]["videoId"] == "U-o5jaxPL-M"
+        assert kwargs["supports_range"] is False
+        assert kwargs["prefetch"] is False
+        assert kwargs["custom_filename"].endswith(".mp4")
+
+    def test_size_falls_back_to_session_content_lengths(self, stub_window):
+        from core.media.direct import start_direct_download
+
+        session = self._session()
+        start_direct_download(
+            stub_window,
+            {"url": session["serverAbrStreamingUrl"], "title": "SABR", "ext": "mp4", "sabr": session},
+        )
+        _, kwargs = stub_window.download_calls[0]
+        assert kwargs["size_data"][0].startswith("10.49")  # 11,000,000 bytes
+
+    def test_invalid_session_payload_is_rejected(self, stub_window):
+        from core.media.direct import start_direct_download
+
+        handled = start_direct_download(
+            stub_window,
+            {
+                "url": "https://rr1.sn.googlevideo.com/videoplayback?sabr=1",
+                "title": "Bad",
+                "sabr": {"videoId": "not-valid"},
+            },
+        )
+
+        assert handled is False
+        assert stub_window.download_calls == []
+
+    def test_sabr_url_without_session_still_gated(self, stub_window):
+        from core.media.direct import start_direct_download
+
+        handled = start_direct_download(
+            stub_window,
+            {"url": "https://rr1.sn.googlevideo.com/videoplayback?sabr=1&itag=299", "title": "No session"},
+        )
+        assert handled is False

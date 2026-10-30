@@ -105,12 +105,19 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         server_port = self.server.server_address[1] if (hasattr(self, 'server') and hasattr(self.server, 'server_address')) else configured_ipc_port
         is_fallback = bool(server_port != configured_ipc_port)
 
+        try:
+            from core.media.sabr import sabr_runtime_available
+            sabr_capable = sabr_runtime_available()
+        except Exception:
+            sabr_capable = False
+
         config_json = json.dumps({
             "status": "Bengal DM is running",
             "version": app_version,
             "ipc_port": server_port,
             "configured_ipc_port": configured_ipc_port,
             "is_fallback": is_fallback,
+            "sabr": sabr_capable,
             "aria2": {
                 "port": ext_data.get("port", 56800),
                 "token": ext_data.get("token", "")
@@ -124,6 +131,14 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
+        # A SABR session body carries formats plus a capped protobuf blob; anything
+        # beyond a few MiB cannot be a legitimate submission from the extension.
+        if content_length > 8 * 1024 * 1024:
+            logger.warning("[IPC] Rejected POST body of %d bytes (8 MiB cap)", content_length)
+            self.send_response(413)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            return
         body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ""
         
         clean_path = self.path.split("?")[0].rstrip("/")
@@ -281,6 +296,7 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         filename = ""
         ext = ""
         audio_url = ""
+        sabr_session = None
 
         if isinstance(payload, dict) and payload:
             url = payload.get("url", "")
@@ -296,9 +312,18 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             filename = str(payload.get("filename", "") or "").strip()
             ext = str(payload.get("ext", "") or "").strip()
             audio_url = str(payload.get("audioUrl", "") or "").strip()
+            raw_sabr = payload.get("sabr")
+            if isinstance(raw_sabr, dict) and raw_sabr:
+                try:
+                    from core.media.sabr import validate_sabr_session
+                    sabr_session = validate_sabr_session(raw_sabr)
+                except Exception:
+                    sabr_session = None
+                if sabr_session is None:
+                    logger.warning("[IPC] Dropped invalid SABR session payload for %s", url[:120])
             if is_debug_mode():
-                logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s, audioUrl=%s",
-                             url, title, quality, is_media, size_str or size_bytes, bool(audio_url))
+                logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s, audioUrl=%s, sabr=%s",
+                             url, title, quality, is_media, size_str or size_bytes, bool(audio_url), bool(sabr_session))
         else:
             url = body.strip()
             if is_debug_mode():
@@ -320,6 +345,8 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 "ext": ext,
                 "audioUrl": audio_url,
             }
+            if sabr_session:
+                payload_data["sabr"] = sabr_session
             raw_msg = json.dumps(payload_data)
             if is_debug_mode():
                 logger.debug("[IPC] Emitting new_download_signal: %s", raw_msg[:300])

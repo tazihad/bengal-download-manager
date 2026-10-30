@@ -195,6 +195,136 @@ class TestDirectMethodForwarding:
         assert forwarded["ext"] == "mp4"
 
 
+class TestSabrPayloadForwarding:
+    def _serve(self, qapp, port):
+        """Boot the IPC listener on `port` and wait until it accepts connections."""
+        from core.services.ipc_service import SignalEmitter, TcpListenerThread
+
+        em = SignalEmitter()
+        received = []
+        em.new_download_signal.connect(received.append)
+        thread = TcpListenerThread(port=port, emitter=em)
+        thread.start()
+        deadline = time.time() + 5
+        ready = False
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                    ready = True
+                    break
+            except OSError:
+                time.sleep(0.05)
+        assert ready, "IPC listener did not start in time"
+        return thread, received
+
+    @staticmethod
+    def _session():
+        import base64
+        return {
+            "videoId": "U-o5jaxPL-M",
+            "serverAbrStreamingUrl": (
+                "https://rr1---sn-ab5szn7l.googlevideo.com/videoplayback"
+                "?expire=2000000000&id=U-o5jaxPL-M&sabr=1"
+            ),
+            "videoPlaybackUstreamerConfig": "Ct4BEqUDAv8B",
+            "clientInfo": {"clientName": 1, "clientVersion": "2.20260101.00.00"},
+            "formats": [
+                {"itag": 299, "mimeType": "video/mp4", "contentLength": "10000000"},
+                {"itag": 140, "mimeType": "audio/mp4", "contentLength": "1000000"},
+            ],
+            "videoItag": 299,
+            "audioItag": 140,
+            "requestBody": base64.b64encode(b"\x08\x01").decode(),
+        }
+
+    def _post(self, port, obj):
+        payload = json.dumps(obj).encode()
+        request = (
+            b"POST / HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: " + str(len(payload)).encode() + b"\r\n"
+            b"\r\n" + payload
+        )
+        sock = socket.create_connection(("127.0.0.1", port), timeout=3)
+        try:
+            sock.sendall(request)
+            sock.recv(1024)
+        finally:
+            sock.close()
+
+    def _free_server(self, qapp):
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        return self._serve(qapp, port), port
+
+    def test_config_exposes_sabr_capability_flag(self, qapp):
+        (thread, _), port = self._free_server(qapp)
+        try:
+            sock = socket.create_connection(("127.0.0.1", port), timeout=3)
+            sock.sendall(b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            chunks = []
+            while True:
+                data = sock.recv(4096)
+                if not data:
+                    break
+                chunks.append(data)
+            sock.close()
+            raw = b"".join(chunks).decode("utf-8", "replace")
+            body = raw.split("\r\n\r\n", 1)[1]
+            config = json.loads(body)
+            assert isinstance(config.get("sabr"), bool)
+        finally:
+            thread.stop()
+            thread.wait(2000)
+
+    def test_valid_sabr_session_is_forwarded(self, qapp):
+        (thread, received), port = self._free_server(qapp)
+        try:
+            self._post(port, {
+                "url": self._session()["serverAbrStreamingUrl"],
+                "method": "direct",
+                "isMedia": True,
+                "title": "SABR clip",
+                "sabr": self._session(),
+            })
+            deadline = time.time() + 3
+            while not received and time.time() < deadline:
+                qapp.processEvents()
+                time.sleep(0.02)
+        finally:
+            thread.stop()
+            thread.wait(2000)
+
+        assert received
+        forwarded = json.loads(received[-1])
+        assert forwarded["method"] == "direct"
+        assert forwarded.get("sabr"), "validated SABR session was dropped"
+        assert forwarded["sabr"]["videoId"] == "U-o5jaxPL-M"
+
+    def test_invalid_sabr_session_is_dropped(self, qapp):
+        (thread, received), port = self._free_server(qapp)
+        try:
+            self._post(port, {
+                "url": "https://example.com/file.mp4",
+                "method": "direct",
+                "sabr": {"videoId": "garbage"},
+            })
+            deadline = time.time() + 3
+            while not received and time.time() < deadline:
+                qapp.processEvents()
+                time.sleep(0.02)
+        finally:
+            thread.stop()
+            thread.wait(2000)
+
+        assert received
+        forwarded = json.loads(received[-1])
+        assert "sabr" not in forwarded
+
+
 class TestSingleInstance:
     def test_check_single_instance_returns_bool(self):
         from core.services.ipc_service import check_single_instance

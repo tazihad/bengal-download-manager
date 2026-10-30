@@ -489,6 +489,65 @@ def _fetch_size_bytes(url: str, user_agent: str = "", cookies: str = "", referre
         return 0
 
 
+def _start_sabr_download(main_window, payload: dict, session: dict) -> bool:
+    """Dispatch a browser-captured SABR session to the Deno SabrStream worker.
+
+    No aria2 involvement: the helper streams both MP4 tracks and the worker muxes
+    them with FFmpeg, so the daemon never needs to be started for these rows.
+    """
+    from core.media.sabr import session_size_bytes
+
+    silent = getattr(main_window, "settings", {}).get("silent_download", False)
+    show_start = getattr(main_window, "settings", {}).get("show_start_dialog", True)
+    show_dialog = (not silent) and show_start
+
+    url = session["serverAbrStreamingUrl"]
+    title = payload.get("title") or payload.get("filename") or ""
+    ext = payload.get("ext") or ".mp4"
+    filename = build_direct_filename(title, url, ext)
+    unique_path = get_unique_filepath(os.path.join(_resolve_save_dir(filename), filename))
+    size_bytes = int(payload.get("sizeBytes") or 0) or session_size_bytes(session)
+    size_str = str(payload.get("sizeStr") or "").strip() or (
+        _format_bytes(size_bytes) if size_bytes else ""
+    )
+
+    logger.info(
+        "[SABR] Streaming session for video %s -> %s (itag=%s+%s, size=%s)",
+        session.get("videoId"), unique_path,
+        session.get("videoItag"), session.get("audioItag"), size_str or size_bytes,
+    )
+
+    start_kwargs = {
+        "custom_filename": os.path.basename(unique_path),
+        "custom_save_dir": os.path.dirname(unique_path),
+        "size_data": (size_str,) if size_str else None,
+        "show_dialog": False,
+        "user_agent": payload.get("userAgent") or None,
+        "cookies": payload.get("cookies") or None,
+        "referer": payload.get("referrer") or "https://www.youtube.com/",
+        "prefetch": False,
+        "supports_range": False,
+        "sabr_session": session,
+    }
+
+    if show_dialog:
+        file_info = {
+            "url": url,
+            "filename": filename,
+            "size_str": size_str or "Unknown",
+            "size_bytes": size_bytes,
+            "user_agent": payload.get("userAgent") or None,
+            "cookies": payload.get("cookies") or None,
+            "referer": payload.get("referrer") or "https://www.youtube.com/",
+            "supports_range": False,
+        }
+        file_info.update(start_kwargs)
+        main_window.on_file_info_fetched(file_info)
+    else:
+        main_window.start_download(url, **start_kwargs)
+    return True
+
+
 def start_direct_download(main_window, payload: dict) -> bool:
     """Dispatch a browser-selected stream pair to the Aria2 engine.
 
@@ -499,6 +558,18 @@ def start_direct_download(main_window, payload: dict) -> bool:
     payload = payload or {}
     url = str(payload.get("url") or "").strip()
     audio_url = str(payload.get("audioUrl") or "").strip()
+
+    # A browser-captured SABR session streams through the Deno helper instead of aria2.
+    # Its ?sabr=1 POST URL intentionally fails is_direct_downloadable_url, so check first.
+    raw_sabr = payload.get("sabr")
+    if isinstance(raw_sabr, dict) and raw_sabr:
+        from core.media.sabr import validate_sabr_session
+
+        sabr_session = validate_sabr_session(raw_sabr)
+        if sabr_session:
+            return _start_sabr_download(main_window, payload, sabr_session)
+        logger.warning("[SABR] Rejected malformed session payload from the extension")
+
     if not is_direct_downloadable_url(url):
         logger.info("[Direct] Unsupported direct URL: %s", url[:200])
         return False
