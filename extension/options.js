@@ -732,6 +732,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
     const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
     const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
+    const selectedMethodRadio = document.querySelector('input[name="options-download-method"]:checked');
+    const downloadMethod = selectedMethodRadio ? selectedMethodRadio.value : 'standard';
 
     const payload = {
       host: "localhost",
@@ -743,6 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
       enableInterception,
       enableMediaSniffing,
       videoPanelPosition,
+      downloadMethod,
       whitelistUrls: filterLists.whitelistUrls,
       whitelistExts: filterLists.whitelistExts,
       blacklistUrls: filterLists.blacklistUrls,
