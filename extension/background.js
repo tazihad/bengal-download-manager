@@ -2239,9 +2239,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (needsAudioMerge) {
           // If the item already carries direct stream URLs (e.g. googlevideo.com),
           // use them directly — instant, no yt-dlp re-resolution needed.
-          const isDirectStreamUrl = url && url.startsWith('http') && !/youtube\.com\/(watch|embed|v|live|shorts)\b/i.test(url);
+          // item.streamUrl is the direct video stream URL; item.url may be the
+          // YouTube page URL which would trigger a slow yt-dlp re-resolution.
+          const directStreamUrl = item.streamUrl || url;
+          const isDirectStreamUrl = directStreamUrl && directStreamUrl.startsWith('http') && !/youtube\.com\/(watch|embed|v|live|shorts)\b/i.test(directStreamUrl);
           if (isDirectStreamUrl && item.audioUrl) {
-            finalUrl = url;
+            finalUrl = directStreamUrl;
             audioUrl = item.audioUrl || '';
           } else {
             // Fall back to yt-dlp resolution (slow path) when direct URLs are unavailable.
@@ -2272,9 +2275,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           isMedia: true,
           method: 'direct',
           pageExtract: needsAudioMerge,
-          sizeBytes: 0,
-          sizeStr: '',
-          ext: item.outputFormat || '',
+          sizeBytes: Number(item.sizeBytes || item.size_bytes || 0) || 0,
+          sizeStr: item.sizeStr || item.size_str || item.size || '',
+          ext: item.outputFormat || item.ext || '',
           audioUrl: audioUrl
         });
         sendResponse({ok: success, resolvedUrl: finalUrl});
