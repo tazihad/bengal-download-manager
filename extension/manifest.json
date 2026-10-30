@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bengal DM Integration Module",
-  "version": "0.10",
+  "version": "0.11",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
     "16": "assets/icon-16.png",
@@ -23,6 +23,30 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "youtube-media.js",
+        "youtube-page.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "youtube-relay.js"
+      ],
+      "run_at": "document_start"
+    },
     {
       "matches": [
         "<all_urls>"
@@ -60,6 +84,7 @@
     {
       "resources": [
         "inject.js",
+        "direct-inject.js",
         "assets/*"
       ],
       "matches": [

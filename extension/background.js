@@ -1,4 +1,6 @@
 // --- CONSTANTS & HELPERS ---
+importScripts('youtube-media.js');
+
 const DEFAULT_IGNORED_EXTS = [
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',
   'html', 'htm', 'php', 'js', 'css', 'xml', 'json', 'txt', 'md',
@@ -616,6 +618,75 @@ function sanitizeMediaCookies(cookieStr, targetUrl) {
     .join("; ");
 }
 
+// Direct downloads relay a signed stream URL verbatim, so cookies are only forwarded when the
+// stream host is the page host or a sibling subdomain. This keeps session cookies away from
+// third-party CDNs (e.g. youtube.com cookies must never reach googlevideo.com).
+function shouldSendCookiesForDirect(streamUrl, referrerUrl) {
+  const hostOf = (value) => {
+    try {
+      return new URL(value).hostname.toLowerCase().replace(/\.$/, "");
+    } catch (e) {
+      return "";
+    }
+  };
+  const streamHost = hostOf(streamUrl);
+  const refHost = hostOf(referrerUrl);
+  if (!streamHost || !refHost) return false;
+  if (streamHost === refHost) return true;
+  return streamHost.endsWith("." + refHost) || refHost.endsWith("." + streamHost);
+}
+
+function formatDirectSize(bytes) {
+  const total = Number(bytes) || 0;
+  if (total <= 0) return "";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = total;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index++;
+  }
+  return `${value.toFixed(index ? 2 : 0)}${units[index]}`;
+}
+
+// Ask the desktop to resolve stream URLs (yt-dlp locates them, Aria2 downloads them).
+// Adaptive YouTube tiers need both the selected video and its audio track.
+async function resolveDirectStreamUrl(pageUrl, cookies, userAgent, referrer, selection = {}) {
+  const online = await isBengalDMOnline();
+  if (!online) return null;
+
+  const ipcPort = cachedIpcPort || 56900;
+  const payload = JSON.stringify({
+    url: pageUrl,
+    cookies: cookies || "",
+    userAgent: userAgent || navigator.userAgent,
+    referrer: referrer || "",
+    videoItag: selection.videoItag || "",
+    audioItag: selection.audioItag || ""
+  });
+
+  for (const host of ["127.0.0.1", "localhost"]) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 95000);
+      const response = await fetch(`http://${host}:${ipcPort}/resolve-direct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (data && data.success && (data.videoUrl || data.audioUrl || data.resolvedUrl)) return data;
+      return null;
+    } catch (e) {
+      // Try the alternate loopback host
+    }
+  }
+  return null;
+}
+
 // --- RESOLVE DOWNLOAD TARGET (handles HTML landing pages with meta refresh / direct mirror links) ---
 async function resolveDownloadTarget(url, userAgent, cookies) {
   if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
@@ -770,8 +841,12 @@ async function sendToBengalDM(downloadData) {
     title: downloadData.title || "",
     quality: downloadData.quality || "",
     isMedia: !!downloadData.isMedia,
+    method: downloadData.method || "standard",
+    ext: downloadData.ext || "",
+    pageExtract: !!downloadData.pageExtract,
     sizeBytes: downloadData.sizeBytes || 0,
-    sizeStr: downloadData.sizeStr || ""
+    sizeStr: downloadData.sizeStr || "",
+    audioUrl: downloadData.audioUrl || ""
   };
 
   try {
@@ -870,6 +945,9 @@ function isIgnoredServiceUrl(url) {
 const pendingMediaRequests = new Map(); // requestId -> { url, method, requestHeaders, tabId, timestamp }
 const detectedMediaUrls = new Map();    // url -> timestamp (5-second deduplication)
 const tabMediaStreams = new Map();      // tabId -> Array of { url, contentType, title, timestamp }
+const tabDirectFormats = new Map();     // tabId -> Array of { url, title, mime, quality, bitrate, format, audioUrl, ... }
+const youtubePlayers = new Map();       // tabId -> { videoId, title, sabrUrl, ustreamerConfig, clientName, clientVersion, formats[] }
+const youtubeObserved = new Map();      // tabId -> Set of observed raw URLs
 
 function recordSniffedMedia(tabId, url, contentType, title, sizeBytes = 0) {
   if (!tabId || tabId === -1 || !url) return;
@@ -1718,12 +1796,102 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       const cookieString = await getCookiesForUrl(request.url, sender && sender.tab ? sender.tab.cookieStoreId : undefined);
 
-      if (isRecentlySent(request.url)) {
+      if (!request.resolveDirect && !request.pageExtract && isRecentlySent(request.url)) {
         sendResponse({ success: true, duplicate: true });
         return;
       }
 
       if (request.isMedia || isMediaUrl(request.url)) {
+        // Direct method: the URL is an already-muxed stream captured from the page,
+        // or a page URL the desktop resolves into one (ciphered/SABR-only players).
+        // Either way the URL is relayed verbatim - no sanitizeMediaUrl, no tabMediaStreams
+        // rewrite, because the signed query string must reach Aria2 untouched.
+        if (request.method === "direct") {
+          let directUrl = "";
+          let directExt = request.ext || "";
+          let directSizeBytes = Number(request.sizeBytes) || 0;
+          let directSizeStr = request.sizeStr || "";
+          let directReferrer = request.referrer || refUrl || request.url;
+          let resolveKey = "";
+
+          if (request.resolveDirect) {
+            let pageUrl = "";
+            try {
+              const parsed = new URL(request.url);
+              if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                pageUrl = request.url;
+              }
+            } catch (e) {}
+            if (!pageUrl) {
+              sendResponse({ success: false, error: "invalid_direct_url" });
+              return;
+            }
+
+            resolveKey = `${pageUrl}#direct`;
+            if (isRecentlySent(resolveKey)) {
+              sendResponse({ success: true, duplicate: true });
+              return;
+            }
+            directReferrer = request.referrer || refUrl || pageUrl;
+            const resolved = await resolveDirectStreamUrl(
+              pageUrl,
+              cookieString,
+              navigator.userAgent,
+              directReferrer
+            );
+            if (!resolved) {
+              sendResponse({ success: false, error: "resolve_failed" });
+              return;
+            }
+            directUrl = resolved.resolvedUrl;
+            if (!directExt) directExt = resolved.ext || "";
+            if (!directSizeBytes) directSizeBytes = Number(resolved.sizeBytes) || 0;
+            if (!directSizeStr && directSizeBytes > 0) directSizeStr = formatDirectSize(directSizeBytes);
+          } else {
+            try {
+              const parsed = new URL(request.url);
+              if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+                directUrl = request.url;
+              }
+            } catch (e) {}
+          }
+
+          if (!directUrl) {
+            sendResponse({ success: false, error: "invalid_direct_url" });
+            return;
+          }
+
+          // Resolution-select Direct tiers reuse the page URL, so dedupe per quality
+          // instead of per URL (otherwise only one resolution could ever be queued).
+          const dedupeKey = resolveKey || (request.pageExtract
+            ? `${directUrl}#direct:${request.quality || ''}`
+            : directUrl);
+
+          if (isRecentlySent(dedupeKey)) {
+            sendResponse({ success: true, duplicate: true });
+            return;
+          }
+
+          markRecentlySent(dedupeKey);
+          const success = await sendToBengalDM({
+            url: directUrl,
+            userAgent: navigator.userAgent,
+            cookies: shouldSendCookiesForDirect(directUrl, directReferrer) ? cookieString : "",
+            referrer: directReferrer,
+            title: request.title || "",
+            filename: request.filename || request.title || "",
+            quality: request.quality || "",
+            isMedia: true,
+            method: "direct",
+            pageExtract: !!request.pageExtract,
+            sizeBytes: directSizeBytes,
+            sizeStr: directSizeStr,
+            ext: directExt
+          });
+          sendResponse({ success, resolvedUrl: directUrl });
+          return;
+        }
+
         let cleanUrl = isMediaUrl(request.url) ? sanitizeMediaUrl(request.url) : request.url;
 
         // Fallback: If cleanUrl points to an external domain (NOT a popular platform)
@@ -1956,7 +2124,162 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true;
   }
+
+  // --- AWESOME DOWNLOADER STYLE: Per-tab direct format cache & download ---
+  if (request.action === 'remember' && sender.tab) {
+    const tabId = sender.tab.id;
+    const items = Array.isArray(request.items) ? request.items : [];
+    let list = tabDirectFormats.get(tabId) || [];
+    for (const item of items.slice(0, 100)) {
+      const url = item.url;
+      if (!url || !/^https?:\/\//i.test(url)) continue;
+      const existing = list.findIndex(i => i.url === url);
+      if (existing >= 0) {
+        list[existing] = {...list[existing], ...item};
+      } else {
+        list.push(item);
+      }
+    }
+    tabDirectFormats.set(tabId, list.slice(-100));
+    sendResponse({ok: true});
+    return true;
+  }
+
+  if (request.action === 'playerResponse' && sender.tab) {
+    const page = new URL(sender.url || sender.tab.url || 'https://invalid.local');
+    if (!['www.youtube.com','youtube.com','m.youtube.com'].includes(page.hostname)) {
+      sendResponse({ok: false, error: 'Invalid player source.'});
+      return true;
+    }
+    const data = globalThis.bdmYouTube?.sanitizePlayer?.(request.data);
+    if (data) {
+      const previous = youtubePlayers.get(sender.tab.id);
+      if (previous && previous.videoId !== data.videoId) {
+        youtubeObserved?.delete(sender.tab.id);
+      }
+      youtubePlayers.set(sender.tab.id, data);
+      if (youtubePlayers.size > 50) youtubePlayers.delete(youtubePlayers.keys().next().value);
+    }
+    sendResponse({ok: true});
+    return true;
+  }
+
+  if (request.action === 'list' && !sender.tab) {
+    const tabId = request.tabId;
+    const list = tabId ? (tabDirectFormats.get(tabId) || []) : [];
+    sendResponse({ok: true, items: list});
+    return true;
+  }
+
+  if (request.action === 'listForFrame' && sender.tab) {
+    (async () => {
+      const tabId = sender.tab.id;
+      const page = new URL(sender.tab.url || 'https://invalid.local');
+      const isYoutube = /(^|\.)youtube\.com$/.test(page.hostname);
+
+      if (isYoutube) {
+        const id = page.searchParams.get('v') || /^\/shorts\/([\w-]{11})/.exec(page.pathname)?.[1];
+        if (/^[\w-]{11}$/.test(id || '')) {
+          try {
+            await chrome.tabs.sendMessage(tabId, {action: 'refreshPlayer'});
+          } catch {}
+          const player = youtubePlayers.get(tabId);
+          if (!player || player.videoId !== id) {
+            sendResponse({ok: true, items: []});
+            return;
+          }
+          const items = globalThis.bdmYouTube?.choices(player, []) || [];
+          sendResponse({ok: true, items});
+          return;
+        }
+      }
+
+      let items = tabId ? (tabDirectFormats.get(tabId) || []) : [];
+      sendResponse({ok: true, items});
+    })();
+    return true;
+  }
+
+  if (request.action === 'download') {
+    const tabId = sender.tab?.id ?? request.tabId;
+    const item = request.item || {};
+    const pageUrl = sender.tab ? sender.tab.url : '';
+    let url = item.url;
+
+    // YouTube adaptive/SABR tiers ship separate video-only and audio-only tracks.
+    // Fetching one URL through Aria2 would save a silent video, so the desktop keeps
+    // the chosen quality, transfers both tracks through Aria2 and muxes them with FFmpeg.
+    const needsAudioMerge = item.provider === 'youtube' && (!!item.sabrSelection || !!item.audioUrl);
+    if (needsAudioMerge) {
+      if (!/^https?:\/\/(?:[^/]*\.)?youtube\.com\//i.test(pageUrl)) {
+        sendResponse({ok: false, error: 'Open the video on YouTube, then choose a format.'});
+        return true;
+      }
+    }
+
+    if (!url || !/^https?:\/\//i.test(url)) {
+      sendResponse({ok: false, error: 'Only direct HTTP and HTTPS links are supported.'});
+      return true;
+    }
+    if (!needsAudioMerge && (/\.mpd(?:[?#]|$)/i.test(url) || /\.m3u8(?:[?#]|$)/i.test(url) || /\.mpd/i.test(item.mime || ''))) {
+      sendResponse({ok: false, error: 'DASH/HLS manifests are unsupported in Alternate mode. Use Default.'});
+      return true;
+    }
+    if (!needsAudioMerge && /\.(m4s|ts|aac)(?:[?#]|$)/i.test(url)) {
+      sendResponse({ok: false, error: 'Media fragments are unsupported in Alternate mode.'});
+      return true;
+    }
+
+    const referer = item.referer || (sender.tab ? sender.tab.url : '') || url;
+
+    (async () => {
+      try {
+        let finalUrl = url;
+        let audioUrl = "";
+        if (needsAudioMerge) {
+          // Resolve the chosen quality's video + audio track pair. yt-dlp locates the signed
+          // stream URLs; Aria2 transfers both and the desktop muxes them with FFmpeg, so the
+          // saved file always carries audio (never a silent video-only download).
+          const selection = item.sabrSelection || {};
+          const resolved = await resolveDirectStreamUrl(
+            pageUrl,
+            '',
+            navigator.userAgent,
+            pageUrl,
+            selection
+          );
+          if (!resolved || !resolved.videoUrl) {
+            sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Default mode.'});
+            return true;
+          }
+          finalUrl = resolved.videoUrl;
+          audioUrl = resolved.audioUrl || '';
+        }
+        const success = await sendToBengalDM({
+          url: finalUrl,
+          userAgent: navigator.userAgent,
+          cookies: '',
+          referrer: referer,
+          title: item.title || '',
+          filename: item.filename || (item.title || 'video') + (item.outputFormat ? '.' + item.outputFormat : '.mp4'),
+          quality: item.quality || '',
+          isMedia: true,
+          method: 'direct',
+          pageExtract: needsAudioMerge,
+          sizeBytes: 0,
+          sizeStr: '',
+          ext: item.outputFormat || '',
+          audioUrl: audioUrl
+        });
+        sendResponse({ok: success, resolvedUrl: finalUrl});
+      } catch (e) {
+        sendResponse({ok: false, error: e.message || 'Download failed'});
+      }
+    })();
+    return true;
+  }
 });
+
 
 // --- PERIODIC CONNECTION POLLING & STARTUP ---
 async function checkAndUpdateConnection() {

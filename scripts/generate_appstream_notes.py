@@ -5,11 +5,12 @@ Extracts Conventional Commits between Git tags and formats them into
 valid AppStream XML (<description><p>...</p><ul><li>...</li></ul></description>).
 """
 
+import datetime
 import html
 import os
 import re
 import subprocess
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -82,6 +83,46 @@ def get_sorted_git_tags() -> List[str]:
         return tags
     except Exception:
         return []
+
+
+def get_tag_date_utc(version: str) -> Optional[str]:
+    """Return the UTC calendar date (YYYY-MM-DD) of a release tag's commit, or None."""
+    tag = f"v{version}"
+    try:
+        raw = subprocess.check_output(
+            ["git", "log", "-1", "--format=%ct", tag],
+            cwd=ROOT_DIR,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        if not raw:
+            return None
+        return datetime.datetime.utcfromtimestamp(int(raw)).date().isoformat()
+    except Exception:
+        return None
+
+
+def assign_release_dates(versions: List[str]) -> Dict[str, str]:
+    """
+    Assign unique YYYY-MM-DD release dates from git tag commit dates (UTC).
+
+    Newest versions keep their actual tag date; older versions are shifted
+    backward by days only when a date is already taken, so dates are globally
+    unique, never future-dated, and monotonic with version.
+    """
+    taken: set[str] = set()
+    assigned: Dict[str, str] = {}
+    ordered = sorted(versions, key=lambda v: _tag_sort_key(f"v{v}"), reverse=True)
+    for version in ordered:
+        actual = get_tag_date_utc(version)
+        candidate = actual
+        while candidate in taken:
+            d = datetime.date.fromisoformat(candidate)
+            d = d - datetime.timedelta(days=1)
+            candidate = d.isoformat()
+        assigned[version] = candidate
+        taken.add(candidate)
+    return assigned
 
 
 def get_previous_tag(target_version: Optional[str] = None) -> Optional[str]:
@@ -281,16 +322,18 @@ def format_appstream_xml(
 
 if __name__ == "__main__":
     import argparse
-    import datetime
 
     parser = argparse.ArgumentParser(description="Generate AppStream & Markdown release notes.")
     parser.add_argument("--version", default="0.2.99", help="Target release version")
-    parser.add_argument("--date", default=datetime.date.today().isoformat(), help="Release date (YYYY-MM-DD)")
+    parser.add_argument("--date", default=None, help="Release date (YYYY-MM-DD). Defaults to the git tag date.")
     parser.add_argument("--from-tag", default=None, help="Starting git tag")
     parser.add_argument("--to-ref", default="HEAD", help="Ending git ref")
     parser.add_argument("--format", choices=["xml", "markdown"], default="xml", help="Output format")
     parser.add_argument("--app-src-only", action="store_true", help="Only include commits modifying src/ or assets/")
     args = parser.parse_args()
+
+    if args.date is None:
+        args.date = get_tag_date_utc(args.version) or datetime.date.today().isoformat()
 
     bullet_notes = generate_notes_from_git(args.version, args.from_tag, args.to_ref, app_src_only=args.app_src_only)
     if args.format == "markdown":
