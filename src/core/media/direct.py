@@ -10,6 +10,8 @@ import logging
 import os
 import re
 import subprocess
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 from core.config import load_category_config
@@ -445,6 +447,61 @@ def _ensure_aria2(main_window) -> bool:
     return False
 
 
+def _format_bytes(num: int) -> str:
+    """Human-readable byte size."""
+    if not num or num <= 0:
+        return "Unknown"
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if num < 1024.0:
+            return f"{num:.2f} {unit}" if unit == "B" else f"{num:.2f} {unit}"
+        num /= 1024.0
+    return f"{num:.2f} PB"
+
+
+def _fetch_size_bytes(url: str, user_agent: str = "", cookies: str = "", referrer: str = "") -> int:
+    """Best-effort Content-Length fetch for a direct stream URL.
+
+    Tries HEAD first, falls back to a ranged GET (bytes=0-0). Returns 0 when the
+    size cannot be determined (streaming endpoints often omit Content-Length).
+    """
+    headers = {}
+    if user_agent:
+        headers["User-Agent"] = user_agent
+    if cookies:
+        headers["Cookie"] = cookies
+    if referrer:
+        headers["Referer"] = referrer
+
+    def _headers(req_headers: dict) -> int:
+        try:
+            req = urllib.request.Request(url, headers=req_headers, method="HEAD")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                cl = resp.headers.get("Content-Length") or resp.headers.get("content-length")
+                if cl:
+                    return int(cl)
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
+            pass
+        try:
+            req = urllib.request.Request(
+                url, headers={**req_headers, "Range": "bytes=0-0"}, method="GET"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                cl = resp.headers.get("Content-Length") or resp.headers.get("content-length")
+                if cl:
+                    return int(cl)
+                cr = resp.headers.get("Content-Range") or resp.headers.get("content-range")
+                if cr and "/" in cr:
+                    return int(cr.rsplit("/", 1)[1])
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
+            pass
+        return 0
+
+    try:
+        return _headers(headers)
+    except Exception:
+        return 0
+
+
 def start_direct_download(main_window, payload: dict) -> bool:
     """Dispatch a browser-selected stream pair to the Aria2 engine.
 
@@ -474,11 +531,23 @@ def start_direct_download(main_window, payload: dict) -> bool:
     ext = ".mp4" if audio_url else (payload.get("ext") or "")
     filename = build_direct_filename(title, url, ext)
     unique_path = get_unique_filepath(os.path.join(_resolve_save_dir(filename), filename))
+    size_bytes = int(payload.get("sizeBytes") or 0)
     size_str = str(payload.get("sizeStr") or "").strip()
 
+    # Fetch size when the extension did not provide one, so the file info dialog
+    # shows an accurate size instead of "Unknown".
+    if not size_bytes and not size_str:
+        ua = payload.get("userAgent") or ""
+        ck = payload.get("cookies") or ""
+        ref = payload.get("referrer") or url
+        fetched = _fetch_size_bytes(url, ua, ck, ref)
+        if fetched:
+            size_bytes = fetched
+            size_str = _format_bytes(fetched)
+
     log_target = f"{url[:120]} (+ audio)" if audio_url else url[:200]
-    logger.info("[Direct] Dispatching to Aria2: %s -> %s (silent=%s, show_start=%s, show_dialog=%s)",
-                log_target, unique_path, silent, show_start, show_dialog)
+    logger.info("[Direct] Dispatching to Aria2: %s -> %s (silent=%s, show_start=%s, show_dialog=%s, size=%s)",
+                log_target, unique_path, silent, show_start, show_dialog, size_str or size_bytes)
 
     if show_dialog:
         # Show the file info dialog like standard downloads do, respecting the
@@ -487,7 +556,7 @@ def start_direct_download(main_window, payload: dict) -> bool:
             "url": url,
             "filename": filename,
             "size_str": size_str or "Unknown",
-            "size_bytes": 0,
+            "size_bytes": size_bytes,
             "user_agent": payload.get("userAgent") or None,
             "cookies": payload.get("cookies") or None,
             "referer": payload.get("referrer") or url,
