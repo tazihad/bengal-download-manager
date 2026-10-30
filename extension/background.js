@@ -649,9 +649,9 @@ function formatDirectSize(bytes) {
   return `${value.toFixed(index ? 2 : 0)}${units[index]}`;
 }
 
-// Ask the desktop to resolve one muxed stream URL (yt-dlp locates it, Aria2 downloads it).
-// Used when the page exposes only ciphered/SABR formats, as modern YouTube does.
-async function resolveDirectStreamUrl(pageUrl, cookies, userAgent, referrer) {
+// Ask the desktop to resolve stream URLs (yt-dlp locates them, Aria2 downloads them).
+// Adaptive YouTube tiers need both the selected video and its audio track.
+async function resolveDirectStreamUrl(pageUrl, cookies, userAgent, referrer, selection = {}) {
   const online = await isBengalDMOnline();
   if (!online) return null;
 
@@ -660,7 +660,9 @@ async function resolveDirectStreamUrl(pageUrl, cookies, userAgent, referrer) {
     url: pageUrl,
     cookies: cookies || "",
     userAgent: userAgent || navigator.userAgent,
-    referrer: referrer || ""
+    referrer: referrer || "",
+    videoItag: selection.videoItag || "",
+    audioItag: selection.audioItag || ""
   });
 
   for (const host of ["127.0.0.1", "localhost"]) {
@@ -676,7 +678,7 @@ async function resolveDirectStreamUrl(pageUrl, cookies, userAgent, referrer) {
       clearTimeout(timeoutId);
       if (!response.ok) continue;
       const data = await response.json();
-      if (data && data.success && data.resolvedUrl) return data;
+      if (data && data.success && (data.videoUrl || data.audioUrl || data.resolvedUrl)) return data;
       return null;
     } catch (e) {
       // Try the alternate loopback host
@@ -843,7 +845,8 @@ async function sendToBengalDM(downloadData) {
     ext: downloadData.ext || "",
     pageExtract: !!downloadData.pageExtract,
     sizeBytes: downloadData.sizeBytes || 0,
-    sizeStr: downloadData.sizeStr || ""
+    sizeStr: downloadData.sizeStr || "",
+    audioUrl: downloadData.audioUrl || ""
   };
 
   try {
@@ -870,44 +873,6 @@ async function sendToBengalDM(downloadData) {
       return false;
     }
   }
-}
-
-// --- RESOLVE DIRECT URL (YouTube SABR/ciphered formats) ---
-async function resolveDirectUrl(url, userAgent, cookies, referrer, ipcPort, videoItag) {
-  const payload = {
-    url,
-    userAgent: userAgent || navigator.userAgent,
-    cookies: cookies || "",
-    referrer: referrer || ""
-  };
-  if (videoItag) payload.videoItag = videoItag;
-  try {
-    const response = await fetch(`http://127.0.0.1:${ipcPort}/resolve-direct`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.success && data.resolvedUrl) {
-        return data.resolvedUrl;
-      }
-    }
-  } catch {}
-  try {
-    const response = await fetch(`http://localhost:${ipcPort}/resolve-direct`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.success && data.resolvedUrl) {
-        return data.resolvedUrl;
-      }
-    }
-  } catch {}
-  return null;
 }
 
 // --- NOTIFICATION HELPER ---
@@ -2241,44 +2206,55 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const pageUrl = sender.tab ? sender.tab.url : '';
     let url = item.url;
 
-    // For YouTube SABR/ciphered formats, resolve via desktop app (/resolve-direct)
-    let resolveDirect = false;
-    if (item.provider === 'youtube' && item.sabrSelection) {
-      resolveDirect = true;
-      url = pageUrl || url;
+    // YouTube adaptive/SABR tiers ship separate video-only and audio-only tracks.
+    // Fetching one URL through Aria2 would save a silent video, so the desktop keeps
+    // the chosen quality, transfers both tracks through Aria2 and muxes them with FFmpeg.
+    const needsAudioMerge = item.provider === 'youtube' && (!!item.sabrSelection || !!item.audioUrl);
+    if (needsAudioMerge) {
+      if (!/^https?:\/\/(?:[^/]*\.)?youtube\.com\//i.test(pageUrl)) {
+        sendResponse({ok: false, error: 'Open the video on YouTube, then choose a format.'});
+        return true;
+      }
     }
 
     if (!url || !/^https?:\/\//i.test(url)) {
       sendResponse({ok: false, error: 'Only direct HTTP and HTTPS links are supported.'});
       return true;
     }
-    if (!resolveDirect && (/\.mpd(?:[?#]|$)/i.test(url) || /\.m3u8(?:[?#]|$)/i.test(url) || /\.mpd/i.test(item.mime || ''))) {
+    if (!needsAudioMerge && (/\.mpd(?:[?#]|$)/i.test(url) || /\.m3u8(?:[?#]|$)/i.test(url) || /\.mpd/i.test(item.mime || ''))) {
       sendResponse({ok: false, error: 'DASH/HLS manifests are unsupported in Direct mode. Use Standard.'});
       return true;
     }
-    if (!resolveDirect && /\.(m4s|ts|aac)(?:[?#]|$)/i.test(url)) {
+    if (!needsAudioMerge && /\.(m4s|ts|aac)(?:[?#]|$)/i.test(url)) {
       sendResponse({ok: false, error: 'Media fragments are unsupported in Direct mode.'});
       return true;
     }
 
     const referer = item.referer || (sender.tab ? sender.tab.url : '') || url;
-    const ipcPort = cachedIpcPort || 56900;
 
     (async () => {
       try {
         let finalUrl = url;
-        if (resolveDirect) {
-          const sabr = item.sabrSelection || {};
-          // Pass only videoItag: Direct mode (Aria2) cannot merge video+audio without FFmpeg.
-          // The video-only URL is playable; audio is unavailable for SABR formats in Direct mode.
-          const resolved = await resolveDirectUrl(url, navigator.userAgent, '', referer, ipcPort, sabr.videoItag);
-          if (!resolved) {
-            sendResponse({ok: false, error: 'Failed to resolve YouTube video URL. Try Standard mode.'});
-            return;
+        let audioUrl = "";
+        if (needsAudioMerge) {
+          // Resolve the chosen quality's video + audio track pair. yt-dlp locates the signed
+          // stream URLs; Aria2 transfers both and the desktop muxes them with FFmpeg, so the
+          // saved file always carries audio (never a silent video-only download).
+          const selection = item.sabrSelection || {};
+          const resolved = await resolveDirectStreamUrl(
+            pageUrl,
+            '',
+            navigator.userAgent,
+            pageUrl,
+            selection
+          );
+          if (!resolved || !resolved.videoUrl) {
+            sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Standard mode.'});
+            return true;
           }
-          finalUrl = resolved;
+          finalUrl = resolved.videoUrl;
+          audioUrl = resolved.audioUrl || '';
         }
-
         const success = await sendToBengalDM({
           url: finalUrl,
           userAgent: navigator.userAgent,
@@ -2289,10 +2265,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           quality: item.quality || '',
           isMedia: true,
           method: 'direct',
-          pageExtract: false,
-          sizeBytes: item.bitrate ? 0 : 0,
+          pageExtract: needsAudioMerge,
+          sizeBytes: 0,
           sizeStr: '',
-          ext: item.outputFormat || ''
+          ext: item.outputFormat || '',
+          audioUrl: audioUrl
         });
         sendResponse({ok: success, resolvedUrl: finalUrl});
       } catch (e) {

@@ -151,8 +151,8 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"status": "batch_received"}')
                 return
 
-        # Resolve one muxed stream URL for Direct downloads. yt-dlp only locates the URL;
-        # the transfer itself is dispatched to Aria2, so nothing is muxed with FFmpeg.
+        # Resolve stream URLs for Direct downloads. yt-dlp only locates the signed URLs;
+        # both tracks are transferred by Aria2 and muxed by the desktop.
         if clean_path == "/resolve-direct":
             page_url = payload.get("url", "") if isinstance(payload, dict) else ""
             if not page_url or not str(page_url).lower().startswith(("http://", "https://")):
@@ -161,21 +161,46 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             else:
                 status = 200
                 try:
-                    from core.media.direct import resolve_single_file_url
+                    from core.media.direct import resolve_media_tracks, resolve_single_file_url
 
-                    resolved = resolve_single_file_url(
-                        page_url=str(page_url),
-                        cookies=str(payload.get("cookies", "") or ""),
-                        user_agent=str(payload.get("userAgent", "") or ""),
-                        referrer=str(payload.get("referrer", "") or ""),
-                        video_itag=str(payload.get("videoItag", "") or "") or None,
-                        audio_itag=str(payload.get("audioItag", "") or "") or None,
-                    )
+                    video_itag = str(payload.get("videoItag", "") or "") or None
+                    audio_itag = str(payload.get("audioItag", "") or "") or None
+                    resolution = None
+                    if video_itag or audio_itag:
+                        resolution = resolve_media_tracks(
+                            page_url=str(page_url),
+                            cookies=str(payload.get("cookies", "") or ""),
+                            user_agent=str(payload.get("userAgent", "") or ""),
+                            referrer=str(payload.get("referrer", "") or ""),
+                            video_itag=video_itag,
+                            audio_itag=audio_itag,
+                        )
+                    else:
+                        resolution = resolve_single_file_url(
+                            page_url=str(page_url),
+                            cookies=str(payload.get("cookies", "") or ""),
+                            user_agent=str(payload.get("userAgent", "") or ""),
+                            referrer=str(payload.get("referrer", "") or ""),
+                        )
+                    resolution = resolution or {}
+                    video_url = resolution.get("videoUrl") or resolution.get("url") or ""
+                    audio_url = resolution.get("audioUrl") or ""
+                    video_ext = resolution.get("videoExt") or resolution.get("ext") or ""
+                    audio_ext = resolution.get("audioExt") or ""
+                    video_size = int(resolution.get("videoSize") or resolution.get("sizeBytes") or 0)
+                    audio_size = int(resolution.get("audioSize") or 0)
+                    if not video_url and audio_url:
+                        # Audio-only pick.
+                        video_ext, audio_ext = "", audio_ext or video_ext or ".m4a"
                     body_out = json.dumps({
-                        "success": bool(resolved),
-                        "resolvedUrl": (resolved or {}).get("url", ""),
-                        "ext": (resolved or {}).get("ext", ""),
-                        "sizeBytes": (resolved or {}).get("sizeBytes", 0),
+                        "success": bool(video_url or audio_url),
+                        "resolvedUrl": video_url,
+                        "videoUrl": video_url,
+                        "audioUrl": audio_url,
+                        "ext": video_ext,
+                        "videoExt": video_ext,
+                        "audioExt": audio_ext,
+                        "sizeBytes": video_size + audio_size,
                     })
                     if is_debug_mode():
                         logger.debug("[IPC] Direct URL resolution for %s -> %s", str(page_url)[:120], body_out[:240])
@@ -255,8 +280,8 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         method = ""
         filename = ""
         ext = ""
-        page_extract = False
-        
+        audio_url = ""
+
         if isinstance(payload, dict) and payload:
             url = payload.get("url", "")
             user_agent = payload.get("userAgent", "")
@@ -270,10 +295,10 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             method = str(payload.get("method", "") or "").strip()
             filename = str(payload.get("filename", "") or "").strip()
             ext = str(payload.get("ext", "") or "").strip()
-            page_extract = bool(payload.get("pageExtract", False))
+            audio_url = str(payload.get("audioUrl", "") or "").strip()
             if is_debug_mode():
-                logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s",
-                             url, title, quality, is_media, size_str or size_bytes)
+                logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s, audioUrl=%s",
+                             url, title, quality, is_media, size_str or size_bytes, bool(audio_url))
         else:
             url = body.strip()
             if is_debug_mode():
@@ -293,7 +318,7 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 "method": method,
                 "filename": filename,
                 "ext": ext,
-                "pageExtract": page_extract,
+                "audioUrl": audio_url,
             }
             raw_msg = json.dumps(payload_data)
             if is_debug_mode():

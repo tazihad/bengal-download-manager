@@ -125,6 +125,76 @@ class TestIPCRequestHandler:
                 sys.stderr = old_stderr
 
 
+class TestDirectMethodForwarding:
+    def _free_port(self):
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            probe.bind(("127.0.0.1", 0))
+            return probe.getsockname()[1]
+        finally:
+            probe.close()
+
+    def test_direct_fields_are_forwarded(self, qapp):
+        from core.services.ipc_service import SignalEmitter, TcpListenerThread
+
+        em = SignalEmitter()
+        received = []
+        em.new_download_signal.connect(received.append)
+
+        port = self._free_port()
+        thread = TcpListenerThread(port=port, emitter=em)
+        thread.start()
+
+        ready = False
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                    ready = True
+                    break
+            except OSError:
+                time.sleep(0.05)
+
+        try:
+            assert ready, "IPC listener did not start in time"
+
+            payload = json.dumps({
+                "url": "https://x/y.mp4",
+                "method": "direct",
+                "filename": "y.mp4",
+                "ext": "mp4",
+                "isMedia": True,
+            }).encode()
+            request = (
+                b"POST / HTTP/1.1\r\n"
+                b"Host: 127.0.0.1\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: " + str(len(payload)).encode() + b"\r\n"
+                b"\r\n" + payload
+            )
+            sock = socket.create_connection(("127.0.0.1", port), timeout=3)
+            try:
+                sock.sendall(request)
+                sock.recv(1024)
+            finally:
+                sock.close()
+
+            deadline = time.time() + 3
+            while not received and time.time() < deadline:
+                qapp.processEvents()
+                time.sleep(0.02)
+        finally:
+            thread.stop()
+            thread.wait(2000)
+
+        assert received, "new_download_signal was not emitted"
+        forwarded = json.loads(received[-1])
+        assert forwarded["url"] == "https://x/y.mp4"
+        assert forwarded["method"] == "direct"
+        assert forwarded["filename"] == "y.mp4"
+        assert forwarded["ext"] == "mp4"
+
+
 class TestSingleInstance:
     def test_check_single_instance_returns_bool(self):
         from core.services.ipc_service import check_single_instance

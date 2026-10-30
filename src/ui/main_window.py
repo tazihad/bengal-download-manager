@@ -3102,7 +3102,8 @@ class MainWindow(QMainWindow):
                     "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) if item_name.data(Qt.ItemDataRole.UserRole + 8) is not None else "Main download queue",
                     "extra_data": {
                         "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url,
-                        "thumbnail_url": item_name.data(Qt.ItemDataRole.UserRole + 27) or ""
+                        "thumbnail_url": item_name.data(Qt.ItemDataRole.UserRole + 27) or "",
+                        "audio_url": item_name.data(Qt.ItemDataRole.UserRole + 30) or ""
                     }
                 }
                 downloads.append(dl_data)
@@ -3150,6 +3151,8 @@ class MainWindow(QMainWindow):
                 extra = d.get("extra_data", {})
                 item_name.setData(Qt.ItemDataRole.UserRole + 15, extra.get("referer", d.get("url", "")) if isinstance(extra, dict) else d.get("url", ""))
                 item_name.setData(Qt.ItemDataRole.UserRole + 27, extra.get("thumbnail_url", "") if isinstance(extra, dict) else "")
+                if isinstance(extra, dict) and extra.get("audio_url"):
+                    item_name.setData(Qt.ItemDataRole.UserRole + 30, extra.get("audio_url"))
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -4706,6 +4709,10 @@ class MainWindow(QMainWindow):
         custom_title = ""
         size_bytes = 0
         size_str = ""
+        req_ext = ""
+        req_method = ""
+        req_filename = ""
+        req_audio_url = ""
 
         is_json = False
         if isinstance(data, str) and data.strip().startswith("{"):
@@ -4722,10 +4729,16 @@ class MainWindow(QMainWindow):
                 size_bytes = int(j.get("sizeBytes") or j.get("size_bytes", 0) or 0)
                 size_str = j.get("sizeStr") or j.get("size_str", "")
                 req_ext = j.get("ext") or ""
+                req_method = str(j.get("method") or "").strip()
+                req_filename = str(j.get("filename") or "").strip()
+                req_audio_url = str(j.get("audioUrl") or "").strip()
                 is_json = True
             except Exception:
                 is_json = False
                 req_ext = ""
+                req_method = ""
+                req_filename = ""
+                req_audio_url = ""
 
         if not is_json:
             parts = str(data).split("|")
@@ -4766,6 +4779,30 @@ class MainWindow(QMainWindow):
         if is_debug_mode():
             logger.debug("[MainWindow] Parsed IPC input: url=%s, is_media_flag=%s, quality=%r, title=%r, size_str=%s",
                          url, is_media_flag, selected_quality, custom_title, size_str or size_bytes)
+
+        # Direct method: the extension resolved the chosen quality into stream URLs and
+        # Aria2 performs every transfer. Never fall through to the yt-dlp pipeline.
+        if req_method == "direct":
+            from core.media.direct import start_direct_download
+            handled = start_direct_download(self, {
+                "url": url,
+                "userAgent": user_agent,
+                "cookies": cookies,
+                "referrer": referrer,
+                "title": custom_title,
+                "filename": req_filename,
+                "ext": req_ext,
+                "sizeBytes": size_bytes,
+                "sizeStr": size_str,
+                "audioUrl": req_audio_url,
+            })
+            if not handled:
+                logger.warning("[Direct] URL is not directly downloadable: %s", url[:200])
+                self.statusBar().showMessage(
+                    self.tr("Direct download cancelled - this link is not a direct media stream. Use Standard mode."),
+                    5000,
+                )
+            return
 
         # Fail-safe: If referrer originates from a popular media platform (Facebook, YouTube, etc.)
         # and url is a CDN chunk, blob, or raw media segment, rewrite url to the canonical referrer page!
@@ -5741,7 +5778,7 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True, direct_audio_url=None):
         if is_debug_mode():
             logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s, prefetch=%s, supports_range=%s",
                          url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name, prefetch, supports_range)
@@ -5783,6 +5820,9 @@ class MainWindow(QMainWindow):
         if queue_name:
             item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Mark as active queue execution
         item_name.setData(Qt.ItemDataRole.UserRole + 15, referer or url)  # Referer
+        # Direct adaptive picks download this audio stream alongside the video URL.
+        if direct_audio_url:
+            item_name.setData(Qt.ItemDataRole.UserRole + 30, direct_audio_url)
         # Mark as prefetch if applicable
         if prefetch:
             item_name.setData(Qt.ItemDataRole.UserRole + 21, True)  # Prefetch flag
@@ -5829,7 +5869,7 @@ class MainWindow(QMainWindow):
             queue_max = self._get_queue_max_concurrent(target_queue)
             active_in_queue = self._get_active_count_for_queue(target_queue)
             if active_in_queue < queue_max:
-                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range)
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range, direct_audio_url=direct_audio_url)
             else:
                 # Slot full for this queue — mark as queued; _try_start_queued will pick it up
                 self._set_status_text(row, "Queued")
@@ -5999,7 +6039,7 @@ class MainWindow(QMainWindow):
             dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
             dialog.show()
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None, direct_audio_url=None):
         silent = getattr(self, "settings", {}).get("silent_download", False)
         pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
         pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
@@ -6120,6 +6160,59 @@ class MainWindow(QMainWindow):
             except: save_dir = get_user_downloads_dir()
 
         temp_dir = config.get("temp_dir")
+
+        if direct_audio_url is None:
+            direct_audio_url = item_ref.data(Qt.ItemDataRole.UserRole + 30)
+        if direct_audio_url:
+            from core.workers.direct_mux import DirectMuxWorker
+
+            try:
+                from core.aria2_daemon import get_aria2_daemon_manager
+                mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+                if not mgr.is_running():
+                    self.start_aria2_daemon()
+            except Exception:
+                pass
+
+            target_filename = resume_filename if resume_filename else item_ref.text()
+            worker = DirectMuxWorker(
+                url, direct_audio_url, item_ref.row(), save_dir, target_filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referrer or url,
+            )
+
+            gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+            item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            worker.generation = gen
+
+            item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
+            item_ref.setText(worker.filename)
+            item_ref.setToolTip(worker.filename)
+
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, status, ref=item_ref: self.download_finished(ref, status))
+
+            key = self._get_item_key(item_ref)
+            if should_show_progress:
+                progress_dialog = DownloadProgressDialog(worker, None)
+                progress_dialog.show()
+                progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                self.active_downloads[key] = progress_dialog
+                progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                progress_dialog.finished.connect(self._try_start_queued)
+            else:
+                self.active_downloads[key] = worker
+                worker.finished_signal.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                worker.finished_signal.connect(self._try_start_queued)
+                worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
+                if not worker.isRunning():
+                    worker.start()
+
+            self._set_status_text(item_ref.row(), "Downloading")
+            self._set_row_bold(item_ref.row(), True)
+            self.update_ui_states()
+            return
 
         # SMART ROUTING: Use Aria2 as the primary engine.
         # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.

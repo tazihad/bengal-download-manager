@@ -49,6 +49,7 @@ extension/
 ├── manifest.json       # Manifest V3 extension configuration
 ├── background.js       # Service worker / background script (interception & Native RPC listener)
 ├── content.js          # Content script (web page download link detection & context triggers)
+├── direct-inject.js    # MAIN-world bridge that exposes already-muxed YouTube stream URLs
 ├── popup.html          # Browser action popup UI markup
 ├── popup.js            # Popup UI logic and connection status monitor
 ├── popup.css           # Popup styling
@@ -87,7 +88,36 @@ To build an exact copy of the Firefox Add-on (`.xpi` / `.zip`) and Chrome packag
 
 ---
 
-## 5. Technical Details of Build Script (`scripts/pack_extension.py`)
+## 5. Standard vs Direct Download Method
+
+The popup exposes a **Download method** choice; **Standard** stays the default.
+
+* **Standard** sends the media page URL to the desktop app and lets yt-dlp plus FFmpeg extract
+  and mux the best available streams. It works on virtually every site and supports high
+  resolutions, but it needs to probe, download separate tracks, and merge them.
+* **Direct** prefers an already-muxed progressive stream URL that the page is currently playing
+  and downloads it as-is through the Aria2 engine. There is no extraction or FFmpeg step, so the
+  download starts immediately and the file already contains audio. Direct also handles plain
+  `.mp4`/`.webm` sniffed streams on regular sites.
+* **Direct with resolution selection** lists every progressive (already-muxed) stream the page
+  exposes, so you can pick a specific quality or audio-only where available. Each progressive tier
+  is downloaded as-is through the Aria2 engine.
+* **Adaptive YouTube tiers** (separate video and audio tracks, including SABR-only streams) cannot
+  be fetched as one file. When one is chosen from the video chooser, the desktop keeps that exact
+  quality, transfers both tracks through Aria2, and muxes them with FFmpeg, so the saved file always
+  contains audio. A video-only file is treated as a failure instead of a finished download.
+
+Direct never handles `.m3u8`/`.mpd` playlists or DASH/HLS segments as-is, and the in-page widget
+shows "Direct unavailable on this video. Switch to Standard." when the page exposes no progressive
+tier rather than silently running the Standard pipeline. Signed stream URLs also expire (typically
+within hours), so a paused Direct download may need to be re-added from the browser. If the Aria2
+engine cannot be started, Direct cancels with a status-bar notice instead of falling back to the
+Python downloader.
+
+---
+
+
+## 6. Technical Details of Build Script (`scripts/pack_extension.py`)
 
 The automated build script `scripts/pack_extension.py` performs the following technical steps:
 
@@ -99,7 +129,7 @@ The automated build script `scripts/pack_extension.py` performs the following te
 
 ---
 
-## 6. Reviewer Notes for Mozilla AMO Submission
+## 7. Reviewer Notes for Mozilla AMO Submission
 
 - **Data Collection**: This add-on collects **zero** personal data, browsing history, or telemetry.
 - **Local Host Communication**: The extension communicates exclusively with the local Bengal Download Manager application running on the user's local machine via localhost (`http://127.0.0.1:56800` / native messaging).

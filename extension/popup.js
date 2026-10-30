@@ -236,6 +236,9 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
 // Live storage sync
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
+    if (changes.downloadMethod !== undefined) {
+      updateMethodUI(changes.downloadMethod.newValue);
+    }
     if (changes.theme || changes.actionIcon) {
       chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
         applyTheme(items.theme || 'system');
@@ -308,6 +311,21 @@ document.getElementById('site-toggle-row').addEventListener('click', (e) => {
   }
 });
 
+// Download method selector
+function updateMethodUI(method) {
+  const value = method === 'direct' ? 'direct' : 'standard';
+  document.querySelectorAll('input[name="download-method"]').forEach((radio) => {
+    radio.checked = radio.value === value;
+  });
+}
+
+document.querySelectorAll('input[name="download-method"]').forEach((radio) => {
+  radio.addEventListener('change', (e) => {
+    if (!e.target.checked) return;
+    chrome.storage.local.set({ downloadMethod: e.target.value });
+  });
+});
+
 chrome.storage.local.get({
   theme: "system",
   port: 56800,
@@ -315,10 +333,12 @@ chrome.storage.local.get({
   token: "",
   bdmVersion: "",
   enableInterception: true,
-  blacklistUrls: []
+  blacklistUrls: [],
+  downloadMethod: "standard"
 }, async (items) => {
   applyTheme(items.theme || "system");
   updateGlobalToggleUI(items.enableInterception !== false);
+  updateMethodUI(items.downloadMethod);
 
   // Detect active tab domain
   try {

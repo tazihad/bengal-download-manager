@@ -161,17 +161,10 @@ def _resolve_from_info(info: dict) -> dict | None:
     return None
 
 
-def resolve_single_file_url(
-    page_url: str, cookies: str = "", user_agent: str = "", referrer: str = "",
-    video_itag: str | None = None, audio_itag: str | None = None
+def _run_ytdlp_json(
+    page_url: str, format_selector: str, cookies: str = "", user_agent: str = "", referrer: str = ""
 ) -> dict | None:
-    """Resolve one muxed (video+audio) stream URL for a media page.
-
-    Modern YouTube players only hand out ciphered or SABR-only formats, which Aria2
-    cannot download directly. The already-installed yt-dlp engine is used solely to
-    resolve one progressive URL; the transfer itself still runs in Aria2 and nothing is
-    merged or probed with FFmpeg. Returns ``{"url", "ext", "sizeBytes"}`` or ``None``.
-    """
+    """Run yt-dlp in metadata-only mode and return the parsed info dict."""
     if not isinstance(page_url, str) or not page_url.lower().startswith(("http://", "https://")):
         return None
 
@@ -197,15 +190,6 @@ def resolve_single_file_url(
         cfg = load_category_config() or {}
         media_defaults = cfg.get("media_downloader_defaults", {}) or {}
         client = str(media_defaults.get("youtube_player_client") or "auto").strip() or "auto"
-
-        # Build format selector: specific itags when requested (YouTube SABR), else muxed selector
-        if video_itag:
-            if audio_itag:
-                format_selector = f"{video_itag}+{audio_itag}"
-            else:
-                format_selector = video_itag
-        else:
-            format_selector = _MUXED_SELECTOR
 
         cmd = [
             yt_dlp_bin,
@@ -236,7 +220,7 @@ def resolve_single_file_url(
         env = get_clean_env(str(BIN_DIR))
         env.update(get_pot_env())
 
-        logger.info("[Direct] Resolving a muxed stream URL for %s", page_url[:200])
+        logger.info("[Direct] Resolving stream URLs for %s", page_url[:200])
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -246,7 +230,7 @@ def resolve_single_file_url(
         )
         if result.returncode != 0:
             stderr_tail = (result.stderr or "").strip().splitlines()[-1:] or [""]
-            logger.warning("[Direct] yt-dlp could not resolve a muxed URL: %s", stderr_tail[0][:300])
+            logger.warning("[Direct] yt-dlp could not resolve stream URLs: %s", stderr_tail[0][:300])
             return None
 
         lines = [line for line in (result.stdout or "").splitlines() if line.strip()]
@@ -259,13 +243,7 @@ def resolve_single_file_url(
         except json.JSONDecodeError:
             logger.warning("[Direct] yt-dlp returned unparseable metadata")
             return None
-        if not isinstance(info, dict):
-            return None
-
-        resolved = _resolve_from_info(info)
-        if not resolved:
-            logger.info("[Direct] No directly downloadable muxed URL for %s", page_url[:200])
-        return resolved
+        return info if isinstance(info, dict) else None
     except subprocess.TimeoutExpired:
         logger.warning("[Direct] yt-dlp URL resolution timed out after %ss", _RESOLVE_TIMEOUT_SEC)
         return None
@@ -278,6 +256,143 @@ def resolve_single_file_url(
                 os.remove(temp_cookie_file)
             except OSError:
                 pass
+
+
+def resolve_single_file_url(
+    page_url: str, cookies: str = "", user_agent: str = "", referrer: str = ""
+) -> dict | None:
+    """Resolve one muxed (video+audio) stream URL for a media page.
+
+    Returns ``{"url", "ext", "sizeBytes"}`` or ``None``. Adaptive tiers carry separate
+    tracks and are resolved with :func:`resolve_media_tracks` instead.
+    """
+    info = _run_ytdlp_json(page_url, _MUXED_SELECTOR, cookies, user_agent, referrer)
+    if not info:
+        return None
+    resolved = _resolve_from_info(info)
+    if not resolved:
+        logger.info("[Direct] No directly downloadable muxed URL for %s", page_url[:200])
+    return resolved
+
+
+def resolve_media_tracks(
+    page_url: str,
+    cookies: str = "",
+    user_agent: str = "",
+    referrer: str = "",
+    video_itag: str | None = None,
+    audio_itag: str | None = None,
+) -> dict | None:
+    """Resolve separate video and audio stream URLs for an adaptive media page.
+
+    The selected itags come from the browser's format chooser. yt-dlp only locates the
+    signed URLs; both transfers run in Aria2 and FFmpeg muxes the result, so the saved
+    file always carries audio. Returns ``{"videoUrl", "videoExt", "videoSize",
+    "audioUrl", "audioExt", "audioSize", "muxed"}`` or ``None``.
+    """
+    video_itag = str(video_itag or "").strip()
+    audio_itag = str(audio_itag or "").strip()
+    if not video_itag and not audio_itag:
+        return None
+
+    if video_itag and audio_itag:
+        selector = f"{video_itag}+{audio_itag}"
+    elif video_itag:
+        selector = f"{video_itag}+bestaudio/best"
+    else:
+        selector = f"{audio_itag}/bestaudio/best"
+
+    info = _run_ytdlp_json(page_url, selector, cookies, user_agent, referrer)
+    if not info:
+        return None
+
+    requested = info.get("requested_downloads") or info.get("requested_formats")
+    entries = [item for item in requested if isinstance(item, dict)] if requested else []
+    if not entries:
+        entries = [info]
+
+    video_entry = None
+    audio_entry = None
+    first_candidate = None
+    for entry in entries:
+        url = _prepare_resolved_url(entry.get("url"))
+        if not url:
+            continue
+        format_id = str(entry.get("format_id") or "")
+        vcodec = str(entry.get("vcodec") or "").lower()
+        acodec = str(entry.get("acodec") or "").lower()
+        has_video = bool(vcodec and vcodec != "none") or (bool(video_itag) and video_itag in format_id)
+        has_audio = bool(acodec and acodec != "none") or (bool(audio_itag) and audio_itag in format_id)
+
+        candidate = {
+            "url": url,
+            "ext": _normalize_ext(entry.get("ext") or info.get("ext") or ""),
+            "sizeBytes": _entry_size(entry),
+            "muxed": has_video and has_audio,
+        }
+        if first_candidate is None:
+            first_candidate = candidate
+        if has_video and not has_audio and video_entry is None:
+            video_entry = candidate
+        elif has_audio and not has_video and audio_entry is None:
+            audio_entry = candidate
+        elif has_video and has_audio and video_entry is None:
+            # A muxed fallback already contains audio; no FFmpeg merge needed.
+            video_entry = candidate
+
+    if video_entry is None and audio_entry is None and first_candidate:
+        if video_itag:
+            video_entry = first_candidate
+        else:
+            audio_entry = first_candidate
+
+    if video_entry and not audio_entry:
+        if video_entry["muxed"]:
+            # The resolved entry already contains audio; a single Aria2 transfer is enough.
+            return {
+                "videoUrl": video_entry["url"],
+                "videoExt": video_entry["ext"] or ".mp4",
+                "videoSize": video_entry["sizeBytes"],
+                "audioUrl": "",
+                "audioExt": "",
+                "audioSize": 0,
+                "muxed": True,
+            }
+        logger.warning("[Direct] No audio track resolved for %s; refusing a silent download", page_url[:200])
+        return None
+    if not video_entry and not audio_entry:
+        logger.info("[Direct] No downloadable tracks resolved for %s", page_url[:200])
+        return None
+
+    if video_entry and audio_entry:
+        return {
+            "videoUrl": video_entry["url"],
+            "videoExt": video_entry["ext"] or ".mp4",
+            "videoSize": video_entry["sizeBytes"],
+            "audioUrl": audio_entry["url"],
+            "audioExt": audio_entry["ext"] or ".m4a",
+            "audioSize": audio_entry["sizeBytes"],
+            "muxed": False,
+        }
+
+    # Audio-only selection.
+    return {
+        "videoUrl": "",
+        "videoExt": "",
+        "videoSize": 0,
+        "audioUrl": audio_entry["url"],
+        "audioExt": audio_entry["ext"] or ".m4a",
+        "audioSize": audio_entry["sizeBytes"],
+        "muxed": False,
+    }
+
+
+def _entry_size(entry: dict) -> int:
+    size = entry.get("filesize") or entry.get("filesize_approx") or 0
+    try:
+        return max(0, int(size or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _resolve_save_dir(filename: str) -> str:
@@ -331,31 +446,33 @@ def _ensure_aria2(main_window) -> bool:
 
 
 def start_direct_download(main_window, payload: dict) -> bool:
-    """Dispatch a browser-captured muxed stream to Aria2.
+    """Dispatch a browser-selected stream pair to the Aria2 engine.
 
-    Returns True when the request was handled (including an Aria2 failure, which must not
-    fall through to the yt-dlp path), and False only when the URL is not directly fetchable.
+    Adaptive picks carry a separate audio URL; both tracks are transferred through Aria2
+    and muxed locally so the saved file always contains audio. Returns False only when
+    the URLs are not directly fetchable (the caller must not fall back to yt-dlp).
     """
     payload = payload or {}
     url = str(payload.get("url") or "").strip()
-    if payload.get("pageExtract"):
-        # Resolution-select Direct tiers send the media page, not a stream file: the
-        # media pipeline extracts the chosen quality and Aria2 performs the transfer.
-        logger.info("[Direct] Page-based resolution request; deferring to media extraction")
-        return False
+    audio_url = str(payload.get("audioUrl") or "").strip()
     if not is_direct_downloadable_url(url):
-        logger.info("[Direct] Unsupported direct URL; deferring to Standard: %s", url[:200])
+        logger.info("[Direct] Unsupported direct URL: %s", url[:200])
+        return False
+    if audio_url and not is_direct_downloadable_url(audio_url):
+        logger.warning("[Direct] Unsupported audio stream URL: %s", audio_url[:200])
         return False
 
     if not _ensure_aria2(main_window):
         return True
 
     title = payload.get("title") or payload.get("filename") or ""
-    filename = build_direct_filename(title, url, payload.get("ext") or "")
+    ext = ".mp4" if audio_url else (payload.get("ext") or "")
+    filename = build_direct_filename(title, url, ext)
     unique_path = get_unique_filepath(os.path.join(_resolve_save_dir(filename), filename))
     size_str = str(payload.get("sizeStr") or "").strip()
 
-    logger.info("[Direct] Dispatching to Aria2: %s -> %s", url[:200], unique_path)
+    log_target = f"{url[:120]} (+ audio)" if audio_url else url[:200]
+    logger.info("[Direct] Dispatching to Aria2: %s -> %s", log_target, unique_path)
     main_window.start_download(
         url,
         custom_filename=os.path.basename(unique_path),
@@ -367,5 +484,6 @@ def start_direct_download(main_window, payload: dict) -> bool:
         referer=payload.get("referrer") or url,
         prefetch=False,
         supports_range=True,
+        direct_audio_url=audio_url or None,
     )
     return True

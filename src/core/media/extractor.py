@@ -1031,6 +1031,7 @@ class MediaInfoFetcherWorker(QThread):
         initial_ext: str = ".mp4",
         fallback_size_bytes: int = 0,
         is_special_case: bool = False,
+        use_aria2_downloader: bool = False,
     ):
         super().__init__()
         self.url = sanitize_media_url(url)
@@ -1050,6 +1051,7 @@ class MediaInfoFetcherWorker(QThread):
         self.initial_ext = initial_ext
         self.fallback_size_bytes = fallback_size_bytes
         self.is_special_case = is_special_case
+        self.use_aria2_downloader = bool(use_aria2_downloader)
         self.process = None
         self.is_running = True
         _keep_thread_alive(self)
@@ -1241,6 +1243,7 @@ class MediaInfoFetcherWorker(QThread):
                 "referrer": self.referrer,
                 "user_agent": self.user_agent,
                 "cookies": self.cookies,
+                "use_aria2_downloader": self.use_aria2_downloader,
                 "success": True,
             })
 
@@ -1266,6 +1269,7 @@ class MediaInfoFetcherWorker(QThread):
                 "referrer": self.referrer,
                 "user_agent": self.user_agent,
                 "cookies": self.cookies,
+                "use_aria2_downloader": self.use_aria2_downloader,
                 "success": False,
             })
         finally:
