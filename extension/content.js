@@ -1099,6 +1099,151 @@
       color: #9ca3af;
       text-align: center;
     }
+
+    /* Alternate controls section (status box + toggles + direct-format list) */
+    .bdm-alt-section {
+      padding: 10px 12px;
+      background: #0d1013;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .bdm-alt-section-title {
+      font-size: 10px;
+      color: #6b7280;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .bdm-alt-status-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      background: #101317;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .bdm-alt-status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .bdm-alt-status-text {
+      font-size: 11px;
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    .bdm-alt-divider {
+      height: 1px;
+      background-color: rgba(255, 255, 255, 0.06);
+      margin: 6px 0;
+    }
+
+    .bdm-alt-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bdm-alt-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .bdm-alt-toggle-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex-grow: 1;
+    }
+
+    .bdm-alt-toggle-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+
+    .bdm-alt-toggle-subtitle {
+      font-size: 10px;
+      color: #9ca3af;
+      line-height: 1.3;
+    }
+
+    .bdm-alt-site-domain {
+      font-weight: 600;
+      color: #60a5fa;
+      font-family: monospace, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .bdm-alt-switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .bdm-alt-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .bdm-alt-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #4d5054;
+      transition: 0.2s ease-in-out;
+      border-radius: 20px;
+    }
+
+    .bdm-alt-slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.2s ease-in-out;
+      border-radius: 50%;
+    }
+
+    .bdm-alt-switch input:checked + .bdm-alt-slider {
+      background-color: #3daee9;
+    }
+
+    .bdm-alt-switch input:disabled + .bdm-alt-slider {
+      background-color: #383c40;
+      cursor: not-allowed;
+    }
+
+    .bdm-alt-switch input:disabled + .bdm-alt-slider:before {
+      background-color: #9ca3af;
+    }
+
+    .bdm-alt-switch input:checked + .bdm-alt-slider:before {
+      transform: translateX(16px);
+    }
+
+    .bdm-alt-switch input:focus-visible + .bdm-alt-slider {
+      box-shadow: 0 0 1px #3daee9;
+    }
   `;
   shadow.appendChild(style);
 
@@ -2573,16 +2718,188 @@
     }
 
     listEl.innerHTML = '';
-    const resolutions = downloadMethod === 'direct'
-      ? getDirectTiers()
-      : getSupportedResolutions(activeVideo);
 
-    if (downloadMethod === 'direct' && resolutions.length === 0) {
-      const notice = document.createElement('div');
-      notice.className = 'bdm-notice';
-      notice.textContent = 'Alternate unavailable on this video. Switch to Default.';
-      listEl.appendChild(notice);
+    if (downloadMethod === 'direct') {
+      // Alternate controls section (status box + capture toggles)
+      const altSection = document.createElement('div');
+      altSection.className = 'bdm-alt-section';
+
+      // Backend status box
+      const statusBox = document.createElement('div');
+      statusBox.className = 'bdm-alt-status-box';
+      statusBox.innerHTML = `
+        <div class="bdm-alt-section-title">Backend Status</div>
+        <div class="bdm-alt-status-row">
+          <div class="bdm-dot ${isAppConnected ? 'online' : 'offline'}" id="alt-status-dot"></div>
+          <span class="bdm-alt-status-text" id="alt-status-text">${isAppConnected ? 'Bengal DM Running' : 'App Not Running'}</span>
+        </div>
+      `;
+      altSection.appendChild(statusBox);
+
+      // Divider
+      const divider = document.createElement('div');
+      divider.className = 'bdm-alt-divider';
+      altSection.appendChild(divider);
+
+      // Toggle controls
+      const pageDomain = window.location.hostname || '';
+      const siteBlacklisted = isSiteBlacklisted();
+      const controlsCard = document.createElement('div');
+      controlsCard.className = 'bdm-alt-controls';
+      controlsCard.innerHTML = `
+        <div class="bdm-alt-section-title">Capture Controls</div>
+        <div class="bdm-alt-toggle-row" id="alt-global-toggle-row">
+          <div class="bdm-alt-toggle-info">
+            <span class="bdm-alt-toggle-title">Capture downloads</span>
+            <span class="bdm-alt-toggle-subtitle" id="alt-global-subtitle">${enableInterception ? 'Active browser-wide' : 'Paused browser-wide'}</span>
+          </div>
+          <label class="bdm-alt-switch" for="alt-toggle-global-interception">
+            <input type="checkbox" id="alt-toggle-global-interception" ${enableInterception ? 'checked' : ''}>
+            <span class="bdm-alt-slider"></span>
+          </label>
+        </div>
+        <div class="bdm-alt-divider"></div>
+        <div class="bdm-alt-toggle-row" id="alt-site-toggle-row">
+          <div class="bdm-alt-toggle-info">
+            <span class="bdm-alt-toggle-title">Capture on this site</span>
+            <div class="bdm-alt-toggle-subtitle">
+              <span class="bdm-alt-site-domain" id="alt-site-domain">${pageDomain || 'No active website'}</span>
+              <span class="bdm-alt-site-desc" id="alt-site-desc">${siteBlacklisted || !pageDomain ? 'Disabled (handled by browser)' : 'Enabled (captured by Bengal DM)'}</span>
+            </div>
+          </div>
+          <label class="bdm-alt-switch" for="alt-toggle-site-interception">
+            <input type="checkbox" id="alt-toggle-site-interception" ${!siteBlacklisted && pageDomain ? 'checked' : ''} ${siteBlacklisted || !pageDomain || !enableInterception ? 'disabled' : ''}>
+            <span class="bdm-alt-slider"></span>
+          </label>
+        </div>
+      `;
+      altSection.appendChild(controlsCard);
+
+      listEl.appendChild(altSection);
+
+      // Click handlers for alternate toggles
+      const globalToggle = controlsCard.querySelector('#alt-toggle-global-interception');
+      const siteToggle = controlsCard.querySelector('#alt-toggle-site-interception');
+
+      if (globalToggle) {
+        globalToggle.addEventListener('change', (e) => {
+          const enabled = e.target.checked;
+          chrome.storage.local.set({ enableInterception: enabled });
+        });
+        controlsCard.querySelector('#alt-global-toggle-row').addEventListener('click', (e) => {
+          if (e.target.closest('.bdm-alt-switch')) return;
+          const cb = globalToggle;
+          if (cb && !cb.disabled) {
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+
+      if (siteToggle && pageDomain) {
+        siteToggle.addEventListener('change', (e) => {
+          const enableForThisSite = e.target.checked;
+          if (enableForThisSite) {
+            // Remove domain from blacklist so it IS captured
+            chrome.storage.local.get({ blacklistUrls: [] }, (items) => {
+              const list = Array.isArray(items.blacklistUrls) ? [...items.blacklistUrls] : [];
+              const filtered = list.filter(item => {
+                const p = (item || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                if (!p) return false;
+                const d = pageDomain.toLowerCase();
+                return !(p === d || d.endsWith('.' + p) || p.endsWith('.' + d));
+              });
+              chrome.storage.local.set({ blacklistUrls: filtered });
+            });
+          } else {
+            // Add domain to blacklist so it is bypassed
+            chrome.storage.local.get({ blacklistUrls: [] }, (items) => {
+              const list = Array.isArray(items.blacklistUrls) ? [...items.blacklistUrls] : [];
+              const d = pageDomain.toLowerCase();
+              const already = list.some(item => {
+                const p = (item || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+                if (!p) return false;
+                return p === d || d.endsWith('.' + p) || p.endsWith('.' + d);
+              });
+              if (!already) list.push(d);
+              chrome.storage.local.set({ blacklistUrls: list });
+            });
+          }
+        });
+        controlsCard.querySelector('#alt-site-toggle-row').addEventListener('click', (e) => {
+          if (e.target.closest('.bdm-alt-switch')) return;
+          const cb = siteToggle;
+          if (cb && !cb.disabled) {
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+
+      // Fetch direct formats from listForFrame IPC (same source as the removed floating menu)
+      chrome.runtime.sendMessage({ action: 'listForFrame' }, (res) => {
+        const candidates = (res && res.items) || [];
+        const youtube = /(^|\.)youtube\.com$/.test(location.hostname);
+        const videoUrl = (() => {
+          try {
+            const u = new URL(activeVideo.currentSrc || activeVideo.src || activeVideo.querySelector('source')?.src, location.href);
+            return /^https?:$/.test(u.protocol) ? u.href : null;
+          } catch { return null; }
+        })();
+        if (!youtube && videoUrl && !candidates.some(item => item.url === videoUrl)) {
+          candidates.unshift({url: videoUrl, title: document.title, quality: 'Alternate', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
+        }
+
+        if (candidates.length === 0) {
+          const notice = document.createElement('div');
+          notice.className = 'bdm-notice';
+          notice.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No Alternate media links detected. Play the video and try again.';
+          listEl.appendChild(notice);
+          return;
+        }
+
+        candidates.forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'bdm-item';
+
+          const left = document.createElement('div');
+          left.className = 'bdm-item-left';
+          const badge = document.createElement('span');
+          badge.className = `bdm-res-badge`.trim();
+          badge.textContent = item.quality || 'Alternate';
+          const label = document.createElement('span');
+          label.className = 'bdm-res-label';
+          label.textContent = item.title || document.title || 'Video';
+          left.append(badge, label);
+
+          const right = document.createElement('div');
+          right.className = 'bdm-item-right';
+          const size = document.createElement('span');
+          size.className = 'bdm-res-size';
+          size.textContent = '';
+          right.append(size, createDownloadIcon());
+
+          row.append(left, right);
+          row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Route through action: 'download' → /resolve-direct → start_direct_download → DirectMuxWorker (audio+video mux)
+            chrome.runtime.sendMessage({
+              action: 'download',
+              item: { ...item, startNow: false },
+              tabId: undefined
+            }, (resp) => {
+              // Fire-and-forget; response handled silently
+            });
+            closeDropdown();
+          });
+
+          listEl.appendChild(row);
+        });
+      });
+      return;
     }
+
+    const resolutions = getSupportedResolutions(activeVideo);
 
     resolutions.forEach((tier) => {
       const row = document.createElement('div');
@@ -3310,200 +3627,4 @@
   window.addEventListener('scroll', updateWidgetPosition, { passive: true, capture: true });
   window.addEventListener('resize', updateWidgetPosition, { passive: true });
 
-  // =========================================================================
-  // Bengal DM - Awesome Downloader Style: Direct Download Button on Each Video
-  // =========================================================================
-  (function initDirectDownloadButtons() {
-    const directButtons = new Map(); // video -> {host, shadow, button, chooser, dismissed, mo}
-    const directUrl = (value) => { try { const u = new URL(value, location.href); return /^https?:$/.test(u.protocol) ? u.href : null; } catch { return null; } };
-
-    function createDirectButton(video) {
-      const host = document.createElement('div');
-      host.style.cssText = 'position:fixed;z-index:2147483647;display:none;pointer-events:auto';
-      const shadow = host.attachShadow({mode: 'open'});
-      shadow.innerHTML = `
-        <style>
-          :host{font:12px system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}
-          .bar{display:flex;align-items:stretch}
-          .download{background:linear-gradient(145deg,#242932,#15181f);color:#f9fafb;border:1px solid rgba(255,255,255,0.18);cursor:default;box-shadow:0 4px 16px rgba(0,0,0,0.55);height:27px;border-radius:6px;padding:3px 10px;font:12px system-ui}
-          .download:hover{background:linear-gradient(145deg,#2c323d,#1a1e27);border-color:rgba(255,255,255,0.32);transform:scale(1.05)}
-          .download:active{transform:scale(0.96)}
-          .dismiss{width:22px;padding:0;border-radius:0 6px 6px 0;font-size:16px;line-height:20px;background:#1e2229;color:#d1d5db;border:1px solid rgba(255,255,255,0.24)}
-          .dismiss:hover{background:#ef4444;color:#fff}
-          .chooser{position:fixed;background:#14171d;color:#f3f4f6;padding:8px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.75);width:min(410px,calc(100vw - 10px));max-height:min(330px,55vh);overflow:auto;z-index:2147483648}
-          .chooser p{margin:0 0 8px;font-size:12px;color:#9ca3af}
-          .row{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:6px;box-shadow:none;padding:8px 10px;font:12px system-ui;color:#e5e7eb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-          .row:hover{background:rgba(61,174,233,0.12)}
-          .row:disabled{color:#6b7280;opacity:0.6}
-          .row:active{background:rgba(61,174,233,0.22)}
-          .row .q{font-weight:700;color:#93c5fd}
-          .row .f{color:#9ca3af;font-size:11px}
-          .row .a{color:#34d399;font-size:11px}
-        </style>
-        <div class="bar">
-          <button class="download" type="button">\u2B07 Download Video</button>
-          <button class="dismiss" type="button" title="Hide this download panel" aria-label="Hide this download panel">\u00D7</button>
-        </div>`;
-      const button = shadow.querySelector('.download');
-      const dismiss = shadow.querySelector('.dismiss');
-      const record = {video, host, shadow, dismissed: false, chooser: null, mo: null};
-      directButtons.set(video, record);
-      document.documentElement.appendChild(host);
-
-      const collectUrls = () => {
-        const urls = [video.currentSrc, video.src, ...Array.from(video.querySelectorAll('source')).map(s => s.src)].map(directUrl).filter(Boolean);
-        if (urls.length) {
-          chrome.runtime.sendMessage({
-            action: 'remember',
-            items: urls.map(url => ({url, title: document.title, mime: '', quality: '', bitrate: 0, format: '', separateAudio: false, reason: '', unsupported: false, codecs: '', masterUrl: undefined, audioUrl: undefined}))
-          }).catch(() => {});
-        }
-      };
-
-      video.addEventListener('loadedmetadata', collectUrls);
-      record.mo = new MutationObserver(collectUrls);
-      record.mo.observe(video, {attributes: true, attributeFilter: ['src'], subtree: true, childList: true});
-      collectUrls();
-
-      dismiss.addEventListener('click', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        record.dismissed = true;
-        if (record.chooser) { record.chooser.remove(); record.chooser = null; }
-        host.style.display = 'none';
-      });
-
-      button.addEventListener('click', async (e) => {
-        e.preventDefault(); e.stopPropagation();
-        if (record.chooser) { record.chooser.remove(); record.chooser = null; positionDirectButtons(); return; }
-        closeAllDirectChoosers(record);
-
-        const chooser = document.createElement('div');
-        chooser.className = 'chooser';
-        record.chooser = chooser;
-        shadow.append(chooser);
-        positionDirectButtons();
-
-        const hint = document.createElement('p');
-        hint.textContent = 'Checking available video formats…';
-        chooser.append(hint);
-
-        try {
-          const result = await new Promise((resolve) => {
-            chrome.runtime.sendMessage({action: 'listForFrame'}, (res) => resolve(res || {ok: false, items: []}));
-          });
-          if (!result.ok) throw new Error(result.error || 'Could not list video formats.');
-
-          hint.textContent = 'Choose a format to download';
-          const candidates = result.items || [];
-          const youtube = /(^|\.)youtube\.com$/.test(location.hostname);
-          const videoUrl = directUrl(video.currentSrc || video.src || video.querySelector('source')?.src);
-          if (!youtube && videoUrl && !candidates.some(item => item.url === videoUrl)) {
-            candidates.unshift({url: videoUrl, title: document.title, quality: 'Alternate', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
-          }
-          if (!candidates.length) {
-            hint.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No Alternate media links detected. Play the video and try again.';
-            return;
-          }
-
-          candidates.forEach((item, index) => {
-            const row = document.createElement('button');
-            row.className = 'row';
-            row.type = 'button';
-            row.disabled = !!item.unsupported;
-            row.title = item.reason || '';
-            const format = item.format || (/\.m3u8(?:[?#]|$)/i.test(item.url) ? 'HLS' : /\.(mp4|webm|mp3|m4a|mov)(?:[?#]|$)/i.exec(item.url)?.[1]?.toUpperCase() || 'Media');
-            const title = item.title || document.title || 'Video';
-            row.textContent = `${index + 1}. ${item.quality || format} \u00B7 ${format} \u00B7 ${item.audioState}${item.bitrate ? ' \u00B7 ' + Math.round(item.bitrate / 1000) + ' kbps' : ''} \u2014 ${title}`;
-            row.onclick = async (ev) => {
-              ev.preventDefault(); ev.stopPropagation();
-              row.disabled = true;
-              hint.textContent = 'Sending to Bengal DM…';
-              try {
-                const response = await new Promise((resolve) => {
-                  chrome.runtime.sendMessage({
-                    action: 'download',
-                    item: {...item, startNow: false},
-                    tabId: undefined
-                  }, (res) => resolve(res || {ok: false, error: 'No response'}));
-                });
-                hint.textContent = response.ok ? 'Download opened in Bengal DM.' : (response.error || 'Failed');
-              } catch (error) {
-                hint.textContent = error.message || 'Failed';
-              }
-              row.disabled = !!item.unsupported;
-            };
-            chooser.append(row);
-          });
-          positionDirectButtons();
-        } catch (error) {
-          hint.textContent = error.message;
-        }
-      });
-    }
-
-    function positionDirectButtons() {
-      if (document.hidden) return;
-      for (const [video, record] of directButtons) {
-        if (!video.isConnected) {
-          record.mo?.disconnect();
-          record.host.remove();
-          directButtons.delete(video);
-          continue;
-        }
-        if (record.dismissed) continue;
-        const rect = video.getBoundingClientRect();
-        const visible = rect.width > 100 && rect.height > 60 && rect.top >= 0 && rect.top < innerHeight - 30 && rect.right > 0 && rect.left < innerWidth;
-        record.host.style.display = visible ? 'block' : 'none';
-        if (!visible) continue;
-
-        const width = record.host.offsetWidth || 180;
-        const height = record.host.offsetHeight || 27;
-        const above = rect.top >= height + 6;
-        record.host.style.top = `${Math.max(5, Math.min(innerHeight - height - 5, above ? rect.top - height - 4 : rect.top + 4))}px`;
-        record.host.style.left = `${Math.max(5, Math.min(innerWidth - width - 5, rect.right - width - 8))}px`;
-
-        const chooser = record.chooser;
-        if (chooser) {
-          const chooserWidth = Math.min(410, innerWidth - 10);
-          const chooserHeight = Math.min(chooser.scrollHeight || 330, Math.min(330, innerHeight * 0.55));
-          const hostRect = record.host.getBoundingClientRect();
-          chooser.style.left = `${Math.max(5, Math.min(innerWidth - chooserWidth - 5, hostRect.right - chooserWidth))}px`;
-          const below = hostRect.bottom + 4;
-          const aboveMenu = hostRect.top - chooserHeight - 4;
-          chooser.style.top = `${below + chooserHeight <= innerHeight - 5 ? below : Math.max(5, aboveMenu)}px`;
-        }
-      }
-    }
-
-    function closeAllDirectChoosers(except) {
-      for (const [, record] of directButtons) {
-        if (record === except) continue;
-        if (record.chooser) { record.chooser.remove(); record.chooser = null; }
-      }
-    }
-
-    function scanDirectVideos() {
-      for (const video of document.querySelectorAll('video')) {
-        if (!directButtons.has(video)) {
-          createDirectButton(video);
-        }
-      }
-      positionDirectButtons();
-    }
-
-    const directMutationObserver = new MutationObserver(scanDirectVideos);
-    directMutationObserver.observe(document.documentElement, {subtree: true, childList: true});
-    setInterval(scanDirectVideos, 3000);
-    scanDirectVideos();
-
-    document.addEventListener('pointerdown', (e) => {
-      const path = e.composedPath ? e.composedPath() : [];
-      const inside = [...directButtons.values()].some(record => path.includes(record.host));
-      if (!inside) closeAllDirectChoosers();
-    }, {capture: true});
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeAllDirectChoosers();
-    }, {capture: true});
-  })();
 })();
