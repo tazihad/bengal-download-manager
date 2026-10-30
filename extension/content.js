@@ -39,6 +39,16 @@
   let directFormats = { videoId: '', formats: [] };
   let lastDirectFormatsSig = '';
 
+  // Alternate (direct) list state. The list is rendered from this cache first so the
+  // panel never collapses while the background round-trip is still in flight.
+  let directFormatsRequestedKey = '';
+  let directListCache = { key: '', items: [] };
+  let directListToken = 0;
+  let directListPending = false;
+  let directListFetchedKey = '';
+  let directEmptyTimer = null;
+  let lastRenderedListSignature = '';
+
   const POPULAR_MEDIA_HOSTS = [
     'youtube.com', 'youtu.be',
     'facebook.com', 'fb.watch', 'fb.com',
@@ -378,6 +388,9 @@
       if (sig === lastDirectFormatsSig) return;
       lastDirectFormatsSig = sig;
       if (activeVideo && isDropdownOpen && downloadMethod === 'direct') {
+        // Player data changed; keep the current rows on screen and re-query the
+        // freshly updated choices in the background.
+        directListFetchedKey = '';
         populateDropdown();
       }
     }
@@ -947,6 +960,14 @@
       padding: 4px 0;
     }
 
+    /* Holds the panel at a stable height while Alternate mode is still resolving. */
+    .bdm-list.bdm-list-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 96px;
+    }
+
     .bdm-list::-webkit-scrollbar {
       width: 5px;
     }
@@ -1176,6 +1197,10 @@
     downloadMethod = method;
     updateMethodToggleUI();
     chrome.storage.local.set({ downloadMethod: method });
+    if (method === 'direct') {
+      // Refresh the Alternate choices for this switch instead of reusing a stale fetch.
+      directListFetchedKey = '';
+    }
     if (activeVideo && isDropdownOpen) {
       populateDropdown();
     }
@@ -2556,93 +2581,226 @@
   }
 
   // 10. Render Dropdown Contents
-  function populateDropdown() {
-    if (!activeVideo) return;
-    const title = getVideoTitle(activeVideo);
-    titleEl.textContent = title;
-    titleEl.title = title;
-
-    badgeEl.textContent = getPlatformName();
-
-    const dur = (ytMediaInfo && ytMediaInfo.duration) ||
-                (activeIframeData && activeIframeData.duration) ||
-                (activeVideo && activeVideo.duration) || 0;
-    const durStr = formatDuration(dur);
-    durationEl.textContent = durStr ? `Duration: ${durStr}` : 'Streaming';
-
-    updateMethodToggleUI();
-
-    if (downloadMethod === 'direct') {
-      window.postMessage({ type: '__BDM_GET_DIRECT_FORMATS__' }, '*');
+  function getActiveMediaKey() {
+    if (ytMediaInfo && ytMediaInfo.videoId) return `youtube:${ytMediaInfo.videoId}`;
+    if (activeVideo && activeVideo.tagName !== 'IFRAME') {
+      return `video:${activeVideo.currentSrc || activeVideo.src || ''}`;
     }
+    if (activeIframeData) {
+      return `iframe:${activeIframeData.streamUrl || activeIframeData.currentSrc || activeIframeData.frameUrl || ''}`;
+    }
+    return `page:${window.location.href}`;
+  }
 
+  function getActiveVideoUrl() {
+    if (!activeVideo || activeVideo.tagName === 'IFRAME') return null;
+    try {
+      const source = activeVideo.currentSrc || activeVideo.src || activeVideo.querySelector('source')?.src;
+      const u = new URL(source, location.href);
+      return /^https?:$/.test(u.protocol) ? u.href : null;
+    } catch { return null; }
+  }
+
+  function isYouTubeHost() {
+    return /(^|\.)youtube\.com$/.test(location.hostname);
+  }
+
+  function clearDirectEmptyTimer() {
+    if (directEmptyTimer) {
+      clearTimeout(directEmptyTimer);
+      directEmptyTimer = null;
+    }
+  }
+
+  function resetDirectList(mediaKey) {
+    clearDirectEmptyTimer();
+    directListToken++;
+    directListPending = false;
+    directListFetchedKey = '';
+    directListCache = { key: mediaKey, items: [] };
+  }
+
+  function renderDirectPlaceholder() {
+    const sig = `direct-loading:${directListCache.key}`;
+    if (sig === lastRenderedListSignature) return;
+    // Don't replace an already-shown "nothing found" notice with a loading line.
+    const emptySig = `direct-empty:${directListCache.key}:${isYouTubeHost() ? 'yt' : 'web'}`;
+    if (emptySig === lastRenderedListSignature) return;
+    lastRenderedListSignature = sig;
+    listEl.classList.add('bdm-list-loading');
+    listEl.innerHTML = '';
+    const notice = document.createElement('div');
+    notice.className = 'bdm-notice';
+    notice.textContent = 'Looking for media links…';
+    listEl.appendChild(notice);
+  }
+
+  function renderDirectEmpty(youtube) {
+    const sig = `direct-empty:${directListCache.key}:${youtube ? 'yt' : 'web'}`;
+    if (sig === lastRenderedListSignature) return;
+    lastRenderedListSignature = sig;
+    clearDirectEmptyTimer();
+    listEl.classList.remove('bdm-list-loading');
+    listEl.innerHTML = '';
+    const notice = document.createElement('div');
+    notice.className = 'bdm-notice';
+    notice.textContent = youtube
+      ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.'
+      : 'No Alternate media links detected. Play the video and try again.';
+    listEl.appendChild(notice);
+  }
+
+  function renderDirectItems(items) {
+    const sig = 'direct:' + directListCache.key + ':' +
+      items.map((item) => `${item.quality || ''}|${item.url || ''}`).join('~');
+    if (sig === lastRenderedListSignature && listEl.querySelector('.bdm-item')) return;
+    lastRenderedListSignature = sig;
+    clearDirectEmptyTimer();
+    listEl.classList.remove('bdm-list-loading');
     listEl.innerHTML = '';
 
-    if (downloadMethod === 'direct') {
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'bdm-item';
+
+      const left = document.createElement('div');
+      left.className = 'bdm-item-left';
+      const badge = document.createElement('span');
+      badge.className = `bdm-res-badge`.trim();
+      badge.textContent = item.quality || 'Alternate';
+      const label = document.createElement('span');
+      label.className = 'bdm-res-label';
+      label.textContent = item.quality || 'Alternate';
+      left.append(badge, label);
+
+      const right = document.createElement('div');
+      right.className = 'bdm-item-right';
+      const size = document.createElement('span');
+      size.className = 'bdm-res-size';
+      size.textContent = '';
+      right.append(size, createDownloadIcon());
+
+      row.append(left, right);
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Route through action: 'download' → /resolve-direct → start_direct_download → DirectMuxWorker (audio+video mux)
+        chrome.runtime.sendMessage({
+          action: 'download',
+          item: { ...item, startNow: false },
+          tabId: undefined
+        }, (resp) => {
+          // Fire-and-forget; response handled silently
+        });
+        closeDropdown();
+      });
+
+      listEl.appendChild(row);
+    });
+  }
+
+  function requestDirectItems() {
+    const mediaKey = directListCache.key;
+    if (directListPending || directListFetchedKey === mediaKey) return;
+    directListPending = true;
+    directListFetchedKey = mediaKey;
+    const token = ++directListToken;
+    clearDirectEmptyTimer();
+
+    try {
       // Fetch direct formats from listForFrame IPC (same source as the removed floating menu)
       chrome.runtime.sendMessage({ action: 'listForFrame' }, (res) => {
-        const candidates = (res && res.items) || [];
-        const youtube = /(^|\.)youtube\.com$/.test(location.hostname);
-        const videoUrl = (() => {
-          try {
-            const u = new URL(activeVideo.currentSrc || activeVideo.src || activeVideo.querySelector('source')?.src, location.href);
-            return /^https?:$/.test(u.protocol) ? u.href : null;
-          } catch { return null; }
-        })();
+        void chrome.runtime.lastError;
+        if (token !== directListToken) return;
+        directListPending = false;
+        if (!isDropdownOpen || !activeVideo || downloadMethod !== 'direct') return;
+        if (directListCache.key !== mediaKey) return;
+
+        const youtube = isYouTubeHost();
+        const candidates = (res && Array.isArray(res.items)) ? res.items.slice() : [];
+        const videoUrl = getActiveVideoUrl();
         if (!youtube && videoUrl && !candidates.some(item => item.url === videoUrl)) {
           candidates.unshift({url: videoUrl, title: document.title, quality: 'Alternate', format: 'MP4', audioState: 'Video + audio', bitrate: 0});
         }
 
         if (candidates.length === 0) {
-          const notice = document.createElement('div');
-          notice.className = 'bdm-notice';
-          notice.textContent = youtube ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.' : 'No Alternate media links detected. Play the video and try again.';
-          listEl.appendChild(notice);
+          if (youtube) {
+            // The player response may still be in flight; give it a moment before
+            // deciding that nothing was captured (avoids a "play first" flash).
+            directEmptyTimer = setTimeout(() => {
+              directEmptyTimer = null;
+              if (!isDropdownOpen || downloadMethod !== 'direct' || directListCache.key !== mediaKey) return;
+              if (directListCache.items.length > 0) return;
+              renderDirectEmpty(true);
+            }, 1200);
+            return;
+          }
+          renderDirectEmpty(false);
           return;
         }
 
-        candidates.forEach((item) => {
-          const row = document.createElement('div');
-          row.className = 'bdm-item';
-
-          const left = document.createElement('div');
-          left.className = 'bdm-item-left';
-          const badge = document.createElement('span');
-          badge.className = `bdm-res-badge`.trim();
-          badge.textContent = item.quality || 'Alternate';
-          const label = document.createElement('span');
-          label.className = 'bdm-res-label';
-          label.textContent = item.quality || 'Alternate';
-          left.append(badge, label);
-
-          const right = document.createElement('div');
-          right.className = 'bdm-item-right';
-          const size = document.createElement('span');
-          size.className = 'bdm-res-size';
-          size.textContent = '';
-          right.append(size, createDownloadIcon());
-
-          row.append(left, right);
-          row.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Route through action: 'download' → /resolve-direct → start_direct_download → DirectMuxWorker (audio+video mux)
-            chrome.runtime.sendMessage({
-              action: 'download',
-              item: { ...item, startNow: false },
-              tabId: undefined
-            }, (resp) => {
-              // Fire-and-forget; response handled silently
-            });
-            closeDropdown();
-          });
-
-          listEl.appendChild(row);
-        });
+        directListCache.items = candidates;
+        renderDirectItems(candidates);
       });
+    } catch (e) {
+      directListPending = false;
+      renderDirectEmpty(isYouTubeHost());
+    }
+  }
+
+  function populateDropdown() {
+    if (!activeVideo) return;
+    const title = getVideoTitle(activeVideo);
+    if (titleEl.textContent !== title || titleEl.title !== title) {
+      titleEl.textContent = title;
+      titleEl.title = title;
+    }
+
+    const sourceName = getPlatformName();
+    if (badgeEl.textContent !== sourceName) {
+      badgeEl.textContent = sourceName;
+    }
+
+    const dur = (ytMediaInfo && ytMediaInfo.duration) ||
+                (activeIframeData && activeIframeData.duration) ||
+                (activeVideo && activeVideo.duration) || 0;
+    const durStr = formatDuration(dur);
+    const durLabel = durStr ? `Duration: ${durStr}` : 'Streaming';
+    if (durationEl.textContent !== durLabel) {
+      durationEl.textContent = durLabel;
+    }
+
+    updateMethodToggleUI();
+
+    if (downloadMethod === 'direct') {
+      const mediaKey = getActiveMediaKey();
+      if (directListCache.key !== mediaKey) {
+        resetDirectList(mediaKey);
+      }
+      if (directFormatsRequestedKey !== mediaKey) {
+        directFormatsRequestedKey = mediaKey;
+        try {
+          window.postMessage({ type: '__BDM_GET_DIRECT_FORMATS__' }, '*');
+        } catch (e) {}
+      }
+      // Paint whatever is already known, then refresh from the background.
+      if (directListCache.items.length > 0) {
+        renderDirectItems(directListCache.items);
+      } else {
+        renderDirectPlaceholder();
+      }
+      requestDirectItems();
       return;
     }
 
+    clearDirectEmptyTimer();
     const resolutions = getSupportedResolutions(activeVideo);
+    const signature = 'standard:' + resolutions.map((tier) =>
+      `${tier.quality || ''}|${tier.badge || ''}|${tier.label || ''}|${tier.size || ''}|${tier.ext || ''}|${tier.isAudio ? 1 : 0}|${tier.streamUrl || ''}`
+    ).join('~');
+    if (signature === lastRenderedListSignature && listEl.querySelector('.bdm-item')) return;
+    lastRenderedListSignature = signature;
+    listEl.classList.remove('bdm-list-loading');
+    listEl.innerHTML = '';
 
     resolutions.forEach((tier) => {
       const row = document.createElement('div');
@@ -3052,6 +3210,11 @@
     root.classList.remove('open');
     footerEl.classList.remove('opening');
     footerTextEl.textContent = 'Bengal Download Manager';
+    // Drop any in-flight Alternate response and force a fresh query on reopen.
+    clearDirectEmptyTimer();
+    directListToken++;
+    directListPending = false;
+    directListFetchedKey = '';
     resetIdleTimer();
   }
 
