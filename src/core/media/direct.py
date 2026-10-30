@@ -549,6 +549,21 @@ def start_direct_download(main_window, payload: dict) -> bool:
     logger.info("[Direct] Dispatching to Aria2: %s -> %s (silent=%s, show_start=%s, show_dialog=%s, size=%s)",
                 log_target, unique_path, silent, show_start, show_dialog, size_str or size_bytes)
 
+    # Bundle every start_download argument so the file info dialog (when shown)
+    # and the direct dispatch path carry identical metadata.
+    start_kwargs = {
+        "custom_filename": os.path.basename(unique_path),
+        "custom_save_dir": os.path.dirname(unique_path),
+        "size_data": (size_str,) if size_str else None,
+        "show_dialog": False,
+        "user_agent": payload.get("userAgent") or None,
+        "cookies": payload.get("cookies") or None,
+        "referer": payload.get("referrer") or url,
+        "prefetch": False,
+        "supports_range": True,
+        "direct_audio_url": audio_url or None,
+    }
+
     if show_dialog:
         # Show the file info dialog like standard downloads do, respecting the
         # "Show start download dialog" option checkmark.
@@ -562,19 +577,8 @@ def start_direct_download(main_window, payload: dict) -> bool:
             "referer": payload.get("referrer") or url,
             "supports_range": True,
         }
+        file_info.update(start_kwargs)
         main_window.on_file_info_fetched(file_info)
     else:
-        main_window.start_download(
-            url,
-            custom_filename=os.path.basename(unique_path),
-            custom_save_dir=os.path.dirname(unique_path),
-            size_data=(size_str,) if size_str else None,
-            show_dialog=False,
-            user_agent=payload.get("userAgent") or None,
-            cookies=payload.get("cookies") or None,
-            referer=payload.get("referrer") or url,
-            prefetch=False,
-            supports_range=True,
-            direct_audio_url=audio_url or None,
-        )
+        main_window.start_download(url, **start_kwargs)
     return True

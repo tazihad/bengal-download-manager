@@ -45,6 +45,12 @@ class StubMainWindow:
         self.events.append("start_download")
         self.download_calls.append((url, kwargs))
 
+    def on_file_info_fetched(self, file_info):
+        # Simulate the real dialog flow: user clicks "Start Download" and
+        # forward all recorded start_download arguments.
+        url = file_info.pop("url")
+        self.start_download(url, **file_info)
+
     def statusBar(self):
         return self.status_bar
 
