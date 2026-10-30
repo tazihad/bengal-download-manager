@@ -137,6 +137,33 @@
     }
     return result;
   }
-  root.bdmYouTube = { mediaUrl, sabrUrl, playerData, sanitizePlayer, choices };
+  function sabrSession(player, capture, selection) {
+    if (!player || !capture || !/^[\w-]{11}$/.test(player.videoId || '') || !player.ustreamerConfig) return null;
+    if (typeof capture.url !== 'string' || !capture.url) return null;
+    const audioItag = Number((selection || {}).audioItag);
+    const rawVideoItag = (selection || {}).videoItag;
+    const videoItag = rawVideoItag === undefined || rawVideoItag === null || rawVideoItag === '' ? undefined : Number(rawVideoItag);
+    if (!Number.isSafeInteger(audioItag) || (videoItag !== undefined && !Number.isSafeInteger(videoItag))) return null;
+    const formats = Array.isArray(player.formats) ? player.formats : [];
+    // An itag is shared by dubbed languages, DRC and voice-boost variants: keep precisely
+    // the chosen default audio and video, not every matching itag.
+    const audioCandidates = formats.filter(f => f.itag === audioItag && /^audio\/mp4/i.test(f.mimeType) && !f.isDrc && !f.isVb);
+    const audio = audioCandidates.find(f => f.audioTrack && f.audioTrack.audioIsDefault) || audioCandidates.find(f => !f.audioTrack) || audioCandidates[0];
+    if (!audio) return null;
+    const video = videoItag === undefined ? undefined : formats.find(f => f.itag === videoItag && /^video\/mp4/i.test(f.mimeType));
+    if (videoItag !== undefined && !video) return null;
+    return {
+      videoId: player.videoId,
+      serverAbrStreamingUrl: capture.url,
+      videoPlaybackUstreamerConfig: player.ustreamerConfig,
+      clientInfo: { clientName: player.clientName || 1, clientVersion: player.clientVersion || '' },
+      formats: [video, audio].filter(Boolean),
+      videoItag: videoItag,
+      audioItag: audioItag,
+      requestBody: capture.requestBody || undefined,
+      sizeBytes: ((video && Number(video.contentLength)) || 0) + (Number(audio.contentLength) || 0)
+    };
+  }
+  root.bdmYouTube = { mediaUrl, sabrUrl, playerData, sanitizePlayer, choices, sabrSession };
   if (typeof module !== 'undefined') module.exports = root.bdmYouTube;
 })(globalThis);

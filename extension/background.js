@@ -1,5 +1,6 @@
 // --- CONSTANTS & HELPERS ---
 importScripts('youtube-media.js');
+importScripts('youtube-direct.js');
 
 const DEFAULT_IGNORED_EXTS = [
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',
@@ -687,6 +688,22 @@ async function resolveDirectStreamUrl(pageUrl, cookies, userAgent, referrer, sel
   return null;
 }
 
+// yt-dlp-backed SABR fallback with per-(page, itag pair) result cache.
+async function resolveSabrWithCache(pageUrl, selection = {}) {
+  const cacheKey = `${pageUrl}#${selection.videoItag || ''}#${selection.audioItag || ''}`;
+  const now = Date.now();
+  const cached = sabrResolveCache.get(cacheKey);
+  if (cached && now - cached.ts < SABR_CACHE_TTL_MS) {
+    return { videoUrl: cached.videoUrl, audioUrl: cached.audioUrl || '' };
+  }
+  const resolved = await resolveDirectStreamUrl(pageUrl, '', navigator.userAgent, pageUrl, selection);
+  if (resolved && resolved.videoUrl) {
+    sabrResolveCache.set(cacheKey, { videoUrl: resolved.videoUrl, audioUrl: resolved.audioUrl || '', ts: now });
+    if (sabrResolveCache.size > 200) sabrResolveCache.delete(sabrResolveCache.keys().next().value);
+  }
+  return resolved;
+}
+
 // --- RESOLVE DOWNLOAD TARGET (handles HTML landing pages with meta refresh / direct mirror links) ---
 async function resolveDownloadTarget(url, userAgent, cookies) {
   if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
@@ -808,6 +825,7 @@ async function isBengalDMOnline() {
     if (config.ipc_port) {
       cachedIpcPort = parseInt(config.ipc_port, 10) || cachedIpcPort;
     }
+    cachedSabrCapability = config.sabr === true;
     updateDynamicMediaConfig(config);
     chrome.storage.local.set({
       ipcPort: cachedIpcPort,
@@ -846,7 +864,8 @@ async function sendToBengalDM(downloadData) {
     pageExtract: !!downloadData.pageExtract,
     sizeBytes: downloadData.sizeBytes || 0,
     sizeStr: downloadData.sizeStr || "",
-    audioUrl: downloadData.audioUrl || ""
+    audioUrl: downloadData.audioUrl || "",
+    sabr: downloadData.sabr || undefined
   };
 
   try {
@@ -947,9 +966,9 @@ const detectedMediaUrls = new Map();    // url -> timestamp (5-second deduplicat
 const tabMediaStreams = new Map();      // tabId -> Array of { url, contentType, title, timestamp }
 const tabDirectFormats = new Map();     // tabId -> Array of { url, title, mime, quality, bitrate, format, audioUrl, ... }
 const youtubePlayers = new Map();       // tabId -> { videoId, title, sabrUrl, ustreamerConfig, clientName, clientVersion, formats[] }
-const youtubeObserved = new Map();      // tabId -> Set of observed raw URLs
 const sabrResolveCache = new Map();     // "${pageUrl}#${videoItag}#${audioItag}" -> { videoUrl, audioUrl, ts }
 const SABR_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes (signed URLs expire)
+let cachedSabrCapability = false;       // desktop exposes a Deno SABR streaming runtime (GET / config.sabr)
 
 function recordSniffedMedia(tabId, url, contentType, title, sizeBytes = 0) {
   if (!tabId || tabId === -1 || !url) return;
@@ -2157,7 +2176,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (data) {
       const previous = youtubePlayers.get(sender.tab.id);
       if (previous && previous.videoId !== data.videoId) {
-        youtubeObserved?.delete(sender.tab.id);
+        globalThis.bdmYouTubeDirect?.clear(sender.tab.id);
       }
       youtubePlayers.set(sender.tab.id, data);
       if (youtubePlayers.size > 50) youtubePlayers.delete(youtubePlayers.keys().next().value);
@@ -2190,7 +2209,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({ok: true, items: []});
             return;
           }
-          const items = globalThis.bdmYouTube?.choices(player, []) || [];
+          const observed = globalThis.bdmYouTubeDirect?.getObserved(tabId) || [];
+          const items = globalThis.bdmYouTube?.choices(player, observed) || [];
           sendResponse({ok: true, items});
           return;
         }
@@ -2238,6 +2258,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         let finalUrl = url;
         let audioUrl = "";
+        let sabrPayload = null;
         if (needsAudioMerge) {
           // If the item already carries direct stream URLs (e.g. googlevideo.com),
           // use them directly — instant, no yt-dlp re-resolution needed.
@@ -2249,33 +2270,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             finalUrl = directStreamUrl;
             audioUrl = item.audioUrl || '';
           } else if (isDirectStreamUrl && item.sabrSelection) {
-            // SABR adaptive tier: direct stream URL exists but signed itag pair
-            // still needs yt-dlp to resolve into videoUrl+audioUrl. Cache the
-            // resolution per (page, videoItag, audioItag) so repeat clicks on
-            // the same quality are instant.
+            // SABR adaptive tier. If the player's own ABR session was captured and the
+            // desktop can stream it (Deno + googlevideo), relay the session — instant,
+            // no yt-dlp at all. Otherwise cache the yt-dlp resolution per
+            // (page, videoItag, audioItag) so repeat clicks on the same quality are instant.
             const selection = item.sabrSelection || {};
-            const cacheKey = `${pageUrl}#${selection.videoItag || ''}#${selection.audioItag || ''}`;
-            const now = Date.now();
-            const cached = sabrResolveCache.get(cacheKey);
-            if (cached && now - cached.ts < SABR_CACHE_TTL_MS) {
-              finalUrl = cached.videoUrl;
-              audioUrl = cached.audioUrl || '';
+            const capture = globalThis.bdmYouTubeDirect?.getCapture(tabId);
+            const player = youtubePlayers.get(tabId);
+            const hasVideoPick = selection.videoItag !== undefined && selection.videoItag !== null && selection.videoItag !== '';
+            // Audio-only (MP3) picks stay on the yt-dlp path: the SABR helper writes MP4
+            // audio and the v1 relay performs no audio transcoding.
+            if (hasVideoPick && capture && cachedSabrCapability && player?.videoId) {
+              sabrPayload = globalThis.bdmYouTube?.sabrSession(player, capture, selection) || null;
+            }
+            if (sabrPayload) {
+              finalUrl = sabrPayload.serverAbrStreamingUrl;
             } else {
-              const resolved = await resolveDirectStreamUrl(
-                pageUrl,
-                '',
-                navigator.userAgent,
-                pageUrl,
-                selection
-              );
+              const resolved = await resolveSabrWithCache(pageUrl, selection);
               if (!resolved || !resolved.videoUrl) {
                 sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Default mode.'});
                 return true;
               }
               finalUrl = resolved.videoUrl;
               audioUrl = resolved.audioUrl || '';
-              sabrResolveCache.set(cacheKey, { videoUrl: finalUrl, audioUrl, ts: now });
-              if (sabrResolveCache.size > 200) sabrResolveCache.delete(sabrResolveCache.keys().next().value);
             }
           } else {
             // Fall back to yt-dlp resolution (slow path) when direct URLs are unavailable.
@@ -2306,10 +2323,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           isMedia: true,
           method: 'direct',
           pageExtract: needsAudioMerge,
-          sizeBytes: Number(item.sizeBytes || item.size_bytes || 0) || 0,
+          sizeBytes: Number(item.sizeBytes || item.size_bytes || (sabrPayload && sabrPayload.sizeBytes) || 0) || 0,
           sizeStr: item.sizeStr || item.size_str || item.size || '',
           ext: item.outputFormat || item.ext || '',
-          audioUrl: audioUrl
+          audioUrl: audioUrl,
+          sabr: sabrPayload || undefined
         });
         sendResponse({ok: success, resolvedUrl: finalUrl});
       } catch (e) {
