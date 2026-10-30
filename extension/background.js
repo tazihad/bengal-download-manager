@@ -948,6 +948,8 @@ const tabMediaStreams = new Map();      // tabId -> Array of { url, contentType,
 const tabDirectFormats = new Map();     // tabId -> Array of { url, title, mime, quality, bitrate, format, audioUrl, ... }
 const youtubePlayers = new Map();       // tabId -> { videoId, title, sabrUrl, ustreamerConfig, clientName, clientVersion, formats[] }
 const youtubeObserved = new Map();      // tabId -> Set of observed raw URLs
+const sabrResolveCache = new Map();     // "${pageUrl}#${videoItag}#${audioItag}" -> { videoUrl, audioUrl, ts }
+const SABR_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes (signed URLs expire)
 
 function recordSniffedMedia(tabId, url, contentType, title, sizeBytes = 0) {
   if (!tabId || tabId === -1 || !url) return;
@@ -2246,6 +2248,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (isDirectStreamUrl && item.audioUrl) {
             finalUrl = directStreamUrl;
             audioUrl = item.audioUrl || '';
+          } else if (isDirectStreamUrl && item.sabrSelection) {
+            // SABR adaptive tier: direct stream URL exists but signed itag pair
+            // still needs yt-dlp to resolve into videoUrl+audioUrl. Cache the
+            // resolution per (page, videoItag, audioItag) so repeat clicks on
+            // the same quality are instant.
+            const selection = item.sabrSelection || {};
+            const cacheKey = `${pageUrl}#${selection.videoItag || ''}#${selection.audioItag || ''}`;
+            const now = Date.now();
+            const cached = sabrResolveCache.get(cacheKey);
+            if (cached && now - cached.ts < SABR_CACHE_TTL_MS) {
+              finalUrl = cached.videoUrl;
+              audioUrl = cached.audioUrl || '';
+            } else {
+              const resolved = await resolveDirectStreamUrl(
+                pageUrl,
+                '',
+                navigator.userAgent,
+                pageUrl,
+                selection
+              );
+              if (!resolved || !resolved.videoUrl) {
+                sendResponse({ok: false, error: 'Failed to resolve YouTube video+audio tracks. Try Default mode.'});
+                return true;
+              }
+              finalUrl = resolved.videoUrl;
+              audioUrl = resolved.audioUrl || '';
+              sabrResolveCache.set(cacheKey, { videoUrl: finalUrl, audioUrl, ts: now });
+              if (sabrResolveCache.size > 200) sabrResolveCache.delete(sabrResolveCache.keys().next().value);
+            }
           } else {
             // Fall back to yt-dlp resolution (slow path) when direct URLs are unavailable.
             const selection = item.sabrSelection || {};
