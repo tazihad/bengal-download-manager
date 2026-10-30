@@ -273,8 +273,23 @@
         </div>
 
         <div class="card">
-          <div class="card-title">Video Download Panel Position</div>
-          <p class="card-desc">Choose the default anchor position for the floating download button on video players.</p>
+          <div class="card-title">Media Download Method</div>
+          <p class="card-desc">Choose how to handle media downloads from video players.</p>
+
+          <div class="method-row" style="margin-top: 12px;">
+            <span class="toggle-title">Media download</span>
+            <div class="method-options">
+              <label class="method-option" title="Uses Bengal Download Manager's backend to fetch and prepare your video">
+                <input type="radio" name="options-download-method" value="standard" checked>
+                <span>Default</span>
+              </label>
+              <label class="method-option" title="Downloads the video stream directly from the page">
+                <input type="radio" name="options-download-method" value="direct">
+                <span>Alternate</span>
+              </label>
+            </div>
+          </div>
+        </div>
 
           <div class="form-group" style="max-width: 340px;">
             <label for="options-video-panel-position">Panel Position</label>

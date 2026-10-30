@@ -465,6 +465,11 @@ def start_direct_download(main_window, payload: dict) -> bool:
     if not _ensure_aria2(main_window):
         return True
 
+    # Respect options like other downloads: follow "Show start download dialog" rule
+    silent = getattr(main_window, "settings", {}).get("silent_download", False)
+    show_start = getattr(main_window, "settings", {}).get("show_start_dialog", True)
+    show_dialog = (not silent) and show_start
+
     title = payload.get("title") or payload.get("filename") or ""
     ext = ".mp4" if audio_url else (payload.get("ext") or "")
     filename = build_direct_filename(title, url, ext)
@@ -472,13 +477,14 @@ def start_direct_download(main_window, payload: dict) -> bool:
     size_str = str(payload.get("sizeStr") or "").strip()
 
     log_target = f"{url[:120]} (+ audio)" if audio_url else url[:200]
-    logger.info("[Direct] Dispatching to Aria2: %s -> %s", log_target, unique_path)
+    logger.info("[Direct] Dispatching to Aria2: %s -> %s (silent=%s, show_start=%s, show_dialog=%s)",
+                log_target, unique_path, silent, show_start, show_dialog)
     main_window.start_download(
         url,
         custom_filename=os.path.basename(unique_path),
         custom_save_dir=os.path.dirname(unique_path),
         size_data=(size_str,) if size_str else None,
-        show_dialog=None,
+        show_dialog=show_dialog,
         user_agent=payload.get("userAgent") or None,
         cookies=payload.get("cookies") or None,
         referer=payload.get("referrer") or url,
