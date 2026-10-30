@@ -119,6 +119,8 @@
       seen.add(key);
       result.push({
         url: data.sabrUrl,
+        streamUrl: f.sourceUrl || f.url,
+        audioUrl: sabrAudio.sourceUrl || sabrAudio.url,
         provider: 'youtube',
         format: 'MP4',
         outputFormat: 'mp4',
