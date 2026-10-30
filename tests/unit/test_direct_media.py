@@ -161,21 +161,26 @@ class TestStartDirectDownload:
         assert stub_window.events == []
         assert stub_window.download_calls == []
 
-    def test_page_extract_defers_to_media_pipeline(self, stub_window):
+    def test_page_extract_no_longer_defers_direct_stream_urls(self, stub_window):
         from core.media.direct import start_direct_download
 
+        # pageExtract no longer defers; resolved stream URLs are dispatched directly
+        # (the extension resolves YouTube page URLs server-side via /resolve-direct
+        # before sending them here).
         handled = start_direct_download(
             stub_window,
             {
-                "url": "https://www.youtube.com/watch?v=1",
+                "url": "https://rr1---sn.googlevideo.com/videoplayback?expire=1&itag=18",
                 "title": "Clip",
                 "pageExtract": True,
+                "audioUrl": "",
             },
         )
 
-        assert handled is False
-        assert stub_window.events == []
-        assert stub_window.download_calls == []
+        assert handled is True
+        assert len(stub_window.download_calls) == 1
+        sent_url, kwargs = stub_window.download_calls[0]
+        assert sent_url == "https://rr1---sn.googlevideo.com/videoplayback?expire=1&itag=18"
 
     def test_dispatches_url_unchanged_to_aria2(self, stub_window):
         from core.media.direct import start_direct_download
