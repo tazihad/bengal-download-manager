@@ -37,6 +37,7 @@
   let videoPanelPosition = 'top-right';
   let downloadMethod = 'standard';
   let directFormats = { videoId: '', formats: [] };
+  let lastDirectFormatsSig = '';
 
   const POPULAR_MEDIA_HOSTS = [
     'youtube.com', 'youtu.be',
@@ -373,6 +374,9 @@
         videoId: event.data.videoId || '',
         formats: Array.isArray(event.data.formats) ? event.data.formats : []
       };
+      const sig = `${directFormats.videoId}:${directFormats.formats.length}`;
+      if (sig === lastDirectFormatsSig) return;
+      lastDirectFormatsSig = sig;
       if (activeVideo && isDropdownOpen && downloadMethod === 'direct') {
         populateDropdown();
       }
