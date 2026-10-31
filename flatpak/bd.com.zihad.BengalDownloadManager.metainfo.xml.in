@@ -70,26 +70,16 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
-    <release version="0.3.13" date="2026-10-29">
-        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.13</url>
-        <description translate="no">
+    <release version="0.3.13" date="2026-10-31">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.13</url>
+      <description translate="no">
         <p>Bengal Download Manager 0.3.13 changes:</p>
         <ul>
-                <li>Size column shows Unavailable instead of Size unavailable</li>
-                <li>Size column shows Unavailable for unresolved completed downloads</li>
-                <li>Media statuses (Merging/Processing/Finalizing) show in main table</li>
-                <li>Main table Size shows Fetching during active download</li>
-                <li>Main table Size shows Fetching until download starts</li>
-                <li>Main table size column shows Fetching during download setup</li>
-                <li>Size column shows Fetching during Preparing, Unknown until size known</li>
-                <li>Smooth time-left with EMA to prevent wild jumps</li>
-                <li>Smooth transfer rate with EMA to prevent MB&lt;-&gt;KB flicker</li>
-                <li>All-column flicker guards + neutral size during Preparing</li>
-                <li>Transfer rate flicker in media downloads</li>
-                <li>Shorter dwell + media transition states bypass dwell</li>
-                <li>Replace multi-word statuses with one-word canonical statuses</li>
-            </ul>
-        </description>
+          <li>Extension toolbar icon now follows the system light/dark theme</li>
+          <li>Fixed toolbar icon not appearing after extension update</li>
+          <li>General stability and performance improvements</li>
+        </ul>
+      </description>
     </release>
     <release version="0.3.12" date="2026-10-25">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.12</url>
