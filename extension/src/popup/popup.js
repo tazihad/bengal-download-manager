@@ -27,11 +27,11 @@ function updatePopupLogo(iconStyle, isDark) {
     target = isDark ? 'light' : 'dark';
   }
   if (target === 'light') {
-    logo.src = 'assets/icon-light-32.png';
+    logo.src = '../../assets/icon-light-32.png';
   } else if (target === 'dark') {
-    logo.src = 'assets/icon-dark-32.png';
+    logo.src = '../../assets/icon-dark-32.png';
   } else {
-    logo.src = 'assets/icon-32.png';
+    logo.src = '../../assets/icon-32.png';
   }
 }
 

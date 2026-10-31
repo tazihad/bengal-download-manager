@@ -87,11 +87,11 @@ function applyActionIcon(iconStyle) {
     }
     if (optionsLogo) {
       if (target === 'light') {
-        optionsLogo.src = 'assets/icon-light-48.png';
+        optionsLogo.src = '../../assets/icon-light-48.png';
       } else if (target === 'dark') {
-        optionsLogo.src = 'assets/icon-dark-48.png';
+        optionsLogo.src = '../../assets/icon-dark-48.png';
       } else {
-        optionsLogo.src = 'assets/icon-48.png';
+        optionsLogo.src = '../../assets/icon-48.png';
       }
     }
 

@@ -10,8 +10,8 @@ const fakeChrome = {
 globalThis.chrome = fakeChrome;
 
 // youtube-media.js must be loaded first: youtube-direct.js reads bdmYouTube.mediaUrl.
-require('./youtube-media.js');
-const { observe, observeAbrRequest, getObserved, getCapture, clear } = require('./youtube-direct.js');
+require('../src/youtube/youtube-media.js');
+const { observe, observeAbrRequest, getObserved, getCapture, clear } = require('../src/youtube/youtube-direct.js');
 
 const playback = (itag, extra = '') => `https://r1.googlevideo.com/videoplayback?id=asset&itag=${itag}&expire=9999999999${extra}`;
 const details = (tabId, url, statusCode = 200, mime = 'video/mp4; codecs="avc1"') => ({

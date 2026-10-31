@@ -39,13 +39,13 @@
       }
     ],
     "default_title": "Bengal DM",
-    "default_popup": "popup.html"
+    "default_popup": "src/popup/popup.html"
   },
   "background": {
     "scripts": [
-      "youtube-media.js",
-      "youtube-direct.js",
-      "background.js"
+      "src/youtube/youtube-media.js",
+      "src/youtube/youtube-direct.js",
+      "src/background/background.js"
     ]
   },
   "content_scripts": [
@@ -56,8 +56,8 @@
         "https://m.youtube.com/*"
       ],
       "js": [
-        "youtube-media.js",
-        "youtube-page.js"
+        "src/youtube/youtube-media.js",
+        "src/youtube/youtube-page.js"
       ],
       "world": "MAIN",
       "run_at": "document_start"
@@ -69,14 +69,14 @@
         "https://m.youtube.com/*"
       ],
       "js": [
-        "youtube-relay.js"
+        "src/youtube/youtube-relay.js"
       ],
       "run_at": "document_start"
     },
     {
       "matches": ["<all_urls>"],
       "js": [
-        "content.js"
+        "src/content/content.js"
       ],
       "all_frames": true,
       "match_about_blank": true,
@@ -101,14 +101,14 @@
     "<all_urls>"
   ],
   "options_ui": {
-    "page": "options.html",
+    "page": "src/options/options.html",
     "open_in_tab": true
   },
   "web_accessible_resources": [
     {
       "resources": [
-        "inject.js",
-        "direct-inject.js",
+        "src/content/inject.js",
+        "src/content/direct-inject.js",
         "assets/*"
       ],
       "matches": [

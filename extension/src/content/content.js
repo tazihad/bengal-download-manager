@@ -359,7 +359,7 @@
   // 1. Inject inject.js into main world to access YouTube/HTML5 player APIs
   try {
     if (chrome.runtime && chrome.runtime.getURL) {
-      ['inject.js', 'direct-inject.js'].forEach((file) => {
+      ['src/content/inject.js', 'src/content/direct-inject.js'].forEach((file) => {
         const script = document.createElement('script');
         script.src = chrome.runtime.getURL(file);
         script.async = true;

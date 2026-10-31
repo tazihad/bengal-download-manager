@@ -46,18 +46,35 @@ brew install python openssl
 
 ```
 extension/
-├── manifest.json       # Manifest V3 extension configuration
-├── background.js       # Service worker / background script (interception & Native RPC listener)
-├── content.js          # Content script (web page download link detection & context triggers)
-├── direct-inject.js    # MAIN-world bridge that exposes already-muxed YouTube stream URLs
-├── popup.html          # Browser action popup UI markup
-├── popup.js            # Popup UI logic and connection status monitor
-├── popup.css           # Popup styling
-├── options.html        # Extension settings page markup
-├── options.js          # Extension settings & IPC configuration logic
-├── options.css         # Extension settings page styling
-├── README.md           # This build guide for store reviewers and developers
-└── assets/             # Extension icons (16x16, 32x32, 48x48, 128x128)
+├── manifest.json             # Manifest V3 extension configuration (defaults to Chrome)
+├── manifest.chrome.json      # Chromium-specific manifest target
+├── manifest.firefox.json     # Firefox Gecko-specific manifest target
+├── switch-manifest.sh        # Target switching helper script
+├── README.md                 # This build guide for store reviewers and developers
+├── assets/                   # Extension icons (16x16, 32x32, 48x48, 128x128)
+├── src/
+│   ├── background/
+│   │   └── background.js     # Background service worker / script (interception & RPC listener)
+│   ├── content/
+│   │   ├── content.js        # Content script (download detection, floating video widget)
+│   │   ├── inject.js         # MAIN-world media bridge
+│   │   └── direct-inject.js  # MAIN-world bridge exposing muxed YouTube stream URLs
+│   ├── popup/
+│   │   ├── popup.html        # Browser action popup UI markup
+│   │   ├── popup.js          # Popup UI logic and connection status monitor
+│   │   └── popup.css         # Popup styling
+│   ├── options/
+│   │   ├── options.html      # Extension settings page markup
+│   │   ├── options.js        # Extension settings & IPC configuration logic
+│   │   └── options.css       # Extension settings page styling
+│   └── youtube/
+│       ├── youtube-media.js  # YouTube media response parsing and format definitions
+│       ├── youtube-direct.js # YouTube stream observation & SABR session capture
+│       ├── youtube-page.js   # MAIN-world player response hook
+│       └── youtube-relay.js  # Content-script relay bridging player responses to background
+└── tests/
+    ├── youtube-media.test.cjs   # Media format parsing & selection test suite
+    └── youtube-direct.test.cjs  # WebRequest observation & SABR capture test suite
 ```
 
 ---
