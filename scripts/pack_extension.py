@@ -30,8 +30,8 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
                 abs_path = os.path.join(root, file)
                 rel_path = os.path.relpath(abs_path, extension_dir)
                 
-                # Skip target-specific manifests and helper scripts from archive
-                if file in ("manifest.chrome.json", "manifest.firefox.json", "switch-manifest.sh"):
+                # Skip target-specific manifests, helper scripts, and tests from archive
+                if file in ("manifest.chrome.json", "manifest.firefox.json", "switch-manifest.sh") or "tests" in rel_path.split(os.sep):
                     continue
 
                 if file == "manifest.json":
