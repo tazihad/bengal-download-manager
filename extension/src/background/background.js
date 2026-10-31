@@ -2297,13 +2297,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const pageUrl = sender.tab ? sender.tab.url : '';
     let url = item.url;
 
-    // YouTube adaptive/SABR tiers ship separate video-only and audio-only tracks.
-    // Fetching one URL through Aria2 would save a silent video, so the desktop keeps
-    // the chosen quality, transfers both tracks through Aria2 and muxes them with FFmpeg.
-    const needsAudioMerge = item.provider === 'youtube' && (!!item.sabrSelection || !!item.audioUrl);
+    // YouTube adaptive/SABR tiers and Facebook DASH representations ship separate
+    // video-only and audio-only tracks. Fetching one URL through Aria2 would save a
+    // silent video, so the desktop keeps the chosen rendition, transfers both tracks
+    // through Aria2 and muxes them with FFmpeg.
+    const needsAudioMerge = (item.provider === 'youtube' && (!!item.sabrSelection || !!item.audioUrl)) ||
+      (item.provider === 'facebook' && !!item.audioUrl);
     if (needsAudioMerge) {
-      if (!/^https?:\/\/(?:[^/]*\.)?youtube\.com\//i.test(pageUrl)) {
-        sendResponse({ok: false, error: 'Open the video on YouTube, then choose a format.'});
+      const onYouTube = /^https?:\/\/(?:[^/]*\.)?youtube\.com\//i.test(pageUrl);
+      const onFacebook = /^https?:\/\/(?:[^/]*\.)?(?:facebook\.com|fb\.watch|fb\.com)\//i.test(pageUrl);
+      if (item.provider === 'facebook' ? !onFacebook : !onYouTube) {
+        sendResponse({
+          ok: false,
+          error: item.provider === 'facebook'
+            ? 'Open the video on Facebook, then choose a format.'
+            : 'Open the video on YouTube, then choose a format.'
+        });
         return true;
       }
     }

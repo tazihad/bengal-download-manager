@@ -67,21 +67,30 @@ extension/
 │   │   ├── options.js        # Extension settings & IPC configuration logic
 │   │   └── options.css       # Extension settings page styling
 │   └── sites/
-│       └── youtube/
+│       ├── youtube/
+│       │   ├── shared/
+│       │   │   └── youtube-media.js      # Pure parsing & format logic
+│       │   ├── background/
+│       │   │   └── youtube-direct.js     # WebRequest + SABR capture
+│       │   ├── content/
+│       │   │   └── youtube-relay.js      # Content-script relay
+│       │   └── main/
+│       │       ├── youtube-page.js       # MAIN-world player hook
+│       │       └── direct-inject.js      # MAIN-world muxed stream bridge
+│       └── facebook/
 │           ├── shared/
-│           │   └── youtube-media.js      # Pure parsing & format logic
-│           ├── background/
-│           │   └── youtube-direct.js     # WebRequest + SABR capture
+│           │   └── facebook-media.js     # DASH manifest parser (per-representation variants)
 │           ├── content/
-│           │   └── youtube-relay.js      # Content-script relay
+│           │   └── facebook-relay.js     # Content-script relay
 │           └── main/
-│               ├── youtube-page.js       # MAIN-world player hook
-│               └── direct-inject.js      # MAIN-world muxed stream bridge
+│               └── facebook-page.js      # MAIN-world DASH/GraphQL capture
 └── tests/
     └── sites/
-        └── youtube/
-            ├── youtube-media.test.cjs   # Media format parsing & selection test suite
-            └── youtube-direct.test.cjs  # WebRequest observation & SABR capture test suite
+        ├── youtube/
+        │   ├── youtube-media.test.cjs   # Media format parsing & selection test suite
+        │   └── youtube-direct.test.cjs  # WebRequest observation & SABR capture test suite
+        └── facebook/
+            └── facebook-media.test.cjs  # DASH representation parsing & pairing test suite
 ```
 
 ---
@@ -130,6 +139,11 @@ The popup exposes a **Download method** choice; **Standard** stays the default.
   be fetched as one file. When one is chosen from the video chooser, the desktop keeps that exact
   quality, transfers both tracks through Aria2, and muxes them with FFmpeg, so the saved file always
   contains audio. A video-only file is treated as a failure instead of a finished download.
+* **Facebook DASH variants** are read from the page's manifest instead of a fixed 1080/720/480 list.
+  Every `<Representation>` is listed with its real resolution and bandwidth, so a video that offers
+  two 720p renditions shows both (e.g. `1280×720 · 3.5 Mbps` and `1280×720 · 1.5 Mbps`) and never
+  advertises a height the video does not publish. The best audio track is paired automatically and
+  muxed by the desktop.
 
 Direct never handles `.m3u8`/`.mpd` playlists or DASH/HLS segments as-is, and the in-page widget
 shows "Direct unavailable on this video. Switch to Standard." when the page exposes no progressive

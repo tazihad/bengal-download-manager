@@ -374,7 +374,12 @@
     if (event.source !== window || !event.data) return;
     if (event.data.type === '__BDM_MEDIA_INFO__' && event.data.data) {
       platformMediaInfo = event.data.data;
-      ytMediaInfo = event.data.data;
+      if (event.data.data.platform !== 'facebook') {
+        ytMediaInfo = event.data.data;
+      } else {
+        // A newly captured DASH manifest adds/updates variants: refresh the list.
+        directListFetchedKey = '';
+      }
       if (activeVideo && isDropdownOpen) {
         populateDropdown();
       }
@@ -2174,15 +2179,131 @@
     return tiers;
   }
 
-  // 9. Supported Resolutions Filtering (Preserves existing site logic + special Facebook IDM case)
+  // 9. Supported Resolutions Filtering (Preserves existing site logic + Facebook DASH variants)
+  function isFacebookHost() {
+    const host = window.location.hostname.toLowerCase();
+    return host === 'facebook.com' || host.endsWith('.facebook.com') ||
+      host === 'fb.watch' || host.endsWith('.fb.watch') ||
+      host === 'fb.com' || host.endsWith('.fb.com');
+  }
+
+  function currentFacebookMedia() {
+    return platformMediaInfo && platformMediaInfo.platform === 'facebook' ? platformMediaInfo : null;
+  }
+
+  function formatFacebookBitrate(bitsPerSecond) {
+    const bps = Number(bitsPerSecond) || 0;
+    if (!bps) return '';
+    if (bps >= 1000000) return `${Number((bps / 1000000).toFixed(2))} Mbps`;
+    return `${Math.round(bps / 1000)} kbps`;
+  }
+
+  function isProgressiveFacebookUrl(value) {
+    if (!value || !/^https?:\/\//i.test(value)) return false;
+    if (/\.(m3u8|mpd|m4s|ts|m2ts)([?#]|$)/i.test(value)) return false;
+    return !/[?&](range|rn|rbuf|sq|sabr|bytestart|byteend)=/i.test(value);
+  }
+
+  function getFacebookProgressiveUrl(video, info) {
+    const candidates = [];
+    if (info) candidates.push(info.hdUrl, info.sdUrl);
+    if (video && video.tagName !== 'IFRAME') candidates.push(video.currentSrc, video.src);
+    return candidates.find(isProgressiveFacebookUrl) || '';
+  }
+
+  // Facebook's DASH manifest lists every actual rendition. Never invent 1080/720/480
+  // tiers: several rows may share a height and differ only by bitrate.
+  function buildFacebookTiers(video) {
+    const info = currentFacebookMedia();
+    const tiers = [];
+    if (info && Array.isArray(info.variants)) {
+      const seen = new Set();
+      for (const variant of info.variants) {
+        const url = String(variant.url || '');
+        if (!/^https?:\/\//i.test(url) || seen.has(url)) continue;
+        seen.add(url);
+        const width = Number(variant.width) || 0;
+        const height = Number(variant.height) || 0;
+        const bitrate = Number(variant.bandwidth || variant.bitrate) || 0;
+        const sizeBytes = Number(variant.sizeBytes) || 0;
+        tiers.push({
+          quality: variant.quality || (height ? `${height}p` : 'MP4'),
+          badge: variant.badge || (height ? `${height}p` : 'MP4'),
+          label: variant.label || (width && height ? `${width}\u00d7${height}` : `${height}p`),
+          height,
+          width,
+          bitrate,
+          cls: height >= 720 ? 'hd' : '',
+          provider: 'facebook',
+          streamUrl: url,
+          audioUrl: String(variant.audioUrl || ''),
+          audioState: variant.audioUrl ? 'Video + audio' : 'Video only',
+          isMuxed: !variant.audioUrl,
+          sizeBytes,
+          size: sizeBytes > 0 ? formatFileSize(sizeBytes, false) : '',
+          exactSize: sizeBytes > 0
+        });
+      }
+    }
+
+    const audioUrl = String((info && info.audioUrl) || '');
+    if (audioUrl) {
+      const rate = formatFacebookBitrate(info.audio && info.audio.bitrate);
+      const quality = ['Audio only', rate].filter(Boolean).join(' \u00b7 ');
+      tiers.push({
+        quality,
+        badge: 'AUDIO',
+        label: quality,
+        height: 0,
+        bitrate: Number(info.audio && info.audio.bitrate) || 0,
+        cls: 'audio',
+        isAudio: true,
+        provider: 'facebook',
+        streamUrl: audioUrl,
+        ext: (info.audio && info.audio.ext) || '.m4a',
+        audioState: 'Audio only',
+        isMuxed: false,
+        sizeBytes: 0,
+        size: ''
+      });
+    }
+    if (tiers.length > 0) return tiers;
+
+    // Manifest not captured yet: keep the real playback size instead of fake tiers.
+    const rawHeight = (activeIframeData && activeIframeData.videoHeight) ||
+      (video && video.videoHeight) || (info && info.height) || 0;
+    const rawWidth = (activeIframeData && activeIframeData.videoWidth) ||
+      (video && video.videoWidth) || (info && info.width) || 0;
+    const height = Number(rawHeight) || 0;
+    const width = Number(rawWidth) || 0;
+    tiers.push({
+      quality: height ? `${height}p` : 'Video',
+      badge: height ? `${height}p` : 'MP4',
+      label: width && height ? `${width}\u00d7${height}` : (height ? `${height}p` : 'Best available'),
+      height,
+      width,
+      bitrate: 0,
+      cls: height >= 720 ? 'hd' : '',
+      provider: 'facebook',
+      streamUrl: getFacebookProgressiveUrl(video, info),
+      audioUrl: '',
+      audioState: 'Video + audio',
+      isMuxed: true,
+      sizeBytes: 0,
+      size: ''
+    });
+    return tiers;
+  }
+
   function getSupportedResolutions(video) {
     const rawTiers = getRawSupportedResolutions(video);
+    if (isFacebookHost()) return rawTiers;
     return enrichWithAppSizes(rawTiers, video);
   }
 
   function getRawSupportedResolutions(video) {
     const isYouTube = window.location.hostname.includes('youtube.com');
-    const isFacebook = window.location.hostname.includes('facebook.com') || window.location.hostname.includes('fb.watch') || window.location.hostname.includes('fb.com');
+    const isFacebook = isFacebookHost();
     const duration = (platformMediaInfo && platformMediaInfo.duration) ||
                      (ytMediaInfo && ytMediaInfo.duration) ||
                      (activeIframeData && activeIframeData.duration) ||
@@ -2281,112 +2402,8 @@
       }
     }
 
-    // Special Facebook Case (IDM React Fiber & DASH Manifest Method)
-    if (isFacebook) {
-      const fbTiers = [
-        { quality: '2160p (4K)', badge: '4K', label: '4K Ultra HD', height: 2160, bitrate: 22000, cls: 'uhd' },
-        { quality: '1440p (2K)', badge: '2K', label: '2K Quad HD', height: 1440, bitrate: 12000, cls: 'uhd' },
-        { quality: '1080p', badge: '1080p', label: '1080p Full HD', height: 1080, bitrate: 5000, cls: 'hd' },
-        { quality: '720p', badge: '720p', label: '720p HD', height: 720, bitrate: 2500, cls: 'hd' },
-        { quality: '480p', badge: '480p', label: '480p SD', height: 480, bitrate: 1200, cls: '' },
-        { quality: '360p', badge: '360p', label: '360p', height: 360, bitrate: 700, cls: '' }
-      ];
-
-      // If Facebook React Fiber or DASH manifest extracted explicit resolution levels
-      if (platformMediaInfo && platformMediaInfo.platform === 'facebook' && Array.isArray(platformMediaInfo.resolutions) && platformMediaInfo.resolutions.length > 0) {
-        const seenQualities = new Set();
-        const result = [];
-        for (const h of platformMediaInfo.resolutions) {
-          let tier = fbTiers.find(t => t.height === h) ||
-                     fbTiers.find(t => Math.abs(t.height - h) <= 60);
-          if (!tier) {
-            const isHD = h >= 720;
-            tier = {
-              quality: `${h}p`,
-              badge: `${h}p`,
-              label: `${h}p ${isHD ? 'HD' : 'SD'}`,
-              height: h,
-              bitrate: h >= 1080 ? 5000 : (h >= 720 ? 2500 : 1200),
-              cls: isHD ? 'hd' : ''
-            };
-          }
-          if (!seenQualities.has(tier.quality)) {
-            seenQualities.add(tier.quality);
-            const item = {
-              ...tier,
-              sizeBytes: 0,
-              size: ""
-            };
-            if (tier.height >= 720 && platformMediaInfo.hdUrl) item.streamUrl = platformMediaInfo.hdUrl;
-            else if (platformMediaInfo.sdUrl) item.streamUrl = platformMediaInfo.sdUrl;
-
-            const exactBytes = findMatchingFileSizeBytes(item.streamUrl, video);
-            if (exactBytes > 0) {
-              item.sizeBytes = exactBytes;
-              item.size = formatFileSize(exactBytes, false);
-            }
-            result.push(item);
-          }
-        }
-        if (result.length > 0) {
-          result.push({
-            quality: 'Audio Only',
-            badge: 'AUDIO',
-            label: 'Audio Only',
-            height: 0,
-            bitrate: 192,
-            cls: 'audio',
-            isAudio: true,
-            sizeBytes: 0,
-            size: ""
-          });
-          return result;
-        }
-      }
-
-      // If Facebook video is HD or adaptive buffer hasn't reached full quality yet:
-      const rawVh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 0;
-      const rawVw = (activeIframeData && activeIframeData.videoWidth) || (video && video.videoWidth) || 0;
-      const vh = Math.max(rawVh, rawVw) || 720;
-      const isFbHD = (platformMediaInfo && platformMediaInfo.isHD) || vh >= 720;
-      const maxH = isFbHD ? Math.max(vh, 1080) : Math.max(vh, 480);
-      const exactFbBytes = findMatchingFileSizeBytes(null, video);
-
-      let filtered = fbTiers
-        .filter(t => t.height <= maxH)
-        .map(t => {
-          const hasExact = exactFbBytes > 0 && t.height === vh;
-          return {
-            ...t,
-            sizeBytes: hasExact ? exactFbBytes : 0,
-            size: hasExact ? formatFileSize(exactFbBytes, false) : ""
-          };
-        });
-
-      if (filtered.length === 0) {
-        filtered = fbTiers.slice(2).map(t => {
-          const hasExact = exactFbBytes > 0 && t.height === vh;
-          return {
-            ...t,
-            sizeBytes: hasExact ? exactFbBytes : 0,
-            size: hasExact ? formatFileSize(exactFbBytes, false) : ""
-          };
-        });
-      }
-
-      filtered.push({
-        quality: 'Audio Only',
-        badge: 'AUDIO',
-        label: 'Audio Only',
-        height: 0,
-        bitrate: 192,
-        cls: 'audio',
-        isAudio: true,
-        sizeBytes: 0,
-        size: ""
-      });
-      return filtered;
-    }
+    // Facebook: list every DASH representation actually offered (resolution + bitrate).
+    if (isFacebook) return buildFacebookTiers(video);
 
     // C. Standard Video Height Filtering (Generic sites or fallback - Untouched for TikTok, Instagram, Twitter, etc.)
     const rawVh = (activeIframeData && activeIframeData.videoHeight) || (video && video.videoHeight) || 0;
@@ -2582,6 +2599,14 @@
 
   // 10. Render Dropdown Contents
   function getActiveMediaKey() {
+    if (isFacebookHost()) {
+      const info = currentFacebookMedia();
+      if (info && info.videoId) return `facebook:${info.videoId}`;
+      if (activeVideo && activeVideo.tagName !== 'IFRAME') {
+        return `facebook:${activeVideo.currentSrc || activeVideo.src || window.location.href}`;
+      }
+      return `facebook:${window.location.href}`;
+    }
     if (ytMediaInfo && ytMediaInfo.videoId) return `youtube:${ytMediaInfo.videoId}`;
     if (activeVideo && activeVideo.tagName !== 'IFRAME') {
       return `video:${activeVideo.currentSrc || activeVideo.src || ''}`;
@@ -2646,13 +2671,15 @@
     notice.className = 'bdm-notice';
     notice.textContent = youtube
       ? 'Play the video briefly, then reopen this menu. No complete video with audio has been captured yet.'
-      : 'No Alternate media links detected. Play the video and try again.';
+      : isFacebookHost()
+        ? 'Waiting for Facebook to publish this video\u2019s stream list. Play it briefly, then reopen this menu.'
+        : 'No Alternate media links detected. Play the video and try again.';
     listEl.appendChild(notice);
   }
 
   function renderDirectItems(items) {
     const sig = 'direct:' + directListCache.key + ':' +
-      items.map((item) => `${item.quality || ''}|${item.url || ''}`).join('~');
+      items.map((item) => `${item.quality || ''}|${item.badge || ''}|${item.label || ''}|${item.url || ''}|${item.sizeStr || item.size || ''}`).join('~');
     if (sig === lastRenderedListSignature && listEl.querySelector('.bdm-item')) return;
     lastRenderedListSignature = sig;
     clearDirectEmptyTimer();
@@ -2667,20 +2694,21 @@
       left.className = 'bdm-item-left';
       const badge = document.createElement('span');
       badge.className = `bdm-res-badge`.trim();
-      badge.textContent = item.quality || 'Alternate';
+      badge.textContent = item.badge || item.quality || 'Alternate';
       const label = document.createElement('span');
       label.className = 'bdm-res-label';
-      label.textContent = item.quality || 'Alternate';
+      label.textContent = item.label || item.quality || 'Alternate';
       left.append(badge, label);
 
       const right = document.createElement('div');
       right.className = 'bdm-item-right';
       const size = document.createElement('span');
       size.className = 'bdm-res-size';
-      size.textContent = '';
+      size.textContent = item.sizeStr || item.size || '';
       right.append(size, createDownloadIcon());
 
       row.append(left, right);
+      if (item.audioState) row.title = item.audioState;
       row.addEventListener('click', (e) => {
         e.stopPropagation();
         // Route through action: 'download' → /resolve-direct → start_direct_download → DirectMuxWorker (audio+video mux)
@@ -2698,6 +2726,30 @@
     });
   }
 
+  // Every Facebook row is one real DASH representation; the background pairs its
+  // audio track with the video track so a chosen bitrate is never saved silent.
+  function facebookDirectItems() {
+    return buildFacebookTiers(activeVideo)
+      .filter((tier) => /^https?:\/\//i.test(tier.streamUrl || ''))
+      .map((tier) => ({
+        url: tier.streamUrl,
+        streamUrl: tier.streamUrl,
+        audioUrl: tier.audioUrl || '',
+        provider: 'facebook',
+        title: getVideoTitle(activeVideo),
+        quality: tier.quality,
+        badge: tier.badge,
+        label: tier.label,
+        format: tier.isAudio ? 'Audio' : 'MP4',
+        ext: tier.isAudio ? (tier.ext || '.m4a') : '.mp4',
+        audioState: tier.audioState,
+        bitrate: tier.bitrate,
+        sizeBytes: tier.sizeBytes || 0,
+        sizeStr: tier.size || '',
+        startNow: false
+      }));
+  }
+
   function requestDirectItems() {
     const mediaKey = directListCache.key;
     if (directListPending || directListFetchedKey === mediaKey) return;
@@ -2705,6 +2757,17 @@
     directListFetchedKey = mediaKey;
     const token = ++directListToken;
     clearDirectEmptyTimer();
+
+    if (isFacebookHost()) {
+      const items = facebookDirectItems();
+      directListPending = false;
+      if (!isDropdownOpen || !activeVideo || downloadMethod !== 'direct') return;
+      if (directListCache.key !== mediaKey) return;
+      directListCache.items = items;
+      if (items.length > 0) renderDirectItems(items);
+      else renderDirectEmpty(false);
+      return;
+    }
 
     try {
       // Fetch direct formats from listForFrame IPC (same source as the removed floating menu)
@@ -2760,7 +2823,8 @@
       badgeEl.textContent = sourceName;
     }
 
-    const dur = (ytMediaInfo && ytMediaInfo.duration) ||
+    const dur = (platformMediaInfo && platformMediaInfo.duration) ||
+                (ytMediaInfo && ytMediaInfo.duration) ||
                 (activeIframeData && activeIframeData.duration) ||
                 (activeVideo && activeVideo.duration) || 0;
     const durStr = formatDuration(dur);
@@ -2864,6 +2928,44 @@
     const title = isGenericTitle(rawTitle) ? "" : rawTitle;
     const usingDirect = downloadMethod === 'direct';
     let targetUrl = "";
+
+    // Facebook rows are individual DASH representations. Resolve them through the
+    // background download action so the paired audio track reaches the muxer;
+    // send_to_bengal has no audioUrl field and would save a silent video.
+    if (tier.provider === 'facebook' && tier.streamUrl && /^https?:\/\//i.test(tier.streamUrl)) {
+      const ext = tier.isAudio ? (tier.ext || '.m4a') : '.mp4';
+      footerEl.classList.add('opening');
+      footerTextEl.textContent = 'Downloading with Bengal DM.';
+      chrome.runtime.sendMessage({
+        action: 'download',
+        item: {
+          url: tier.streamUrl,
+          streamUrl: tier.streamUrl,
+          audioUrl: tier.audioUrl || '',
+          provider: 'facebook',
+          title,
+          filename: `${title || 'facebook-video'}${ext}`,
+          quality: tier.quality,
+          badge: tier.badge,
+          label: tier.label,
+          audioState: tier.audioState,
+          ext,
+          sizeBytes: tier.sizeBytes || 0,
+          sizeStr: tier.size || '',
+          referer: (cachedTabInfo && cachedTabInfo.url) || window.location.href,
+          startNow: false
+        }
+      }, (response) => {
+        void chrome.runtime.lastError;
+        if (response && response.ok === false) {
+          footerEl.classList.remove('opening');
+          footerTextEl.textContent = response.error || 'Download could not be started.';
+          return;
+        }
+        setTimeout(() => closeDropdown(), 1200);
+      });
+      return;
+    }
 
     if (usingDirect) {
       // Direct never sends a page URL: the desktop would have to run yt-dlp to extract it.
