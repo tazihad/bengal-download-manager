@@ -1339,10 +1339,10 @@ if (chrome.webRequest && chrome.webRequest.onHeadersReceived) {
               stream: { url: details.url, contentType: contentType, sizeBytes: contentLength }
             }).catch(() => {});
           } catch (e) {}
-          postMediaToBengalDM(details, req, tab, contentType);
+          postMediaToBengalDM(details, req, tab);
         });
       } else {
-        postMediaToBengalDM(details, req, null, contentType);
+        postMediaToBengalDM(details, req, null);
       }
     }
   };
