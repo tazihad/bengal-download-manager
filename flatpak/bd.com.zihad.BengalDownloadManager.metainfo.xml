@@ -84,9 +84,9 @@
       <description translate="no">
         <p>Bengal Download Manager 0.3.13 changes:</p>
         <ul>
-          <li>Extension toolbar icon now follows the system light/dark theme</li>
-          <li>Fixed toolbar icon not appearing after extension update</li>
-          <li>General stability and performance improvements</li>
+          <li>Extension fixes: Firefox offscreen permission added and webRequestBlocking removed</li>
+          <li>Fixed postMediaToBengalDM call signature</li>
+          <li>Toolbar/options/popup icons now use chrome.runtime.getURL() for reliable asset resolution</li>
         </ul>
       </description>
     </release>
