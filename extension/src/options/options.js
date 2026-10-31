@@ -90,22 +90,16 @@ function applyActionIcon(iconStyle) {
   }
 
   // Update brand logo in options sidebar
-  const optionsLogo = document.getElementById('options-logo') || document.querySelector('.sidebar-brand .brand-icon');
-  chrome.storage.local.get({ theme: 'system' }, (items) => {
-    const effectiveTheme = resolveEffectiveTheme(items.theme);
-    let target = currentIcon;
-    if (target === 'system') {
-      target = (effectiveTheme === 'dark') ? 'light' : 'dark';
-    }
-    if (optionsLogo) {
-      if (target === 'light') {
-        optionsLogo.src = '../../assets/icon-light-48.png';
-      } else if (target === 'dark') {
-        optionsLogo.src = '../../assets/icon-dark-48.png';
-      } else {
-        optionsLogo.src = '../../assets/icon-48.png';
+    const optionsLogo = document.getElementById('options-logo') || document.querySelector('.sidebar-brand .brand-icon');
+    chrome.storage.local.get({ theme: 'system' }, (items) => {
+      const effectiveTheme = resolveEffectiveTheme(items.theme);
+      let target = currentIcon;
+      if (target === 'system') {
+        target = (effectiveTheme === 'dark') ? 'light' : 'dark';
       }
-    }
+      if (optionsLogo) {
+        optionsLogo.src = iconUrl(target === 'light' ? 'assets/icon-light-48.png' : target === 'dark' ? 'assets/icon-dark-48.png' : 'assets/icon-48.png');
+      }
 
     const action = getActionAPI();
     if (action && action.setIcon) {

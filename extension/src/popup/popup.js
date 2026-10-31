@@ -19,6 +19,15 @@ function formatAppVersion(ver) {
   return clean;
 }
 
+function iconUrl(path) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function') {
+      return chrome.runtime.getURL(path);
+    }
+  } catch {}
+  return '/' + path;
+}
+
 function updatePopupLogo(iconStyle, isDark) {
   const logo = document.getElementById('popup-logo');
   if (!logo) return;
@@ -26,12 +35,8 @@ function updatePopupLogo(iconStyle, isDark) {
   if (target === 'system') {
     target = isDark ? 'light' : 'dark';
   }
-  if (target === 'light') {
-    logo.src = '../../assets/icon-light-32.png';
-  } else if (target === 'dark') {
-    logo.src = '../../assets/icon-dark-32.png';
-  } else {
-    logo.src = '../../assets/icon-32.png';
+  if (logo) {
+    logo.src = iconUrl(target === 'light' ? 'assets/icon-light-32.png' : target === 'dark' ? 'assets/icon-dark-32.png' : 'assets/icon-32.png');
   }
 }
 
