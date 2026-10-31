@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseManifest, mergeManifest, variants, audioChoice, wholeFileUrl, formatRate } = require('../../../src/sites/facebook/shared/facebook-media.js');
+const { parseManifest, mergeManifest, variants, audioChoice, wholeFileUrl, formatRate, videoIdFromUrl, isVideoId } = require('../../../src/sites/facebook/shared/facebook-media.js');
 
 const CDN = 'https://video.fbcdn.net/v/t39.24130-6';
 
@@ -117,4 +117,22 @@ test('formatRate renders Mbps and kbps without inventing precision', () => {
   assert.equal(formatRate(3500000), '3.5 Mbps');
   assert.equal(formatRate(128000), '128 kbps');
   assert.equal(formatRate(0), '');
+});
+
+test('the page URL names the video so a manifest cannot be reused for a neighbour', () => {
+  assert.equal(videoIdFromUrl('https://www.facebook.com/reel/1458325679840918/'), '1458325679840918');
+  assert.equal(videoIdFromUrl('https://www.facebook.com/reel/1458325679840918/?paipv=0'), '1458325679840918');
+  assert.equal(videoIdFromUrl('https://www.facebook.com/watch/?v=9988776655443322'), '9988776655443322');
+  assert.equal(videoIdFromUrl('https://www.facebook.com/1000123/videos/1234567890123456/'), '1234567890123456');
+  assert.equal(videoIdFromUrl('https://www.facebook.com/story.php?story_fbid=999&id=123'), '');
+  assert.equal(videoIdFromUrl('https://www.facebook.com/watch/feed/'), '');
+  assert.equal(videoIdFromUrl('https://www.facebook.com/reel/abc'), '');
+});
+
+test('only full Facebook video ids are accepted', () => {
+  assert.equal(isVideoId('1458325679840918'), true);
+  assert.equal(isVideoId(1458325679840917.5), false);
+  assert.equal(isVideoId('123'), false);
+  assert.equal(isVideoId(''), false);
+  assert.equal(isVideoId(undefined), false);
 });

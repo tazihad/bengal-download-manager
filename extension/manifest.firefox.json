@@ -99,6 +99,7 @@
         "https://fb.com/*"
       ],
       "js": [
+        "src/sites/facebook/shared/facebook-media.js",
         "src/sites/facebook/content/facebook-relay.js"
       ],
       "run_at": "document_start"

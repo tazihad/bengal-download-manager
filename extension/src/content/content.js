@@ -26,6 +26,7 @@
   let isDropdownOpen = false;
   let ytMediaInfo = null;
   let platformMediaInfo = null;
+  let platformMediaInfoVideo = null;
   const dismissedVideos = new Set();
   let activeIframeVideo = null;
   let activeIframeData = null;
@@ -373,12 +374,16 @@
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data) return;
     if (event.data.type === '__BDM_MEDIA_INFO__' && event.data.data) {
-      platformMediaInfo = event.data.data;
-      if (event.data.data.platform !== 'facebook') {
-        ytMediaInfo = event.data.data;
-      } else {
+      if (event.data.data.platform === 'facebook') {
+        const expected = facebookExpectedVideoId(activeVideo);
+        if (expected && event.data.data.videoId !== expected) return;
+        platformMediaInfo = event.data.data;
+        platformMediaInfoVideo = activeVideo;
         // A newly captured DASH manifest adds/updates variants: refresh the list.
         directListFetchedKey = '';
+      } else {
+        platformMediaInfo = event.data.data;
+        ytMediaInfo = event.data.data;
       }
       if (activeVideo && isDropdownOpen) {
         populateDropdown();
@@ -1657,9 +1662,10 @@
 
     // Facebook & Reels
     if (host.includes('facebook.com') || host.includes('fb.watch') || host.includes('fb.com')) {
-      // 1. Exact canonical link if platformMediaInfo (React Fiber) extracted videoFBID
-      if (platformMediaInfo && platformMediaInfo.platform === 'facebook' && platformMediaInfo.videoId) {
-        return `https://www.facebook.com/watch/?v=${platformMediaInfo.videoId}`;
+      // 1. Exact canonical link if the Facebook module identified this video
+      const fbMedia = currentFacebookMedia();
+      if (fbMedia && fbMedia.videoId) {
+        return `https://www.facebook.com/watch/?v=${fbMedia.videoId}`;
       }
       if (isCanonicalMediaPage(currentUrl)) {
         return currentUrl;
@@ -2188,7 +2194,38 @@
   }
 
   function currentFacebookMedia() {
-    return platformMediaInfo && platformMediaInfo.platform === 'facebook' ? platformMediaInfo : null;
+    if (!platformMediaInfo || platformMediaInfo.platform !== 'facebook') return null;
+    // Never offer a manifest that belongs to another reel: Facebook preloads the
+    // neighbours, and the widget keeps the previous report until a new one arrives.
+    if (activeVideo && platformMediaInfoVideo && platformMediaInfoVideo !== activeVideo) return null;
+    const expected = facebookExpectedVideoId(activeVideo);
+    if (expected && platformMediaInfo.videoId !== expected) return null;
+    return platformMediaInfo;
+  }
+
+  function facebookExpectedVideoId(video) {
+    const isId = value => /^\d{5,30}$/.test(String(value || ''));
+    try {
+      if (video && video.dataset) {
+        if (isId(video.dataset.videoFbid)) return String(video.dataset.videoFbid);
+        if (isId(video.dataset.videoId)) return String(video.dataset.videoId);
+      }
+      // A feed wrapper can name the first post it holds, so only trust a container
+      // that wraps this single video.
+      let holder = video ? video.parentElement : null;
+      for (let depth = 0; depth < 8 && holder; depth++, holder = holder.parentElement) {
+        const id = holder.getAttribute && (holder.getAttribute('data-video-id') || holder.getAttribute('data-videoid'));
+        if (isId(id) && holder.querySelectorAll('video').length === 1) return String(id);
+      }
+    } catch (e) {}
+    try {
+      const api = globalThis.bdmFacebook;
+      if (api && api.videoIdFromUrl) {
+        const id = api.videoIdFromUrl(window.location.href);
+        if (isId(id)) return id;
+      }
+    } catch (e) {}
+    return '';
   }
 
   function formatFacebookBitrate(bitsPerSecond) {

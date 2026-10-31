@@ -207,8 +207,25 @@
     };
   }
 
+  /**
+   * Facebook's own video id from a page URL (/reel/, /videos/, watch/?v=). Used to bind a
+   * captured manifest to the video the user is actually looking at.
+   */
+  function videoIdFromUrl(value) {
+    const raw = String(value || '');
+    const match = raw.match(/\/reel(?:s)?\/(\d{5,30})/i) ||
+      raw.match(/\/videos\/[^/?#]*?\/?(\d{5,30})/i) ||
+      raw.match(/[?&]v=(\d{5,30})/i);
+    return match ? match[1] : '';
+  }
+
+  function isVideoId(value) {
+    return /^\d{5,30}$/.test(String(value || ''));
+  }
+
   root.bdmFacebook = {
-    parseManifest, mergeManifest, variants, audioChoice, bestAudio, wholeFileUrl, formatRate
+    parseManifest, mergeManifest, variants, audioChoice, bestAudio, wholeFileUrl, formatRate,
+    videoIdFromUrl, isVideoId
   };
   if (typeof module !== 'undefined') module.exports = root.bdmFacebook;
 })(globalThis);
