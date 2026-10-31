@@ -24,6 +24,18 @@ function resolveEffectiveTheme(themeSetting) {
   return 'light';
 }
 
+// Toolbar icon paths must be absolute extension URLs. The service worker and the options
+// page now live in src/ subfolders, so a bare 'assets/...' path resolves relative to
+// those folders and setIcon silently fails.
+function iconUrl(path) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function') {
+      return chrome.runtime.getURL(path);
+    }
+  } catch {}
+  return '/' + path;
+}
+
 function getIconPathsForStyle(style, effectiveTheme) {
   let target = style || 'system';
   if (target === 'system') {
@@ -31,25 +43,25 @@ function getIconPathsForStyle(style, effectiveTheme) {
   }
   if (target === 'light') {
     return {
-      16: 'assets/icon-light-16.png',
-      32: 'assets/icon-light-32.png',
-      48: 'assets/icon-light-48.png',
-      128: 'assets/icon-light-128.png'
+      16: iconUrl('assets/icon-light-16.png'),
+      32: iconUrl('assets/icon-light-32.png'),
+      48: iconUrl('assets/icon-light-48.png'),
+      128: iconUrl('assets/icon-light-128.png')
     };
   }
   if (target === 'dark') {
     return {
-      16: 'assets/icon-dark-16.png',
-      32: 'assets/icon-dark-32.png',
-      48: 'assets/icon-dark-48.png',
-      128: 'assets/icon-dark-128.png'
+      16: iconUrl('assets/icon-dark-16.png'),
+      32: iconUrl('assets/icon-dark-32.png'),
+      48: iconUrl('assets/icon-dark-48.png'),
+      128: iconUrl('assets/icon-dark-128.png')
     };
   }
   return {
-    16: 'assets/icon-16.png',
-    32: 'assets/icon-32.png',
-    48: 'assets/icon-48.png',
-    128: 'assets/icon-128.png'
+    16: iconUrl('assets/icon-16.png'),
+    32: iconUrl('assets/icon-32.png'),
+    48: iconUrl('assets/icon-48.png'),
+    128: iconUrl('assets/icon-128.png')
   };
 }
 
