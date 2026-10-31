@@ -153,6 +153,11 @@ def _resolve_symbol(name: str, fallback):
     return fallback
 
 
+# Minimum dwell (ms) before a non-terminal status change is applied to the UI,
+# preventing rapid status flickering on small/fast downloads.
+STATUS_DWELL_MS = 300
+
+
 # --- CUSTOM DIALOG FOR DELETING COMPLETED ITEMS ---
 class MainWindow(QMainWindow):
     def __init__(self, start_ipc=True, start_minimized=False):
@@ -199,6 +204,11 @@ class MainWindow(QMainWindow):
         self.active_speeds = self.download_controller._speeds
         self.download_controller.aggregate_speed_changed.connect(lambda total, count: self.update_status_bar_speed())
         self._pending_tray_updates = {}
+        self._status_dwell = {}  # item_key -> last status change timestamp (monotonic)
+        self._rate_dwell = {}  # item_key -> last rate change timestamp (monotonic)
+        self._size_dwell = {}  # item_key -> last size change timestamp (monotonic)
+        self._time_dwell = {}  # item_key -> last time-left change timestamp (monotonic)
+        self._date_dwell = {}  # item_key -> last date change timestamp (monotonic)
         self.MAX_CONCURRENT_DOWNLOADS = 4  # Default max simultaneous downloads
         self.active_file_info_dialogs = {}
         self.active_complete_dialogs = {}
@@ -806,6 +816,17 @@ class MainWindow(QMainWindow):
         self.action_bug_report = QAction(self.tr("&File bug report"), self)
         self.action_bug_report.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/issues")))
         help_menu.addAction(self.action_bug_report)
+
+        # Browser Extension submenu (Firefox & Chromium-based browsers)
+        ext_menu = help_menu.addMenu(self.tr("&Browser Extension"))
+
+        ext_firefox = QAction(self.tr("&Firefox Add-ons Store"), self)
+        ext_firefox.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
+        ext_menu.addAction(ext_firefox)
+
+        ext_chromium = QAction(self.tr("&Chromium / Chrome (GitHub Releases)"), self)
+        ext_chromium.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
+        ext_menu.addAction(ext_chromium)
 
         help_menu.addSeparator()
 
@@ -2391,7 +2412,7 @@ class MainWindow(QMainWindow):
             current_status = logic_status or status_text
 
             is_act = self._is_row_active(r)
-            is_queued_or_progress = current_status in ["Queued", "Starting...", "Connecting...", "Resuming...", "Downloading...", "Pending..."]
+            is_queued_or_progress = current_status in ["Queued", "Starting", "Resuming", "Downloading", "Pending"]
 
             if is_act or is_queued_or_progress:
                 has_active_downloads = True
@@ -2433,7 +2454,7 @@ class MainWindow(QMainWindow):
                     selection_has_active = True
                 
                 is_complete = status in ["Complete", "Finished"] or (item.data(Qt.ItemDataRole.UserRole + 11) == "Complete")
-                is_resuming_or_connecting = logic_status in ["Resuming...", "Starting...", "Pending...", "Connecting..."] or status in ["Resuming...", "Starting...", "Pending...", "Connecting..."]
+                is_resuming_or_connecting = logic_status in ["Resuming", "Starting", "Pending"] or status in ["Resuming", "Starting", "Pending"]
                 is_queued = logic_status == "Queued" or status == "Queued"
                 
                 if is_queued:
@@ -2564,9 +2585,9 @@ class MainWindow(QMainWindow):
 
             if self._is_download_active(item_name):
                 return True
-            if logic_status in ("Downloading", "Downloading...", "Resuming...", "Connecting...", "Queued"):
+            if logic_status in ("Downloading", "Resuming", "Starting", "Queued"):
                 return True
-            if status_text in ("Downloading", "Downloading...", "Resuming...", "Connecting...", "Queued"):
+            if status_text in ("Downloading", "Resuming", "Starting", "Queued"):
                 return True
         return False
 
@@ -2681,9 +2702,9 @@ class MainWindow(QMainWindow):
                 active_in_queue += 1
                 item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Mark as active queue batch execution
                 filename = item_name.text()
-                self._set_status_text(r, "Resuming...", logic_status="Resuming...")
+                self._set_status_text(r, "Resuming", logic_status="Resuming")
                 if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                    status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming")
                 new_timestamp = str(time.time())
                 item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
                 self._set_timestamp_item(r, 5, format_timestamp_relative(new_timestamp, max_relative_seconds=300))
@@ -2729,7 +2750,7 @@ class MainWindow(QMainWindow):
                         progress_dialog.hide()
                     worker.main_progress_signal.connect(lambda _, data, ref=item_name: self.update_download_row(ref, data))
                     worker.finished_signal.connect(lambda _, path, ref=item_name, k=key: self._on_media_download_finished(k, ref, path))
-                    self._set_status_text(r, "Downloading...")
+                    self._set_status_text(r, "Downloading")
                     if not worker.isRunning():
                         worker.start()
                 else:
@@ -3043,7 +3064,7 @@ class MainWindow(QMainWindow):
                 # Normalize exact 100% or Complete variations to "Complete"
                 if status == "Complete" or display_text == "Complete" or complete_flag == "Complete" or "100.00%" in str(status) or "100.00%" in str(display_text):
                     status = "Complete"
-                elif status in ["Downloading", "Connecting...", "Pending...", "Resuming...", "Paused", "Cancelled"]:
+                elif status in ["Downloading", "Starting", "Pending", "Resuming", "Paused", "Cancelled"]:
                     # Verify if file already fully exists on disk without temp/part files
                     if path and os.path.exists(path) and os.path.isfile(path) and not os.path.exists(path + ".aria2") and not os.path.exists(path + ".tmpbdm") and not path.endswith(".part"):
                         file_sz = os.path.getsize(path)
@@ -3081,7 +3102,8 @@ class MainWindow(QMainWindow):
                     "queue": item_name.data(Qt.ItemDataRole.UserRole + 8) if item_name.data(Qt.ItemDataRole.UserRole + 8) is not None else "Main download queue",
                     "extra_data": {
                         "referer": item_name.data(Qt.ItemDataRole.UserRole + 15) or url,
-                        "thumbnail_url": item_name.data(Qt.ItemDataRole.UserRole + 27) or ""
+                        "thumbnail_url": item_name.data(Qt.ItemDataRole.UserRole + 27) or "",
+                        "audio_url": item_name.data(Qt.ItemDataRole.UserRole + 30) or ""
                     }
                 }
                 downloads.append(dl_data)
@@ -3129,6 +3151,8 @@ class MainWindow(QMainWindow):
                 extra = d.get("extra_data", {})
                 item_name.setData(Qt.ItemDataRole.UserRole + 15, extra.get("referer", d.get("url", "")) if isinstance(extra, dict) else d.get("url", ""))
                 item_name.setData(Qt.ItemDataRole.UserRole + 27, extra.get("thumbnail_url", "") if isinstance(extra, dict) else "")
+                if isinstance(extra, dict) and extra.get("audio_url"):
+                    item_name.setData(Qt.ItemDataRole.UserRole + 30, extra.get("audio_url"))
                 item_name.setIcon(get_file_icon(filename))
                 
                 self.download_table.setItem(row, 0, item_name)
@@ -3367,7 +3391,7 @@ class MainWindow(QMainWindow):
         item.setToolTip(f"Status: {text}" if text else "Status: N/A")
         if logic_status is not None:
             item.setData(Qt.ItemDataRole.UserRole + 1, logic_status)
-        elif text in ["Paused", "Complete", "Finished", "Error", "Cancelled", "Connecting...", "Downloading", "Resuming...", "Pending...", "Queued"]:
+        elif text in ["Paused", "Complete", "Error", "Cancelled", "Downloading", "Resuming", "Queued", "Starting", "Preparing", "Analyzing", "Merging", "Processing", "Finalizing"]:
             item.setData(Qt.ItemDataRole.UserRole + 1, text)
 
     def _set_timestamp_item(self, row, col, text):
@@ -4350,11 +4374,11 @@ class MainWindow(QMainWindow):
         
         # Clear completed flag & reset status metadata
         item_0.setData(Qt.ItemDataRole.UserRole + 11, None)
-        self._set_status_text(row, "Pending...")
+        self._set_status_text(row, "Pending")
         status_item = self.download_table.item(row, 2)
         if status_item:
             status_item.setData(Qt.ItemDataRole.UserRole, None)
-            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Pending...")
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Pending")
         
         self._set_sortable_item(row, 3, "...", parse_time_to_sec)
         self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
@@ -4624,7 +4648,7 @@ class MainWindow(QMainWindow):
 
                 can_start = start_immediate and not start_paused and (len(items_to_start) < available_slots)
                 if can_start:
-                    self._set_status_text(row, "Pending...")
+                    self._set_status_text(row, "Pending")
                     self._set_sortable_item(row, 3, "...", parse_time_to_sec)
                     self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
                     self._set_row_bold(row, True)
@@ -4685,6 +4709,11 @@ class MainWindow(QMainWindow):
         custom_title = ""
         size_bytes = 0
         size_str = ""
+        req_ext = ""
+        req_method = ""
+        req_filename = ""
+        req_audio_url = ""
+        req_sabr = None
 
         is_json = False
         if isinstance(data, str) and data.strip().startswith("{"):
@@ -4701,10 +4730,19 @@ class MainWindow(QMainWindow):
                 size_bytes = int(j.get("sizeBytes") or j.get("size_bytes", 0) or 0)
                 size_str = j.get("sizeStr") or j.get("size_str", "")
                 req_ext = j.get("ext") or ""
+                req_method = str(j.get("method") or "").strip()
+                req_filename = str(j.get("filename") or "").strip()
+                req_audio_url = str(j.get("audioUrl") or "").strip()
+                raw_sabr = j.get("sabr")
+                req_sabr = raw_sabr if isinstance(raw_sabr, dict) and raw_sabr else None
                 is_json = True
             except Exception:
                 is_json = False
                 req_ext = ""
+                req_method = ""
+                req_filename = ""
+                req_audio_url = ""
+                req_sabr = None
 
         if not is_json:
             parts = str(data).split("|")
@@ -4745,6 +4783,31 @@ class MainWindow(QMainWindow):
         if is_debug_mode():
             logger.debug("[MainWindow] Parsed IPC input: url=%s, is_media_flag=%s, quality=%r, title=%r, size_str=%s",
                          url, is_media_flag, selected_quality, custom_title, size_str or size_bytes)
+
+        # Direct method: the extension resolved the chosen quality into stream URLs and
+        # Aria2 performs every transfer. Never fall through to the yt-dlp pipeline.
+        if req_method == "direct":
+            from core.media.direct import start_direct_download
+            handled = start_direct_download(self, {
+                "url": url,
+                "userAgent": user_agent,
+                "cookies": cookies,
+                "referrer": referrer,
+                "title": custom_title,
+                "filename": req_filename,
+                "ext": req_ext,
+                "sizeBytes": size_bytes,
+                "sizeStr": size_str,
+                "audioUrl": req_audio_url,
+                "sabr": req_sabr,
+            })
+            if not handled:
+                logger.warning("[Direct] URL is not directly downloadable: %s", url[:200])
+                self.statusBar().showMessage(
+                    self.tr("Direct download cancelled - this link is not a direct media stream. Use Standard mode."),
+                    5000,
+                )
+            return
 
         # Fail-safe: If referrer originates from a popular media platform (Facebook, YouTube, etc.)
         # and url is a CDN chunk, blob, or raw media segment, rewrite url to the canonical referrer page!
@@ -5018,7 +5081,7 @@ class MainWindow(QMainWindow):
                 from core.utils import format_bytes
                 size_is_approximate = bool(size_str and str(size_str).startswith("~"))
                 init_size_str = None
-                if size_str and str(size_str).strip() not in ("Calculating...", "Probing...", "Size unavailable"):
+                if size_str and str(size_str).strip() not in ("Calculating...", "Probing...", "Unavailable"):
                     init_size_str = str(size_str).strip()
                 elif size_bytes > 0:
                     init_size_str = (("~" if size_is_approximate else "") + format_bytes(size_bytes))
@@ -5200,7 +5263,7 @@ class MainWindow(QMainWindow):
 
         key = self._get_item_key(item_ref)
         is_in_active = key in self.active_downloads
-        is_active = (is_in_active and logic_status not in ["Paused", "Cancelled", "Canceled", "Error", "Complete"]) or logic_status in ["Downloading", "Starting...", "Pending...", "Queued", "Resuming..."]
+        is_active = (is_in_active and logic_status not in ["Paused", "Cancelled", "Canceled", "Error", "Complete"]) or logic_status in ["Downloading", "Starting", "Pending", "Queued", "Resuming"]
 
         # Case 1: Actively downloading or queued
         if is_active:
@@ -5275,11 +5338,11 @@ class MainWindow(QMainWindow):
         item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
 
         # Reset status column & progress percentage to 0%
-        self._set_status_text(row, "Starting...", logic_status="Starting...")
+        self._set_status_text(row, "Starting", logic_status="Starting")
         status_item = self.download_table.item(row, 2)
         if status_item:
             status_item.setData(Qt.ItemDataRole.UserRole, "0%")
-            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Starting...")
+            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Starting")
 
         self._set_sortable_item(row, 3, "...", parse_time_to_sec)
         self._set_sortable_item(row, 4, "...", parse_size_to_bytes)
@@ -5495,7 +5558,7 @@ class MainWindow(QMainWindow):
         # This happens BEFORE showing the dialog, so the file starts downloading immediately
         prefetch_worker = None
         prefetch_key = None
-        if prefetch_enabled and not silent and show_start:
+        if prefetch_enabled and not silent and show_start and not file_info.get("sabr_session"):
             # Start prefetch download directly (single connection, temp .bdpart file)
             # We create the worker manually to avoid adding to the table
             prefetch_worker, prefetch_key = self._start_prefetch_download(
@@ -5650,7 +5713,9 @@ class MainWindow(QMainWindow):
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
                 referer=file_info.get("referer") or file_info.get("url"),
-                supports_range=file_info.get("supports_range", True)
+                supports_range=file_info.get("supports_range", True),
+                direct_audio_url=file_info.get("direct_audio_url"),
+                sabr_session=file_info.get("sabr_session"),
             )
         elif results["action"] == 'later':
             # "Download Later" - stop prefetch worker, keep partial files for resume, add to table as Paused
@@ -5675,7 +5740,9 @@ class MainWindow(QMainWindow):
                 show_dialog=False,
                 user_agent=file_info.get("user_agent"),
                 cookies=file_info.get("cookies"),
-                referer=file_info.get("referer") or file_info.get("url")
+                referer=file_info.get("referer") or file_info.get("url"),
+                direct_audio_url=file_info.get("direct_audio_url"),
+                sabr_session=file_info.get("sabr_session")
             )
 
     def _handle_download_dialog_rejected(self, prefetch_worker, prefetch_key):
@@ -5720,7 +5787,7 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
 
-    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True):
+    def start_download(self, url, custom_filename=None, custom_save_dir=None, size_data=None, start_paused=False, show_dialog=None, user_agent=None, cookies=None, referer=None, queue_name=None, prefetch=False, supports_range=True, direct_audio_url=None, sabr_session=None):
         if is_debug_mode():
             logger.debug("[MainWindow] start_download called: url=%s, custom_filename=%s, custom_save_dir=%s, start_paused=%s, show_dialog=%s, queue_name=%s, prefetch=%s, supports_range=%s",
                          url, custom_filename, custom_save_dir, start_paused, show_dialog, queue_name, prefetch, supports_range)
@@ -5762,20 +5829,26 @@ class MainWindow(QMainWindow):
         if queue_name:
             item_name.setData(Qt.ItemDataRole.UserRole + 14, True)  # Mark as active queue execution
         item_name.setData(Qt.ItemDataRole.UserRole + 15, referer or url)  # Referer
+        # Direct adaptive picks download this audio stream alongside the video URL.
+        if direct_audio_url:
+            item_name.setData(Qt.ItemDataRole.UserRole + 30, direct_audio_url)
+        # SABR session rows stream via the Deno helper instead of the Aria2 engine.
+        if sabr_session:
+            item_name.setData(Qt.ItemDataRole.UserRole + 31, sabr_session)
         # Mark as prefetch if applicable
         if prefetch:
             item_name.setData(Qt.ItemDataRole.UserRole + 21, True)  # Prefetch flag
         item_name.setData(Qt.ItemDataRole.UserRole + 22, supports_range) # Range support flag
         
         # Determine explicit metadata bindings
-        size_str = size_data[0] if size_data else "?"
+        size_str = size_data[0] if size_data else "Fetching"
         
         self.download_table.setItem(row, 0, item_name)
         self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
         
-        status_txt = "Paused" if start_paused else "Pending..."
+        status_txt = "Paused" if start_paused else "Pending"
         if prefetch:
-            status_txt = "Prefetching..."
+            status_txt = "Starting"
         self._set_status_text(row, status_txt)
         
         self._set_sortable_item(row, 3, "", parse_time_to_sec) if start_paused else self._set_sortable_item(row, 3, "...", parse_time_to_sec)
@@ -5808,7 +5881,7 @@ class MainWindow(QMainWindow):
             queue_max = self._get_queue_max_concurrent(target_queue)
             active_in_queue = self._get_active_count_for_queue(target_queue)
             if active_in_queue < queue_max:
-                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range)
+                self._start_download_worker(url, item_name, resume_filename=filename_guess, custom_save_dir=save_dir, show_dialog=show_dialog, user_agent=user_agent, cookies=cookies, referrer=referer or url, prefetch=prefetch, supports_range=supports_range, direct_audio_url=direct_audio_url, sabr_session=sabr_session)
             else:
                 # Slot full for this queue — mark as queued; _try_start_queued will pick it up
                 self._set_status_text(row, "Queued")
@@ -5900,7 +5973,7 @@ class MainWindow(QMainWindow):
             if size_bytes > 0:
                 size_str = format_bytes(size_bytes)
             else:
-                size_str = "Unknown"
+                size_str = "Unavailable"
         
         # Check if URL already exists in table to prevent duplicate rows
         for r in range(self.download_table.rowCount()):
@@ -5978,7 +6051,7 @@ class MainWindow(QMainWindow):
             dialog.finished.connect(lambda *_, k=key: self.active_complete_dialogs.pop(k, None))
             dialog.show()
 
-    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None):
+    def _start_download_worker(self, url, item_ref, resume_filename=None, custom_save_dir=None, show_dialog=None, user_agent=None, cookies=None, referrer=None, allow_resume=True, prefetch=False, supports_range=None, direct_audio_url=None, sabr_session=None):
         silent = getattr(self, "settings", {}).get("silent_download", False)
         pref_show_start = getattr(self, "settings", {}).get("show_start_dialog", True)
         pref_show_progress = getattr(self, "settings", {}).get("show_progress_dialog", True) and pref_show_start
@@ -6061,7 +6134,7 @@ class MainWindow(QMainWindow):
                 worker.finished_signal.connect(self._try_start_queued)
                 worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
 
-            self._set_status_text(row, "Downloading...")
+            self._set_status_text(row, "Downloading")
             self._set_row_bold(row, True)
             if not worker.isRunning():
                 worker.start()
@@ -6099,6 +6172,104 @@ class MainWindow(QMainWindow):
             except: save_dir = get_user_downloads_dir()
 
         temp_dir = config.get("temp_dir")
+
+        if sabr_session is None:
+            sabr_session = item_ref.data(Qt.ItemDataRole.UserRole + 31)
+        if sabr_session:
+            from core.workers.sabr_stream import SabrStreamWorker
+
+            target_filename = resume_filename if resume_filename else item_ref.text()
+            worker = SabrStreamWorker(
+                sabr_session, item_ref.row(), save_dir, target_filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referrer or url,
+            )
+
+            gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+            item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            worker.generation = gen
+
+            item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
+            item_ref.setText(worker.filename)
+            item_ref.setToolTip(worker.filename)
+
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, status, ref=item_ref: self.download_finished(ref, status))
+
+            key = self._get_item_key(item_ref)
+            if should_show_progress:
+                progress_dialog = DownloadProgressDialog(worker, None)
+                progress_dialog.show()
+                progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                self.active_downloads[key] = progress_dialog
+                progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                progress_dialog.finished.connect(self._try_start_queued)
+            else:
+                self.active_downloads[key] = worker
+                worker.finished_signal.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                worker.finished_signal.connect(self._try_start_queued)
+                worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
+                if not worker.isRunning():
+                    worker.start()
+
+            self._set_status_text(item_ref.row(), "Downloading")
+            self._set_row_bold(item_ref.row(), True)
+            self.update_ui_states()
+            return
+
+        if direct_audio_url is None:
+            direct_audio_url = item_ref.data(Qt.ItemDataRole.UserRole + 30)
+        if direct_audio_url:
+            from core.workers.direct_mux import DirectMuxWorker
+
+            try:
+                from core.aria2_daemon import get_aria2_daemon_manager
+                mgr = getattr(self, "aria2_daemon_manager", None) or get_aria2_daemon_manager()
+                if not mgr.is_running():
+                    self.start_aria2_daemon()
+            except Exception:
+                pass
+
+            target_filename = resume_filename if resume_filename else item_ref.text()
+            worker = DirectMuxWorker(
+                url, direct_audio_url, item_ref.row(), save_dir, target_filename,
+                user_agent=user_agent, cookies=cookies, temp_dir=temp_dir,
+                referrer=referrer or url,
+            )
+
+            gen = (item_ref.data(Qt.ItemDataRole.UserRole + 13) or 0) + 1
+            item_ref.setData(Qt.ItemDataRole.UserRole + 13, gen)
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            worker.generation = gen
+
+            item_ref.setData(Qt.ItemDataRole.UserRole + 1, worker.target_path)
+            item_ref.setText(worker.filename)
+            item_ref.setToolTip(worker.filename)
+
+            worker.main_progress_signal.connect(lambda _, data, ref=item_ref: self.update_download_row(ref, data))
+            worker.finished_signal.connect(lambda _, status, ref=item_ref: self.download_finished(ref, status))
+
+            key = self._get_item_key(item_ref)
+            if should_show_progress:
+                progress_dialog = DownloadProgressDialog(worker, None)
+                progress_dialog.show()
+                progress_dialog.finished.connect(self.refresh_toolbar_state_on_dialog_close)
+                self.active_downloads[key] = progress_dialog
+                progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                progress_dialog.finished.connect(self._try_start_queued)
+            else:
+                self.active_downloads[key] = worker
+                worker.finished_signal.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
+                worker.finished_signal.connect(self._try_start_queued)
+                worker.finished_signal.connect(lambda *_: self.refresh_toolbar_state_on_dialog_close())
+                if not worker.isRunning():
+                    worker.start()
+
+            self._set_status_text(item_ref.row(), "Downloading")
+            self._set_row_bold(item_ref.row(), True)
+            self.update_ui_states()
+            return
 
         # SMART ROUTING: Use Aria2 as the primary engine.
         # Fallback to internal downloader only if Aria2 binary is missing or daemon failed.
@@ -6231,14 +6402,14 @@ class MainWindow(QMainWindow):
                             pass
                         if dialog and hasattr(dialog, 'lbl_main_status'):
                             try:
-                                dialog.lbl_main_status.setText("Resuming...")
+                                dialog.lbl_main_status.setText("Resuming")
                                 dialog.btn_pause.setText("Pause")
                                 dialog.btn_cancel.setText("Cancel")
                             except Exception:
                                 pass
-                        self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                        self._set_status_text(row, "Resuming", logic_status="Resuming")
                         if status_item:
-                            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                            status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming")
                         self._set_row_bold(row, True)
                     continue
                 
@@ -6247,10 +6418,10 @@ class MainWindow(QMainWindow):
                 filename = item_name.text()
                 
                 if url:
-                    self._set_status_text(row, "Resuming...", logic_status="Resuming...")
+                    self._set_status_text(row, "Resuming", logic_status="Resuming")
                     status_item = self.download_table.item(row, 2)
                     if status_item:
-                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming...")
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, "Resuming")
                     # Update last try timestamp before resuming
                     new_timestamp = str(time.time())
                     item_name.setData(Qt.ItemDataRole.UserRole + 2, new_timestamp)
@@ -6352,6 +6523,34 @@ class MainWindow(QMainWindow):
         status_item = self.download_table.item(row, 2) if (row >= 0 and hasattr(self, "download_table")) else None
         prev_pct_str = status_item.data(Qt.ItemDataRole.UserRole) if status_item else None
         
+        # Canonical one-word status mapping (worker status -> display status)
+        CANONICAL_STATUS = {
+            "Connecting to server...": "Starting",
+            "Connecting to Aria2 engine...": "Starting",
+            "Connecting...": "Starting",
+            "Receiving data...": "Downloading",
+            "Resume GET...": "Resuming",
+            "Resuming...": "Resuming",
+            "Complete": "Complete",
+            "Prefetch Complete": "Complete",
+            "Error": "Error",
+            "Prefetch Error": "Error",
+            "Cancelled": "Cancelled",
+            "Prefetch Cancelled": "Cancelled",
+            "Paused": "Paused",
+            # Media pipeline statuses (already canonical one-word)
+            "Preparing": "Preparing",
+            "Analyzing": "Analyzing",
+            "Starting": "Starting",
+            "Downloading": "Downloading",
+            "Merging": "Merging",
+            "Processing": "Processing",
+            "Finalizing": "Finalizing",
+            "Queued": "Queued",
+        }
+        # Media / active statuses that pass through unchanged
+        ACTIVE_STATUSES = {"Downloading", "Preparing", "Analyzing", "Starting", "Merging", "Processing", "Finalizing", "Resuming"}
+        
         # Calculate percentage string
         pct_str = ""
         if tot_bytes > 0:
@@ -6395,24 +6594,20 @@ class MainWindow(QMainWindow):
             return final_display, "Cancelled", pct_str, False
 
         # 5. Worker reports active states -> sync user intent to Normal
-        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading") or worker_status == "Connecting...":
+        if worker_status in CANONICAL_STATUS and CANONICAL_STATUS[worker_status] in ACTIVE_STATUSES:
+            item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
+            user_state = "Normal"
+        elif worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
             item_ref.setData(Qt.ItemDataRole.UserRole + 11, "Normal")
             user_state = "Normal"
 
         # 5. User Intent: Normal / Active -> Interpret Engine Status
-        if worker_status.startswith("Receiving data") or worker_status.startswith("Downloading"):
-            engine_status = "Downloading"
-            final_display = pct_str if pct_str else "Downloading"
+        display_status = CANONICAL_STATUS.get(worker_status, worker_status if worker_status else "Downloading")
+        if display_status in ACTIVE_STATUSES:
+            engine_status = display_status
+            final_display = pct_str if pct_str else display_status
             is_active = True
-        elif worker_status in ["Resuming...", "Resume GET..."]:
-            engine_status = "Resuming..."
-            final_display = pct_str if pct_str else "Resuming..."
-            is_active = True
-        elif worker_status == "Connecting...":
-            engine_status = "Connecting..."
-            final_display = pct_str if pct_str else "Connecting..."
-            is_active = True
-        elif worker_status == "Error":
+        elif display_status == "Error":
             engine_status = "Error"
             final_display = "Error"
             is_active = False
@@ -6461,29 +6656,62 @@ class MainWindow(QMainWindow):
             tot_bytes = data[6] if len(data) > 6 else 0
             comp_bytes = data[5] if len(data) > 5 else 0
 
+            # Col 1: Size (Display total file size if known)
+            worker_status = data[2] if len(data) > 2 else ""
+
             if tot_bytes > 0:
                 size_display = format_bytes(tot_bytes)
             elif comp_bytes > 0:
                 size_display = format_bytes(comp_bytes)
             else:
-                size_display = data[1] if len(data) > 1 and data[1] else "Unknown"
+                # Size still being determined — show "Fetching" while size is
+                # being resolved (before download starts or during active
+                # transfer when total_bytes not yet known). Never show "Unknown".
+                size_display = "Fetching"
 
-            self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+            # Size dwell guard: limit Size column updates to ~300ms
+            # to prevent flicker from rapid stdout line emissions
+            now_mono = time.monotonic()
+            last_size_time = self._size_dwell.get(key, 0.0)
+            size_item = self.download_table.item(row, 1)
+            last_size_text = size_item.text() if size_item else ""
+            if now_mono - last_size_time >= 0.3 or size_display != last_size_text:
+                self._set_sortable_item(row, 1, size_display, parse_size_to_bytes)
+                self._size_dwell[key] = now_mono
             
             # Col 2: Status (Resolved centrally via IDM State Architecture)
-            worker_status = data[2] if len(data) > 2 else ""
             final_display, display_status, pct_str, is_active = self._get_display_state(item_ref, worker_status, comp_bytes, tot_bytes)
 
             if pct_str and pct_str != "Complete" and status_item:
                 status_item.setData(Qt.ItemDataRole.UserRole, pct_str)
             
             if final_display != old_status or display_status != old_logic_status:
-                self._set_status_text(row, final_display, logic_status=display_status)
-                status_item = self.download_table.item(row, 2)
-                if status_item:
-                    status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
-                if display_status != old_logic_status:
-                    self.update_ui_states()
+                # Dwell-time guard: non-terminal status changes require minimum dwell
+                # to prevent rapid flickering; terminal states and short-lived media
+                # transitions (Merging/Processing/Finalizing) apply immediately.
+                now_mono = time.monotonic()
+                immediate = display_status in ("Complete", "Error", "Cancelled", "Merging", "Processing", "Finalizing")
+                if not immediate:
+                    last_change = self._status_dwell.get(key, 0.0)
+                    if now_mono - last_change < (STATUS_DWELL_MS / 1000.0):
+                        # Skip status text update; still update progress/speed/time below.
+                        pass
+                    else:
+                        self._status_dwell[key] = now_mono
+                        self._set_status_text(row, final_display, logic_status=display_status)
+                        status_item = self.download_table.item(row, 2)
+                        if status_item:
+                            status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+                        if display_status != old_logic_status:
+                            self.update_ui_states()
+                else:
+                    self._status_dwell[key] = now_mono
+                    self._set_status_text(row, final_display, logic_status=display_status)
+                    status_item = self.download_table.item(row, 2)
+                    if status_item:
+                        status_item.setData(Qt.ItemDataRole.UserRole + 1, display_status)
+                    if display_status != old_logic_status:
+                        self.update_ui_states()
             
             # Col 3 & 4: Time Left & Rate
             if display_status in ["Complete", "Error", "Paused", "Cancelled", "Queued"]:
@@ -6491,11 +6719,29 @@ class MainWindow(QMainWindow):
                 self._set_sortable_item(row, 4, "", parse_size_to_bytes)
                 if hasattr(self, "active_speeds"):
                     self.active_speeds.pop(key, None)
+                self._rate_dwell.pop(key, None)
             else:
                 time_val = data[3] if len(data) > 3 else ""
                 rate_val = data[4] if len(data) > 4 else ""
-                self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
-                self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+
+                # Time-left dwell guard: limit Time Left column updates to ~300ms
+                now_mono = time.monotonic()
+                last_time_time = self._time_dwell.get(key, 0.0)
+                time_item = self.download_table.item(row, 3)
+                last_time_text = time_item.text() if time_item else ""
+                if now_mono - last_time_time >= 0.3 or time_val != last_time_text:
+                    self._set_sortable_item(row, 3, time_val, parse_time_to_sec)
+                    self._time_dwell[key] = now_mono
+
+                # Rate dwell guard: limit Transfer Rate column updates to ~300ms
+                # to prevent flicker from rapid stdout line emissions
+                now_mono = time.monotonic()
+                last_rate_time = self._rate_dwell.get(key, 0.0)
+                rate_item = self.download_table.item(row, 4)
+                last_rate_text = rate_item.text() if rate_item else ""
+                if now_mono - last_rate_time >= 0.3 or rate_val != last_rate_text:
+                    self._set_sortable_item(row, 4, rate_val, parse_size_to_bytes)
+                    self._rate_dwell[key] = now_mono
                 if hasattr(self, "active_speeds"):
                     raw_speed = data[7] if len(data) > 7 and isinstance(data[7], (int, float)) else None
                     if raw_speed is not None:
@@ -6511,7 +6757,12 @@ class MainWindow(QMainWindow):
             if not last_try_item:
                 self._set_timestamp_item(row, 5, formatted_last_try)
             elif last_try_item.text() != formatted_last_try:
-                last_try_item.setText(formatted_last_try)
+                # Date dwell guard: limit Date column updates to ~300ms
+                now_mono = time.monotonic()
+                last_date_time = self._date_dwell.get(key, 0.0)
+                if now_mono - last_date_time >= 0.3:
+                    last_try_item.setText(formatted_last_try)
+                    self._date_dwell[key] = now_mono
             
             if comp_bytes > 0:
                 item_ref.setData(Qt.ItemDataRole.UserRole + 25, comp_bytes)
@@ -7128,7 +7379,7 @@ class MainWindow(QMainWindow):
                         self.download_retry_counts[key] = current_retries + 1
                         url = item_ref.data(Qt.ItemDataRole.UserRole)
                         if url:
-                            self._set_status_text(row, f"Retrying ({current_retries + 1}/{max_retries})...")
+                            self._set_status_text(row, "Retrying", logic_status="Retrying")
                             timer = QTimer(self)
                             timer.setSingleShot(True)
                             def _do_retry(ref=item_ref, u=url, t=timer):
@@ -7447,7 +7698,7 @@ class MainWindow(QMainWindow):
                 if total_size_bytes > 0:
                     size_str = (("~" if size_is_approximate else "") + format_bytes(total_size_bytes))
                 else:
-                    size_str = "Size unavailable"
+                    size_str = "Unavailable"
             file_info = {
                 "url": url,
                 "filename": filename,
@@ -7508,7 +7759,7 @@ class MainWindow(QMainWindow):
 
             self.download_table.setItem(row, 0, item_name)
             self._set_sortable_item(row, 1, size_str, parse_size_to_bytes)
-            self._set_status_text(row, "Paused")
+            self._set_status_text(row, "Pending")
             self._set_sortable_item(row, 3, "", parse_time_to_sec)
             self._set_sortable_item(row, 4, "", parse_size_to_bytes)
             self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
@@ -7526,7 +7777,7 @@ class MainWindow(QMainWindow):
             dialog.accepted.connect(lambda: self._handle_media_download_dialog_accepted(
                 dialog, file_info, item_name, format_spec, is_audio_only, cookies_browser, cookies_file, referrer, user_agent, cookies
             ))
-            dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(item_name))
+            dialog.rejected.connect(lambda: self._handle_download_dialog_rejected(None, dialog_id))
 
             dialog.show()
             dialog.raise_()
@@ -7575,7 +7826,7 @@ class MainWindow(QMainWindow):
             init_size_str = "Calculating..."
         self.download_table.setItem(row, 0, item_name)
         self._set_sortable_item(row, 1, init_size_str, parse_size_to_bytes)
-        self._set_status_text(row, "Downloading...")
+        self._set_status_text(row, "Downloading")
         self._set_sortable_item(row, 3, "--", parse_time_to_sec)
         self._set_sortable_item(row, 4, "--", parse_size_to_bytes)
         self._set_timestamp_item(row, 5, format_timestamp_relative(current_ts, max_relative_seconds=300))
@@ -7702,7 +7953,7 @@ class MainWindow(QMainWindow):
                 self.save_data()
                 return
 
-            self._set_status_text(row, "Starting...")
+            self._set_status_text(row, "Starting")
             from core.media_downloader import YtDlpDownloadWorker
             config = load_category_config()
             temp_dir = config.get("temp_dir")
@@ -7743,7 +7994,7 @@ class MainWindow(QMainWindow):
             else:
                 progress_dialog.hide()
 
-            self._set_status_text(row, "Downloading...")
+            self._set_status_text(row, "Downloading")
             if not worker.isRunning():
                 worker.start()
             self.update_status_bar_media()
@@ -7934,14 +8185,14 @@ class MainWindow(QMainWindow):
                         progress_dialog.finished.connect(lambda *_, k=key: self.active_downloads.pop(k, None))
                         progress_dialog.finished.connect(self._try_start_queued)
                         progress_dialog.hide()
-                        self._set_status_text(r, "Downloading...")
+                        self._set_status_text(r, "Downloading")
                         self._set_row_bold(r, True)
                         if not worker.isRunning():
                             worker.start()
                     else:
                         # Regular HTTP download row
                         is_queue_item = bool(item_ref.data(Qt.ItemDataRole.UserRole + 14))
-                        self._set_status_text(r, "Downloading...")
+                        self._set_status_text(r, "Downloading")
                         self._set_row_bold(r, True)
                         self._start_download_worker(url, item_ref, show_dialog=False if is_queue_item else None)
                     started = True

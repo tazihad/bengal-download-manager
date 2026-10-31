@@ -87,11 +87,11 @@ function applyActionIcon(iconStyle) {
     }
     if (optionsLogo) {
       if (target === 'light') {
-        optionsLogo.src = 'assets/icon-light-48.png';
+        optionsLogo.src = '../../assets/icon-light-48.png';
       } else if (target === 'dark') {
-        optionsLogo.src = 'assets/icon-dark-48.png';
+        optionsLogo.src = '../../assets/icon-dark-48.png';
       } else {
-        optionsLogo.src = 'assets/icon-48.png';
+        optionsLogo.src = '../../assets/icon-48.png';
       }
     }
 
@@ -629,6 +629,17 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFilterInput('blacklist-ext-input', 'add-blacklist-ext', 'blacklist-ext-tags', 'blacklistExts', true);
 
   // 5. Load from storage
+  // Media download method (Default/Alternate) moved to Options > Media
+  const mediaMethodRadios = document.querySelectorAll('input[name="options-download-method"]');
+  mediaMethodRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) return;
+      chrome.storage.local.set({ downloadMethod: radio.value }, () => {
+        showToast('Media download method updated ✓', 'success');
+      });
+    });
+  });
+
   const defaults = {
     port: 56800,
     ipcPort: 56900,
@@ -639,6 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     enableInterception: true,
     enableMediaSniffing: true,
     videoPanelPosition: "top-right",
+    downloadMethod: "standard",
     whitelistUrls: [],
     whitelistExts: [],
     blacklistUrls: [],
@@ -667,6 +679,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (videoPositionSelect) {
       videoPositionSelect.value = items.videoPanelPosition || 'top-right';
     }
+    const methodRadios2 = document.querySelectorAll('input[name="options-download-method"]');
+    const methodVal2 = items.downloadMethod === 'direct' ? 'direct' : 'standard';
+    methodRadios2.forEach(r => {
+      r.checked = r.value === methodVal2;
+    });
 
     applyTheme(items.theme || 'system');
     applyActionIcon(items.actionIcon || 'system');
@@ -715,6 +732,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
     const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
     const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
+    const selectedMethodRadio = document.querySelector('input[name="options-download-method"]:checked');
+    const downloadMethod = selectedMethodRadio ? selectedMethodRadio.value : 'standard';
 
     const payload = {
       host: "localhost",
@@ -726,6 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
       enableInterception,
       enableMediaSniffing,
       videoPanelPosition,
+      downloadMethod,
       whitelistUrls: filterLists.whitelistUrls,
       whitelistExts: filterLists.whitelistExts,
       blacklistUrls: filterLists.blacklistUrls,
