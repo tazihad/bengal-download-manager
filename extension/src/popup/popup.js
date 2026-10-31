@@ -19,6 +19,15 @@ function formatAppVersion(ver) {
   return clean;
 }
 
+function iconUrl(path) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function') {
+      return chrome.runtime.getURL(path);
+    }
+  } catch {}
+  return '/' + path;
+}
+
 function updatePopupLogo(iconStyle, isDark) {
   const logo = document.getElementById('popup-logo');
   if (!logo) return;
@@ -26,12 +35,8 @@ function updatePopupLogo(iconStyle, isDark) {
   if (target === 'system') {
     target = isDark ? 'light' : 'dark';
   }
-  if (target === 'light') {
-    logo.src = 'assets/icon-light-32.png';
-  } else if (target === 'dark') {
-    logo.src = 'assets/icon-dark-32.png';
-  } else {
-    logo.src = 'assets/icon-32.png';
+  if (logo) {
+    logo.src = iconUrl(target === 'light' ? 'assets/icon-light-32.png' : target === 'dark' ? 'assets/icon-dark-32.png' : 'assets/icon-32.png');
   }
 }
 
@@ -235,8 +240,8 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
 
 // Live storage sync
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local') {
-    if (changes.theme || changes.actionIcon) {
+    if (areaName === 'local') {
+      if (changes.theme || changes.actionIcon) {
       chrome.storage.local.get({ theme: 'system', actionIcon: 'system' }, (items) => {
         applyTheme(items.theme || 'system');
         const isDark = (items.theme === 'dark') || (items.theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -308,6 +313,8 @@ document.getElementById('site-toggle-row').addEventListener('click', (e) => {
   }
 });
 
+// Download method selector moved to extension settings > Media tab
+
 chrome.storage.local.get({
   theme: "system",
   port: 56800,
@@ -315,7 +322,7 @@ chrome.storage.local.get({
   token: "",
   bdmVersion: "",
   enableInterception: true,
-  blacklistUrls: []
+  blacklistUrls: [],
 }, async (items) => {
   applyTheme(items.theme || "system");
   updateGlobalToggleUI(items.enableInterception !== false);

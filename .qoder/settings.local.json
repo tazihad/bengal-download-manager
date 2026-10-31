@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(*)",
+      "Bash(python3 - <<'PY'\nimport glob, os\nfor p in glob.glob\\('/home/zihad/.local/share/bengal-download-manager/bin/**/yt_dlp/extractor/youtube*', recursive=True\\)[:5]:\n    print\\(p\\)\nfor p in glob.glob\\('/home/zihad/.local/share/bengal-download-manager/**/external.py', recursive=True\\)[:5]:\n    print\\(p\\)\nPY)",
+      "Bash(gh api repos/Ahmadkhattak1/awesome-downloader/git/trees/HEAD?recursive=1 --jq '.tree[].path' 2>&1 | head -80)"
+    ]
+  }
+}

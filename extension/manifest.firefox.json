@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bengal DM Integration Module",
-  "version": "0.10",
+  "version": "0.11",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
     "16": "assets/icon-16.png",
@@ -39,20 +39,44 @@
       }
     ],
     "default_title": "Bengal DM",
-    "default_popup": "popup.html"
+    "default_popup": "src/popup/popup.html"
   },
   "background": {
     "scripts": [
-      "background.js"
+      "src/sites/youtube/shared/youtube-media.js",
+      "src/sites/youtube/background/youtube-direct.js",
+      "src/background/background.js"
     ]
   },
   "content_scripts": [
     {
       "matches": [
-        "<all_urls>"
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*"
       ],
       "js": [
-        "content.js"
+        "src/sites/youtube/shared/youtube-media.js",
+        "src/sites/youtube/main/youtube-page.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "src/sites/youtube/content/youtube-relay.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/content/content.js"
       ],
       "all_frames": true,
       "match_about_blank": true,
@@ -64,7 +88,6 @@
     "storage",
     "contextMenus",
     "webRequest",
-    "webRequestBlocking",
     "cookies",
     "notifications",
     "activeTab",
@@ -77,13 +100,14 @@
     "<all_urls>"
   ],
   "options_ui": {
-    "page": "options.html",
+    "page": "src/options/options.html",
     "open_in_tab": true
   },
   "web_accessible_resources": [
     {
       "resources": [
-        "inject.js",
+        "src/content/inject.js",
+        "src/sites/youtube/main/direct-inject.js",
         "assets/*"
       ],
       "matches": [

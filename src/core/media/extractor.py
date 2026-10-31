@@ -1031,6 +1031,7 @@ class MediaInfoFetcherWorker(QThread):
         initial_ext: str = ".mp4",
         fallback_size_bytes: int = 0,
         is_special_case: bool = False,
+        use_aria2_downloader: bool = False,
     ):
         super().__init__()
         self.url = sanitize_media_url(url)
@@ -1050,6 +1051,7 @@ class MediaInfoFetcherWorker(QThread):
         self.initial_ext = initial_ext
         self.fallback_size_bytes = fallback_size_bytes
         self.is_special_case = is_special_case
+        self.use_aria2_downloader = bool(use_aria2_downloader)
         self.process = None
         self.is_running = True
         _keep_thread_alive(self)
@@ -1217,7 +1219,7 @@ class MediaInfoFetcherWorker(QThread):
                     final_title = clean_title
 
             filename = sanitize_media_filename(final_title, ext=resolved_ext)
-            size_str = (("~" if is_approx else "") + format_bytes(size_bytes)) if size_bytes > 0 else "Size unavailable"
+            size_str = (("~" if is_approx else "") + format_bytes(size_bytes)) if size_bytes > 0 else "Unavailable"
 
             resolved_format_spec = self.format_spec
             if sel_fmts:
@@ -1241,6 +1243,7 @@ class MediaInfoFetcherWorker(QThread):
                 "referrer": self.referrer,
                 "user_agent": self.user_agent,
                 "cookies": self.cookies,
+                "use_aria2_downloader": self.use_aria2_downloader,
                 "success": True,
             })
 
@@ -1250,7 +1253,7 @@ class MediaInfoFetcherWorker(QThread):
             title = self.custom_title or "media"
             filename = sanitize_media_filename(title, ext=self.initial_ext)
             fb_size = self.fallback_size_bytes or 0
-            size_str = format_bytes(fb_size) if fb_size > 0 else "Size unavailable"
+            size_str = format_bytes(fb_size) if fb_size > 0 else "Unavailable"
             self.finished_signal.emit({
                 "url": self.url,
                 "filename": filename,
@@ -1266,6 +1269,7 @@ class MediaInfoFetcherWorker(QThread):
                 "referrer": self.referrer,
                 "user_agent": self.user_agent,
                 "cookies": self.cookies,
+                "use_aria2_downloader": self.use_aria2_downloader,
                 "success": False,
             })
         finally:

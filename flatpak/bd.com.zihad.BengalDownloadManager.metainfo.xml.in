@@ -70,6 +70,16 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
+    <release version="0.3.13" date="2026-10-31">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.13</url>
+      <description translate="no">
+        <p>Bengal Download Manager 0.3.13 changes:</p>
+        <ul>
+          <li>Extension fix: Removed invalid offscreen permission from Firefox MV3 manifest (caused &#x27;Reading manifest&#x27; warning on Firefox)</li>
+          <li>Chrome retains offscreen for theme detection. General stability improvements.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.12" date="2026-10-25">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.12</url>
         <description translate="no">

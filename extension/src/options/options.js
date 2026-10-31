@@ -24,6 +24,18 @@ function resolveEffectiveTheme(themeSetting) {
   return 'light';
 }
 
+// Toolbar icon paths must be absolute extension URLs. The service worker and the options
+// page now live in src/ subfolders, so a bare 'assets/...' path resolves relative to
+// those folders and setIcon silently fails.
+function iconUrl(path) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getURL === 'function') {
+      return chrome.runtime.getURL(path);
+    }
+  } catch {}
+  return '/' + path;
+}
+
 function getIconPathsForStyle(style, effectiveTheme) {
   let target = style || 'system';
   if (target === 'system') {
@@ -31,25 +43,25 @@ function getIconPathsForStyle(style, effectiveTheme) {
   }
   if (target === 'light') {
     return {
-      16: 'assets/icon-light-16.png',
-      32: 'assets/icon-light-32.png',
-      48: 'assets/icon-light-48.png',
-      128: 'assets/icon-light-128.png'
+      16: iconUrl('assets/icon-light-16.png'),
+      32: iconUrl('assets/icon-light-32.png'),
+      48: iconUrl('assets/icon-light-48.png'),
+      128: iconUrl('assets/icon-light-128.png')
     };
   }
   if (target === 'dark') {
     return {
-      16: 'assets/icon-dark-16.png',
-      32: 'assets/icon-dark-32.png',
-      48: 'assets/icon-dark-48.png',
-      128: 'assets/icon-dark-128.png'
+      16: iconUrl('assets/icon-dark-16.png'),
+      32: iconUrl('assets/icon-dark-32.png'),
+      48: iconUrl('assets/icon-dark-48.png'),
+      128: iconUrl('assets/icon-dark-128.png')
     };
   }
   return {
-    16: 'assets/icon-16.png',
-    32: 'assets/icon-32.png',
-    48: 'assets/icon-48.png',
-    128: 'assets/icon-128.png'
+    16: iconUrl('assets/icon-16.png'),
+    32: iconUrl('assets/icon-32.png'),
+    48: iconUrl('assets/icon-48.png'),
+    128: iconUrl('assets/icon-128.png')
   };
 }
 
@@ -78,22 +90,16 @@ function applyActionIcon(iconStyle) {
   }
 
   // Update brand logo in options sidebar
-  const optionsLogo = document.getElementById('options-logo') || document.querySelector('.sidebar-brand .brand-icon');
-  chrome.storage.local.get({ theme: 'system' }, (items) => {
-    const effectiveTheme = resolveEffectiveTheme(items.theme);
-    let target = currentIcon;
-    if (target === 'system') {
-      target = (effectiveTheme === 'dark') ? 'light' : 'dark';
-    }
-    if (optionsLogo) {
-      if (target === 'light') {
-        optionsLogo.src = 'assets/icon-light-48.png';
-      } else if (target === 'dark') {
-        optionsLogo.src = 'assets/icon-dark-48.png';
-      } else {
-        optionsLogo.src = 'assets/icon-48.png';
+    const optionsLogo = document.getElementById('options-logo') || document.querySelector('.sidebar-brand .brand-icon');
+    chrome.storage.local.get({ theme: 'system' }, (items) => {
+      const effectiveTheme = resolveEffectiveTheme(items.theme);
+      let target = currentIcon;
+      if (target === 'system') {
+        target = (effectiveTheme === 'dark') ? 'light' : 'dark';
       }
-    }
+      if (optionsLogo) {
+        optionsLogo.src = iconUrl(target === 'light' ? 'assets/icon-light-48.png' : target === 'dark' ? 'assets/icon-dark-48.png' : 'assets/icon-48.png');
+      }
 
     const action = getActionAPI();
     if (action && action.setIcon) {
@@ -629,6 +635,17 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFilterInput('blacklist-ext-input', 'add-blacklist-ext', 'blacklist-ext-tags', 'blacklistExts', true);
 
   // 5. Load from storage
+  // Media download method (Default/Alternate) moved to Options > Media
+  const mediaMethodRadios = document.querySelectorAll('input[name="options-download-method"]');
+  mediaMethodRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) return;
+      chrome.storage.local.set({ downloadMethod: radio.value }, () => {
+        showToast('Media download method updated ✓', 'success');
+      });
+    });
+  });
+
   const defaults = {
     port: 56800,
     ipcPort: 56900,
@@ -639,6 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
     enableInterception: true,
     enableMediaSniffing: true,
     videoPanelPosition: "top-right",
+    downloadMethod: "standard",
     whitelistUrls: [],
     whitelistExts: [],
     blacklistUrls: [],
@@ -667,6 +685,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (videoPositionSelect) {
       videoPositionSelect.value = items.videoPanelPosition || 'top-right';
     }
+    const methodRadios2 = document.querySelectorAll('input[name="options-download-method"]');
+    const methodVal2 = items.downloadMethod === 'direct' ? 'direct' : 'standard';
+    methodRadios2.forEach(r => {
+      r.checked = r.value === methodVal2;
+    });
 
     applyTheme(items.theme || 'system');
     applyActionIcon(items.actionIcon || 'system');
@@ -715,6 +738,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const enableInterception = interceptionCheckbox ? interceptionCheckbox.checked : true;
     const enableMediaSniffing = mediaSniffingCheckbox ? mediaSniffingCheckbox.checked : true;
     const videoPanelPosition = videoPositionSelect ? videoPositionSelect.value : 'top-right';
+    const selectedMethodRadio = document.querySelector('input[name="options-download-method"]:checked');
+    const downloadMethod = selectedMethodRadio ? selectedMethodRadio.value : 'standard';
 
     const payload = {
       host: "localhost",
@@ -726,6 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
       enableInterception,
       enableMediaSniffing,
       videoPanelPosition,
+      downloadMethod,
       whitelistUrls: filterLists.whitelistUrls,
       whitelistExts: filterLists.whitelistExts,
       blacklistUrls: filterLists.blacklistUrls,
