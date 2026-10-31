@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mediaUrl, playerData, choices, sabrSession } = require('../src/youtube/youtube-media.js');
+const { mediaUrl, playerData, choices, sabrSession } = require('../../../src/sites/youtube/shared/youtube-media.js');
 
 const url = (itag, id = 'asset') => `https://r1.googlevideo.com/videoplayback?id=${id}&itag=${itag}&expire=9999999999`;
 const player = (formats, extra = {}) => playerData({

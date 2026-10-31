@@ -57,8 +57,7 @@ extension/
 │   │   └── background.js     # Background service worker / script (interception & RPC listener)
 │   ├── content/
 │   │   ├── content.js        # Content script (download detection, floating video widget)
-│   │   ├── inject.js         # MAIN-world media bridge
-│   │   └── direct-inject.js  # MAIN-world bridge exposing muxed YouTube stream URLs
+│   │   └── inject.js         # Generic MAIN-world media bridge
 │   ├── popup/
 │   │   ├── popup.html        # Browser action popup UI markup
 │   │   ├── popup.js          # Popup UI logic and connection status monitor
@@ -67,14 +66,22 @@ extension/
 │   │   ├── options.html      # Extension settings page markup
 │   │   ├── options.js        # Extension settings & IPC configuration logic
 │   │   └── options.css       # Extension settings page styling
-│   └── youtube/
-│       ├── youtube-media.js  # YouTube media response parsing and format definitions
-│       ├── youtube-direct.js # YouTube stream observation & SABR session capture
-│       ├── youtube-page.js   # MAIN-world player response hook
-│       └── youtube-relay.js  # Content-script relay bridging player responses to background
+│   └── sites/
+│       └── youtube/
+│           ├── shared/
+│           │   └── youtube-media.js      # Pure parsing & format logic
+│           ├── background/
+│           │   └── youtube-direct.js     # WebRequest + SABR capture
+│           ├── content/
+│           │   └── youtube-relay.js      # Content-script relay
+│           └── main/
+│               ├── youtube-page.js       # MAIN-world player hook
+│               └── direct-inject.js      # MAIN-world muxed stream bridge
 └── tests/
-    ├── youtube-media.test.cjs   # Media format parsing & selection test suite
-    └── youtube-direct.test.cjs  # WebRequest observation & SABR capture test suite
+    └── sites/
+        └── youtube/
+            ├── youtube-media.test.cjs   # Media format parsing & selection test suite
+            └── youtube-direct.test.cjs  # WebRequest observation & SABR capture test suite
 ```
 
 ---

@@ -43,8 +43,8 @@
   },
   "background": {
     "scripts": [
-      "src/youtube/youtube-media.js",
-      "src/youtube/youtube-direct.js",
+      "src/sites/youtube/shared/youtube-media.js",
+      "src/sites/youtube/background/youtube-direct.js",
       "src/background/background.js"
     ]
   },
@@ -56,8 +56,8 @@
         "https://m.youtube.com/*"
       ],
       "js": [
-        "src/youtube/youtube-media.js",
-        "src/youtube/youtube-page.js"
+        "src/sites/youtube/shared/youtube-media.js",
+        "src/sites/youtube/main/youtube-page.js"
       ],
       "world": "MAIN",
       "run_at": "document_start"
@@ -69,7 +69,7 @@
         "https://m.youtube.com/*"
       ],
       "js": [
-        "src/youtube/youtube-relay.js"
+        "src/sites/youtube/content/youtube-relay.js"
       ],
       "run_at": "document_start"
     },
@@ -108,7 +108,7 @@
     {
       "resources": [
         "src/content/inject.js",
-        "src/content/direct-inject.js",
+        "src/sites/youtube/main/direct-inject.js",
         "assets/*"
       ],
       "matches": [

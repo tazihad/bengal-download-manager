@@ -1,7 +1,7 @@
 // --- CONSTANTS & HELPERS ---
 if (typeof importScripts === 'function') {
-  importScripts('../youtube/youtube-media.js');
-  importScripts('../youtube/youtube-direct.js');
+  importScripts('../sites/youtube/shared/youtube-media.js');
+  importScripts('../sites/youtube/background/youtube-direct.js');
 }
 
 const DEFAULT_IGNORED_EXTS = [
