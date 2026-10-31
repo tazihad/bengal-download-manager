@@ -84,9 +84,8 @@
       <description translate="no">
         <p>Bengal Download Manager 0.3.13 changes:</p>
         <ul>
-          <li>Extension fixes: Firefox offscreen permission added and webRequestBlocking removed</li>
-          <li>Fixed postMediaToBengalDM call signature</li>
-          <li>Toolbar/options/popup icons now use chrome.runtime.getURL() for reliable asset resolution</li>
+          <li>Extension fix: Removed invalid offscreen permission from Firefox MV3 manifest (caused 'Reading manifest' warning on Firefox)</li>
+          <li>Chrome retains offscreen for theme detection. General stability improvements.</li>
         </ul>
       </description>
     </release>
