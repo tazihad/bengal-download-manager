@@ -1,6 +1,8 @@
 // --- CONSTANTS & HELPERS ---
-importScripts('youtube-media.js');
-importScripts('youtube-direct.js');
+if (typeof importScripts === 'function') {
+  importScripts('youtube-media.js');
+  importScripts('youtube-direct.js');
+}
 
 const DEFAULT_IGNORED_EXTS = [
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff',

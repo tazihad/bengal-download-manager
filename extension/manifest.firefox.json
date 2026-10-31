@@ -43,6 +43,8 @@
   },
   "background": {
     "scripts": [
+      "youtube-media.js",
+      "youtube-direct.js",
       "background.js"
     ]
   },
