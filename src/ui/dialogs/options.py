@@ -205,6 +205,8 @@ class OptionsDialog(QDialog):
                 system_lang = system_locale.language() if hasattr(system_locale, "language") else None
                 if system_lang is not None and system_lang != QLocale.Language.English:
                     dialog_width = 720
+            else:
+                dialog_width = 580
         else:
             # Modern is wider so all content is visible
             dialog_height = 600
@@ -1188,6 +1190,7 @@ class OptionsDialog(QDialog):
         self.spin_port.setToolTip(self.tr("Port number of proxy server (1-65535)"))
         self.spin_port.valueChanged.connect(self.save_proxy_data)
         self.spin_port.valueChanged.connect(self.refresh_engine_status)
+        self.spin_port.setMaximumWidth(80)
         addr_layout.addWidget(self.spin_port)
         manual_layout.addLayout(addr_layout)
         
