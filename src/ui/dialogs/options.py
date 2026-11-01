@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
     QApplication, QStackedWidget, QSizePolicy, QScrollArea
 )
-from PyQt6.QtCore import Qt, QMetaObject, Q_ARG, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, QLocale, QMetaObject, Q_ARG, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from core.utils import (
     load_proxy_config, save_proxy_config, get_aria2_proxy_url,
@@ -182,6 +182,21 @@ class OptionsDialog(QDialog):
         # Standard reasonable dialog dimensions: spacious and uncramped, independent of main window height
         dialog_width = 580
         dialog_height = 580
+
+        # Non-English languages often have longer translated labels, so widen the
+        # dialog so dropdown menus and option fields stay fully visible.
+        current_lang_code = "system"
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            current_lang_code = self.main_win.settings.get("language", "system")
+        if current_lang_code not in ("system", "en"):
+            dialog_width = 720
+        elif current_lang_code == "system":
+            # When set to system, check the actual OS locale: widen if it is not English.
+            system_locale = QLocale.system()
+            system_lang = system_locale.language() if hasattr(system_locale, "language") else None
+            if system_lang is not None and system_lang != QLocale.Language.English:
+                dialog_width = 720
+
         screen = QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
