@@ -284,3 +284,55 @@ input:checked + .slider:before {
 input:disabled + .slider {
   cursor: not-allowed;
 }
+
+/* Download Method Radio Group */
+.method-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.method-options {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.method-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.method-option + .method-option {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.method-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.method-option:has(input:checked) {
+  background: var(--bdm-highlight-subtle);
+  color: var(--bdm-highlight);
+}
+
+.method-option:has(input:focus-visible) {
+  outline: 2px solid var(--bdm-highlight);
+  outline-offset: -2px;
+}

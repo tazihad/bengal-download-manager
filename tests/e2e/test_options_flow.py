@@ -101,7 +101,7 @@ class TestOptionsTabs:
         dialog.select_tab(0)
 
     def test_tab_count_positive(self, dialog):
-        assert dialog.tabs.count() > 0
+        assert dialog.content_stack.count() > 0
 
 
 class TestOptionsAcceptance:

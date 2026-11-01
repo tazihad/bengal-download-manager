@@ -35,7 +35,7 @@ runs:
 
     - name: Restore APT Cache
       if: inputs.cache == 'true' && inputs.packages != ''
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ format('{0}/.apt-cache', env.HOME) }}
         key: apt-${{ runner.os }}-${{ runner.arch }}-${{ steps.apt-cache-prep.outputs.pkg_hash }}-${{ steps.apt-cache-prep.outputs.week }}

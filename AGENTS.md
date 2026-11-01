@@ -79,7 +79,7 @@ PYTHONPATH=src uv run pyinstaller \
     --collect-all ui \
     --add-data "assets:assets" \
     --distpath "dist" \
-    --workpath "build" \
+    --workpath ".pyinstaller-build" \
     --noconfirm src/main.py
 ```
 

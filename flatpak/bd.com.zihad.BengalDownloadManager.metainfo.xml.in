@@ -70,6 +70,19 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
+    <release version="0.3.13" date="2026-10-31">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.13</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.13 changes:</p>
+        <ul>
+                <li>Simpler options dialog with a new media download section</li>
+                <li>Alternate download tab shows video and audio quality choices with instant file details</li>
+                <li>Facebook downloads now match the video you're watching with real quality options</li>
+                <li>Download list shows smoother progress and clearer status</li>
+                <li>General bug fixes and stability improvements</li>
+            </ul>
+        </description>
+    </release>
     <release version="0.3.12" date="2026-10-25">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.12</url>
         <description translate="no">

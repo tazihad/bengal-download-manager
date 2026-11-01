@@ -17,6 +17,13 @@ build_output/
 build/*/output/
 build/*-release/
 build/*-debug/
+/build/bengal-download-manager/
+*.toc
+*.pyz
+base_library.zip
+xref-*.html
+warn-*.txt
+localpycs/
 !build/
 *.egg-info/
 
@@ -35,6 +42,8 @@ docs/*
 .superpowers/
 .worktrees/
 .agents/
+.kilo/
+.qoder/
 extension-firefox.xpi
 conductor/
 build_test/

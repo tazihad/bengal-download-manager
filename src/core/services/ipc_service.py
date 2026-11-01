@@ -105,12 +105,19 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         server_port = self.server.server_address[1] if (hasattr(self, 'server') and hasattr(self.server, 'server_address')) else configured_ipc_port
         is_fallback = bool(server_port != configured_ipc_port)
 
+        try:
+            from core.media.sabr import sabr_runtime_available
+            sabr_capable = sabr_runtime_available()
+        except Exception:
+            sabr_capable = False
+
         config_json = json.dumps({
             "status": "Bengal DM is running",
             "version": app_version,
             "ipc_port": server_port,
             "configured_ipc_port": configured_ipc_port,
             "is_fallback": is_fallback,
+            "sabr": sabr_capable,
             "aria2": {
                 "port": ext_data.get("port", 56800),
                 "token": ext_data.get("token", "")
@@ -124,6 +131,14 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
+        # A SABR session body carries formats plus a capped protobuf blob; anything
+        # beyond a few MiB cannot be a legitimate submission from the extension.
+        if content_length > 8 * 1024 * 1024:
+            logger.warning("[IPC] Rejected POST body of %d bytes (8 MiB cap)", content_length)
+            self.send_response(413)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            return
         body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ""
         
         clean_path = self.path.split("?")[0].rstrip("/")
@@ -150,6 +165,71 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b'{"status": "batch_received"}')
                 return
+
+        # Resolve stream URLs for Direct downloads. yt-dlp only locates the signed URLs;
+        # both tracks are transferred by Aria2 and muxed by the desktop.
+        if clean_path == "/resolve-direct":
+            page_url = payload.get("url", "") if isinstance(payload, dict) else ""
+            if not page_url or not str(page_url).lower().startswith(("http://", "https://")):
+                status = 400
+                body_out = json.dumps({"success": False, "error": "Missing or invalid URL"})
+            else:
+                status = 200
+                try:
+                    from core.media.direct import resolve_media_tracks, resolve_single_file_url
+
+                    video_itag = str(payload.get("videoItag", "") or "") or None
+                    audio_itag = str(payload.get("audioItag", "") or "") or None
+                    resolution = None
+                    if video_itag or audio_itag:
+                        resolution = resolve_media_tracks(
+                            page_url=str(page_url),
+                            cookies=str(payload.get("cookies", "") or ""),
+                            user_agent=str(payload.get("userAgent", "") or ""),
+                            referrer=str(payload.get("referrer", "") or ""),
+                            video_itag=video_itag,
+                            audio_itag=audio_itag,
+                        )
+                    else:
+                        resolution = resolve_single_file_url(
+                            page_url=str(page_url),
+                            cookies=str(payload.get("cookies", "") or ""),
+                            user_agent=str(payload.get("userAgent", "") or ""),
+                            referrer=str(payload.get("referrer", "") or ""),
+                        )
+                    resolution = resolution or {}
+                    video_url = resolution.get("videoUrl") or resolution.get("url") or ""
+                    audio_url = resolution.get("audioUrl") or ""
+                    video_ext = resolution.get("videoExt") or resolution.get("ext") or ""
+                    audio_ext = resolution.get("audioExt") or ""
+                    video_size = int(resolution.get("videoSize") or resolution.get("sizeBytes") or 0)
+                    audio_size = int(resolution.get("audioSize") or 0)
+                    if not video_url and audio_url:
+                        # Audio-only pick.
+                        video_ext, audio_ext = "", audio_ext or video_ext or ".m4a"
+                    body_out = json.dumps({
+                        "success": bool(video_url or audio_url),
+                        "resolvedUrl": video_url,
+                        "videoUrl": video_url,
+                        "audioUrl": audio_url,
+                        "ext": video_ext,
+                        "videoExt": video_ext,
+                        "audioExt": audio_ext,
+                        "sizeBytes": video_size + audio_size,
+                    })
+                    if is_debug_mode():
+                        logger.debug("[IPC] Direct URL resolution for %s -> %s", str(page_url)[:120], body_out[:240])
+                except Exception as e:
+                    if is_debug_mode():
+                        logger.warning("[IPC] Direct URL resolution failed: %s", e)
+                    body_out = json.dumps({"success": False, "error": str(e)})
+
+            self.send_response(status)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(body_out.encode('utf-8'))
+            return
 
         # Check for media sizes / probe requests (used exclusively by browser extension media popup)
         if clean_path in ("/media-sizes", "/probe-media", "/media-info"):
@@ -212,7 +292,12 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
         quality = ""
         size_bytes = 0
         size_str = ""
-        
+        method = ""
+        filename = ""
+        ext = ""
+        audio_url = ""
+        sabr_session = None
+
         if isinstance(payload, dict) and payload:
             url = payload.get("url", "")
             user_agent = payload.get("userAgent", "")
@@ -223,9 +308,22 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
             quality = str(payload.get("quality", "")).strip()
             size_bytes = int(payload.get("sizeBytes", 0) or 0)
             size_str = str(payload.get("sizeStr", "") or "").strip()
+            method = str(payload.get("method", "") or "").strip()
+            filename = str(payload.get("filename", "") or "").strip()
+            ext = str(payload.get("ext", "") or "").strip()
+            audio_url = str(payload.get("audioUrl", "") or "").strip()
+            raw_sabr = payload.get("sabr")
+            if isinstance(raw_sabr, dict) and raw_sabr:
+                try:
+                    from core.media.sabr import validate_sabr_session
+                    sabr_session = validate_sabr_session(raw_sabr)
+                except Exception:
+                    sabr_session = None
+                if sabr_session is None:
+                    logger.warning("[IPC] Dropped invalid SABR session payload for %s", url[:120])
             if is_debug_mode():
-                logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s",
-                             url, title, quality, is_media, size_str or size_bytes)
+                logger.debug("[IPC] Parsed JSON payload from extension: url=%s, title=%r, quality=%r, isMedia=%s, size=%s, audioUrl=%s, sabr=%s",
+                             url, title, quality, is_media, size_str or size_bytes, bool(audio_url), bool(sabr_session))
         else:
             url = body.strip()
             if is_debug_mode():
@@ -242,7 +340,13 @@ class IPCRequestHandler(BaseHTTPRequestHandler):
                 "title": title,
                 "sizeBytes": size_bytes,
                 "sizeStr": size_str,
+                "method": method,
+                "filename": filename,
+                "ext": ext,
+                "audioUrl": audio_url,
             }
+            if sabr_session:
+                payload_data["sabr"] = sabr_session
             raw_msg = json.dumps(payload_data)
             if is_debug_mode():
                 logger.debug("[IPC] Emitting new_download_signal: %s", raw_msg[:300])

@@ -172,6 +172,11 @@ class YtDlpDownloadWorker(QThread):
         self.target_path = os.path.join(self.save_dir, self.filename)
         self.speed_limit_bytes = 0
 
+        # Media pipeline status tracking for granular one-word statuses
+        self._media_status = ""
+        self._media_downloading_started = False
+        self._media_last_status_emit = 0.0
+
         # Load video container and audio format from config when not explicitly provided
         if merge_output_format is None or audio_format is None:
             try:
@@ -664,9 +669,10 @@ class YtDlpDownloadWorker(QThread):
                 self.log_signal.emit(f"Executing command: {' '.join(cmd)}")
                 if is_debug:
                     logger.debug("[YtDlpDownload] Executing command: %s", " ".join(cmd))
-                self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Connecting...", "--", "--", 0, 0))
+                self._media_status = "Preparing"
+                self.main_progress_signal.emit(self.row_index, (self.filename, "Fetching", "Preparing", "--", "--", 0, 0))
                 self.init_segments_signal.emit(self.max_connections)
-                self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Connecting...")
+                self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Preparing")
 
                 self.process = subp.Popen(
                     cmd,
@@ -677,6 +683,10 @@ class YtDlpDownloadWorker(QThread):
                     encoding="utf-8",
                     bufsize=1
                 )
+
+                self._media_status = "Starting"
+                self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Starting", "--", "--", 0, 0))
+                self._emit_segment_updates(0, self.total_bytes, 0.0, status_text="Starting")
 
                 if is_debug:
                     logger.debug("[YtDlpDownload] Process launched with PID %s for attempt %d", self.process.pid, attempt)
@@ -690,9 +700,12 @@ class YtDlpDownloadWorker(QThread):
                 current_stream_total = 0.0
                 current_dest_file = ""
                 speed_bps = 0.0
+                ema_speed_bps = 0.0
+                ema_eta_seconds = 0.0
                 eta_str = "--"
                 is_media_stream = True
                 last_seg_update = 0.0
+                last_known_speed_fmt = "--"
                 collected_errors = []
 
                 for line in self.process.stdout:
@@ -747,6 +760,20 @@ class YtDlpDownloadWorker(QThread):
                             if clean_cand and not is_generic_media_title(clean_cand):
                                 self.filename = clean_cand
                             is_media_stream = True
+                        if self._media_status != "Merging":
+                            self._media_status = "Merging"
+                            import time
+                            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Merging", "--", "--", int(self.current_bytes), int(self.total_bytes)))
+                            self._emit_segment_updates(int(self.current_bytes), int(self.total_bytes), 0.0, status_text="Merging")
+
+                    # Capture EmbedThumbnail when yt-dlp embeds thumbnail into merged file
+                    m_thumb = re.search(r"\[EmbedThumbnail\]", line_str, re.IGNORECASE)
+                    if m_thumb:
+                        if self._media_status != "Processing":
+                            self._media_status = "Processing"
+                            import time
+                            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Processing", "--", "--", int(self.current_bytes), int(self.total_bytes)))
+                            self._emit_segment_updates(int(self.current_bytes), int(self.total_bytes), 0.0, status_text="Processing")
 
                     # Capture MoveFiles when yt-dlp moves finished file from temp to home
                     m_move = re.search(r"\[MoveFiles\]\s+Moving file\s+\"?[^\"]+\"?\s+to\s+\"?([^\"]+)\"?", line_str, re.IGNORECASE)
@@ -757,11 +784,26 @@ class YtDlpDownloadWorker(QThread):
                         if moved_base and not is_generic_media_title(moved_base):
                             self.filename = moved_base
                         is_media_stream = True
+                        if self._media_status != "Finalizing":
+                            self._media_status = "Finalizing"
+                            import time
+                            self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Finalizing", "--", "--", int(self.current_bytes), int(self.total_bytes)))
+                            self._emit_segment_updates(int(self.current_bytes), int(self.total_bytes), 0.0, status_text="Finalizing")
 
                     # Parse yt-dlp / aria2c stdout for media streams only
                     if ("[download]" in line_str or "[aria2c]" in line_str or "SPD:" in line_str or "CN:" in line_str or "DL:" in line_str or "[#" in line_str) and ("of" in line_str or "SPD:" in line_str or "DL:" in line_str or "%" in line_str):
                         if any(sub_ext in line_str.lower() for sub_ext in [".vtt", ".srt", ".ass", ".webp", ".jpg", ".png"]):
                             is_media_stream = False
+
+                        # Emit Analyzing during info extraction before first real download progress
+                        if not self._media_downloading_started:
+                            import time
+                            now_time = time.time()
+                            if now_time - self._media_last_status_emit >= 0.5:
+                                self._media_status = "Analyzing"
+                                self._media_last_status_emit = now_time
+                                self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Analyzing", "--", "--", int(self.current_bytes), int(self.total_bytes)))
+                                self._emit_segment_updates(int(self.current_bytes), int(self.total_bytes), 0.0, status_text="Analyzing")
 
                         current_line_total = 0.0
                         current_line_dl = 0.0
@@ -801,6 +843,11 @@ class YtDlpDownloadWorker(QThread):
                             # Monotonic downloaded bytes within current stream (eliminates HLS fragment flickering)
                             if current_line_dl > 0:
                                 stream_downloaded_bytes = max(stream_downloaded_bytes, current_line_dl)
+                                if not self._media_downloading_started:
+                                    self._media_downloading_started = True
+                                    if self._media_status != "Downloading":
+                                        self._media_status = "Downloading"
+                                        self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Downloading", "--", "--", int(self.current_bytes), int(self.total_bytes)))
 
                             downloaded_bytes = completed_streams_bytes + stream_downloaded_bytes
 
@@ -819,14 +866,51 @@ class YtDlpDownloadWorker(QThread):
                                 speed_match = re.search(r"(\d+\.?\d*\s*[KMGTP]?i?B/s)", line_str, re.IGNORECASE)
                             if speed_match:
                                 speed_str = speed_match.group(1).replace("/s", "").strip()
-                                speed_bps = parse_size_str_to_bytes(speed_str)
+                                new_speed_bps = parse_size_str_to_bytes(speed_str)
+                                if new_speed_bps > 0:
+                                    SPEED_EMA_ALPHA = 0.25
+                                    if ema_speed_bps <= 0:
+                                        ema_speed_bps = float(new_speed_bps)
+                                    else:
+                                        ema_speed_bps = SPEED_EMA_ALPHA * float(new_speed_bps) + (1.0 - SPEED_EMA_ALPHA) * ema_speed_bps
+                                    speed_bps = ema_speed_bps
+                                speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
+                                last_known_speed_fmt = speed_fmt
+                            else:
+                                # Keep last known speed instead of dropping to "--" on unparseable lines (e.g. "Unknown B/s")
+                                speed_fmt = last_known_speed_fmt
 
                             eta_match = re.search(r"ETA:?\s*(\d+:\d+(?::\d+)?|\w+)", line_str, re.IGNORECASE)
                             if eta_match:
-                                eta_str = eta_match.group(1)
+                                raw_eta_str = eta_match.group(1)
+                                # Parse ETA to seconds and smooth with EMA to avoid wild jumps
+                                eta_seconds = 0.0
+                                try:
+                                    parts = raw_eta_str.split(":")
+                                    if len(parts) == 3:
+                                        eta_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                                    elif len(parts) == 2:
+                                        eta_seconds = int(parts[0]) * 60 + int(parts[1])
+                                    elif raw_eta_str.isdigit():
+                                        eta_seconds = int(raw_eta_str)
+                                except ValueError:
+                                    eta_seconds = 0.0
+                                if eta_seconds > 0:
+                                    ETA_EMA_ALPHA = 0.25
+                                    if ema_eta_seconds <= 0:
+                                        ema_eta_seconds = eta_seconds
+                                    else:
+                                        ema_eta_seconds = ETA_EMA_ALPHA * eta_seconds + (1.0 - ETA_EMA_ALPHA) * ema_eta_seconds
+                                    if ema_eta_seconds > 0:
+                                        h = int(ema_eta_seconds // 3600)
+                                        m = int((ema_eta_seconds % 3600) // 60)
+                                        s = int(ema_eta_seconds % 60)
+                                        if h > 0:
+                                            eta_str = f"{h}:{m:02d}:{s:02d}"
+                                        else:
+                                            eta_str = f"{m}:{s:02d}"
 
-                            speed_fmt = f"{self.format_bytes_str(speed_bps)}/s" if speed_bps > 0 else "--"
-                            size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Calculating..."
+                            size_fmt = self.format_bytes_str(total_bytes) if total_bytes > 0 else "Unknown"
 
                             # Clamp live downloaded bytes below total_bytes while process is running to avoid premature 100% completion
                             if total_bytes > 0:
@@ -1005,6 +1089,9 @@ class YtDlpDownloadWorker(QThread):
                     final_size = os.path.getsize(final_path) if (final_path and os.path.exists(final_path)) else total_bytes
                     self.current_bytes = int(final_size)
                     self.total_bytes = int(final_size)
+                    if self._media_status != "Finalizing":
+                        self._media_status = "Finalizing"
+                        self.main_progress_signal.emit(self.row_index, (self.filename, "Unknown", "Finalizing", "--", "--", int(final_size), int(final_size)))
                     if is_debug:
                         logger.debug("[YtDlpDownload] Download successfully completed for %s -> %s (%s bytes)", self.url, final_path, final_size)
 

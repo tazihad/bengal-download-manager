@@ -169,7 +169,7 @@ class TestOptionsDialogTabs:
         from ui.dialogs.options import OptionsDialog
         dlg = OptionsDialog(main_window=None)
         assert dlg is not None
-        assert dlg.tabs.count() >= 6
+        assert dlg.content_stack.count() >= 6
         dlg.close()
 
     def test_theme_combobox_contains_kirigami_themes(self, qapp):
@@ -184,7 +184,7 @@ class TestOptionsDialogTabs:
         from ui.dialogs.options import OptionsDialog
         dlg = OptionsDialog(main_window=None)
         dlg.select_tab("media")
-        current = dlg.tabs.currentWidget()
+        current = dlg.content_stack.currentWidget()
         assert current is dlg.media_tab
         dlg.close()
 
@@ -192,7 +192,7 @@ class TestOptionsDialogTabs:
         from ui.dialogs.options import OptionsDialog
         dlg = OptionsDialog(main_window=None)
         dlg.select_tab(0)
-        assert dlg.tabs.currentIndex() == 0
+        assert dlg.content_stack.currentIndex() == 0
         dlg.close()
 
     def test_getters(self, qapp):
