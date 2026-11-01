@@ -75,8 +75,11 @@
         <description translate="no">
         <p>Bengal Download Manager 0.3.13 changes:</p>
         <ul>
-                <li>Extension fix: Removed invalid offscreen permission from Firefox MV3 manifest (caused &#x27;Reading manifest&#x27; warning on Firefox)</li>
-                <li>Chrome retains offscreen for theme detection. General stability improvements.</li>
+                <li>Simpler options dialog with a new media download section</li>
+                <li>Alternate download tab shows video and audio quality choices with instant file details</li>
+                <li>Facebook downloads now match the video you're watching with real quality options</li>
+                <li>Download list shows smoother progress and clearer status</li>
+                <li>General bug fixes and stability improvements</li>
             </ul>
         </description>
     </release>
