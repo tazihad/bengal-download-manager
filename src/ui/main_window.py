@@ -3777,6 +3777,8 @@ class MainWindow(QMainWindow):
         action_icon_map = {
             "action_add_url": ("add_url", False),
             "action_paste_url": ("add_url", False),
+            "action_batch_download": ("add_url", False),
+            "action_import_links": ("add_url", False),
             "action_exit": ("exit", False),
             "action_stop": ("stop", True),
             "action_stop_all": ("stop_all", True),
