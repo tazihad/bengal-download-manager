@@ -2073,8 +2073,8 @@ def get_themed_tray_icon(tray_option=None) -> QIcon:
         return get_monochrome_app_icon(color=QColor("#232629"))
     elif opt_lower == "automatic":
         app = QApplication.instance()
-        text_val = app.palette().color(QPalette.ColorRole.WindowText).value() if app else 255
-        target_path = light_path if text_val > 128 else dark_path
+        is_sys_dark = is_system_dark_theme(app)
+        target_path = dark_path if is_sys_dark else light_path
         if target_path:
             ic = QIcon(target_path)
             if not ic.isNull():
