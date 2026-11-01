@@ -6,7 +6,8 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QTabWidget, QWidget, QGroupBox, QComboBox, QCheckBox, QSpinBox,
     QRadioButton, QButtonGroup, QFrame, QStyle, QGridLayout, QMessageBox,
-    QApplication, QStackedWidget, QSizePolicy, QScrollArea
+    QApplication, QStackedWidget, QSizePolicy, QScrollArea,
+    QListWidget, QListWidgetItem
 )
 from PyQt6.QtCore import Qt, QLocale, QMetaObject, Q_ARG, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -183,19 +184,41 @@ class OptionsDialog(QDialog):
         dialog_width = 580
         dialog_height = 580
 
+        # Options UI layout preference: "modern" (side panel, default) or "classic" (tabbed)
+        current_options_ui = "modern"
+        if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
+            current_options_ui = self.main_win.settings.get("options_ui", "modern")
+        self.initial_options_ui = current_options_ui
+
         # Non-English languages often have longer translated labels, so widen the
         # dialog so dropdown menus and option fields stay fully visible.
         current_lang_code = "system"
         if self.main_win and hasattr(self.main_win, "settings") and isinstance(self.main_win.settings, dict):
             current_lang_code = self.main_win.settings.get("language", "system")
-        if current_lang_code not in ("system", "en"):
-            dialog_width = 720
-        elif current_lang_code == "system":
-            # When set to system, check the actual OS locale: widen if it is not English.
-            system_locale = QLocale.system()
-            system_lang = system_locale.language() if hasattr(system_locale, "language") else None
-            if system_lang is not None and system_lang != QLocale.Language.English:
+
+        if current_options_ui and str(current_options_ui).lower() == "classic":
+            # Classic keeps original narrow width
+            if current_lang_code not in ("system", "en"):
                 dialog_width = 720
+            elif current_lang_code == "system":
+                system_locale = QLocale.system()
+                system_lang = system_locale.language() if hasattr(system_locale, "language") else None
+                if system_lang is not None and system_lang != QLocale.Language.English:
+                    dialog_width = 720
+        else:
+            # Modern is wider so all content is visible
+            dialog_height = 600
+            if current_lang_code not in ("system", "en"):
+                dialog_width = 1000
+            elif current_lang_code == "system":
+                system_locale = QLocale.system()
+                system_lang = system_locale.language() if hasattr(system_locale, "language") else None
+                if system_lang is not None and system_lang != QLocale.Language.English:
+                    dialog_width = 1000
+                else:
+                    dialog_width = 900
+            else:
+                dialog_width = 900
 
         screen = QApplication.primaryScreen()
         if screen:
@@ -222,53 +245,137 @@ class OptionsDialog(QDialog):
         self.current_category = "General"
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
-        self.tabs = TwoRowTabWidget()
-        layout.addWidget(self.tabs)
-        
-        # Row 1 (Top: Core Settings)
+        # Create tab content widgets (populated by setup_*_tab methods)
         self.general_tab = QWidget()
         self.setup_general_tab()
-        self.tabs.addTab(self.general_tab, self.tr("General"), row=1, tab_id="general")
 
         self.downloads_tab = QWidget()
         self.setup_downloads_tab()
-        self.tabs.addTab(self.downloads_tab, self.tr("Downloads"), row=1, tab_id="downloads")
 
         self.saveto_tab = QWidget()
         self.setup_saveto_tab()
-        self.tabs.addTab(self.saveto_tab, self.tr("Save To"), row=1, tab_id="saveto")
 
         self.startup_tab = QWidget()
         self.setup_startup_tab()
-        self.tabs.addTab(self.startup_tab, self.tr("Startup"), row=1, tab_id="startup")
 
-        # Row 2 (Bottom: Integrations & Network)
         self.extension_tab = QWidget()
         self.setup_extension_tab()
-        self.tabs.addTab(self.extension_tab, self.tr("Extensions"), row=2, tab_id="extension")
 
         self.media_tab = QWidget()
         self.setup_media_tab()
-        self.tabs.addTab(self.media_tab, self.tr("Media"), row=2, tab_id="media")
 
         self.aria2_tab = QWidget()
         self.setup_aria2_tab()
-        self.tabs.addTab(self.aria2_tab, self.tr("Aria2 / RPC"), row=2, tab_id="aria2")
 
         self.proxy_tab = QWidget()
         self.setup_proxy_tab()
-        self.tabs.addTab(self.proxy_tab, self.tr("Proxy / Socks"), row=2, tab_id="proxy")
 
-        # Default to General tab in Row 1 or initial_tab if specified
-        if initial_tab is not None:
-            self.select_tab(initial_tab)
+        # Category definitions: (tab_id, label, widget)
+        categories = [
+            ("general", self.tr("General"), self.general_tab),
+            ("downloads", self.tr("Downloads"), self.downloads_tab),
+            ("saveto", self.tr("Save To"), self.saveto_tab),
+            ("startup", self.tr("Startup"), self.startup_tab),
+            ("extension", self.tr("Extensions"), self.extension_tab),
+            ("media", self.tr("Media"), self.media_tab),
+            ("aria2", self.tr("Aria2 / RPC"), self.aria2_tab),
+            ("proxy", self.tr("Proxy / Socks"), self.proxy_tab),
+        ]
+
+        # Create layout based on options_ui setting: classic (tabbed) or modern (side panel, default)
+        if current_options_ui and str(current_options_ui).lower() == "classic":
+            # ── Classic: original TwoRowTabWidget layout ──
+            self.tabs = TwoRowTabWidget()
+            layout.addWidget(self.tabs)
+
+            for tab_id, label, widget in categories:
+                row = 1 if tab_id in ("general", "downloads", "saveto", "startup") else 2
+                self.tabs.addTab(widget, label, row=row, tab_id=tab_id)
+
+            self.tabs_meta = [(tab_id, label, widget) for tab_id, label, widget in categories]
+
+            # Default to General tab or initial_tab if specified
+            if initial_tab is not None:
+                self.select_tab(initial_tab)
+            else:
+                self.tabs.setCurrentWidget(self.general_tab)
+
+            self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if (self.tabs.tabId(idx) in ("downloads", "aria2") or any(k in self.tabs.tabText(idx) for k in ("Downloads", "Aria2", "RPC"))) else None)
         else:
-            self.tabs.setCurrentWidget(self.general_tab)
+            # ── Modern: side panel layout (default) ──
+            self.side_panel = QWidget()
+            side_layout = QHBoxLayout(self.side_panel)
+            side_layout.setContentsMargins(0, 0, 0, 0)
+            side_layout.setSpacing(0)
 
-        self.tabs.currentChanged.connect(lambda idx: self.refresh_engine_status() if (self.tabs.tabId(idx) in ("downloads", "aria2") or any(k in self.tabs.tabText(idx) for k in ("Downloads", "Aria2", "RPC"))) else None)
+            # Left: category list (matches main window left sidebar design) - fixed width, not resizable
+            self.category_list = QListWidget()
+            self.category_list.setFixedWidth(180)
+            self.category_list.setFrameShape(QFrame.Shape.NoFrame)
+            self.category_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self.category_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.category_list.setStyleSheet("""
+                QListWidget {
+                    show-decoration-selected: 0;
+                    font-size: 13px;
+                    font-weight: 500;
+                    padding: 4px 2px;
+                    border: none;
+                    outline: 0;
+                    background-color: palette(base);
+                    color: palette(window-text);
+                }
+                QListWidget::item {
+                    height: 26px;
+                    padding: 2px 8px;
+                    margin: 1px 2px;
+                    border-radius: 4px;
+                    color: palette(window-text);
+                }
+                QListWidget::item:focus {
+                    outline: none;
+                    border: none;
+                }
+                QListWidget::item:hover {
+                    background-color: palette(highlight);
+                    color: palette(highlighted-text);
+                }
+                QListWidget::item:selected {
+                    background-color: palette(highlight);
+                    color: palette(highlighted-text);
+                    font-weight: 600;
+                }
+            """)
+
+            # Right: content stack (expands to fill remaining width)
+            self.content_stack = QStackedWidget()
+            self.content_stack.setFrameShape(QFrame.Shape.NoFrame)
+
+            side_layout.addWidget(self.category_list)
+            side_layout.addWidget(self.content_stack, 1)
+
+            layout.addWidget(self.side_panel)
+
+            # Populate side panel and content stack
+            self.tabs_meta = []
+            for tab_id, label, widget in categories:
+                self.tabs_meta.append((tab_id, label, widget))
+                self.content_stack.addWidget(widget)
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, tab_id)
+                self.category_list.addItem(item)
+
+            # Default to General tab or initial_tab if specified
+            if initial_tab is not None:
+                self.select_tab(initial_tab)
+            else:
+                self.category_list.setCurrentRow(0)
+
+            self.category_list.currentRowChanged.connect(self._on_category_selected)
+            self.category_list.currentRowChanged.connect(lambda idx: self.refresh_engine_status() if (self.tabs_meta[idx][0] in ("downloads", "aria2") or any(k in self.tabs_meta[idx][1] for k in ("Downloads", "Aria2", "RPC"))) else None)
         if hasattr(self, 'spin_aria_port'):
             self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
         if hasattr(self, 'txt_aria_token'):
@@ -296,20 +403,36 @@ class OptionsDialog(QDialog):
 
     def select_tab(self, target):
         """Switches to the tab specified by QWidget, index (int), or name string (e.g. 'media')."""
-        if isinstance(target, QWidget):
-            self.tabs.setCurrentWidget(target)
-            return
         if isinstance(target, int):
-            self.tabs.setCurrentIndex(target)
+            if hasattr(self, 'category_list') and 0 <= target < self.category_list.count():
+                self.category_list.setCurrentRow(target)
+            elif hasattr(self, 'tabs') and 0 <= target < self.tabs.count():
+                self.tabs.setCurrentIndex(target)
             return
         if isinstance(target, str):
             target_lower = target.strip().lower()
-            for idx, item in enumerate(self.tabs._widgets):
+            for idx, item in enumerate(self.tabs_meta):
                 label = item[1]
-                tid = item[3] if len(item) > 3 else ""
+                tid = item[0]
                 if target_lower == tid.lower() or target_lower in tid.lower() or target_lower in label.lower():
-                    self.tabs.setCurrentIndex(idx)
+                    if hasattr(self, 'category_list'):
+                        self.category_list.setCurrentRow(idx)
+                    elif hasattr(self, 'tabs'):
+                        self.tabs.setCurrentIndex(idx)
                     return
+        if isinstance(target, QWidget):
+            for idx, item in enumerate(self.tabs_meta):
+                if item[2] == target:
+                    if hasattr(self, 'category_list'):
+                        self.category_list.setCurrentRow(idx)
+                    elif hasattr(self, 'tabs'):
+                        self.tabs.setCurrentIndex(idx)
+                    return
+
+    def _on_category_selected(self, row):
+        """Handle category selection from the side panel."""
+        if 0 <= row < self.content_stack.count():
+            self.content_stack.setCurrentIndex(row)
 
     @property
     def main_win(self):
@@ -580,6 +703,25 @@ class OptionsDialog(QDialog):
         grid_ui.addWidget(lbl_language, 0, 2)
         grid_ui.addWidget(self.combo_language, 0, 3)
         grid_ui.setColumnStretch(4, 1)
+
+        # Options UI layout
+        lbl_options_ui = QLabel(self.tr("Options UI:"))
+        lbl_options_ui.setToolTip(self.tr("Select options dialog layout style"))
+        self.combo_options_ui = QComboBox()
+        self.combo_options_ui.setToolTip(self.tr("Classic uses the original tabbed layout; Modern uses a side panel"))
+        self.combo_options_ui.addItems([self.tr("Modern"), self.tr("Classic")])
+        self.combo_options_ui.setMaxVisibleItems(10)
+        self.combo_options_ui.setStyleSheet("QComboBox { combobox-popup: 0; }")
+
+        current_options_ui = getattr(self, 'initial_options_ui', 'modern')
+        idx_opt = self.combo_options_ui.findText(current_options_ui)
+        if idx_opt == -1:
+            idx_opt = self.combo_options_ui.findText("Modern")
+        if idx_opt != -1:
+            self.combo_options_ui.setCurrentIndex(idx_opt)
+
+        grid_ui.addWidget(lbl_options_ui, 1, 0)
+        grid_ui.addWidget(self.combo_options_ui, 1, 1)
 
         grp_ui.setLayout(grid_ui)
         layout.addWidget(grp_ui)
@@ -2189,6 +2331,7 @@ class OptionsDialog(QDialog):
                 self.main_win.settings["show_queue_complete_dialog"] = show_q_comp
                 self.main_win.settings["prefetch_download"] = prefetch_dl
                 self.main_win.settings["precheck_delete_files_from_disk"] = precheck_delete
+                self.main_win.settings["options_ui"] = self.combo_options_ui.currentText() if hasattr(self, 'combo_options_ui') else "modern"
 
             if lang_changed:
                 apply_language(QApplication.instance(), new_lang_code)
