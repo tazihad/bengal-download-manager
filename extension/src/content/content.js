@@ -375,9 +375,21 @@
     if (event.source !== window || !event.data) return;
     if (event.data.type === '__BDM_MEDIA_INFO__' && event.data.data) {
       if (event.data.data.platform === 'facebook') {
-        const expected = facebookExpectedVideoId(activeVideo);
-        if (expected && event.data.data.videoId !== expected) return;
+        if (!facebookReportMatchesVideo(event.data.data, activeVideo)) return;
+        const previous = platformMediaInfo && platformMediaInfo.platform === 'facebook' ? platformMediaInfo : null;
         platformMediaInfo = event.data.data;
+        // A report that arrives before the page can re-read the manifest must not erase
+        // the variants already bound to this exact clip (the chooser would collapse to a
+        // single "playing resolution" row).
+        if (previous && previous.videoId && previous.videoId === platformMediaInfo.videoId &&
+            !(platformMediaInfo.variants || []).length && (previous.variants || []).length) {
+          platformMediaInfo.variants = previous.variants;
+          platformMediaInfo.audio = platformMediaInfo.audio || previous.audio;
+          platformMediaInfo.audioUrl = platformMediaInfo.audioUrl || previous.audioUrl;
+          platformMediaInfo.duration = platformMediaInfo.duration || previous.duration;
+          platformMediaInfo.maxHeight = platformMediaInfo.maxHeight || previous.maxHeight;
+          platformMediaInfo.isHD = platformMediaInfo.isHD || previous.isHD;
+        }
         platformMediaInfoVideo = activeVideo;
         // A newly captured DASH manifest adds/updates variants: refresh the list.
         directListFetchedKey = '';
@@ -1667,6 +1679,12 @@
       if (fbMedia && fbMedia.videoId) {
         return `https://www.facebook.com/watch/?v=${fbMedia.videoId}`;
       }
+      // 2. The active element's own wrapper. The address bar can still name the reel the
+      // tab was opened with after scrolling, which would download the wrong clip.
+      const fbId = facebookExpectedVideoId(video);
+      if (fbId) {
+        return `https://www.facebook.com/watch/?v=${fbId}`;
+      }
       if (isCanonicalMediaPage(currentUrl)) {
         return currentUrl;
       }
@@ -2195,37 +2213,61 @@
 
   function currentFacebookMedia() {
     if (!platformMediaInfo || platformMediaInfo.platform !== 'facebook') return null;
-    // Never offer a manifest that belongs to another reel: Facebook preloads the
-    // neighbours, and the widget keeps the previous report until a new one arrives.
+    // The report is bound to the element it was accepted for. A scrolled-to reel has no
+    // info until its own report arrives (which had to pass the clip-length check) - the
+    // previous reel's manifest is never reused.
     if (activeVideo && platformMediaInfoVideo && platformMediaInfoVideo !== activeVideo) return null;
-    const expected = facebookExpectedVideoId(activeVideo);
-    if (expected && platformMediaInfo.videoId !== expected) return null;
     return platformMediaInfo;
   }
 
   function facebookExpectedVideoId(video) {
     const isId = value => /^\d{5,30}$/.test(String(value || ''));
+    // The element's own wrapper is the only source that follows a Reels scroll. The page
+    // URL often still names the reel the tab was opened with, so it is only a fallback.
     try {
-      if (video && video.dataset) {
-        if (isId(video.dataset.videoFbid)) return String(video.dataset.videoFbid);
-        if (isId(video.dataset.videoId)) return String(video.dataset.videoId);
-      }
-      // A feed wrapper can name the first post it holds, so only trust a container
-      // that wraps this single video.
-      let holder = video ? video.parentElement : null;
-      for (let depth = 0; depth < 8 && holder; depth++, holder = holder.parentElement) {
-        const id = holder.getAttribute && (holder.getAttribute('data-video-id') || holder.getAttribute('data-videoid'));
-        if (isId(id) && holder.querySelectorAll('video').length === 1) return String(id);
+      const api = globalThis.bdmFacebook;
+      if (api && api.videoIdFromElement) {
+        const id = api.videoIdFromElement(video);
+        if (isId(id)) return String(id);
       }
     } catch (e) {}
     try {
       const api = globalThis.bdmFacebook;
       if (api && api.videoIdFromUrl) {
         const id = api.videoIdFromUrl(window.location.href);
-        if (isId(id)) return id;
+        if (isId(id)) return String(id);
+      } else {
+        const match = window.location.href.match(/\/reel(?:s)?\/(\d{5,30})/i) ||
+          window.location.href.match(/\/videos\/[^/?#]*?\/?(\d{5,30})/i) ||
+          window.location.href.match(/[?&]v=(\d{5,30})/i);
+        if (match && isId(match[1])) return match[1];
       }
     } catch (e) {}
     return '';
+  }
+
+  function facebookDurationSeconds(value) {
+    const seconds = Number(value);
+    return isFinite(seconds) && seconds > 0 ? seconds : 0;
+  }
+
+  // Facebook preloads neighbouring reels, so a report is only allowed on the clip the
+  // user is watching. Ids decide when both sides know them; otherwise the clip length
+  // does, because that is what a preloaded manifest cannot fake.
+  function facebookReportMatchesVideo(data, video) {
+    if (!data || !video) return true;
+    const expected = facebookExpectedVideoId(video);
+    const wanted = facebookDurationSeconds(video.duration);
+    const offered = facebookDurationSeconds(data.duration);
+    const lengthAgrees = !!wanted && !!offered && Math.abs(wanted - offered) <= 2;
+    if (expected && data.videoId) {
+      if (data.videoId === expected) return true;
+      // The page read an id the DOM could not name (feed reels). The clip length still has
+      // to prove that the manifest really belongs to this element.
+      return lengthAgrees;
+    }
+    if (!wanted || !offered) return true;
+    return Math.abs(wanted - offered) <= 2;
   }
 
   function formatFacebookBitrate(bitsPerSecond) {

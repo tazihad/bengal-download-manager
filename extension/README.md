@@ -143,7 +143,9 @@ The popup exposes a **Download method** choice; **Standard** stays the default.
   Every `<Representation>` is listed with its real resolution and bandwidth, so a video that offers
   two 720p renditions shows both (e.g. `1280×720 · 3.5 Mbps` and `1280×720 · 1.5 Mbps`) and never
   advertises a height the video does not publish. The best audio track is paired automatically and
-  muxed by the desktop.
+  muxed by the desktop. Facebook preloads the next reels, so each captured manifest is matched to the
+  clip in the player by its length (and the rendition being played); scrolling the feed or the Reels
+  viewer keeps the full rendition list for every video instead of collapsing to the playing quality.
 
 Direct never handles `.m3u8`/`.mpd` playlists or DASH/HLS segments as-is, and the in-page widget
 shows "Direct unavailable on this video. Switch to Standard." when the page exposes no progressive

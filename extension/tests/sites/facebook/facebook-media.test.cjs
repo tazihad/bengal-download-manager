@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseManifest, mergeManifest, variants, audioChoice, wholeFileUrl, formatRate, videoIdFromUrl, isVideoId } = require('../../../src/sites/facebook/shared/facebook-media.js');
+const { parseManifest, mergeManifest, variants, audioChoice, wholeFileUrl, formatRate, videoIdFromUrl, isVideoId, videoIdFromElement, manifestScore, manifestFits, pickManifest, manifestsInText } = require('../../../src/sites/facebook/shared/facebook-media.js');
 
 const CDN = 'https://video.fbcdn.net/v/t39.24130-6';
 
@@ -135,4 +135,194 @@ test('only full Facebook video ids are accepted', () => {
   assert.equal(isVideoId('123'), false);
   assert.equal(isVideoId(''), false);
   assert.equal(isVideoId(undefined), false);
+});
+
+const reelManifest = (file, duration, heights = [[1280, 720]]) => parseManifest(manifest(
+  heights.map(([width, height], index) => rep(`v${index}`, width, height, 1500000 + index, `${CDN}/${file}_${height}.mp4?oh=abc`)).join(''),
+  '',
+  duration
+));
+
+test('a preloaded manifest is recovered by clip length and rendition', () => {
+  const firstReel = reelManifest('first', 'PT0M12.2S');
+  const secondReel = reelManifest('second', 'PT0M48.7S');
+  // Reels scroll newest last in the payload, so the list is newest-first at report time.
+  const candidates = [secondReel, firstReel];
+
+  assert.equal(pickManifest(candidates, { duration: 12.4, width: 1280, height: 720 }), firstReel);
+  assert.equal(pickManifest(candidates, { duration: 48.5, width: 1280, height: 720 }), secondReel);
+  // A manifest whose length disagrees must never be offered for this element.
+  assert.equal(pickManifest([secondReel], { duration: 12.4, height: 720 }), null);
+  assert.equal(manifestFits(secondReel, { duration: 12.4, height: 720 }), false);
+  // Same rendition but no metadata yet: two preloads cannot be told apart, so no guess.
+  assert.equal(pickManifest(candidates, { duration: 0, height: 720 }), null);
+  assert.equal(pickManifest([secondReel], { duration: 0, height: 720 }), secondReel);
+
+  // The rendition the player shows breaks a duration tie between two clips.
+  const tall = reelManifest('tall', 'PT0M30S', [[720, 1280], [360, 640]]);
+  const wide = reelManifest('wide', 'PT0M30S', [[1280, 720]]);
+  assert.equal(pickManifest([wide, tall], { duration: 30, width: 720, height: 1280 }), tall);
+  assert.equal(pickManifest([tall, wide], { duration: 30, width: 1280, height: 720 }), wide);
+});
+
+test('manifest score rejects the wrong clip and rewards the playing rendition', () => {
+  const sixty = reelManifest('sixty', 'PT0M60S');
+  assert.equal(manifestScore(sixty, { duration: 60, height: 720 }), 150);
+  assert.equal(manifestScore(sixty, { duration: 60, height: 640 }) > 0, true);
+  assert.equal(manifestScore(sixty, { duration: 60, height: 360 }), -1);
+  assert.equal(manifestScore(sixty, { duration: 30, height: 720 }), -1);
+  assert.equal(manifestScore(null, { duration: 60 }), -1);
+});
+
+test('GraphQL payloads bind every manifest to its own video id', () => {
+  const first = manifest(video720low + video360);
+  const second = manifest(video1080);
+  const body = JSON.stringify({
+    data: {
+      reels: {
+        edges: [
+          { node: { video: { videoFBID: '1458325679840918', dash_manifest: first } } },
+          { node: { video: { video_id: '9988776655443322', dash_manifest: second } } }
+        ]
+      }
+    }
+  });
+  const found = manifestsInText(body);
+  assert.equal(found.length, 2);
+  assert.deepEqual(found.map(item => item.ids), [['1458325679840918'], ['9988776655443322']]);
+  assert.equal(manifestsInText('{"nothing":"here"}').length, 0);
+});
+
+test('HTML payloads find the id nearest to an embedded manifest', () => {
+  const xml = manifest(video1080);
+  const body = `<!DOCTYPE html><html><body><script>window.__data = ${JSON.stringify({
+    videoFBID: '1458325679840918',
+    dash_manifest: xml,
+    preload: 'x'.repeat(20000)
+  })};</script></body></html>`;
+  const found = manifestsInText(body);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0].ids, ['1458325679840918']);
+  assert.equal(parseManifest(found[0].xml) !== null, true);
+});
+
+test('a manifest with no id nearby is still returned so it can be matched later', () => {
+  const xml = manifest(video720high);
+  const body = `<!DOCTYPE html><html><body><script>window.__data = ${JSON.stringify({ dash_manifest: xml })};</script></body></html>`;
+  const found = manifestsInText(body);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0].ids, []);
+});
+
+test('deep GraphQL payloads bind the manifest to the owner object plain id', () => {
+  // Real watch/reel payload: the manifest sits ~18 levels down under
+  // .../media/videoDeliveryLegacyFields, whose only id is a plain "id".
+  const xml = manifest(video1080 + video720high);
+  const payload = { data: {} };
+  let cursor = payload.data;
+  for (let level = 0; level < 16; level++) {
+    cursor.nested = {};
+    cursor = cursor.nested;
+  }
+  cursor.media = {
+    videoDeliveryLegacyFields: {
+      dash_manifest_xml_string: xml,
+      dash_manifest_url: 'https://www.facebook.com/dash_mpd_debug.mpd?v=1915341995784351',
+      browser_native_sd_url: `${CDN}/sd.mp4?oh=abc`,
+      browser_native_hd_url: `${CDN}/hd.mp4?oh=abc`,
+      id: '1915341995784351'
+    }
+  };
+  const found = manifestsInText(JSON.stringify(payload));
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0].ids, ['1915341995784351']);
+  assert.equal(parseManifest(found[0].xml).video.length, 2);
+});
+
+test('a manifest in a late application/json block is still found', () => {
+  const xml = manifest(video360);
+  const blocks = [];
+  for (let index = 0; index < 30; index++) {
+    blocks.push(`<script type="application/json">{"noise":${index},"filler":"${'x'.repeat(50)}"}</script>`);
+  }
+  blocks.push(`<script type="application/json" data-sjs>${JSON.stringify({
+    require: [null, null, null, [{
+      __bbox: {
+        require: [null, null, null, [null, {
+          __bbox: { result: { data: { video: { story: { attachments: [{ media: {
+            videoDeliveryLegacyFields: { dash_manifest_xml_string: xml, id: '1458325679840918' }
+          } }] } } } } }
+        }]]
+      }
+    }]]
+  })}</script>`);
+  const found = manifestsInText(`<!DOCTYPE html><html><body>${blocks.join('')}</body></html>`);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0].ids, ['1458325679840918']);
+});
+
+test('dash_manifests entries keep their own ids', () => {
+  const first = manifest(video720low);
+  const second = manifest(video1080);
+  const body = JSON.stringify({
+    data: {
+      dash_manifests: [
+        { id: '1458325679840918', manifest_xml: first },
+        { id: '9988776655443322', manifest_xml: second }
+      ]
+    }
+  });
+  const found = manifestsInText(body);
+  assert.deepEqual(found.map(item => item.ids), [['1458325679840918'], ['9988776655443322']]);
+});
+
+test('plain id is only trusted on the object that holds the manifest', () => {
+  const xml = manifest(video360);
+  const body = JSON.stringify({
+    id: '1111111111111111',
+    node: { story: { videoDeliveryLegacyFields: { dash_manifest_xml_string: xml } } }
+  });
+  const found = manifestsInText(body);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0].ids, []);
+});
+
+test('HTML payloads use the owner plain id when no video-specific key exists', () => {
+  const xml = manifest(video1080);
+  const body = `<html><body><script>window.__data = ${JSON.stringify({
+    videoDeliveryLegacyFields: {
+      dash_manifest_xml_string: xml,
+      dash_manifest_url: '',
+      browser_native_sd_url: '',
+      browser_native_hd_url: '',
+      id: '1915341995784351'
+    },
+    preload: 'x'.repeat(20000)
+  })};</script></body></html>`;
+  const found = manifestsInText(body);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0].ids, ['1915341995784351']);
+});
+
+function fakeElement({ attrs = {}, videos = [], links = [], parent = null } = {}) {
+  return {
+    dataset: attrs.dataset || {},
+    getAttribute: name => (name in attrs ? attrs[name] : null),
+    querySelectorAll: selector => (selector === 'video' ? videos : links),
+    parentElement: parent
+  };
+}
+
+test('the element wrapper names the scrolled-to reel without a URL change', () => {
+  const permalink = { href: 'https://www.facebook.com/reel/1458325679840918/' };
+  const wrapper = fakeElement({ links: [permalink] });
+  const video = fakeElement({ parent: wrapper });
+  assert.equal(videoIdFromElement(video), '1458325679840918');
+
+  const tagged = fakeElement({ attrs: { dataset: { videoFbid: '9988776655443322' } } });
+  assert.equal(videoIdFromElement(tagged), '9988776655443322');
+
+  // Feed wrappers hold many videos: their first permalink must not leak into this clip.
+  const feed = fakeElement({ links: [permalink], videos: [video, fakeElement()] });
+  assert.equal(videoIdFromElement(fakeElement({ parent: feed })), '');
 });
