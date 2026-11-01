@@ -234,7 +234,7 @@ jobs:
           pages_url: 'https://zihad.com.bd/bengal-download-manager'
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         with:
           enablement: true
 
