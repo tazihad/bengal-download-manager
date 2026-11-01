@@ -2074,7 +2074,8 @@ def get_themed_tray_icon(tray_option=None) -> QIcon:
     elif opt_lower == "automatic":
         app = QApplication.instance()
         is_sys_dark = is_system_dark_theme(app)
-        target_path = dark_path if is_sys_dark else light_path
+        # Reverse: light icon on dark background, dark icon on light background
+        target_path = light_path if is_sys_dark else dark_path
         if target_path:
             ic = QIcon(target_path)
             if not ic.isNull():
