@@ -217,6 +217,14 @@ function getIconPathsForStyle(style, effectiveTheme) {
       128: iconUrl('assets/icon-dark-128.png')
     };
   }
+  if (target === 'app') {
+    return {
+      16: iconUrl('assets/icon-16.png'),
+      32: iconUrl('assets/icon-32.png'),
+      48: iconUrl('assets/icon-48.png'),
+      128: iconUrl('assets/icon-128.png')
+    };
+  }
   return {
     16: iconUrl('assets/icon-16.png'),
     32: iconUrl('assets/icon-32.png'),
