@@ -294,19 +294,12 @@ async function applyStoredActionIcon() {
       // themePref === 'system'
       if (items.systemTheme === 'dark' || items.systemTheme === 'light') {
         effectiveTheme = items.systemTheme;
-      } else if (typeof matchMedia !== 'undefined') {
-        try {
-          effectiveTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        } catch {
-          effectiveTheme = null;
-        }
       } else {
         effectiveTheme = null;
       }
     }
 
-    // If the system theme is still unknown (service workers have no matchMedia and
-    // content.js has not reported yet), assume light like 0.10 did so the toolbar icon
+    // If the system theme is still unknown, assume light like 0.10 did so the toolbar icon
     // is still theme-adaptive immediately. content.js corrects it once it reports.
     if (effectiveTheme === null || effectiveTheme === undefined) {
       effectiveTheme = 'light';
@@ -325,30 +318,6 @@ async function applyStoredActionIcon() {
   });
 }
 applyStoredActionIcon();
-
-// Tab-independent system theme detection (Chrome only). A service worker has no matchMedia,
-// and content scripts only see theme changes while a normal web page is open and visible.
-// An offscreen document with the MATCH_MEDIA reason stays alive and reports every change.
-async function ensureThemeOffscreenDocument() {
-  if (isFirefoxEnv()) return;
-  if (!chrome.offscreen || typeof chrome.offscreen.createDocument !== 'function') return;
-  try {
-    if (chrome.runtime.getContexts) {
-      const existing = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
-      if (existing && existing.length) return;
-    }
-    await chrome.offscreen.createDocument({
-      url: 'src/background/offscreen.html',
-      reasons: ['MATCH_MEDIA'],
-      justification: 'Detect the system dark/light mode so the toolbar icon always matches it'
-    });
-  } catch (err) {
-    // Already exists or unsupported on this Chrome version; content.js remains the fallback.
-  }
-}
-ensureThemeOffscreenDocument();
-chrome.runtime.onStartup.addListener(ensureThemeOffscreenDocument);
-chrome.runtime.onInstalled.addListener(ensureThemeOffscreenDocument);
 
 // Re-apply icon on startup and install to handle fresh profiles before content.js reports theme
 chrome.runtime.onStartup.addListener(applyStoredActionIcon);
@@ -1846,19 +1815,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 // --- MESSAGE HANDLER ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request && request.action === "system_theme_report") {
-    // Saving systemTheme triggers storage.onChanged -> applyStoredActionIcon, which also
-    // respects the user's explicit theme/icon choices.
-    if (request.effectiveTheme === 'dark' || request.effectiveTheme === 'light') {
-      chrome.storage.local.get({ systemTheme: '' }, (items) => {
-        if (items.systemTheme !== request.effectiveTheme) {
-          chrome.storage.local.set({ systemTheme: request.effectiveTheme });
-        }
-      });
-    }
-    sendResponse({ status: "ok" });
-    return false;
-  }
   if (request.action === "user_page_interaction") {
     const tabId = sender && sender.tab ? sender.tab.id : null;
     const url = request.url || (sender && sender.tab ? sender.tab.url : "");
@@ -2100,18 +2056,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         whitelistedExt
       });
     })();
-    return true;
-  }
-
-  if (request.action === "report_system_theme" && request.systemTheme) {
-    chrome.storage.local.get({ systemTheme: '' }, (items) => {
-      if (items.systemTheme !== request.systemTheme) {
-        chrome.storage.local.set({ systemTheme: request.systemTheme }, () => {
-          applyStoredActionIcon();
-        });
-      }
-    });
-    sendResponse({ status: "ok" });
     return true;
   }
 
