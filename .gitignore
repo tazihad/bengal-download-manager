@@ -35,6 +35,8 @@ docs/*
 .superpowers/
 .worktrees/
 .agents/
+.kilo/
+.qoder/
 extension-firefox.xpi
 conductor/
 build_test/

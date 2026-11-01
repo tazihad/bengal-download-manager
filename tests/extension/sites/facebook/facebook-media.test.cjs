@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseManifest, mergeManifest, variants, audioChoice, wholeFileUrl, formatRate, videoIdFromUrl, isVideoId, videoIdFromElement, manifestScore, manifestFits, pickManifest, manifestsInText } = require('../../../src/sites/facebook/shared/facebook-media.js');
+const { parseManifest, mergeManifest, variants, audioChoice, wholeFileUrl, formatRate, videoIdFromUrl, isVideoId, videoIdFromElement, manifestScore, manifestFits, pickManifest, manifestsInText } = require('../../../../extension/src/sites/facebook/shared/facebook-media.js');
 
 const CDN = 'https://video.fbcdn.net/v/t39.24130-6';
 
