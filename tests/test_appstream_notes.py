@@ -182,6 +182,25 @@ def test_update_metainfo_keeps_full_history(monkeypatch):
             os.remove(temp_path)
 
 
+def test_unique_release_date_avoids_duplicate_timestamps():
+    """Same-day releases must not share a date; shields.io can otherwise pick the older one."""
+    import scripts.sync_version as sv
+
+    content = """
+    <releases>
+      <release version="0.3.12" date="2026-10-25"></release>
+      <release version="0.3.11" date="2026-10-25"></release>
+    </releases>
+    """
+    # 0.3.11 already owns 2026-10-25, so 0.3.12 (added later) moves back a day.
+    assert sv._unique_release_date("2026-10-25", content, exclude_version="0.3.12") == "2026-10-24"
+    # Re-syncing the only version that holds a date may keep that date.
+    solo = '<release version="0.3.11" date="2026-10-25"></release>'
+    assert sv._unique_release_date("2026-10-25", solo, exclude_version="0.3.11") == "2026-10-25"
+    # Free dates are preserved.
+    assert sv._unique_release_date("2026-11-01", content) == "2026-11-01"
+
+
 def test_get_previous_tag_is_strictly_older():
     """get_previous_tag must return the tag immediately below the target version."""
     from scripts.generate_appstream_notes import get_previous_tag, get_sorted_git_tags
