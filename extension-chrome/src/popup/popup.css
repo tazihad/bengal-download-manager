@@ -1,0 +1,338 @@
+:root {
+  --bdm-highlight: #3daee9;
+  --bdm-highlight-hover: #299ad7;
+  --bdm-highlight-subtle: rgba(61, 174, 233, 0.12);
+  --bdm-success: #22c55e;
+  --bdm-error: #ef4444;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --transition: 0.2s ease-in-out;
+
+  /* Default Light values */
+  --bg-window: #eff0f1;
+  --bg-card: #fcfcfc;
+  --bg-input: #ffffff;
+  --text-main: #31363b;
+  --text-muted: #6b7280;
+  --border-color: #bdc3c7;
+  --border-subtle: #d8dcde;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-window: #2a2e32;
+    --bg-card: #1b1e20;
+    --bg-input: #151719;
+    --text-main: #fcfcfc;
+    --text-muted: #9ca3af;
+    --border-color: #4d5054;
+    --border-subtle: #383c40;
+  }
+}
+
+[data-theme="light"] {
+  --bg-window: #eff0f1;
+  --bg-card: #fcfcfc;
+  --bg-input: #ffffff;
+  --text-main: #31363b;
+  --text-muted: #6b7280;
+  --border-color: #bdc3c7;
+  --border-subtle: #d8dcde;
+}
+
+[data-theme="dark"] {
+  --bg-window: #2a2e32;
+  --bg-card: #1b1e20;
+  --bg-input: #151719;
+  --text-main: #fcfcfc;
+  --text-muted: #9ca3af;
+  --border-color: #4d5054;
+  --border-subtle: #383c40;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-window);
+  color: var(--text-main);
+  padding: 12px;
+  width: 380px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.popup-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.settings-btn {
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color var(--transition), background-color var(--transition);
+}
+
+.settings-btn:hover {
+  color: var(--bdm-highlight);
+  background-color: var(--bdm-highlight-subtle);
+}
+
+.status-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+}
+
+.status-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.status-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.status-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  flex-shrink: 0;
+  transition: background-color var(--transition);
+}
+
+.dot.online {
+  background-color: var(--bdm-success);
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+
+.dot.offline {
+  background-color: var(--bdm-error);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+/* Controls Card & Toggles */
+.controls-card {
+  margin-top: 12px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-row.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-grow: 1;
+}
+
+.toggle-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.toggle-subtitle {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.site-domain {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bdm-highlight);
+  font-family: monospace, var(--font-family);
+  word-break: break-all;
+}
+
+.site-desc {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.divider {
+  height: 1px;
+  background-color: var(--border-subtle);
+  margin: 2px 0;
+}
+
+/* Toggle Switch Control */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-color);
+  transition: var(--transition);
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: var(--transition);
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--bdm-highlight);
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px var(--bdm-highlight);
+}
+
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+input:disabled + .slider {
+  cursor: not-allowed;
+}
+
+/* Download Method Radio Group */
+.method-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.method-options {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.method-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.method-option + .method-option {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.method-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.method-option:has(input:checked) {
+  background: var(--bdm-highlight-subtle);
+  color: var(--bdm-highlight);
+}
+
+.method-option:has(input:focus-visible) {
+  outline: 2px solid var(--bdm-highlight);
+  outline-offset: -2px;
+}

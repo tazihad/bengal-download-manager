@@ -168,6 +168,37 @@ def _normalize_release_indent(release_block: str) -> str:
     return "\n".join(indented_lines)
 
 
+def _existing_release_dates(content: str, exclude_version: Optional[str] = None) -> set:
+    """Return all YYYY-MM-DD dates already used by release entries."""
+    dates = set()
+    for version, date in re.findall(r'<release\s+[^>]*?version="([^"]+)"[^>]*?date="([^"]*)"', content):
+        if exclude_version is not None and version == exclude_version:
+            continue
+        if date:
+            dates.add(date)
+    return dates
+
+
+def _unique_release_date(preferred: str, content: str, exclude_version: Optional[str] = None) -> str:
+    """
+    Ensure a release date is not reused by another version.
+
+    AppStream timestamps are derived from these dates. Shields.io (and similar
+    consumers) pick the release with the highest timestamp, so two versions
+    sharing a date can make an older version win. Move the new release one day
+    earlier until its date is unique.
+    """
+    try:
+        candidate = datetime.date.fromisoformat(preferred)
+    except ValueError:
+        candidate = datetime.date.today()
+
+    taken = _existing_release_dates(content, exclude_version=exclude_version)
+    while candidate.isoformat() in taken:
+        candidate -= datetime.timedelta(days=1)
+    return candidate.isoformat()
+
+
 def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
     if not os.path.exists(METAINFO_FILE):
         return
@@ -176,6 +207,8 @@ def update_metainfo(ver: str, custom_notes: Optional[List[str]] = None):
 
     with open(METAINFO_FILE, "r", encoding="utf-8") as f:
         content = f.read()
+
+    release_date = _unique_release_date(release_date, content, exclude_version=clean_ver)
 
     # Parse existing releases blocks
     releases_match = re.search(r"<releases>(.*?)</releases>", content, flags=re.DOTALL)
@@ -335,6 +368,20 @@ def check_consistency() -> bool:
                 errors.append(
                     f"metainfo.xml release {clean_root} has an invalid date '{m.group(1)}' (expected YYYY-MM-DD)"
                 )
+
+        # 2c. Release dates must be unique. Duplicate dates tie on the AppStream
+        # timestamp, letting version badges/listings surface an older release.
+        seen_dates = {}
+        duplicate_dates = []
+        for rel_version, rel_date in re.findall(r'<release\s+[^>]*?version="([^"]+)"[^>]*?date="([^"]*)"', content):
+            if not rel_date:
+                continue
+            if rel_date in seen_dates:
+                duplicate_dates.append(f"{seen_dates[rel_date]} and {rel_version} both use {rel_date}")
+            else:
+                seen_dates[rel_date] = rel_version
+        for dup in duplicate_dates:
+            errors.append(f"metainfo.xml has duplicate release date: {dup}")
 
     # 3. pyproject.toml check
     if os.path.exists(PYPROJECT_FILE):

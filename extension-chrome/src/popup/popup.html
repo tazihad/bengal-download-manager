@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <title>Bengal DM Connector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="header">
+      <div class="brand">
+        <img src="" alt="Logo" class="logo" id="popup-logo">
+        <span class="title">Bengal DM</span>
+      </div>
+      <a href="#" id="options-link" class="settings-btn" title="Open Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </a>
+    </header>
+
+    <!-- Backend Status Box -->
+    <div class="status-box">
+      <div id="dot" class="dot"></div>
+      <div class="status-info">
+        <span class="status-label">Backend Status</span>
+        <span id="status-text" class="status-value">Connecting...</span>
+      </div>
+    </div>
+
+    <!-- Quick Capture Controls -->
+    <div class="controls-card">
+      <!-- Master Global Toggle -->
+      <div class="toggle-row" id="global-toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-title">Capture downloads</span>
+          <span class="toggle-subtitle" id="global-subtitle">Active browser-wide</span>
+        </div>
+        <label class="switch" for="toggle-global-interception">
+          <input type="checkbox" id="toggle-global-interception" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Current Website Toggle -->
+      <div class="toggle-row" id="site-toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-title">Capture on this site</span>
+          <div class="toggle-subtitle" id="site-subtitle">
+            <span class="site-domain" id="site-domain">Checking website...</span>
+            <span class="site-desc" id="site-desc"></span>
+          </div>
+        </div>
+        <label class="switch" for="toggle-site-interception">
+          <input type="checkbox" id="toggle-site-interception" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+        <!-- Download Method moved to extension settings > Media tab -->
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
