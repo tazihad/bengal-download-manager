@@ -155,10 +155,10 @@ if __name__ == "__main__":
     os.makedirs(out_dir, exist_ok=True)
 
     ext_dir = os.path.join(repo_root, "extension", "src")
-    out_crx = os.path.join(out_dir, "bengal-download-manager-chromium.crx")
-    out_zip = os.path.join(out_dir, "bengal-download-manager-chromium.zip")
-    out_firefox_zip = os.path.join(out_dir, "bengal-download-manager-firefox.zip")
-    out_firefox_xpi = os.path.join(out_dir, "bengal-download-manager-firefox.xpi")
+    out_crx = os.path.join(out_dir, "extension-chromium.crx")
+    out_zip = os.path.join(out_dir, "extension-chromium.zip")
+    out_firefox_zip = os.path.join(out_dir, "extension-firefox.zip")
+    out_firefox_xpi = os.path.join(out_dir, "extension-firefox.xpi")
     
     make_crx(ext_dir, out_crx, out_zip)
     build_zip_package(ext_dir, out_firefox_zip, target="firefox")
@@ -166,8 +166,8 @@ if __name__ == "__main__":
     
     # Build Chrome Web Store package directly from the YouTube-stripped extension/chrome directory.
     ext_chrome_dir = os.path.join(repo_root, "extension", "chrome")
-    out_webstore_crx = os.path.join(out_dir, "bengal-download-manager-webstore-chrome.crx")
-    out_webstore_zip = os.path.join(out_dir, "bengal-download-manager-webstore-chrome.zip")
+    out_webstore_crx = os.path.join(out_dir, "extension-chrome.crx")
+    out_webstore_zip = os.path.join(out_dir, "extension-chrome.zip")
     if os.path.isdir(ext_chrome_dir):
         make_crx(ext_chrome_dir, out_webstore_crx, out_webstore_zip)
         print(f"Webstore Chrome CRX created: {out_webstore_crx}")
