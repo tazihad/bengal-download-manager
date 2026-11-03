@@ -166,5 +166,14 @@ if __name__ == "__main__":
     build_zip_package(ext_dir, out_firefox_zip, target="firefox")
     shutil.copy(out_firefox_zip, out_firefox_xpi)
     
+    # Build Chrome Web Store package directly from the YouTube-stripped extension-chrome directory.
+    ext_chrome_dir = os.path.join(repo_root, "extension-chrome")
+    out_webstore_crx = os.path.join(out_dir, "bengal-download-manager-webstore-chrome.crx")
+    out_webstore_zip = os.path.join(out_dir, "bengal-download-manager-webstore-chrome.zip")
+    if os.path.isdir(ext_chrome_dir):
+        make_crx(ext_chrome_dir, out_webstore_crx, out_webstore_zip)
+        print(f"Webstore Chrome CRX created: {out_webstore_crx}")
+        print(f"Webstore Chrome ZIP created: {out_webstore_zip}")
+    
     print(f"CRX binary created: {out_crx}")
     print(f"Firefox XPI package created: {out_firefox_xpi}")

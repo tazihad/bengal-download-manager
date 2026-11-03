@@ -1,0 +1,122 @@
+{
+  "manifest_version": 3,
+  "name": "Bengal DM Integration Module",
+  "version": "0.11",
+  "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "32": "assets/icon-32.png",
+      "48": "assets/icon-48.png",
+      "128": "assets/icon-128.png"
+    },
+    "theme_icons": [
+      {
+        "light": "assets/icon-light-16.png",
+        "dark": "assets/icon-dark-16.png",
+        "size": 16
+      },
+      {
+        "light": "assets/icon-light-32.png",
+        "dark": "assets/icon-dark-32.png",
+        "size": 32
+      },
+      {
+        "light": "assets/icon-light-48.png",
+        "dark": "assets/icon-dark-48.png",
+        "size": 48
+      },
+      {
+        "light": "assets/icon-light-128.png",
+        "dark": "assets/icon-dark-128.png",
+        "size": 128
+      }
+    ],
+    "default_title": "Bengal DM",
+    "default_popup": "src/popup/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://facebook.com/*",
+        "https://*.fb.watch/*",
+        "https://fb.watch/*",
+        "https://*.fb.com/*",
+        "https://fb.com/*"
+      ],
+      "js": [
+        "src/sites/facebook/shared/facebook-media.js",
+        "src/sites/facebook/main/facebook-page.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://facebook.com/*",
+        "https://*.fb.watch/*",
+        "https://fb.watch/*",
+        "https://*.fb.com/*",
+        "https://fb.com/*"
+      ],
+      "js": [
+        "src/sites/facebook/shared/facebook-media.js",
+        "src/sites/facebook/content/facebook-relay.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": [
+    "downloads",
+    "downloads.ui",
+    "storage",
+    "contextMenus",
+    "webRequest",
+    "cookies",
+    "notifications",
+    "activeTab",
+    "tabs",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "<all_urls>"
+  ],
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
