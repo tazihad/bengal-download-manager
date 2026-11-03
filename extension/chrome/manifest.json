@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Bengal DM Integration Module",
+  "name": "Bengal DM Connector",
   "version": "0.11",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
@@ -38,7 +38,7 @@
         "size": 128
       }
     ],
-    "default_title": "Bengal DM",
+    "default_title": "Bengal DM Connector",
     "default_popup": "src/popup/popup.html"
   },
   "background": {

@@ -12,7 +12,7 @@
       <div class="sidebar-brand">
         <img src="" alt="BDM Logo" class="brand-icon" id="options-logo">
         <div class="brand-text">
-          <h1>Bengal DM</h1>
+          <h1>Bengal DM Connector</h1>
           <span class="brand-sub">Settings</span>
         </div>
       </div>
@@ -84,29 +84,29 @@
           <div class="form-group">
             <label for="port">RPC Port</label>
             <input type="number" id="port" class="form-input" value="56800" min="1024" max="65535">
-            <span class="field-hint">Default Bengal DM Aria2 Port is 56800.</span>
+            <span class="field-hint">Default Bengal DM Connector Aria2 Port is 56800.</span>
             <div id="rpc-port-status" class="port-status-badge"></div>
           </div>
 
           <div class="form-group">
             <label for="token">Secret RPC Token</label>
             <input type="text" id="token" class="form-input" placeholder="Leave empty if token is disabled">
-            <span class="field-hint">Configured in Bengal DM options if RPC authentication is enabled.</span>
+            <span class="field-hint">Configured in Bengal DM Connector options if RPC authentication is enabled.</span>
           </div>
 
           <div class="card-actions">
-            <button id="sync" class="btn btn-secondary">Sync from Bengal DM</button>
+            <button id="sync" class="btn btn-secondary">Sync from Bengal DM Connector</button>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-title">Bengal DM IPC Port</div>
-          <p class="card-desc">Local port connecting this extension to Bengal DM. Must match port in Bengal DM options.</p>
+          <div class="card-title">Bengal DM Connector IPC Port</div>
+          <p class="card-desc">Local port connecting this extension to Bengal DM Connector. Must match port in Bengal DM Connector options.</p>
 
           <div class="form-group">
             <label for="ipc-port">IPC Port</label>
             <input type="number" id="ipc-port" class="form-input" value="56900" min="1024" max="65535">
-            <span class="field-hint">Default is 56900. Automatically syncs with Bengal DM if active on a backup port.</span>
+            <span class="field-hint">Default is 56900. Automatically syncs with Bengal DM Connector if active on a backup port.</span>
             <div id="ipc-port-status" class="port-status-badge"></div>
           </div>
 
@@ -123,7 +123,7 @@
             <input type="checkbox" id="options-enable-interception" checked>
             <div class="toggle-control-text">
               <span class="toggle-control-title">Capture browser downloads</span>
-              <span class="toggle-control-desc">Automatically route eligible downloads to Bengal DM</span>
+              <span class="toggle-control-desc">Automatically route eligible downloads to Bengal DM Connector</span>
             </div>
           </label>
         </div>
@@ -267,7 +267,7 @@
             <input type="checkbox" id="options-enable-media-sniffing" checked>
             <div class="toggle-control-text">
               <span class="toggle-control-title">Capture streaming media</span>
-              <span class="toggle-control-desc">Show Bengal DM download popup on video players when Bengal DM is running</span>
+              <span class="toggle-control-desc">Show Bengal DM Connector download popup on video players when Bengal DM Connector is running</span>
             </div>
           </label>
         </div>
@@ -315,7 +315,7 @@
       <section id="tab-whitelist" class="tab-pane">
         <div class="pane-header">
           <h2>Whitelist Filters</h2>
-          <p class="pane-desc">Downloads matching whitelisted URLs or file extensions are always intercepted by Bengal DM.</p>
+          <p class="pane-desc">Downloads matching whitelisted URLs or file extensions are always intercepted by Bengal DM Connector.</p>
         </div>
 
         <div class="card">

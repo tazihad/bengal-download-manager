@@ -261,7 +261,7 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
   }
   if (descElem) {
     descElem.textContent = isCaptured 
-      ? "Enabled (captured by Bengal DM)" 
+      ? "Enabled (captured by Bengal DM Connector)" 
       : "Disabled (handled by browser)";
   }
   if (youtubePolicyMessage) youtubePolicyMessage.hidden = true;
@@ -426,7 +426,7 @@ chrome.storage.local.get({
         }
         const formatted = formatAppVersion(ver);
         const fallbackNotice = bdmData.is_fallback ? ` [Port ${bdmData.ipc_port}]` : "";
-        statusText.textContent = formatted ? `Bengal DM Running (${formatted})${fallbackNotice}` : `Bengal DM Running${fallbackNotice}`;
+        statusText.textContent = formatted ? `Bengal DM Connector Running (${formatted})${fallbackNotice}` : `Bengal DM Connector Running${fallbackNotice}`;
         chrome.runtime.sendMessage({ action: "update_connection_status", online: true }).catch(() => {});
       } else {
         dot.className = "dot offline";

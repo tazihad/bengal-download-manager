@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Bengal DM Integration Module",
+  "name": "Bengal DM Connector",
   "version": "0.12",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
@@ -154,8 +154,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "bengal-download-manager@zihad.com.bd",
-      "strict_min_version": "109.0",
-      "update_url": "https://github.com/tazihad/bengal-download-manager/releases/latest",
+      "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": [
           "none"

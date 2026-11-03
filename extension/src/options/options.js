@@ -767,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('sync').addEventListener('click', async () => {
-    showToast('Syncing Bengal DM & Aria2 settings...', 'success');
+    showToast('Syncing Bengal DM Connector & Aria2 settings...', 'success');
 
     const enteredIpcPort = parseInt(document.getElementById('ipc-port')?.value, 10) || 56900;
     let response = null;
@@ -790,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      if (!response || !response.ok) throw new Error("Bengal DM IPC not responding");
+      if (!response || !response.ok)       throw new Error("Bengal DM Connector IPC not responding");
 
       const data = await response.json();
       const savePayload = {};
@@ -816,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       chrome.storage.local.set(savePayload, () => {
-        showToast('Settings Synced from Bengal DM ✓', 'success');
+        showToast('Settings Synced from Bengal DM Connector ✓', 'success');
         testConnection(savePayload.port || 56800, savePayload.token || '', savePayload.ipcPort || enteredIpcPort);
       });
     } catch (err) {
