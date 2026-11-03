@@ -119,11 +119,16 @@
     "storage",
     "contextMenus",
     "webRequest",
+    "webRequestBlocking",
     "cookies",
     "notifications",
     "activeTab",
     "tabs",
     "alarms"
+  ],
+  "optional_permissions": [
+    "downloads.ui",
+    "idle"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
@@ -149,7 +154,8 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "bengal-download-manager@zihad.com.bd",
-      "strict_min_version": "140.0",
+      "strict_min_version": "109.0",
+      "update_url": "https://github.com/tazihad/bengal-download-manager/releases/latest",
       "data_collection_permissions": {
         "required": [
           "none"
