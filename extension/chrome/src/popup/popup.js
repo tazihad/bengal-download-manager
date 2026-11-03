@@ -170,6 +170,14 @@ function isDomainInList(domain, list) {
   });
 }
 
+function isYouTubeDomain(domain) {
+  if (!domain) return false;
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return false;
+  // Match youtube.com and its subdomains (www.youtube.com, m.youtube.com, music.youtube.com, etc.)
+  return normalized === 'youtube.com' || normalized.endsWith('.youtube.com');
+}
+
 let currentDomain = "";
 let isGlobalInterceptionEnabled = true;
 
@@ -198,6 +206,7 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
   const domainElem = document.getElementById('site-domain');
   const descElem = document.getElementById('site-desc');
   const row = document.getElementById('site-toggle-row');
+  const youtubePolicyMessage = document.getElementById('youtube-policy-message');
 
   if (!hasValidSite || !domain) {
     if (toggle) {
@@ -207,8 +216,11 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
     if (domainElem) domainElem.textContent = "No active website";
     if (descElem) descElem.textContent = "Open a website to configure";
     if (row) row.classList.add('disabled');
+    if (youtubePolicyMessage) youtubePolicyMessage.hidden = true;
     return;
   }
+
+  const isYouTube = isYouTubeDomain(domain);
 
   if (domainElem) {
     domainElem.textContent = domain;
@@ -223,9 +235,25 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
     if (descElem) {
       descElem.textContent = "Paused (global capture is off)";
     }
+    if (youtubePolicyMessage) youtubePolicyMessage.hidden = true;
     return;
   }
 
+  if (isYouTube) {
+    // YouTube: disable toggle, turn it off, show policy message
+    if (row) row.classList.add('disabled');
+    if (toggle) {
+      toggle.disabled = true;
+      toggle.checked = false;
+    }
+    if (descElem) {
+      descElem.textContent = "Disabled (YouTube not supported)";
+    }
+    if (youtubePolicyMessage) youtubePolicyMessage.hidden = false;
+    return;
+  }
+
+  // Normal site behavior
   if (row) row.classList.remove('disabled');
   if (toggle) {
     toggle.disabled = false;
@@ -236,6 +264,7 @@ function updateSiteToggleUI(domain, isCaptured, hasValidSite) {
       ? "Enabled (captured by Bengal DM)" 
       : "Disabled (handled by browser)";
   }
+  if (youtubePolicyMessage) youtubePolicyMessage.hidden = true;
 }
 
 // Live storage sync

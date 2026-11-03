@@ -224,6 +224,45 @@ body {
   line-height: 1.3;
 }
 
+/* YouTube Policy Message */
+.youtube-policy-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background-color: var(--bdm-highlight-subtle);
+  border: 1px solid var(--bdm-highlight);
+  border-radius: 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--bdm-highlight);
+}
+
+.youtube-policy-message .policy-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--bdm-highlight);
+}
+
+.youtube-policy-message .policy-text {
+  color: var(--bdm-highlight);
+}
+
+.youtube-policy-message .policy-text a {
+  color: var(--bdm-highlight);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.youtube-policy-message .policy-text a:hover {
+  color: var(--bdm-highlight-hover);
+}
+
+.youtube-policy-message[hidden] {
+  display: none;
+}
+
 .divider {
   height: 1px;
   background-color: var(--border-subtle);
