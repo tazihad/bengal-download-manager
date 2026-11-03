@@ -12,6 +12,9 @@
   if (window.__bengalDmVideoWidgetLoaded) return;
   window.__bengalDmVideoWidgetLoaded = true;
 
+  // Chrome Web Store build: do not activate the media widget on YouTube.
+  if (window.location && /youtube\.com|youtu\.be/.test(window.location.hostname)) return;
+
   function isExtensionValid() {
     try {
       return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
