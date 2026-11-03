@@ -25,13 +25,13 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
     os.makedirs(os.path.dirname(output_zip), exist_ok=True)
     
     with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(extension_dir):
+        for root, dirs, files in os.walk(extension_dir, followlinks=True):
             for file in files:
                 abs_path = os.path.join(root, file)
                 rel_path = os.path.relpath(abs_path, extension_dir)
                 
                 # Skip target-specific manifests, helper scripts, and tests from archive
-                if file in ("manifest.chrome.json", "manifest.firefox.json", "switch-manifest.sh") or "tests" in rel_path.split(os.sep):
+                if file in ("manifest.chromium.json", "manifest.firefox.json", "switch-manifest.sh") or "tests" in rel_path.split(os.sep):
                     continue
 
                 if file == "manifest.json":
@@ -41,7 +41,7 @@ def build_zip_package(extension_dir, output_zip, target="generic"):
                         if os.path.exists(ff_manifest):
                             manifest_file = ff_manifest
                     elif target == "chrome":
-                        ch_manifest = os.path.join(extension_dir, "manifest.chrome.json")
+                        ch_manifest = os.path.join(extension_dir, "manifest.chromium.json")
                         if os.path.exists(ch_manifest):
                             manifest_file = ch_manifest
 
@@ -154,20 +154,18 @@ if __name__ == "__main__":
     out_dir = os.path.abspath(args.out_dir) if args.out_dir else os.path.join(repo_root, "dist")
     os.makedirs(out_dir, exist_ok=True)
 
-    ext_dir = os.path.join(repo_root, "extension")
-    out_crx = os.path.join(out_dir, "bengal-download-manager-extension.crx")
-    out_zip = os.path.join(out_dir, "bengal-download-manager-extension.zip")
-    out_chrome_zip = os.path.join(out_dir, "bengal-download-manager-chrome.zip")
+    ext_dir = os.path.join(repo_root, "extension", "src")
+    out_crx = os.path.join(out_dir, "bengal-download-manager-chromium.crx")
+    out_zip = os.path.join(out_dir, "bengal-download-manager-chromium.zip")
     out_firefox_zip = os.path.join(out_dir, "bengal-download-manager-firefox.zip")
     out_firefox_xpi = os.path.join(out_dir, "bengal-download-manager-firefox.xpi")
     
     make_crx(ext_dir, out_crx, out_zip)
-    build_zip_package(ext_dir, out_chrome_zip, target="chrome")
     build_zip_package(ext_dir, out_firefox_zip, target="firefox")
     shutil.copy(out_firefox_zip, out_firefox_xpi)
     
-    # Build Chrome Web Store package directly from the YouTube-stripped extension-chrome directory.
-    ext_chrome_dir = os.path.join(repo_root, "extension-chrome")
+    # Build Chrome Web Store package directly from the YouTube-stripped extension/chrome directory.
+    ext_chrome_dir = os.path.join(repo_root, "extension", "chrome")
     out_webstore_crx = os.path.join(out_dir, "bengal-download-manager-webstore-chrome.crx")
     out_webstore_zip = os.path.join(out_dir, "bengal-download-manager-webstore-chrome.zip")
     if os.path.isdir(ext_chrome_dir):
