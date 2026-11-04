@@ -115,6 +115,8 @@ Download pre-built packages from the [Latest Release](https://github.com/tazihad
 | **Flathub** | `x86_64`, `aarch64` | `flatpak install flathub bd.com.zihad.BengalDownloadManager` / [Flathub](https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager) |
 | **Flatpak (Repository)** | `x86_64`, `aarch64` | `flatpak install https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref` |
 | **AppImage** | `x86_64`, `aarch64` | [Download AppImage](https://github.com/tazihad/bengal-download-manager/releases/latest) |
+| **Debian / Ubuntu (.deb)** | `x86_64` (amd64), `arm64` | `sudo apt install ./bengal-download-manager_*.deb` / [Download .deb](https://github.com/tazihad/bengal-download-manager/releases/latest) |
+| **Fedora / RHEL (.rpm)** | `x86_64`, `aarch64` | `sudo dnf install ./bengal-download-manager-*.rpm` / [Download .rpm](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 | **Standalone Binary** | `x86_64`, `aarch64` | [Download Binary Executable](https://github.com/tazihad/bengal-download-manager/releases/latest) |
 
 #### Flatpak Quick Start (Online Repository & Auto-Updates)

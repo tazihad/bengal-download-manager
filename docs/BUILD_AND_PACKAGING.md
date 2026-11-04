@@ -1,6 +1,6 @@
 # Bengal Download Manager — Build, Packaging & Distribution Guide
 
-This document provides complete instructions for setting up development environments, running automated test suites, and building production distribution packages across Linux targets (Flatpak, Snap, AppImage, Standalone CMake Binary, and Browser Extensions).
+This document provides complete instructions for setting up development environments, running automated test suites, and building production distribution packages across Linux targets (Flatpak, Snap, AppImage, Debian/RPM native packages, Standalone CMake Binary, and Browser Extensions).
 
 ---
 
@@ -128,7 +128,33 @@ chmod +x bengal-download-manager-*-x86_64.AppImage
 
 ---
 
-## 7. Browser Extension Packaging
+## 7. Native Packages (.deb / .rpm)
+
+BDM publishes native `.deb` and `.rpm` packages built with [nFPM](https://nfpm.goreleaser.com/) from the standalone binary. The package installs the executable, desktop entry, AppStream metadata, and hicolor icons under the standard system paths.
+
+```bash
+# Build the standalone binary first
+cmake -B build -S .
+cmake --build build
+install -m 0755 build/dist/bengal-download-manager dist/bengal-download-manager
+
+# Build Debian/Ubuntu and Fedora/RHEL packages
+NFPM_ARCH=amd64 VERSION=$(cat VERSION) nfpm package -f nfpm.yaml -p deb -t dist/
+NFPM_ARCH=amd64 VERSION=$(cat VERSION) nfpm package -f nfpm.yaml -p rpm -t dist/
+```
+
+Install the generated package:
+
+```bash
+sudo apt install ./bengal-download-manager_*.deb
+sudo dnf install ./bengal-download-manager-*.rpm
+```
+
+The CI release workflow builds both packages for `x86_64` and `aarch64`, verifies them on Ubuntu and Fedora containers, and attaches them to every GitHub release.
+
+---
+
+## 8. Browser Extension Packaging
 
 The browser extension located in `extension/` is packaged into signed zip bundles for the Mozilla Add-ons Store (AMO) and Google Chrome Web Store:
 
@@ -141,7 +167,7 @@ The script outputs `extension-firefox.zip` and `extension-chrome.zip` containing
 
 ---
 
-## 8. Single Source of Truth Version Verification
+## 9. Single Source of Truth Version Verification
 
 Before committing release tags or building distribution packages, ensure all package manifests match the root `VERSION` file:
 
