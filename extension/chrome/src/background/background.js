@@ -152,7 +152,7 @@ async function updateAppConnectionBadge(isOnline) {
         await action.setBadgeText({ text: '' });
       }
       if (action.setTitle) {
-        await action.setTitle({ title: 'Bengal DM' });
+        await action.setTitle({ title: 'Bengal DM Connector' });
       }
     } else {
       if (action.setBadgeText) {
@@ -165,7 +165,7 @@ async function updateAppConnectionBadge(isOnline) {
         try { await action.setBadgeTextColor({ color: '#000000' }); } catch {}
       }
       if (action.setTitle) {
-        await action.setTitle({ title: 'Bengal DM (App Disconnected)' });
+        await action.setTitle({ title: 'Bengal DM Connector (App Disconnected)' });
       }
     }
   } catch (e) {
@@ -1608,7 +1608,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: "download-with-bengal",
-      title: "Download with Bengal DM",
+      title: "Download with Bengal DM Connector",
       contexts: ["link", "image", "video", "audio", "selection", "page"]
     });
   });
@@ -1632,9 +1632,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         });
 
         if (success) {
-          notifyUser("Bengal DM", "Media link sent to Bengal DM!");
+          notifyUser("Bengal DM Connector", "Media link sent to Bengal DM Connector!");
         } else {
-          notifyUser("Bengal DM Error", "Could not send to Bengal DM. Is the application running?");
+          notifyUser("Bengal DM Connector Error", "Could not send to Bengal DM Connector. Is the application running?");
         }
         return;
       }
@@ -1661,14 +1661,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
               isMedia: true
             });
             if (success) {
-              notifyUser("Bengal DM", "Media stream sent to Bengal DM!");
+              notifyUser("Bengal DM Connector", "Media stream sent to Bengal DM Connector!");
             } else {
-              notifyUser("Bengal DM Error", "Could not send to Bengal DM. Is the application running?");
+              notifyUser("Bengal DM Connector Error", "Could not send to Bengal DM Connector. Is the application running?");
             }
             return;
           }
         }
-        notifyUser("Bengal DM Warning", "The link is a web page, not a direct download file.");
+        notifyUser("Bengal DM Connector Warning", "The link is a web page, not a direct download file.");
         return;
       }
 
@@ -1683,9 +1683,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       });
 
       if (success) {
-        notifyUser("Bengal DM", "Download sent to Bengal DM successfully!");
+        notifyUser("Bengal DM Connector", "Download sent to Bengal DM Connector successfully!");
       } else {
-        notifyUser("Bengal DM Error", "Could not send download to Bengal DM. Is the app running?");
+        notifyUser("Bengal DM Connector Error", "Could not send download to Bengal DM Connector. Is the app running?");
       }
     }
   }

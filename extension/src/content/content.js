@@ -3014,7 +3014,7 @@
     if (tier.provider === 'facebook' && tier.streamUrl && /^https?:\/\//i.test(tier.streamUrl)) {
       const ext = tier.isAudio ? (tier.ext || '.m4a') : '.mp4';
       footerEl.classList.add('opening');
-      footerTextEl.textContent = 'Downloading with Bengal DM.';
+      footerTextEl.textContent = 'Downloading with Bengal DM Connector.';
       chrome.runtime.sendMessage({
         action: 'download',
         item: {
@@ -3108,7 +3108,7 @@
 
     const doSend = (finalTarget) => {
       footerEl.classList.add('opening');
-      footerTextEl.textContent = 'Downloading with Bengal DM.';
+      footerTextEl.textContent = 'Downloading with Bengal DM Connector.';
 
       const directFilename = usingDirect ? `${title || 'video'}${tier.ext || '.mp4'}` : title;
 

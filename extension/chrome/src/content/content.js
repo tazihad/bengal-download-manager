@@ -12,6 +12,9 @@
   if (window.__bengalDmVideoWidgetLoaded) return;
   window.__bengalDmVideoWidgetLoaded = true;
 
+  // Chrome Web Store build: do not activate the media widget on YouTube.
+  if (window.location && /youtube\.com|youtu\.be/.test(window.location.hostname)) return;
+
   function isExtensionValid() {
     try {
       return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
@@ -2765,7 +2768,7 @@
     if (tier.provider === 'facebook' && tier.streamUrl && /^https?:\/\//i.test(tier.streamUrl)) {
       const ext = tier.isAudio ? (tier.ext || '.m4a') : '.mp4';
       footerEl.classList.add('opening');
-      footerTextEl.textContent = 'Downloading with Bengal DM.';
+      footerTextEl.textContent = 'Downloading with Bengal DM Connector.';
       chrome.runtime.sendMessage({
         action: 'download',
         item: {
@@ -2859,7 +2862,7 @@
 
     const doSend = (finalTarget) => {
       footerEl.classList.add('opening');
-      footerTextEl.textContent = 'Downloading with Bengal DM.';
+      footerTextEl.textContent = 'Downloading with Bengal DM Connector.';
 
       const directFilename = usingDirect ? `${title || 'video'}${tier.ext || '.mp4'}` : title;
 

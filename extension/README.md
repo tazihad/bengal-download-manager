@@ -1,6 +1,6 @@
-# Bengal DM Integration Module — Extension Source & Build Guide
+# Bengal DM Connector — Extension Source & Build Guide
 
-This directory contains the source code for the **Bengal DM Integration Module** browser extension for Firefox (Gecko) and Chrome (Chromium).
+This directory contains the source code for the **Bengal DM Connector** browser extension for Firefox (Gecko) and Chrome (Chromium).
 
 ---
 
