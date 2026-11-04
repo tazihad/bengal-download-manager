@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Bengal Download Manager &amp; Bengal DM Connector</title>
+
+  <meta name="description" content="Bengal Download Manager and Bengal DM Connector do not collect, store, or transmit any personal data. A zero-data-collection privacy policy." />
+  <meta name="robots" content="index, follow" />
+
+  <link rel="icon" type="image/png" href="../assets/logo.png" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --plasma-bg: #15181a;
+      --plasma-surface: #232629;
+      --plasma-surface-glass: rgba(35, 38, 41, 0.75);
+      --plasma-surface-elevated: #2a2e32;
+      --plasma-border: rgba(255, 255, 255, 0.12);
+      --plasma-border-hover: rgba(61, 174, 233, 0.6);
+
+      --plasma-blue: #3daee9;
+      --plasma-blue-hover: #2980b9;
+      --plasma-blue-light: #68c3f4;
+      --plasma-amber: #fdbc4b;
+      --plasma-green: #2ecc71;
+      --plasma-red: #da4453;
+      --bengal-orange: #ea580c;
+
+      --text: #eff0f1;
+      --text-dim: #bdc3c7;
+      --text-muted: #7f8c8d;
+
+      --radius-kde: 12px;
+      --radius-sm: 8px;
+
+      --shadow-glass: 0 16px 40px rgba(0, 0, 0, 0.5);
+      --shadow-glow: 0 0 35px rgba(61, 174, 233, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, #202b38 0%, #15181a 100%);
+      background-attachment: fixed;
+      background-color: var(--plasma-bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      line-height: 1.7;
+      font-variant-numeric: tabular-nums;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Top Navigation */
+    .kde-header {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(21, 24, 26, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--plasma-border);
+    }
+
+    .kde-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 74px;
+    }
+
+    .kde-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .kde-brand img {
+      width: 36px;
+      height: 36px;
+      transition: transform 0.2s;
+    }
+
+    .brand-bengal {
+      background: linear-gradient(135deg, var(--plasma-amber) 0%, var(--bengal-orange) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .kde-menu {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+      align-items: center;
+    }
+
+    .kde-menu a {
+      color: var(--text-dim);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .kde-menu a:hover {
+      color: var(--plasma-blue);
+    }
+
+    .kde-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .github-star-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--plasma-surface);
+      border: 1px solid var(--plasma-border);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .github-star-btn:hover {
+      background: var(--plasma-surface-elevated);
+      border-color: var(--plasma-blue);
+      transform: translateY(-1px);
+    }
+
+    /* Page Header */
+    .page-header {
+      background: var(--plasma-surface-glass);
+      border: 1px solid var(--plasma-border);
+      border-radius: 16px;
+      padding: 56px 48px;
+      box-shadow: var(--shadow-glass);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      margin: 36px 0 48px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 44px;
+      align-items: center;
+      position: relative;
+    }
+
+    .page-eyebrow {
+      color: var(--plasma-amber);
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-eyebrow span.dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--plasma-green);
+      box-shadow: 0 0 10px var(--plasma-green);
+    }
+
+    .page-h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2rem, 3vw, 2.75rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .page-desc {
+      color: var(--text-dim);
+      font-size: 1.0625rem;
+      line-height: 1.65;
+      margin-bottom: 24px;
+    }
+
+    .shield-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      background: rgba(46, 204, 113, 0.12);
+      border: 1px solid rgba(46, 204, 113, 0.35);
+      border-radius: var(--radius-sm);
+      color: var(--plasma-green);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .shield-badge span.dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--plasma-green);
+      box-shadow: 0 0 10px var(--plasma-green);
+    }
+
+    /* Policy Content */
+    .policy-body {
+      background: var(--plasma-surface-glass);
+      border: 1px solid var(--plasma-border);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: var(--shadow-glass);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      margin-bottom: 60px;
+    }
+
+    .policy-body h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text);
+      margin: 28px 0 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .policy-body h2:first-child {
+      margin-top: 0;
+    }
+
+    .policy-body p {
+      color: var(--text-dim);
+      font-size: 15px;
+      margin-bottom: 16px;
+      line-height: 1.7;
+    }
+
+    .policy-body ul {
+      color: var(--text-dim);
+      font-size: 15px;
+      margin-bottom: 20px;
+      padding-left: 22px;
+      line-height: 1.75;
+    }
+
+    .policy-body li {
+      margin-bottom: 8px;
+    }
+
+    .policy-body code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      background: var(--plasma-bg);
+      color: var(--plasma-blue-light);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--plasma-border);
+    }
+
+    .callout {
+      background: rgba(61, 174, 233, 0.1);
+      border: 1px solid rgba(61, 174, 233, 0.3);
+      border-left: 4px solid var(--plasma-blue);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      margin: 24px 0;
+      color: var(--text-dim);
+      font-size: 14.5px;
+    }
+
+    .callout b {
+      color: var(--plasma-blue-light);
+    }
+
+    .footer-note {
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--plasma-border);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--plasma-border);
+      padding: 48px 0 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      background: var(--plasma-bg);
+    }
+
+    .footer-links {
+      margin-bottom: 16px;
+    }
+
+    .footer-links a {
+      color: var(--plasma-blue);
+      margin: 0 10px;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--plasma-blue-light);
+    }
+
+    @media (max-width: 768px) {
+      .page-header {
+        grid-template-columns: 1fr;
+        padding: 40px 24px;
+        gap: 24px;
+      }
+      .policy-body {
+        padding: 32px 24px;
+      }
+      .kde-menu {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="kde-header">
+    <div class="container kde-nav">
+      <a href="../" class="kde-brand">
+        <img src="../assets/logo.png" alt="Bengal Logo" />
+        <span><span class="brand-bengal">Bengal</span> Download Manager</span>
+      </a>
+
+      <ul class="kde-menu">
+        <li><a href="../#overview">Overview</a></li>
+        <li><a href="../#features">Features</a></li>
+        <li><a href="../#install">Install</a></li>
+      </ul>
+
+      <div class="kde-header-actions">
+        <a href="https://github.com/tazihad/bengal-download-manager" target="_blank" rel="noopener" class="github-star-btn">
+          <span>★ Star on GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Page Header -->
+    <section class="page-header">
+      <div>
+        <div class="page-eyebrow">
+          <span class="dot"></span>
+          <span>Zero Data Collection</span>
+        </div>
+        <h1 class="page-h1">Privacy Policy</h1>
+        <p class="page-desc">
+          Bengal Download Manager and Bengal DM Connector do not collect, store, share, or transmit any personal data, usage statistics, or telemetry. Everything stays on your device.
+        </p>
+        <div class="shield-badge">
+          <span class="dot"></span>
+          <span>No Tracking &bull; No Telemetry &bull; No Analytics</span>
+        </div>
+      </div>
+
+      <div class="hero-preview-frame" style="opacity: 0.6; cursor: default;">
+        <img src="../assets/screenshots/01-main-app.png" alt="Bengal Download Manager Main Window" />
+      </div>
+    </section>
+
+    <!-- Policy Content -->
+    <div class="policy-body">
+      <h2>1. We Do Not Collect Any Data</h2>
+      <p>
+        Bengal Download Manager (the desktop application) and Bengal DM Connector (the browser extension) are designed to operate entirely on your local device. Neither the application nor the extension collects, stores, transmits, or shares any personal information, download history, browsing data, file metadata, IP addresses, or device identifiers.
+      </p>
+
+      <h2>2. What Bengal Download Manager Does Locally</h2>
+      <p>
+        Bengal Download Manager is a native desktop download manager powered by the Aria2 engine. All download operations, transfer queues, file paths, and settings are stored locally on your machine. The application communicates with your browser extension over a local loopback connection only &mdash; it does not phone home to any remote server.
+      </p>
+      <ul>
+        <li>Download lists, history, and settings are saved locally on your device only.</li>
+        <li>Files are downloaded directly from the source URL to your local storage.</li>
+        <li>No download metadata, URLs, or file contents are uploaded or shared with any third party.</li>
+      </ul>
+
+      <h2>3. Bengal DM Connector (Browser Extension)</h2>
+      <p>
+        The Bengal DM Connector browser extension (Chrome / Manifest V3 and Firefox) intercepts download triggers in your browser and forwards them to Bengal Download Manager over a secure local TCP loopback port (<code>56800</code>). The extension does not collect browsing history, page contents, or any personal data. All communication is confined to your local machine.
+      </p>
+
+      <div class="callout">
+        <b>Local-only communication:</b> The desktop app and browser extension talk to each other exclusively over localhost. No data leaves your computer, and no external server is involved.
+      </div>
+
+      <h2>4. No Third-Party Services</h2>
+      <p>
+        We do not integrate with any analytics providers, advertising networks, crash-reporting services, or telemetry platforms. There are no tracking pixels, cookies, or beacons associated with the application or extension.
+      </p>
+
+      <h2>5. Children's Privacy</h2>
+      <p>
+        Since we do not collect any data from anyone, we do not knowingly collect personal information from children under any age.
+      </p>
+
+      <h2>6. Data Security</h2>
+      <p>
+        Because no personal data is collected or transmitted, there is no data to leak or expose. All data that the application handles &mdash; your downloads &mdash; remains under your control on your own device.
+      </p>
+
+      <h2>7. Changes to This Policy</h2>
+      <p>
+        If this privacy policy is ever updated, the revised version will be posted on this page with a new effective date. Continued use of Bengal Download Manager or Bengal DM Connector after any change constitutes acceptance of the updated policy.
+      </p>
+
+      <h2>8. Contact</h2>
+      <p>
+        If you have questions about this privacy policy, you can open an issue on the project repository or contact the maintainer through GitHub.
+      </p>
+      <p style="margin-top: 8px;">
+        <a href="https://github.com/tazihad/bengal-download-manager/issues" target="_blank" rel="noopener" style="color: var(--plasma-blue); font-weight: 600;">GitHub Issues &rarr;</a>
+      </p>
+    </div>
+
+    <p class="footer-note">
+      &copy; <span id="year"></span> Bengal Download Manager. MIT Licensed. Zero data collection by design.
+    </p>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="../">Home</a>
+        <a href="../#install">Install</a>
+        <a href="https://github.com/tazihad/bengal-download-manager" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/tazihad/bengal-download-manager/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted);">
+        Bengal Download Manager &bull; Bengal DM Connector &mdash; Privacy Policy
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
