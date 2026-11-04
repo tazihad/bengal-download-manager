@@ -21,6 +21,7 @@ description: |
 vendor: Bengal Download Manager
 homepage: https://github.com/tazihad/bengal-download-manager
 license: MIT
+umask: 0o022
 
 contents:
   - src: dist/bengal-download-manager
