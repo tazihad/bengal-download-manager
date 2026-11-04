@@ -79,6 +79,19 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.14" date="2026-11-04">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.14</url>
+      <description translate="no">
+        <p>Bengal Download Manager 0.3.14 changes:</p>
+        <ul>
+          <li>Added native .deb packages for Debian, Ubuntu, and Linux Mint</li>
+          <li>Added native .rpm packages for Fedora, RHEL, and openSUSE</li>
+          <li>Native packages include desktop integration, AppStream metadata, and application icons</li>
+          <li>Renamed the browser extension to Bengal DM Connector</li>
+          <li>Added a YouTube-free Chrome Web Store build for faster extension review</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.13" date="2026-11-01">
       <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.13</url>
       <description translate="no">
