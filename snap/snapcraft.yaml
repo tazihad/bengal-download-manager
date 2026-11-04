@@ -120,5 +120,4 @@ parts:
       #   undefined symbol: rsvg_handle_get_pixbuf_and_error
       - -usr/lib/*/librsvg*
       - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
-      - "*"
-
+      - "*" 
