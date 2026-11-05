@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bengal DM Connector",
-  "version": "0.12",
+  "version": "0.13",
   "description": "Integrates your browser with Bengal Download Manager for fast, multi-threaded downloads.",
   "icons": {
     "16": "assets/icon-16.png",
@@ -80,7 +80,8 @@
     },
     {
       "matches": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
       ],
       "js": [
         "src/content/content.js"
@@ -97,15 +98,14 @@
     "contextMenus",
     "webRequest",
     "cookies",
-    "notifications",
-    "activeTab",
     "tabs",
     "alarms"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
-    "<all_urls>"
+    "http://*/*",
+    "https://*/*"
   ],
   "options_ui": {
     "page": "src/options/options.html",
@@ -119,7 +119,8 @@
         "assets/*"
       ],
       "matches": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
       ]
     }
   ]
