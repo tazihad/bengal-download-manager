@@ -78,7 +78,8 @@
     },
     {
       "matches": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
       ],
       "js": [
         "src/content/content.js"
@@ -101,7 +102,8 @@
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
-    "<all_urls>"
+    "http://*/*",
+    "https://*/*"
   ],
   "options_ui": {
     "page": "src/options/options.html",
@@ -113,7 +115,8 @@
         "assets/*"
       ],
       "matches": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
       ]
     }
   ]

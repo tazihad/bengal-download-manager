@@ -827,11 +827,6 @@ async function sendToBengalDM(downloadData) {
   }
 }
 
-// --- NOTIFICATION HELPER ---
-function notifyUser(title, message) {
-  return;
-}
-
 // --- RECENT DOWNLOAD DEDUPLICATION TRACKER ---
 const recentDownloads = new Map();
 
@@ -1624,18 +1619,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (isMediaUrl(targetUrl)) {
         const cleanTargetUrl = sanitizeMediaUrl(targetUrl);
         markRecentlySent(cleanTargetUrl);
-        const success = await sendToBengalDM({
+        await sendToBengalDM({
           url: cleanTargetUrl,
           userAgent: navigator.userAgent,
           cookies: cookieString,
           referrer: (tab && tab.url) ? tab.url : cleanTargetUrl
         });
-
-        if (success) {
-          notifyUser("Bengal DM Connector", "Media link sent to Bengal DM Connector!");
-        } else {
-          notifyUser("Bengal DM Connector Error", "Could not send to Bengal DM Connector. Is the application running?");
-        }
         return;
       }
 
@@ -1651,7 +1640,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           const best = masterStream || playlistStream || directStream || tabStreams[tabStreams.length - 1];
           if (best && best.url) {
             markRecentlySent(best.url);
-            const success = await sendToBengalDM({
+            await sendToBengalDM({
               url: best.url,
               userAgent: navigator.userAgent,
               cookies: cookieString,
@@ -1660,33 +1649,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
               filename: (tab && tab.title) ? tab.title : "",
               isMedia: true
             });
-            if (success) {
-              notifyUser("Bengal DM Connector", "Media stream sent to Bengal DM Connector!");
-            } else {
-              notifyUser("Bengal DM Connector Error", "Could not send to Bengal DM Connector. Is the application running?");
-            }
             return;
           }
         }
-        notifyUser("Bengal DM Connector Warning", "The link is a web page, not a direct download file.");
         return;
       }
 
       markRecentlySent(targetUrl);
       markRecentlySent(resolved.url);
 
-      const success = await sendToBengalDM({
+      await sendToBengalDM({
         url: resolved.url,
         userAgent: navigator.userAgent,
         cookies: cookieString,
         referrer: targetUrl
       });
-
-      if (success) {
-        notifyUser("Bengal DM Connector", "Download sent to Bengal DM Connector successfully!");
-      } else {
-        notifyUser("Bengal DM Connector Error", "Could not send download to Bengal DM Connector. Is the app running?");
-      }
     }
   }
 });
