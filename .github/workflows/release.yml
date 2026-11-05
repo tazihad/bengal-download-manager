@@ -169,6 +169,12 @@ jobs:
           version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
+      - name: Build Native Packages (.deb / .rpm)
+        uses: ./.github/actions/build-native-packages
+        with:
+          version: ${{ needs.prepare.outputs.version }}
+          arch: ${{ matrix.arch }}
+
       - name: Stage Release Artifacts
         run: |
           mkdir -p release_artifacts
@@ -177,6 +183,8 @@ jobs:
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage.zsync release_artifacts/ 2>/dev/null || true
           cp dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
           cp dist/*.snap release_artifacts/ 2>/dev/null || cp *.snap release_artifacts/ 2>/dev/null || true
+          cp dist/*.deb release_artifacts/ 2>/dev/null || true
+          cp dist/*.rpm release_artifacts/ 2>/dev/null || true
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
             cp extension-chromium-*.crx release_artifacts/ 2>/dev/null || cp extension-chromium.crx release_artifacts/ 2>/dev/null || true
             cp extension-firefox-*.xpi release_artifacts/ 2>/dev/null || cp extension-firefox.xpi release_artifacts/ 2>/dev/null || true
@@ -187,6 +195,41 @@ jobs:
         with:
           name: release-assets-${{ matrix.arch }}
           path: release_artifacts/*
+
+  test-deb:
+    name: Test .deb (Ubuntu 24.04)
+    needs: [build]
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: release-assets-x86_64
+
+      - name: Install and Verify Package
+        run: |
+          apt-get update
+          apt-get install -y ./*_amd64.deb
+          dpkg -s bengal-download-manager
+          test -x /usr/bin/bengal-download-manager
+
+  test-rpm:
+    name: Test .rpm (Fedora 41)
+    needs: [build]
+    runs-on: ubuntu-24.04
+    container: fedora:41
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: release-assets-x86_64
+
+      - name: Install and Verify Package
+        run: |
+          dnf install -y ./*.x86_64.rpm
+          rpm -q bengal-download-manager
+          test -x /usr/bin/bengal-download-manager
 
   publish-flatpak:
     name: Publish Flatpak Repository
@@ -249,7 +292,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [test, prepare, build]
+    needs: [test, prepare, build, test-deb, test-rpm]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -356,7 +399,7 @@ jobs:
           special_files = {"SHA256SUMS", "SHA256SUMS.sig", "SHA256SUMS.txt"}
           files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files and not f.endswith(".zsync")]
 
-          linux_groups = {"AppImage": [], "Flatpak": [], "Snap": [], ".tar.xz": []}
+          linux_groups = {"AppImage": [], "Flatpak": [], "Snap": [], ".deb": [], ".rpm": [], ".tar.xz": []}
           windows_items = []
           macos_items = []
           extension_items = []
@@ -373,6 +416,10 @@ jobs:
                   linux_groups["Snap"].append((arch, fname, url))
               elif fname.endswith(".tar.xz"):
                   linux_groups[".tar.xz"].append((arch, fname, url))
+              elif fname.endswith(".deb"):
+                  linux_groups[".deb"].append((arch, fname, url))
+              elif fname.endswith(".rpm"):
+                  linux_groups[".rpm"].append((arch, fname, url))
               elif fname.endswith(".exe") or ("windows" in fname and fname.endswith(".zip")):
                   pkg = "Setup Installer" if "setup" in fname.lower() else ("Portable ZIP" if fname.endswith(".zip") else "Standalone Executable")
                   windows_items.append((pkg, arch, fname, url, ""))
@@ -408,10 +455,12 @@ jobs:
                   "AppImage": "Universal standalone bundle",
                   "Flatpak": "Single-file offline bundle",
                   "Snap": "Canonical Snap package",
+                  ".deb": "Native Debian / Ubuntu package",
+                  ".rpm": "Native Fedora / RHEL package",
                   ".tar.xz": "Portable tarball archive"
               }
 
-              for pkg in ["AppImage", "Flatpak", "Snap", ".tar.xz"]:
+              for pkg in ["AppImage", "Flatpak", "Snap", ".deb", ".rpm", ".tar.xz"]:
                   items = linux_groups.get(pkg, [])
                   if not items:
                       continue

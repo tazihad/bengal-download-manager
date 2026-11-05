@@ -1,0 +1,74 @@
+# nFPM configuration for Bengal Download Manager native Linux packages.
+#
+# Build from the repository root after compiling the standalone binary:
+#   NFPM_ARCH=amd64 VERSION=$(cat VERSION) nfpm package -f nfpm.yaml -p deb -t dist/
+#   NFPM_ARCH=amd64 VERSION=$(cat VERSION) nfpm package -f nfpm.yaml -p rpm -t dist/
+#
+# `arch` accepts Go-style values (amd64, arm64); nFPM maps them to the
+# native Debian/RPM architecture names automatically.
+name: bengal-download-manager
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${VERSION}
+release: "1"
+section: net
+priority: optional
+maintainer: Zihad <tazihad@gmail.com>
+description: |
+  High-speed multi-threaded download manager powered by PyQt6 and Aria2.
+  Features include segmented downloads, browser extension integration,
+  scheduled queues, proxy support, and media downloads.
+vendor: Bengal Download Manager
+homepage: https://github.com/tazihad/bengal-download-manager
+license: MIT
+umask: 0o022
+
+contents:
+  - src: dist/bengal-download-manager
+    dst: /usr/bin/bengal-download-manager
+    file_info:
+      mode: 0755
+
+  - src: flatpak/bd.com.zihad.BengalDownloadManager.desktop
+    dst: /usr/share/applications/bd.com.zihad.BengalDownloadManager.desktop
+  - src: flatpak/bd.com.zihad.BengalDownloadManager.desktop
+    dst: /usr/share/applications/bengal-download-manager.desktop
+
+  - src: flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml
+    dst: /usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml
+
+  - src: assets/icons/16x16.png
+    dst: /usr/share/icons/hicolor/16x16/apps/bd.com.zihad.BengalDownloadManager.png
+  - src: assets/icons/32x32.png
+    dst: /usr/share/icons/hicolor/32x32/apps/bd.com.zihad.BengalDownloadManager.png
+  - src: assets/icons/48x48.png
+    dst: /usr/share/icons/hicolor/48x48/apps/bd.com.zihad.BengalDownloadManager.png
+  - src: assets/icons/64x64.png
+    dst: /usr/share/icons/hicolor/64x64/apps/bd.com.zihad.BengalDownloadManager.png
+  - src: assets/icons/128x128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/bd.com.zihad.BengalDownloadManager.png
+  - src: assets/icons/256x256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/bd.com.zihad.BengalDownloadManager.png
+  - src: assets/icons/512x512.png
+    dst: /usr/share/icons/hicolor/512x512/apps/bd.com.zihad.BengalDownloadManager.png
+
+  # Legacy icon names kept for launchers and desktop files that reference the
+  # executable name instead of the reverse-DNS application ID.
+  - src: assets/icons/256x256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/bengal-download-manager.png
+
+  - src: LICENSE
+    dst: /usr/share/licenses/bengal-download-manager/LICENSE
+
+overrides:
+  deb:
+    depends:
+      - aria2
+      - xdg-utils
+    recommends:
+      - ffmpeg
+      - libnotify-bin
+  rpm:
+    depends:
+      - aria2
+      - xdg-utils
