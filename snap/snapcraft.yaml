@@ -52,17 +52,16 @@ apps:
       - audio-playback
       - unity7
     environment:
-      PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$PYTHONPATH
+      PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$SNAP/lib/python3.14/site-packages:$PYTHONPATH
       PATH: $SNAP/bin:$SNAP/usr/bin:$PATH
 
 parts:
-  bengal-download-manager:
-    plugin: python
-    source: .
+  desktop-deps:
+    plugin: nil
     # Do NOT add librsvg2-2 or librsvg2-common to stage-packages.
     # The gnome-46-2404 content snap provides librsvg-2.so.2 v2.61.1, which
     # libpixbufloader_svg.so was compiled against and requires the symbol
-    # rsvg_handle_get_pixbuf_and_error.  Staging the older v2.50.0 (pulled
+    # rsvg_handle_get_pixbuf_and_error. Staging the older v2.50.0 (pulled
     # in transitively by ffmpeg/libgl) places it earlier in LD_LIBRARY_PATH
     # and causes:
     #   g_module_open() failed … undefined symbol: rsvg_handle_get_pixbuf_and_error
@@ -76,6 +75,22 @@ parts:
       - libdbus-1-3
       - ca-certificates
       - xdg-utils
+    stage:
+      - -usr/lib/*/librsvg*
+      - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
+      - "*"
+
+  bengal-download-manager:
+    after:
+      - desktop-deps
+    plugin: uv
+    source: .
+    build-snaps:
+      - astral-uv
+    # The core26 base snap does not include Python, so the snap must stage it.
+    stage-packages:
+      - python3-venv
+      - python3
     override-build: |
       craftctl default
 

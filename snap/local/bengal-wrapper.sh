@@ -20,7 +20,23 @@ export SNAP_APP_ROOT="$SNAP/share/bengal-download-manager"
 if [ -n "$SNAP_VERSION" ] && [ -z "$APP_VERSION" ]; then
     export APP_VERSION="$SNAP_VERSION"
 fi
-export PYTHONPATH="$SNAP_APP_ROOT/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$SNAP/usr/lib/python3/dist-packages:$PYTHONPATH"
+
+SITE_PACKAGES=""
+QT_PLUGINS=""
+QML_IMPORTS=""
+for py_site in "$SNAP"/lib/python3.*/site-packages; do
+    if [ -d "$py_site" ]; then
+        SITE_PACKAGES="${SITE_PACKAGES:+${SITE_PACKAGES}:}$py_site"
+        if [ -d "$py_site/PyQt6/Qt6/plugins" ]; then
+            QT_PLUGINS="${QT_PLUGINS:+${QT_PLUGINS}:}$py_site/PyQt6/Qt6/plugins"
+        fi
+        if [ -d "$py_site/PyQt6/Qt6/qml" ]; then
+            QML_IMPORTS="${QML_IMPORTS:+${QML_IMPORTS}:}$py_site/PyQt6/Qt6/qml"
+        fi
+    fi
+done
+
+export PYTHONPATH="$SNAP_APP_ROOT/src${SITE_PACKAGES:+:${SITE_PACKAGES}}:$SNAP/usr/lib/python3/dist-packages:$PYTHONPATH"
 export PATH="$SNAP/bin:$SNAP/usr/bin:$SNAP_APP_ROOT/assets/bin/linux/$ARCH:$SNAP_APP_ROOT/assets/bin/$ARCH:$SNAP_APP_ROOT/assets/bin:$PATH"
 export LD_LIBRARY_PATH="$SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH"
 
@@ -34,8 +50,8 @@ if [ "$QT_QPA_PLATFORM" = "wayland-egl" ] || [ -z "$QT_QPA_PLATFORM" ]; then
 fi
 # QT_PLUGIN_PATH must be set before QApplication() is constructed so that
 # platform theme plugins (libqxdgdesktopportal, libqgtk3) are discoverable.
-export QT_PLUGIN_PATH="$SNAP/usr/lib/$TRIPLET/qt6/plugins:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/plugins:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
-export QML2_IMPORT_PATH="$SNAP/usr/lib/$TRIPLET/qt6/qml:$SNAP/lib/python3.12/site-packages/PyQt6/Qt6/qml:$SNAP/lib/python3.13/site-packages/PyQt6/Qt6/qml${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
+export QT_PLUGIN_PATH="$SNAP/usr/lib/$TRIPLET/qt6/plugins${QT_PLUGINS:+:${QT_PLUGINS}}${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+export QML2_IMPORT_PATH="$SNAP/usr/lib/$TRIPLET/qt6/qml${QML_IMPORTS:+:${QML_IMPORTS}}${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
 export XDG_DATA_DIRS="$SNAP/usr/share:$SNAP_APP_ROOT/assets:$XDG_DATA_DIRS"
 
 # 3. GDK Pixbuf — do NOT override GDK_PIXBUF_MODULE_FILE or GDK_PIXBUF_MODULEDIR.
