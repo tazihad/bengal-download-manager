@@ -27,7 +27,8 @@ runs:
         cat src/core/version.py
 
     - name: Build Snap Package
-      uses: snapcore/action-build@v1
+      # uses: snapcore/action-build@v1
+      uses: canonical/craft-actions/snapcraft/pack@v1
       id: snapcraft
       with:
         path: .
