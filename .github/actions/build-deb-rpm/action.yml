@@ -1,0 +1,119 @@
+name: 'Build DEB and RPM'
+description: 'Builds native .deb and .rpm packages using nfpm'
+inputs:
+  version:
+    description: 'Version string (without leading v)'
+    required: true
+  arch:
+    description: 'Target architecture (x86_64 or aarch64)'
+    required: false
+    default: 'x86_64'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build DEB and RPM Packages with nfpm
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        RAW_VERSION="${{ inputs.version }}"
+        export VERSION="${RAW_VERSION#v}"
+        ARCH="${{ inputs.arch }}"
+
+        if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+            export NFPM_ARCH="amd64"
+            export RPM_ARCH="x86_64"
+            export DEB_ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            export NFPM_ARCH="arm64"
+            export RPM_ARCH="aarch64"
+            export DEB_ARCH="arm64"
+        else
+            export NFPM_ARCH="$ARCH"
+            export RPM_ARCH="$ARCH"
+            export DEB_ARCH="$ARCH"
+        fi
+
+        echo "Packaging DEB and RPM for architecture: $ARCH (nfpm arch: $NFPM_ARCH, deb: $DEB_ARCH, rpm: $RPM_ARCH)"
+
+        # 1. Locate compiled binary
+        RAW_EXE=""
+        for candidate in \
+            "build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}" \
+            "build_cmake/dist/bengal-download-manager" \
+            "dist/bengal-download-manager-${VERSION}-${ARCH}" \
+            "dist/bengal-download-manager"; do
+            if [ -f "$candidate" ]; then
+                RAW_EXE="$candidate"
+                break
+            fi
+        done
+        if [ -z "$RAW_EXE" ]; then
+            RAW_EXE=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | head -n 1 || true)
+        fi
+
+        if [ -z "$RAW_EXE" ] || [ ! -f "$RAW_EXE" ]; then
+            echo "Error: Compiled standalone binary not found!" >&2
+            exit 1
+        fi
+        echo "Found compiled binary: $RAW_EXE"
+
+        # 2. Stage filesystem tree
+        export PKG_DIR="build_pkg_${ARCH}"
+        rm -rf "$PKG_DIR"
+        mkdir -p "$PKG_DIR/usr/bin"
+        install -Dm755 "$RAW_EXE" "$PKG_DIR/usr/bin/bengal-download-manager"
+
+        # Runtime assets
+        mkdir -p "$PKG_DIR/usr/share/bengal-download-manager/assets"
+        bash scripts/prepare_runtime_assets.sh "$PKG_DIR/usr/share/bengal-download-manager/assets" "$ARCH"
+
+        # Desktop entries
+        mkdir -p "$PKG_DIR/usr/share/applications"
+        install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.desktop "$PKG_DIR/usr/share/applications/bd.com.zihad.BengalDownloadManager.desktop"
+        install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.desktop "$PKG_DIR/usr/share/applications/bengal-download-manager.desktop"
+
+        # AppStream metainfo
+        mkdir -p "$PKG_DIR/usr/share/metainfo"
+        install -Dm644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml "$PKG_DIR/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml"
+
+        # Hicolor icons
+        for s in 16 32 64 128 256 512; do
+            if [ -f "assets/icons/${s}x${s}.png" ]; then
+                install -Dm644 "assets/icons/${s}x${s}.png" "$PKG_DIR/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
+                install -Dm644 "assets/icons/${s}x${s}.png" "$PKG_DIR/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
+            fi
+        done
+        if [ -f assets/logo.svg ]; then
+            install -Dm644 assets/logo.svg "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg"
+            install -Dm644 assets/logo.svg "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg"
+        fi
+
+        # 3. Download nfpm binary if not present on PATH
+        if ! command -v nfpm &>/dev/null; then
+            HOST_ARCH="$(uname -m)"
+            case "$HOST_ARCH" in
+                x86_64|amd64) NFPM_HOST_ARCH="x86_64" ;;
+                aarch64|arm64) NFPM_HOST_ARCH="arm64" ;;
+                *) NFPM_HOST_ARCH="x86_64" ;;
+            esac
+            NFPM_VER="2.48.0"
+            NFPM_URL="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VER}/nfpm_${NFPM_VER}_Linux_${NFPM_HOST_ARCH}.tar.gz"
+            echo "Downloading nfpm v${NFPM_VER} for host ${NFPM_HOST_ARCH}..."
+            mkdir -p /tmp/nfpm_bin
+            curl -sSL "$NFPM_URL" | tar -xz -C /tmp/nfpm_bin
+            export PATH="/tmp/nfpm_bin:$PATH"
+        fi
+        nfpm -v
+
+        # 4. Generate instantiated nfpm config via envsubst
+        envsubst < packaging/nfpm.yaml > "$PKG_DIR/nfpm.yaml"
+
+        # 5. Build packages into dist/
+        mkdir -p dist
+        nfpm package --config "$PKG_DIR/nfpm.yaml" --packager deb --target dist/
+        nfpm package --config "$PKG_DIR/nfpm.yaml" --packager rpm --target dist/
+
+        echo "Packages generated successfully in dist/:"
+        ls -la dist/*.deb dist/*.rpm
