@@ -1215,165 +1215,165 @@
             <translation>&amp;About Bengal DM</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3580" />
+            <location filename="../src/ui/main_window.py" line="3583" />
             <location filename="../src/ui/main_window.py" line="1010" />
             <source>Categories</source>
             <translation>Categories</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3581" />
+            <location filename="../src/ui/main_window.py" line="3584" />
             <location filename="../src/ui/main_window.py" line="1010" />
             <source>Download categories</source>
             <translation>Download categories</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3583" />
+            <location filename="../src/ui/main_window.py" line="3586" />
             <location filename="../src/ui/main_window.py" line="1012" />
             <source>All Downloads</source>
             <translation>All Downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3584" />
+            <location filename="../src/ui/main_window.py" line="3587" />
             <location filename="../src/ui/main_window.py" line="1016" />
             <source>Show all downloads regardless of category or status</source>
             <translation>Show all downloads regardless of category or status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3586" />
+            <location filename="../src/ui/main_window.py" line="3589" />
             <location filename="../src/ui/main_window.py" line="1021" />
             <source>Compressed</source>
             <translation>Compressed</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3586" />
+            <location filename="../src/ui/main_window.py" line="3589" />
             <location filename="../src/ui/main_window.py" line="1021" />
             <source>Filter downloads in Compressed category</source>
             <translation>Filter downloads in Compressed category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3587" />
+            <location filename="../src/ui/main_window.py" line="3590" />
             <location filename="../src/ui/main_window.py" line="1022" />
             <source>Documents</source>
             <translation>Documents</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3587" />
+            <location filename="../src/ui/main_window.py" line="3590" />
             <location filename="../src/ui/main_window.py" line="1022" />
             <source>Filter downloads in Documents category</source>
             <translation>Filter downloads in Documents category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3588" />
+            <location filename="../src/ui/main_window.py" line="3591" />
             <location filename="../src/ui/main_window.py" line="1023" />
             <source>Music</source>
             <translation>Music</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3588" />
+            <location filename="../src/ui/main_window.py" line="3591" />
             <location filename="../src/ui/main_window.py" line="1023" />
             <source>Filter downloads in Music category</source>
             <translation>Filter downloads in Music category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3589" />
+            <location filename="../src/ui/main_window.py" line="3592" />
             <location filename="../src/ui/main_window.py" line="1024" />
             <source>Programs</source>
             <translation>Programs</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3589" />
+            <location filename="../src/ui/main_window.py" line="3592" />
             <location filename="../src/ui/main_window.py" line="1024" />
             <source>Filter downloads in Programs category</source>
             <translation>Filter downloads in Programs category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3590" />
+            <location filename="../src/ui/main_window.py" line="3593" />
             <location filename="../src/ui/main_window.py" line="1025" />
             <source>Video</source>
             <translation>Video</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3590" />
+            <location filename="../src/ui/main_window.py" line="3593" />
             <location filename="../src/ui/main_window.py" line="1025" />
             <source>Filter downloads in Video category</source>
             <translation>Filter downloads in Video category</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3599" />
+            <location filename="../src/ui/main_window.py" line="3602" />
             <location filename="../src/ui/main_window.py" line="1034" />
             <source>Status</source>
             <translation>Status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3600" />
+            <location filename="../src/ui/main_window.py" line="3603" />
             <location filename="../src/ui/main_window.py" line="1034" />
             <source>Filter by download status</source>
             <translation>Filter by download status</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3602" />
+            <location filename="../src/ui/main_window.py" line="3605" />
             <location filename="../src/ui/main_window.py" line="1036" />
             <source>Incomplete</source>
             <translation>Incomplete</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3603" />
+            <location filename="../src/ui/main_window.py" line="3606" />
             <location filename="../src/ui/main_window.py" line="1040" />
             <source>Show active, paused, or pending downloads</source>
             <translation>Show active, paused, or pending downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3605" />
+            <location filename="../src/ui/main_window.py" line="3608" />
             <location filename="../src/ui/main_window.py" line="1042" />
             <source>Finished</source>
             <translation>Finished</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3606" />
+            <location filename="../src/ui/main_window.py" line="3609" />
             <location filename="../src/ui/main_window.py" line="1046" />
             <source>Show completed downloads</source>
             <translation>Show completed downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3608" />
+            <location filename="../src/ui/main_window.py" line="3611" />
             <location filename="../src/ui/main_window.py" line="2631" />
             <location filename="../src/ui/main_window.py" line="1049" />
             <source>Schedule</source>
             <translation>Schedule</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3609" />
+            <location filename="../src/ui/main_window.py" line="3612" />
             <location filename="../src/ui/main_window.py" line="1049" />
             <source>Download scheduler and queues</source>
             <translation>Download scheduler and queues</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3611" />
+            <location filename="../src/ui/main_window.py" line="3614" />
             <location filename="../src/ui/main_window.py" line="1051" />
             <source>Queues</source>
             <translation>Queues</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3612" />
+            <location filename="../src/ui/main_window.py" line="3615" />
             <location filename="../src/ui/main_window.py" line="1054" />
             <source>Download queues and scheduler</source>
             <translation>Download queues and scheduler</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3616" />
+            <location filename="../src/ui/main_window.py" line="3619" />
             <location filename="../src/ui/main_window.py" line="1067" />
             <source>Main download queue</source>
             <translation>Main download queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="3616" />
+            <location filename="../src/ui/main_window.py" line="3619" />
             <location filename="../src/ui/main_window.py" line="1067" />
             <source>Synchronization queue</source>
             <translation>Synchronization queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="4472" />
-            <location filename="../src/ui/main_window.py" line="3618" />
+            <location filename="../src/ui/main_window.py" line="4477" />
+            <location filename="../src/ui/main_window.py" line="3621" />
             <location filename="../src/ui/main_window.py" line="2959" />
             <location filename="../src/ui/main_window.py" line="1070" />
             <source>Queue: %1</source>
@@ -1417,82 +1417,63 @@
             <translation>Create new queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="4185" />
+            <location filename="../src/ui/main_window.py" line="4190" />
             <source>Show progress window</source>
             <translation>Show progress window</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="4454" />
+            <location filename="../src/ui/main_window.py" line="4459" />
             <source>New Queue</source>
             <translation>New Queue</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="4454" />
+            <location filename="../src/ui/main_window.py" line="4459" />
             <source>Enter queue name:</source>
             <translation>Enter queue name:</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="4691" />
+            <location filename="../src/ui/main_window.py" line="4696" />
             <source>Batch Added</source>
             <translation>Batch Added</translation>
         </message>
         <message>
-            <location filename="../src/ui/main_window.py" line="6788" />
+            <location filename="../src/ui/main_window.py" line="4809" />
+            <source>Direct download cancelled - this link is not a direct media stream. Use Standard mode.</source>
+            <translation>Direct download cancelled - this link is not a direct media stream. Use Standard mode.</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/main_window.py" line="6916" />
             <source>Stopped all download queues (Synchronization queue preserved)</source>
             <translation>Stopped all download queues (Synchronization queue preserved)</translation>
         </message>
         <message>
-            <location filename="../src/core/media/direct.py" line="131" />
+            <location filename="../src/core/media/direct.py" line="441" />
             <source>Aria2 engine unavailable - Direct download cancelled.</source>
             <translation>Aria2 engine unavailable - Direct download cancelled.</translation>
         </message>
         <message>
-            <source>Columns...</source>
-            <translation>Columns...</translation>
-        </message>
-        <message>
-            <source>Speed: 0 B/s</source>
-            <translation>Speed: 0 B/s</translation>
-        </message>
-        <message>
-            <source>Memory: 0 B</source>
-            <translation>Memory: 0 B</translation>
-        </message>
-        <message>
-            <source>Proxy Status (Click to configure)</source>
-            <translation>Proxy Status (Click to configure)</translation>
-        </message>
-        <message>
-            <source>),</source>
-            <translation>),</translation>
-        </message>
-        <message>
-            <source>● Media: Ready</source>
-            <translation>● Media: Ready</translation>
-        </message>
-        <message>
-            <source>0 items</source>
-            <translation>0 items</translation>
-        </message>
-        <message>
-            <source>Browser Extension IPC Status</source>
-            <translation>Browser Extension IPC Status</translation>
-        </message>
-        <message>
-            <source>● Aria2: Ready</source>
-            <translation>● Aria2: Ready</translation>
-        </message>
-        <message>
-            <source>No downloads in list</source>
-            <translation>No downloads in list</translation>
+            <source>Application Memory Usage (Resident Set Size)</source>
+            <translation>Application Memory Usage (Resident Set Size)</translation>
         </message>
         <message>
             <source>Media Engine: Missing or not installed\nClick to open Media Downloader and install</source>
             <translation>Media Engine: Missing or not installed\nClick to open Media Downloader and install</translation>
         </message>
         <message>
-            <source>Public IP: Unable to detect (offline or blocked)</source>
-            <translation>Public IP: Unable to detect (offline or blocked)</translation>
+            <source>Media Status (Click to open Media Downloader)</source>
+            <translation>Media Status (Click to open Media Downloader)</translation>
+        </message>
+        <message>
+            <source>Columns...</source>
+            <translation>Columns...</translation>
+        </message>
+        <message>
+            <source>Memory: 0 B</source>
+            <translation>Memory: 0 B</translation>
+        </message>
+        <message>
+            <source>No downloads in list</source>
+            <translation>No downloads in list</translation>
         </message>
         <message>
             <source>) if can_show_progress else _fi(get_themed_icon(</source>
@@ -1503,724 +1484,773 @@
             <translation>IP: Detecting...</translation>
         </message>
         <message>
-            <source>Application Memory Usage (Resident Set Size)</source>
-            <translation>Application Memory Usage (Resident Set Size)</translation>
-        </message>
-        <message>
-            <source>)), self.tr(</source>
-            <translation>)), self.tr(</translation>
-        </message>
-        <message>
-            <source>Media Status (Click to open Media Downloader)</source>
-            <translation>Media Status (Click to open Media Downloader)</translation>
-        </message>
-        <message>
-            <source>Bengal Download Manager</source>
-            <translation>Bengal Download Manager</translation>
+            <source>)),</source>
+            <translation>)),</translation>
         </message>
         <message>
             <source>Aria2 RPC Status</source>
             <translation>Aria2 RPC Status</translation>
         </message>
         <message>
-            <source>Proxy: Direct</source>
-            <translation>Proxy: Direct</translation>
+            <source>)), self.tr(</source>
+            <translation>)), self.tr(</translation>
         </message>
         <message>
-            <source>), self.tr(</source>
-            <translation>), self.tr(</translation>
+            <source>● Media: Ready</source>
+            <translation>● Media: Ready</translation>
         </message>
         <message>
             <source>Total Transfer Rate</source>
             <translation>Total Transfer Rate</translation>
         </message>
         <message>
+            <source>Public IP Address (Click to copy)</source>
+            <translation>Public IP Address (Click to copy)</translation>
+        </message>
+        <message>
+            <source>Speed: 0 B/s</source>
+            <translation>Speed: 0 B/s</translation>
+        </message>
+        <message>
+            <source>),</source>
+            <translation>),</translation>
+        </message>
+        <message>
             <source>Direct connection (No proxy configured)\nClick to configure</source>
             <translation>Direct connection (No proxy configured)\nClick to configure</translation>
         </message>
         <message>
-            <source>Direct connection (Proxy host is empty)\nClick to configure</source>
-            <translation>Direct connection (Proxy host is empty)\nClick to configure</translation>
+            <source>Bengal Download Manager</source>
+            <translation>Bengal Download Manager</translation>
         </message>
         <message>
-            <source>)),</source>
-            <translation>)),</translation>
+            <source>0 items</source>
+            <translation>0 items</translation>
+        </message>
+        <message>
+            <source>), self.tr(</source>
+            <translation>), self.tr(</translation>
+        </message>
+        <message>
+            <source>Browser Extension IPC Status</source>
+            <translation>Browser Extension IPC Status</translation>
+        </message>
+        <message>
+            <source>Proxy Status (Click to configure)</source>
+            <translation>Proxy Status (Click to configure)</translation>
         </message>
         <message>
             <source>● IPC: Ready</source>
             <translation>● IPC: Ready</translation>
         </message>
         <message>
-            <source>Public IP Address (Click to copy)</source>
-            <translation>Public IP Address (Click to copy)</translation>
+            <source>Direct connection (Proxy host is empty)\nClick to configure</source>
+            <translation>Direct connection (Proxy host is empty)\nClick to configure</translation>
+        </message>
+        <message>
+            <source>Public IP: Unable to detect (offline or blocked)</source>
+            <translation>Public IP: Unable to detect (offline or blocked)</translation>
+        </message>
+        <message>
+            <source>Proxy: Direct</source>
+            <translation>Proxy: Direct</translation>
+        </message>
+        <message>
+            <source>● Aria2: Ready</source>
+            <translation>● Aria2: Ready</translation>
         </message>
     </context>
     <context>
         <name>OptionsDialog</name>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="179" />
+            <location filename="../src/ui/dialogs/options.py" line="180" />
             <source>Options</source>
             <translation>Options</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="874" />
-            <location filename="../src/ui/dialogs/options.py" line="219" />
+            <location filename="../src/ui/dialogs/options.py" line="1033" />
+            <location filename="../src/ui/dialogs/options.py" line="280" />
             <source>General</source>
             <translation>General</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="223" />
+            <location filename="../src/ui/dialogs/options.py" line="281" />
             <source>Downloads</source>
             <translation>Downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="227" />
+            <location filename="../src/ui/dialogs/options.py" line="282" />
             <source>Save To</source>
             <translation>Save To</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="231" />
+            <location filename="../src/ui/dialogs/options.py" line="283" />
             <source>Startup</source>
             <translation>Startup</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="236" />
+            <location filename="../src/ui/dialogs/options.py" line="284" />
             <source>Extensions</source>
             <translation>Extensions</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="240" />
+            <location filename="../src/ui/dialogs/options.py" line="285" />
             <source>Media</source>
             <translation>Media</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="244" />
+            <location filename="../src/ui/dialogs/options.py" line="286" />
             <source>Aria2 / RPC</source>
             <translation>Aria2 / RPC</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="248" />
+            <location filename="../src/ui/dialogs/options.py" line="287" />
             <source>Proxy / Socks</source>
             <translation>Proxy / Socks</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="265" />
+            <location filename="../src/ui/dialogs/options.py" line="389" />
             <source>OK</source>
             <translation>OK</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="269" />
+            <location filename="../src/ui/dialogs/options.py" line="393" />
             <source>Save configuration changes and close dialog</source>
             <translation>Save configuration changes and close dialog</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="272" />
+            <location filename="../src/ui/dialogs/options.py" line="396" />
             <source>Cancel</source>
             <translation>Cancel</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="275" />
+            <location filename="../src/ui/dialogs/options.py" line="399" />
             <source>Discard changes and close dialog</source>
             <translation>Discard changes and close dialog</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="315" />
+            <location filename="../src/ui/dialogs/options.py" line="455" />
             <source>Theme and Appearance</source>
             <translation>Theme and Appearance</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="321" />
+            <location filename="../src/ui/dialogs/options.py" line="461" />
             <source>Theme:</source>
             <translation>Theme:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="324" />
-            <location filename="../src/ui/dialogs/options.py" line="322" />
+            <location filename="../src/ui/dialogs/options.py" line="464" />
+            <location filename="../src/ui/dialogs/options.py" line="462" />
             <source>Select application visual theme</source>
             <translation>Select application visual theme</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="342" />
+            <location filename="../src/ui/dialogs/options.py" line="482" />
             <source>Accent:</source>
             <translation>Accent:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="345" />
-            <location filename="../src/ui/dialogs/options.py" line="343" />
+            <location filename="../src/ui/dialogs/options.py" line="485" />
+            <location filename="../src/ui/dialogs/options.py" line="483" />
             <source>Select accent/highlight color</source>
             <translation>Select accent/highlight color</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="359" />
+            <location filename="../src/ui/dialogs/options.py" line="499" />
             <source>Icons:</source>
             <translation>Icons:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="362" />
-            <location filename="../src/ui/dialogs/options.py" line="360" />
+            <location filename="../src/ui/dialogs/options.py" line="502" />
+            <location filename="../src/ui/dialogs/options.py" line="500" />
             <source>Select icon theme set for toolbar and sidebar</source>
             <translation>Select icon theme set for toolbar and sidebar</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="371" />
+            <location filename="../src/ui/dialogs/options.py" line="511" />
             <source>Tray Icon:</source>
             <translation>Tray Icon:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="374" />
-            <location filename="../src/ui/dialogs/options.py" line="372" />
+            <location filename="../src/ui/dialogs/options.py" line="514" />
+            <location filename="../src/ui/dialogs/options.py" line="512" />
             <source>Select system tray icon style</source>
             <translation>Select system tray icon style</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="385" />
+            <location filename="../src/ui/dialogs/options.py" line="525" />
             <source>Title bar:</source>
             <translation>Title bar:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="386" />
+            <location filename="../src/ui/dialogs/options.py" line="526" />
             <source>Select title bar theme: follow system theme, system light, or system dark</source>
             <translation>Select title bar theme: follow system theme, system light, or system dark</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="388" />
+            <location filename="../src/ui/dialogs/options.py" line="528" />
             <source>Select title bar theme: Automatic (follow system theme), Light, or Dark</source>
             <translation>Select title bar theme: Automatic (follow system theme), Light, or Dark</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="397" />
+            <location filename="../src/ui/dialogs/options.py" line="537" />
             <source>Highlight text:</source>
             <translation>Highlight text:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="398" />
+            <location filename="../src/ui/dialogs/options.py" line="538" />
             <source>Select color of selected and highlighted text across table and menus</source>
             <translation>Select color of selected and highlighted text across table and menus</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="400" />
+            <location filename="../src/ui/dialogs/options.py" line="540" />
             <source>Select color of highlighted text: Automatic, White, Dark, Cyan, Yellow, Mint Green, Rose Pink, Orange, Lavender</source>
             <translation>Select color of highlighted text: Automatic, White, Dark, Cyan, Yellow, Mint Green, Rose Pink, Orange, Lavender</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="498" />
+            <location filename="../src/ui/dialogs/options.py" line="638" />
             <source>UI Settings</source>
             <translation>UI Settings</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="503" />
+            <location filename="../src/ui/dialogs/options.py" line="643" />
             <source>Scale:</source>
             <translation>Scale:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="506" />
-            <location filename="../src/ui/dialogs/options.py" line="504" />
+            <location filename="../src/ui/dialogs/options.py" line="646" />
+            <location filename="../src/ui/dialogs/options.py" line="644" />
             <source>Set user interface scale factor</source>
             <translation>Set user interface scale factor</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="530" />
+            <location filename="../src/ui/dialogs/options.py" line="670" />
             <source>Language:</source>
             <translation>Language:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="531" />
+            <location filename="../src/ui/dialogs/options.py" line="671" />
             <source>Select user interface language</source>
             <translation>Select user interface language</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="533" />
+            <location filename="../src/ui/dialogs/options.py" line="673" />
             <source>Select interface language (Restart recommended to apply changes to all windows)</source>
             <translation>Select interface language (Restart recommended to apply changes to all windows)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="573" />
+            <location filename="../src/ui/dialogs/options.py" line="710" />
+            <source>Options UI:</source>
+            <translation>Options UI:</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/dialogs/options.py" line="711" />
+            <source>Select options dialog layout style</source>
+            <translation>Select options dialog layout style</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/dialogs/options.py" line="713" />
+            <source>Classic uses the original tabbed layout; Modern uses a side panel</source>
+            <translation>Classic uses the original tabbed layout; Modern uses a side panel</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/dialogs/options.py" line="714" />
+            <source>Modern</source>
+            <translation>Modern</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/dialogs/options.py" line="714" />
+            <source>Classic</source>
+            <translation>Classic</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/dialogs/options.py" line="732" />
             <source>Deletion and Confirmations</source>
             <translation>Deletion and Confirmations</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="578" />
+            <location filename="../src/ui/dialogs/options.py" line="737" />
             <source>Pre-check delete files from disk permanently</source>
             <translation>Pre-check delete files from disk permanently</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="580" />
+            <location filename="../src/ui/dialogs/options.py" line="739" />
             <source>When deleting downloads, permanently remove downloaded files from disk by default.</source>
             <translation>When deleting downloads, permanently remove downloaded files from disk by default.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="619" />
+            <location filename="../src/ui/dialogs/options.py" line="778" />
             <source>Download Dialogs</source>
             <translation>Download Dialogs</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="624" />
+            <location filename="../src/ui/dialogs/options.py" line="783" />
             <source>Silent download mode (start immediately without showing any dialogs)</source>
             <translation>Silent download mode (start immediately without showing any dialogs)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="625" />
+            <location filename="../src/ui/dialogs/options.py" line="784" />
             <source>When enabled, downloads start and finish silently in the background without showing Start, Progress, or Complete popup dialogs</source>
             <translation>When enabled, downloads start and finish silently in the background without showing Start, Progress, or Complete popup dialogs</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="634" />
+            <location filename="../src/ui/dialogs/options.py" line="793" />
             <source>Show start download dialog</source>
             <translation>Show start download dialog</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="635" />
+            <location filename="../src/ui/dialogs/options.py" line="794" />
             <source>Show confirmation and destination dialog before starting a download</source>
             <translation>Show confirmation and destination dialog before starting a download</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="639" />
+            <location filename="../src/ui/dialogs/options.py" line="798" />
             <source>Start downloading immediately while showing start dialog (early download)</source>
             <translation>Start downloading immediately while showing start dialog (early download)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="640" />
+            <location filename="../src/ui/dialogs/options.py" line="799" />
             <source>Begin downloading the file in the background while the start dialog is open (like IDM). If you cancel, the partial file is deleted.</source>
             <translation>Begin downloading the file in the background while the start dialog is open (like IDM). If you cancel, the partial file is deleted.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="644" />
+            <location filename="../src/ui/dialogs/options.py" line="803" />
             <source>Show download progress dialog</source>
             <translation>Show download progress dialog</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="659" />
-            <location filename="../src/ui/dialogs/options.py" line="645" />
+            <location filename="../src/ui/dialogs/options.py" line="818" />
+            <location filename="../src/ui/dialogs/options.py" line="804" />
             <source>Show popup progress dialog during active file transfer</source>
             <translation>Show popup progress dialog during active file transfer</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="649" />
+            <location filename="../src/ui/dialogs/options.py" line="808" />
             <source>Show download complete dialog</source>
             <translation>Show download complete dialog</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="650" />
+            <location filename="../src/ui/dialogs/options.py" line="809" />
             <source>Show popup completion window when a file finishes downloading</source>
             <translation>Show popup completion window when a file finishes downloading</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="654" />
+            <location filename="../src/ui/dialogs/options.py" line="813" />
             <source>Show download complete dialog for downloads in queues</source>
             <translation>Show download complete dialog for downloads in queues</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="655" />
+            <location filename="../src/ui/dialogs/options.py" line="814" />
             <source>Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)</source>
             <translation>Show completion dialog for individual files inside download queues (Default: Disabled to prevent popup spam)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="660" />
+            <location filename="../src/ui/dialogs/options.py" line="819" />
             <source>Show popup progress dialog during active file transfer (Requires 'Show start download dialog' to be enabled)</source>
             <translation>Show popup progress dialog during active file transfer (Requires 'Show start download dialog' to be enabled)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="661" />
+            <location filename="../src/ui/dialogs/options.py" line="820" />
             <source>Show popup progress dialog during active file transfer (Disabled when Silent Download is enabled)</source>
             <translation>Show popup progress dialog during active file transfer (Disabled when Silent Download is enabled)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="692" />
+            <location filename="../src/ui/dialogs/options.py" line="851" />
             <source>Notifications</source>
             <translation>Notifications</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="697" />
+            <location filename="../src/ui/dialogs/options.py" line="856" />
             <source>Show system notification when download completes</source>
             <translation>Show system notification when download completes</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="704" />
+            <location filename="../src/ui/dialogs/options.py" line="863" />
             <source>Send an XDG standard desktop notification when a download completes</source>
             <translation>Send an XDG standard desktop notification when a download completes</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="711" />
+            <location filename="../src/ui/dialogs/options.py" line="870" />
             <source>Engine and Connection Settings</source>
             <translation>Engine and Connection Settings</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="805" />
-            <location filename="../src/ui/dialogs/options.py" line="717" />
+            <location filename="../src/ui/dialogs/options.py" line="964" />
+            <location filename="../src/ui/dialogs/options.py" line="876" />
             <source>Active Engine: Checking...</source>
             <translation>Active Engine: Checking...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="719" />
+            <location filename="../src/ui/dialogs/options.py" line="878" />
             <source>Connection status and backend binary for Aria2 download engine</source>
             <translation>Connection status and backend binary for Aria2 download engine</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="724" />
+            <location filename="../src/ui/dialogs/options.py" line="883" />
             <source>Max Split Connections (threads):</source>
             <translation>Max Split Connections (threads):</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="733" />
-            <location filename="../src/ui/dialogs/options.py" line="725" />
+            <location filename="../src/ui/dialogs/options.py" line="892" />
+            <location filename="../src/ui/dialogs/options.py" line="884" />
             <source>Default number of parallel split connections / threads per download (1-32). Default: 8</source>
             <translation>Default number of parallel split connections / threads per download (1-32). Default: 8</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="766" />
+            <location filename="../src/ui/dialogs/options.py" line="925" />
             <source>Startup and Integration</source>
             <translation>Startup and Integration</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="771" />
+            <location filename="../src/ui/dialogs/options.py" line="930" />
             <source>Launch Bengal DM on system startup</source>
             <translation>Launch Bengal DM on system startup</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="773" />
+            <location filename="../src/ui/dialogs/options.py" line="932" />
             <source>Automatically launch Bengal Download Manager on system boot</source>
             <translation>Automatically launch Bengal Download Manager on system boot</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="776" />
+            <location filename="../src/ui/dialogs/options.py" line="935" />
             <source>Start minimized in system tray on system startup</source>
             <translation>Start minimized in system tray on system startup</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="780" />
+            <location filename="../src/ui/dialogs/options.py" line="939" />
             <source>Launch hidden in system tray when autostarting</source>
             <translation>Launch hidden in system tray when autostarting</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="808" />
+            <location filename="../src/ui/dialogs/options.py" line="967" />
             <source>Fallback (Custom Python)</source>
             <translation>Fallback (Custom Python)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="813" />
+            <location filename="../src/ui/dialogs/options.py" line="972" />
             <source>Aria2 Connected (v%1)</source>
             <translation>Aria2 Connected (v%1)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="817" />
+            <location filename="../src/ui/dialogs/options.py" line="976" />
             <source>Aria2 Not Installed (Python Engine Active)</source>
             <translation>Aria2 Not Installed (Python Engine Active)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="819" />
+            <location filename="../src/ui/dialogs/options.py" line="978" />
             <source>Offline (Python Fallback Active)</source>
             <translation>Offline (Python Fallback Active)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="823" />
+            <location filename="../src/ui/dialogs/options.py" line="982" />
             <source>Not found</source>
             <translation>Not found</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="824" />
+            <location filename="../src/ui/dialogs/options.py" line="983" />
             <source>Active Engine:</source>
             <translation>Active Engine:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="824" />
+            <location filename="../src/ui/dialogs/options.py" line="983" />
             <source>Binary:</source>
             <translation>Binary:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="851" />
+            <location filename="../src/ui/dialogs/options.py" line="1010" />
             <source>Categories, file types, folders</source>
             <translation>Categories, file types, folders</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="860" />
+            <location filename="../src/ui/dialogs/options.py" line="1019" />
             <source>Save To...</source>
             <translation>Save To...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="866" />
+            <location filename="../src/ui/dialogs/options.py" line="1025" />
             <source>Category</source>
             <translation>Category</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="871" />
+            <location filename="../src/ui/dialogs/options.py" line="1030" />
             <source>Compressed</source>
             <translation>Compressed</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="872" />
+            <location filename="../src/ui/dialogs/options.py" line="1031" />
             <source>Disk Images</source>
             <translation>Disk Images</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="873" />
+            <location filename="../src/ui/dialogs/options.py" line="1032" />
             <source>Documents</source>
             <translation>Documents</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="875" />
+            <location filename="../src/ui/dialogs/options.py" line="1034" />
             <source>Images</source>
             <translation>Images</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="876" />
+            <location filename="../src/ui/dialogs/options.py" line="1035" />
             <source>Music</source>
             <translation>Music</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="877" />
+            <location filename="../src/ui/dialogs/options.py" line="1036" />
             <source>Programs</source>
             <translation>Programs</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="878" />
+            <location filename="../src/ui/dialogs/options.py" line="1037" />
             <source>Video</source>
             <translation>Video</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="886" />
+            <location filename="../src/ui/dialogs/options.py" line="1045" />
             <source>Select category to configure download routing rules</source>
             <translation>Select category to configure download routing rules</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="890" />
+            <location filename="../src/ui/dialogs/options.py" line="1049" />
             <source>Automatically put in above category the following file types:</source>
             <translation>Automatically put in above category the following file types:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="892" />
+            <location filename="../src/ui/dialogs/options.py" line="1051" />
             <source>Space-separated file extensions automatically assigned to this category</source>
             <translation>Space-separated file extensions automatically assigned to this category</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2010" />
-            <location filename="../src/ui/dialogs/options.py" line="896" />
+            <location filename="../src/ui/dialogs/options.py" line="2170" />
+            <location filename="../src/ui/dialogs/options.py" line="1055" />
             <source>Default download directory for "%1" category</source>
             <translation>Default download directory for "%1" category</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="901" />
+            <location filename="../src/ui/dialogs/options.py" line="1060" />
             <source>Default save directory for files in selected category</source>
             <translation>Default save directory for files in selected category</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="929" />
-            <location filename="../src/ui/dialogs/options.py" line="905" />
+            <location filename="../src/ui/dialogs/options.py" line="1088" />
+            <location filename="../src/ui/dialogs/options.py" line="1064" />
             <source>Browse</source>
             <translation>Browse</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="906" />
+            <location filename="../src/ui/dialogs/options.py" line="1065" />
             <source>Browse folder to set category save directory</source>
             <translation>Browse folder to set category save directory</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="911" />
+            <location filename="../src/ui/dialogs/options.py" line="1070" />
             <source>Change folder for selected category on last selected</source>
             <translation>Change folder for selected category on last selected</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="913" />
+            <location filename="../src/ui/dialogs/options.py" line="1072" />
             <source>Automatically update category directory when selecting a custom folder</source>
             <translation>Automatically update category directory when selecting a custom folder</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="918" />
+            <location filename="../src/ui/dialogs/options.py" line="1077" />
             <source>Temporary / Cache directory</source>
             <translation>Temporary / Cache directory</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="926" />
+            <location filename="../src/ui/dialogs/options.py" line="1085" />
             <source>Temporary and cache directory used for downloading chunks, video stream fragments, and incomplete downloads before merging</source>
             <translation>Temporary and cache directory used for downloading chunks, video stream fragments, and incomplete downloads before merging</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="930" />
+            <location filename="../src/ui/dialogs/options.py" line="1089" />
             <source>Browse folder for temporary chunk and cache storage</source>
             <translation>Browse folder for temporary chunk and cache storage</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="964" />
+            <location filename="../src/ui/dialogs/options.py" line="1123" />
             <source>No proxy / Get from system</source>
             <translation>No proxy / Get from system</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="965" />
+            <location filename="../src/ui/dialogs/options.py" line="1124" />
             <source>Connect directly to the internet without using a custom proxy</source>
             <translation>Connect directly to the internet without using a custom proxy</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="970" />
+            <location filename="../src/ui/dialogs/options.py" line="1129" />
             <source>Manual proxy configuration</source>
             <translation>Manual proxy configuration</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="971" />
+            <location filename="../src/ui/dialogs/options.py" line="1130" />
             <source>Route all download traffic through a custom HTTP or HTTPS proxy server</source>
             <translation>Route all download traffic through a custom HTTP or HTTPS proxy server</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="986" />
+            <location filename="../src/ui/dialogs/options.py" line="1145" />
             <source>HTTP</source>
             <translation>HTTP</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="987" />
+            <location filename="../src/ui/dialogs/options.py" line="1146" />
             <source>Use HTTP proxy protocol</source>
             <translation>Use HTTP proxy protocol</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="989" />
+            <location filename="../src/ui/dialogs/options.py" line="1148" />
             <source>HTTPS</source>
             <translation>HTTPS</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="990" />
+            <location filename="../src/ui/dialogs/options.py" line="1149" />
             <source>Use secure HTTPS proxy protocol</source>
             <translation>Use secure HTTPS proxy protocol</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="992" />
+            <location filename="../src/ui/dialogs/options.py" line="1151" />
             <source>SOCKS4</source>
             <translation>SOCKS4</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="993" />
+            <location filename="../src/ui/dialogs/options.py" line="1152" />
             <source>Use SOCKS4 proxy protocol (user identity only)</source>
             <translation>Use SOCKS4 proxy protocol (user identity only)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="995" />
+            <location filename="../src/ui/dialogs/options.py" line="1154" />
             <source>SOCKS5</source>
             <translation>SOCKS5</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="996" />
+            <location filename="../src/ui/dialogs/options.py" line="1155" />
             <source>Use SOCKS5 proxy protocol (with optional user/password authentication)</source>
             <translation>Use SOCKS5 proxy protocol (with optional user/password authentication)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1004" />
+            <location filename="../src/ui/dialogs/options.py" line="1163" />
             <source>Type:</source>
             <translation>Type:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1005" />
+            <location filename="../src/ui/dialogs/options.py" line="1164" />
             <source>Select proxy protocol type</source>
             <translation>Select proxy protocol type</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1016" />
+            <location filename="../src/ui/dialogs/options.py" line="1175" />
             <source>Proxy host:</source>
             <translation>Proxy host:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1017" />
+            <location filename="../src/ui/dialogs/options.py" line="1176" />
             <source>Hostname or IP address of the proxy server</source>
             <translation>Hostname or IP address of the proxy server</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1020" />
+            <location filename="../src/ui/dialogs/options.py" line="1179" />
             <source>Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)</source>
             <translation>Hostname or IP address of proxy server (e.g. 127.0.0.1 or proxy.example.com)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1350" />
-            <location filename="../src/ui/dialogs/options.py" line="1025" />
+            <location filename="../src/ui/dialogs/options.py" line="1510" />
+            <location filename="../src/ui/dialogs/options.py" line="1184" />
             <source>Port:</source>
             <translation>Port:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1026" />
+            <location filename="../src/ui/dialogs/options.py" line="1185" />
             <source>Port number of the proxy server (1-65535)</source>
             <translation>Port number of the proxy server (1-65535)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1031" />
+            <location filename="../src/ui/dialogs/options.py" line="1190" />
             <source>Port number of proxy server (1-65535)</source>
             <translation>Port number of proxy server (1-65535)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1799" />
-            <location filename="../src/ui/dialogs/options.py" line="1038" />
+            <location filename="../src/ui/dialogs/options.py" line="1959" />
+            <location filename="../src/ui/dialogs/options.py" line="1198" />
             <source>Authentication required</source>
             <translation>Authentication required</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1039" />
+            <location filename="../src/ui/dialogs/options.py" line="1199" />
             <source>Enable username and password credentials for proxy authentication</source>
             <translation>Enable username and password credentials for proxy authentication</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1046" />
+            <location filename="../src/ui/dialogs/options.py" line="1206" />
             <source>Username:</source>
             <translation>Username:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1801" />
-            <location filename="../src/ui/dialogs/options.py" line="1047" />
+            <location filename="../src/ui/dialogs/options.py" line="1961" />
+            <location filename="../src/ui/dialogs/options.py" line="1207" />
             <source>Username for proxy authentication</source>
             <translation>Username for proxy authentication</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1803" />
-            <location filename="../src/ui/dialogs/options.py" line="1050" />
+            <location filename="../src/ui/dialogs/options.py" line="1963" />
+            <location filename="../src/ui/dialogs/options.py" line="1210" />
             <source>Username for proxy server authentication</source>
             <translation>Username for proxy server authentication</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1055" />
+            <location filename="../src/ui/dialogs/options.py" line="1215" />
             <source>Password:</source>
             <translation>Password:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1805" />
-            <location filename="../src/ui/dialogs/options.py" line="1056" />
+            <location filename="../src/ui/dialogs/options.py" line="1965" />
+            <location filename="../src/ui/dialogs/options.py" line="1216" />
             <source>Password for proxy authentication</source>
             <translation>Password for proxy authentication</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1808" />
-            <location filename="../src/ui/dialogs/options.py" line="1060" />
+            <location filename="../src/ui/dialogs/options.py" line="1968" />
+            <location filename="../src/ui/dialogs/options.py" line="1220" />
             <source>Password for proxy server authentication</source>
             <translation>Password for proxy server authentication</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1085" />
+            <location filename="../src/ui/dialogs/options.py" line="1245" />
             <source>Country flag</source>
             <translation>Country flag</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1092" />
+            <location filename="../src/ui/dialogs/options.py" line="1252" />
             <source>Proxy status: Not checked</source>
             <translation>Proxy status: Not checked</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1110" />
+            <location filename="../src/ui/dialogs/options.py" line="1270" />
             <source>Test Proxy</source>
             <translation>Test Proxy</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1120" />
+            <location filename="../src/ui/dialogs/options.py" line="1280" />
             <source>Verify connection and detect external IP and country using this proxy</source>
             <translation>Verify connection and detect external IP and country using this proxy</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1220" />
+            <location filename="../src/ui/dialogs/options.py" line="1380" />
             <source>&lt;b&gt;Bengal Download Manager Integration Module&lt;/b&gt;</source>
             <translation>&lt;b&gt;Bengal Download Manager Integration Module&lt;/b&gt;</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1225" />
+            <location filename="../src/ui/dialogs/options.py" line="1385" />
             <source>Browser Integration Overview</source>
             <translation>Browser Integration Overview</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1231" />
+            <location filename="../src/ui/dialogs/options.py" line="1391" />
             <source>The Bengal DM browser extension captures downloads directly from your browser and sends them to Bengal Download Manager for high-speed multi-threaded acceleration.</source>
             <translation>The Bengal DM browser extension captures downloads directly from your browser and sends them to Bengal Download Manager for high-speed multi-threaded acceleration.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1237" />
+            <location filename="../src/ui/dialogs/options.py" line="1397" />
             <source>• One-click automatic download interception
 • Media sniffer for online audio and video streams
 • Right-click context menu to download links or selection
@@ -2231,163 +2261,163 @@
 • Configurable file type filtering and bypass lists</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1244" />
+            <location filename="../src/ui/dialogs/options.py" line="1404" />
             <source>Get Browser Extension</source>
             <translation>Get Browser Extension</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1249" />
+            <location filename="../src/ui/dialogs/options.py" line="1409" />
             <source>Install the extension directly in your preferred browser:</source>
             <translation>Install the extension directly in your preferred browser:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1259" />
+            <location filename="../src/ui/dialogs/options.py" line="1419" />
             <source> GitHub Releases</source>
             <translation> GitHub Releases</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1263" />
+            <location filename="../src/ui/dialogs/options.py" line="1423" />
             <source>Open GitHub Releases page to download extension package (.xpi / .zip)</source>
             <translation>Open GitHub Releases page to download extension package (.xpi / .zip)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1266" />
+            <location filename="../src/ui/dialogs/options.py" line="1426" />
             <source> Firefox Store</source>
             <translation> Firefox Store</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1270" />
+            <location filename="../src/ui/dialogs/options.py" line="1430" />
             <source>Open Mozilla Firefox Add-ons Store page</source>
             <translation>Open Mozilla Firefox Add-ons Store page</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1273" />
+            <location filename="../src/ui/dialogs/options.py" line="1433" />
             <source> Chrome (Coming Soon)</source>
             <translation> Chrome (Coming Soon)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1277" />
+            <location filename="../src/ui/dialogs/options.py" line="1437" />
             <source>Chrome Web Store integration is coming soon</source>
             <translation>Chrome Web Store integration is coming soon</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1287" />
+            <location filename="../src/ui/dialogs/options.py" line="1447" />
             <source>&lt;i&gt;Note: To configure Aria2 RPC authentication token or local IPC port, open the &lt;b&gt;Aria2 / RPC&lt;/b&gt; tab.&lt;/i&gt;</source>
             <translation>&lt;i&gt;Note: To configure Aria2 RPC authentication token or local IPC port, open the &lt;b&gt;Aria2 / RPC&lt;/b&gt; tab.&lt;/i&gt;</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1316" />
+            <location filename="../src/ui/dialogs/options.py" line="1476" />
             <source>&lt;b&gt;Aria2 RPC &amp; IPC Connection Settings&lt;/b&gt;</source>
             <translation>&lt;b&gt;Aria2 RPC &amp; IPC Connection Settings&lt;/b&gt;</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1322" />
+            <location filename="../src/ui/dialogs/options.py" line="1482" />
             <source>Aria2 RPC Daemon Settings</source>
             <translation>Aria2 RPC Daemon Settings</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1328" />
+            <location filename="../src/ui/dialogs/options.py" line="1488" />
             <source>Protocol:</source>
             <translation>Protocol:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1331" />
+            <location filename="../src/ui/dialogs/options.py" line="1491" />
             <source>Communication protocol for connecting to Aria2 RPC daemon</source>
             <translation>Communication protocol for connecting to Aria2 RPC daemon</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1355" />
+            <location filename="../src/ui/dialogs/options.py" line="1515" />
             <source>Port number for Aria2 RPC daemon (default 56800)</source>
             <translation>Port number for Aria2 RPC daemon (default 56800)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1359" />
+            <location filename="../src/ui/dialogs/options.py" line="1519" />
             <source>Secret Token:</source>
             <translation>Secret Token:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1362" />
+            <location filename="../src/ui/dialogs/options.py" line="1522" />
             <source>Optional secret token</source>
             <translation>Optional secret token</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1365" />
+            <location filename="../src/ui/dialogs/options.py" line="1525" />
             <source>Secret authentication token for Aria2 RPC requests</source>
             <translation>Secret authentication token for Aria2 RPC requests</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1369" />
+            <location filename="../src/ui/dialogs/options.py" line="1529" />
             <source>Show Token</source>
             <translation>Show Token</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1370" />
+            <location filename="../src/ui/dialogs/options.py" line="1530" />
             <source>Toggle secret token text visibility</source>
             <translation>Toggle secret token text visibility</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1377" />
+            <location filename="../src/ui/dialogs/options.py" line="1537" />
             <source>Extension IPC Settings</source>
             <translation>Extension IPC Settings</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1382" />
+            <location filename="../src/ui/dialogs/options.py" line="1542" />
             <source>IPC Port:</source>
             <translation>IPC Port:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1389" />
+            <location filename="../src/ui/dialogs/options.py" line="1549" />
             <source>Local IPC port for browser extension downloads. Change if 56900 is in use.</source>
             <translation>Local IPC port for browser extension downloads. Change if 56900 is in use.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1405" />
+            <location filename="../src/ui/dialogs/options.py" line="1565" />
             <source>Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.</source>
             <translation>Local TCP port used by browser extensions to transmit downloads. Change if 56900 is in use.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1433" />
+            <location filename="../src/ui/dialogs/options.py" line="1593" />
             <source>Browser Integration and Auto-Start</source>
             <translation>Browser Integration and Auto-Start</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1438" />
+            <location filename="../src/ui/dialogs/options.py" line="1598" />
             <source>Auto-start media downloads when sent from browser</source>
             <translation>Auto-start media downloads when sent from browser</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1439" />
+            <location filename="../src/ui/dialogs/options.py" line="1599" />
             <source>Automatically analyze and start downloading media streams sent from browser without extra confirmation</source>
             <translation>Automatically analyze and start downloading media streams sent from browser without extra confirmation</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1443" />
+            <location filename="../src/ui/dialogs/options.py" line="1603" />
             <source>Auto-check and update media engine on startup</source>
             <translation>Auto-check and update media engine on startup</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1444" />
+            <location filename="../src/ui/dialogs/options.py" line="1604" />
             <source>Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch</source>
             <translation>Automatically check for missing media engine dependencies (yt-dlp, ffmpeg, deno, AtomicParsley) and update them on application launch</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1454" />
+            <location filename="../src/ui/dialogs/options.py" line="1614" />
             <source>Quality preset:</source>
             <translation>Quality preset:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1459" />
-            <location filename="../src/ui/dialogs/options.py" line="1455" />
+            <location filename="../src/ui/dialogs/options.py" line="1619" />
+            <location filename="../src/ui/dialogs/options.py" line="1615" />
             <source>Default quality preset to select when auto-starting media downloads</source>
             <translation>Default quality preset to select when auto-starting media downloads</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1483" />
+            <location filename="../src/ui/dialogs/options.py" line="1643" />
             <source>Video codec:</source>
             <translation>Video codec:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1485" />
+            <location filename="../src/ui/dialogs/options.py" line="1645" />
             <source>Preferred video codec stream from YouTube and video platforms.
 • Auto (Default): Downloads the best available codec stream.
 • AV1: Next-generation high-efficiency video codec (av01).
@@ -2400,12 +2430,12 @@
 • VP9: High-efficiency open video codec standard for YouTube / WebM (vp9).</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1508" />
+            <location filename="../src/ui/dialogs/options.py" line="1668" />
             <source>Video format:</source>
             <translation>Video format:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1510" />
+            <location filename="../src/ui/dialogs/options.py" line="1670" />
             <source>Output container format for downloaded videos.
 • Auto: Downloads the site's native container (fastest, no extra conversion).
 • MKV: Universal container, supports all codecs.
@@ -2416,12 +2446,12 @@
 • MP4 / WebM: Converts to target format via FFmpeg if needed.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1532" />
+            <location filename="../src/ui/dialogs/options.py" line="1692" />
             <source>Audio format:</source>
             <translation>Audio format:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1534" />
+            <location filename="../src/ui/dialogs/options.py" line="1694" />
             <source>Output format for audio-only downloads.
 • Auto: Downloads the site's native audio stream (fastest).
 • Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed.</source>
@@ -2430,82 +2460,82 @@
 • Opus / MP3 / AAC / etc.: Converts to target format via FFmpeg if needed.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1560" />
+            <location filename="../src/ui/dialogs/options.py" line="1720" />
             <source>Authentication and Cookie Vault Defaults</source>
             <translation>Authentication and Cookie Vault Defaults</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1566" />
+            <location filename="../src/ui/dialogs/options.py" line="1726" />
             <source>Cookie:</source>
             <translation>Cookie:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1567" />
+            <location filename="../src/ui/dialogs/options.py" line="1727" />
             <source>Select cookie authentication strategy for media sites</source>
             <translation>Select cookie authentication strategy for media sites</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1572" />
+            <location filename="../src/ui/dialogs/options.py" line="1732" />
             <source>Select cookie authentication source (Netscape file or none)</source>
             <translation>Select cookie authentication source (Netscape file or none)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1584" />
+            <location filename="../src/ui/dialogs/options.py" line="1744" />
             <source>Netscape cookies.txt Path:</source>
             <translation>Netscape cookies.txt Path:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1585" />
+            <location filename="../src/ui/dialogs/options.py" line="1745" />
             <source>File path to exported Netscape format cookies.txt</source>
             <translation>File path to exported Netscape format cookies.txt</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1589" />
+            <location filename="../src/ui/dialogs/options.py" line="1749" />
             <source>Path to exported Netscape cookies.txt file...</source>
             <translation>Path to exported Netscape cookies.txt file...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1590" />
+            <location filename="../src/ui/dialogs/options.py" line="1750" />
             <source>Path to exported Netscape format cookies.txt file on disk</source>
             <translation>Path to exported Netscape format cookies.txt file on disk</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1598" />
+            <location filename="../src/ui/dialogs/options.py" line="1758" />
             <source>Browse...</source>
             <translation>Browse...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1600" />
+            <location filename="../src/ui/dialogs/options.py" line="1760" />
             <source>Browse filesystem for exported cookies.txt file</source>
             <translation>Browse filesystem for exported cookies.txt file</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1604" />
+            <location filename="../src/ui/dialogs/options.py" line="1764" />
             <source>Clear</source>
             <translation>Clear</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1606" />
+            <location filename="../src/ui/dialogs/options.py" line="1766" />
             <source>Clear current cookies.txt file path</source>
             <translation>Clear current cookies.txt file path</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1613" />
+            <location filename="../src/ui/dialogs/options.py" line="1773" />
             <source>&lt;i&gt;Authenticated cookies bypass bot verification ("Sign in to confirm you're not a bot"), rate limits, and unlock premium/member-only streams. Learn how to export and configure cookies in the &lt;a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: #3498db; text-decoration: underline;"&gt;How to Use Cookies Guide on GitHub&lt;/a&gt;.&lt;/i&gt;</source>
             <translation>&lt;i&gt;Authenticated cookies bypass bot verification ("Sign in to confirm you're not a bot"), rate limits, and unlock premium/member-only streams. Learn how to export and configure cookies in the &lt;a href="https://github.com/tazihad/bengal-download-manager/blob/main/docs/COOKIES_GUIDE.md" style="color: #3498db; text-decoration: underline;"&gt;How to Use Cookies Guide on GitHub&lt;/a&gt;.&lt;/i&gt;</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1631" />
+            <location filename="../src/ui/dialogs/options.py" line="1791" />
             <source>YouTube Extractor Engine Settings</source>
             <translation>YouTube Extractor Engine Settings</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1637" />
+            <location filename="../src/ui/dialogs/options.py" line="1797" />
             <source>YouTube Player Client:</source>
             <translation>YouTube Player Client:</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1639" />
+            <location filename="../src/ui/dialogs/options.py" line="1799" />
             <source>YouTube player client(s) passed to yt-dlp via --extractor-args youtube:player_client=...
 • 'auto': Automatically uses resilient multi-client fallback (mweb, android, ios, web_creator, tv, web) to bypass bot verification and SABR blocks.
 • Custom clients or comma-separated lists (e.g. 'android,ios', 'mweb', 'web') can be entered manually.</source>
@@ -2514,165 +2544,165 @@
 • Custom clients or comma-separated lists (e.g. 'android,ios', 'mweb', 'web') can be entered manually.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1648" />
+            <location filename="../src/ui/dialogs/options.py" line="1808" />
             <source>e.g. auto, android, web, ios, tv, mweb...</source>
             <translation>e.g. auto, android, web, ios, tv, mweb...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1654" />
+            <location filename="../src/ui/dialogs/options.py" line="1814" />
             <source>Reset</source>
             <translation>Reset</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1656" />
+            <location filename="../src/ui/dialogs/options.py" line="1816" />
             <source>Reset YouTube player client to 'auto'</source>
             <translation>Reset YouTube player client to 'auto'</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1664" />
+            <location filename="../src/ui/dialogs/options.py" line="1824" />
             <source>YouTube Proof of Origin (PO Token) Auto-Solver</source>
             <translation>YouTube Proof of Origin (PO Token) Auto-Solver</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1669" />
+            <location filename="../src/ui/dialogs/options.py" line="1829" />
             <source>Enable YouTube Proof of Origin (PO Token) auto-solver</source>
             <translation>Enable YouTube Proof of Origin (PO Token) auto-solver</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1670" />
+            <location filename="../src/ui/dialogs/options.py" line="1830" />
             <source>Automatically solves YouTube BotGuard challenges and Proof-of-Origin tokens via Deno/Node.js engine and bgutil</source>
             <translation>Automatically solves YouTube BotGuard challenges and Proof-of-Origin tokens via Deno/Node.js engine and bgutil</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1681" />
+            <location filename="../src/ui/dialogs/options.py" line="1841" />
             <source>&lt;i&gt;Proof of Origin (PO) tokens bypass YouTube "Sign in to confirm you're not a bot" challenges and streaming throttling. Bengal DM automatically uses the &lt;b&gt;Deno&lt;/b&gt; engine (available in Options &gt; Media Downloader Tools) or Node.js to solve tokens locally without manual configuration. Learn more in the &lt;a href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide" style="color: #3498db; text-decoration: underline;"&gt;yt-dlp PO Token Guide&lt;/a&gt;.&lt;/i&gt;</source>
             <translation>&lt;i&gt;Proof of Origin (PO) tokens bypass YouTube "Sign in to confirm you're not a bot" challenges and streaming throttling. Bengal DM automatically uses the &lt;b&gt;Deno&lt;/b&gt; engine (available in Options &gt; Media Downloader Tools) or Node.js to solve tokens locally without manual configuration. Learn more in the &lt;a href="https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide" style="color: #3498db; text-decoration: underline;"&gt;yt-dlp PO Token Guide&lt;/a&gt;.&lt;/i&gt;</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1739" />
+            <location filename="../src/ui/dialogs/options.py" line="1899" />
             <source>⚪ PO Token Auto-Solver disabled (yt-dlp will run with --extractor-args youtube:fetch_pot=never)</source>
             <translation>⚪ PO Token Auto-Solver disabled (yt-dlp will run with --extractor-args youtube:fetch_pot=never)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1746" />
+            <location filename="../src/ui/dialogs/options.py" line="1906" />
             <source>🟢 Active: Deno Engine (%1) ready for automatic PO token generation.</source>
             <translation>🟢 Active: Deno Engine (%1) ready for automatic PO token generation.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1749" />
+            <location filename="../src/ui/dialogs/options.py" line="1909" />
             <source>🟢 Active: System Node.js (%1) ready for automatic PO token generation.</source>
             <translation>🟢 Active: System Node.js (%1) ready for automatic PO token generation.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1752" />
+            <location filename="../src/ui/dialogs/options.py" line="1912" />
             <source>🟢 Active: Local bgutil POT Daemon (%1) detected.</source>
             <translation>🟢 Active: Local bgutil POT Daemon (%1) detected.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1755" />
+            <location filename="../src/ui/dialogs/options.py" line="1915" />
             <source>🟡 Deno is not installed yet. Install Deno via 'Options &gt; Media Downloader Tools' (or install Node.js) for full PO token support.</source>
             <translation>🟡 Deno is not installed yet. Install Deno via 'Options &gt; Media Downloader Tools' (or install Node.js) for full PO token support.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1788" />
+            <location filename="../src/ui/dialogs/options.py" line="1948" />
             <source>User identity required (SOCKS4)</source>
             <translation>User identity required (SOCKS4)</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1792" />
-            <location filename="../src/ui/dialogs/options.py" line="1790" />
+            <location filename="../src/ui/dialogs/options.py" line="1952" />
+            <location filename="../src/ui/dialogs/options.py" line="1950" />
             <source>User identity for SOCKS4 proxy</source>
             <translation>User identity for SOCKS4 proxy</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1797" />
-            <location filename="../src/ui/dialogs/options.py" line="1794" />
+            <location filename="../src/ui/dialogs/options.py" line="1957" />
+            <location filename="../src/ui/dialogs/options.py" line="1954" />
             <source>SOCKS4 proxy protocol does not support password authentication</source>
             <translation>SOCKS4 proxy protocol does not support password authentication</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1796" />
+            <location filename="../src/ui/dialogs/options.py" line="1956" />
             <source>Not supported by SOCKS4</source>
             <translation>Not supported by SOCKS4</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1860" />
+            <location filename="../src/ui/dialogs/options.py" line="2020" />
             <source>Proxy status: Host is empty</source>
             <translation>Proxy status: Host is empty</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1864" />
+            <location filename="../src/ui/dialogs/options.py" line="2024" />
             <source>Enter proxy host to test connection</source>
             <translation>Enter proxy host to test connection</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1869" />
+            <location filename="../src/ui/dialogs/options.py" line="2029" />
             <source>Proxy status: Waiting to test...</source>
             <translation>Proxy status: Waiting to test...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1887" />
+            <location filename="../src/ui/dialogs/options.py" line="2047" />
             <source>Testing proxy...</source>
             <translation>Testing proxy...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1891" />
-            <location filename="../src/ui/dialogs/options.py" line="1889" />
+            <location filename="../src/ui/dialogs/options.py" line="2051" />
+            <location filename="../src/ui/dialogs/options.py" line="2049" />
             <source>Testing connection through configured proxy...</source>
             <translation>Testing connection through configured proxy...</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1912" />
+            <location filename="../src/ui/dialogs/options.py" line="2072" />
             <source>Unknown Country</source>
             <translation>Unknown Country</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1916" />
+            <location filename="../src/ui/dialogs/options.py" line="2076" />
             <source>Proxy is working</source>
             <translation>Proxy is working</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1918" />
+            <location filename="../src/ui/dialogs/options.py" line="2078" />
             <source>Proxy connection verified successfully</source>
             <translation>Proxy connection verified successfully</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1929" />
+            <location filename="../src/ui/dialogs/options.py" line="2089" />
             <source>Proxy error</source>
             <translation>Proxy error</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="1931" />
+            <location filename="../src/ui/dialogs/options.py" line="2091" />
             <source>Connection failed</source>
             <translation>Connection failed</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2025" />
+            <location filename="../src/ui/dialogs/options.py" line="2185" />
             <source>Select Directory</source>
             <translation>Select Directory</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2196" />
+            <location filename="../src/ui/dialogs/options.py" line="2357" />
             <source>UI Scale</source>
             <translation>UI Scale</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2198" />
+            <location filename="../src/ui/dialogs/options.py" line="2359" />
             <source>Language</source>
             <translation>Language</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2201" />
+            <location filename="../src/ui/dialogs/options.py" line="2362" />
             <source>and</source>
             <translation>and</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2202" />
+            <location filename="../src/ui/dialogs/options.py" line="2363" />
             <source>{items} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect.</source>
             <translation>{items} setting has been changed. Please restart Bengal Download Manager for all changes to take full effect.</translation>
         </message>
         <message>
-            <location filename="../src/ui/dialogs/options.py" line="2205" />
+            <location filename="../src/ui/dialogs/options.py" line="2366" />
             <source>Restart Required</source>
             <translation>Restart Required</translation>
         </message>
@@ -2740,24 +2770,52 @@
             <translation>A queue with the name '%s' already exists.</translation>
         </message>
         <message>
-            <source>Start again every</source>
-            <translation>Start again every</translation>
-        </message>
-        <message>
-            <source>Stop download at</source>
-            <translation>Stop download at</translation>
-        </message>
-        <message>
             <source>Start download on application startup</source>
             <translation>Start download on application startup</translation>
+        </message>
+        <message>
+            <source>min</source>
+            <translation>min</translation>
+        </message>
+        <message>
+            <source>Show desktop system notification when downloads in this queue finish</source>
+            <translation>Show desktop system notification when downloads in this queue finish</translation>
+        </message>
+        <message>
+            <source>hours</source>
+            <translation>hours</translation>
+        </message>
+        <message>
+            <source>One-time downloading</source>
+            <translation>One-time downloading</translation>
+        </message>
+        <message>
+            <source>Once at</source>
+            <translation>Once at</translation>
         </message>
         <message>
             <source>Daily</source>
             <translation>Daily</translation>
         </message>
         <message>
+            <source>Start again every</source>
+            <translation>Start again every</translation>
+        </message>
+        <message>
+            <source>files at the same time</source>
+            <translation>files at the same time</translation>
+        </message>
+        <message>
+            <source>Stop download at</source>
+            <translation>Stop download at</translation>
+        </message>
+        <message>
             <source>Number of retries for each file if downloading failed:</source>
             <translation>Number of retries for each file if downloading failed:</translation>
+        </message>
+        <message>
+            <source>Periodic synchronization</source>
+            <translation>Periodic synchronization</translation>
         </message>
         <message>
             <source>Show notification when download completes</source>
@@ -2768,10 +2826,6 @@
             <translation>Download</translation>
         </message>
         <message>
-            <source>min</source>
-            <translation>min</translation>
-        </message>
-        <message>
             <source>Scheduler</source>
             <translation>Scheduler</translation>
         </message>
@@ -2779,119 +2833,24 @@
             <source>Start download at</source>
             <translation>Start download at</translation>
         </message>
-        <message>
-            <source>Once at</source>
-            <translation>Once at</translation>
-        </message>
-        <message>
-            <source>files at the same time</source>
-            <translation>files at the same time</translation>
-        </message>
-        <message>
-            <source>hours</source>
-            <translation>hours</translation>
-        </message>
-        <message>
-            <source>Periodic synchronization</source>
-            <translation>Periodic synchronization</translation>
-        </message>
-        <message>
-            <source>Show desktop system notification when downloads in this queue finish</source>
-            <translation>Show desktop system notification when downloads in this queue finish</translation>
-        </message>
-        <message>
-            <source>One-time downloading</source>
-            <translation>One-time downloading</translation>
-        </message>
-    </context>
-    <context>
-        <name>Details_panelDialog</name>
-        <message>
-            <source>0 B / 0 B</source>
-            <translation>0 B / 0 B</translation>
-        </message>
-        <message>
-            <source>Segments: 0 / 8</source>
-            <translation>Segments: 0 / 8</translation>
-        </message>
-        <message>
-            <source>Failed</source>
-            <translation>Failed</translation>
-        </message>
-        <message>
-            <source>0% Idle</source>
-            <translation>0% Idle</translation>
-        </message>
-        <message>
-            <source>Downloaded bytes</source>
-            <translation>Downloaded bytes</translation>
-        </message>
-        <message>
-            <source>Failed: 0</source>
-            <translation>Failed: 0</translation>
-        </message>
-        <message>
-            <source>Active remaining bytes</source>
-            <translation>Active remaining bytes</translation>
-        </message>
-        <message>
-            <source>Toggle download details panel</source>
-            <translation>Toggle download details panel</translation>
-        </message>
-        <message>
-            <source>Close details panel</source>
-            <translation>Close details panel</translation>
-        </message>
-        <message>
-            <source>0 B/s</source>
-            <translation>0 B/s</translation>
-        </message>
-        <message>
-            <source>Added at: --</source>
-            <translation>Added at: --</translation>
-        </message>
-        <message>
-            <source>Downloaded: 0 B of 0 B</source>
-            <translation>Downloaded: 0 B of 0 B</translation>
-        </message>
-        <message>
-            <source>ETA --</source>
-            <translation>ETA --</translation>
-        </message>
-        <message>
-            <source>Live blocks: 480</source>
-            <translation>Live blocks: 480</translation>
-        </message>
-        <message>
-            <source>Click to open containing folder</source>
-            <translation>Click to open containing folder</translation>
-        </message>
-        <message>
-            <source>0.00%</source>
-            <translation>0.00%</translation>
-        </message>
-        <message>
-            <source>Active: 0</source>
-            <translation>Active: 0</translation>
-        </message>
     </context>
     <context>
         <name>Csd_titlebarDialog</name>
         <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
-        <message>
             <source>Minimize</source>
             <translation>Minimize</translation>
+        </message>
+        <message>
+            <source>Restore" if is_max else "Maximize</source>
+            <translation>Restore" if is_max else "Maximize</translation>
         </message>
         <message>
             <source>Maximize</source>
             <translation>Maximize</translation>
         </message>
         <message>
-            <source>Restore" if is_max else "Maximize</source>
-            <translation>Restore" if is_max else "Maximize</translation>
+            <source>Close</source>
+            <translation>Close</translation>
         </message>
     </context>
     <context>
@@ -2906,57 +2865,120 @@
         </message>
     </context>
     <context>
+        <name>Details_panelDialog</name>
+        <message>
+            <source>Segments: 0 / 8</source>
+            <translation>Segments: 0 / 8</translation>
+        </message>
+        <message>
+            <source>Click to open containing folder</source>
+            <translation>Click to open containing folder</translation>
+        </message>
+        <message>
+            <source>Added at: --</source>
+            <translation>Added at: --</translation>
+        </message>
+        <message>
+            <source>Close details panel</source>
+            <translation>Close details panel</translation>
+        </message>
+        <message>
+            <source>0 B / 0 B</source>
+            <translation>0 B / 0 B</translation>
+        </message>
+        <message>
+            <source>Active: 0</source>
+            <translation>Active: 0</translation>
+        </message>
+        <message>
+            <source>Downloaded bytes</source>
+            <translation>Downloaded bytes</translation>
+        </message>
+        <message>
+            <source>Failed: 0</source>
+            <translation>Failed: 0</translation>
+        </message>
+        <message>
+            <source>Toggle download details panel</source>
+            <translation>Toggle download details panel</translation>
+        </message>
+        <message>
+            <source>Failed</source>
+            <translation>Failed</translation>
+        </message>
+        <message>
+            <source>0% Idle</source>
+            <translation>0% Idle</translation>
+        </message>
+        <message>
+            <source>Active remaining bytes</source>
+            <translation>Active remaining bytes</translation>
+        </message>
+        <message>
+            <source>ETA --</source>
+            <translation>ETA --</translation>
+        </message>
+        <message>
+            <source>Live blocks: 480</source>
+            <translation>Live blocks: 480</translation>
+        </message>
+        <message>
+            <source>0 B/s</source>
+            <translation>0 B/s</translation>
+        </message>
+        <message>
+            <source>0.00%</source>
+            <translation>0.00%</translation>
+        </message>
+        <message>
+            <source>Downloaded: 0 B of 0 B</source>
+            <translation>Downloaded: 0 B of 0 B</translation>
+        </message>
+    </context>
+    <context>
         <name>ColumnDialog</name>
+        <message>
+            <source>Column width (pixels):</source>
+            <translation>Column width (pixels):</translation>
+        </message>
         <message>
             <source>Columns</source>
             <translation>Columns</translation>
-        </message>
-        <message>
-            <source>Deselect All</source>
-            <translation>Deselect All</translation>
-        </message>
-        <message>
-            <source>Select All</source>
-            <translation>Select All</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Move Down</source>
-            <translation>Move Down</translation>
         </message>
         <message>
             <source>Move Up</source>
             <translation>Move Up</translation>
         </message>
         <message>
-            <source>Column width (pixels):</source>
-            <translation>Column width (pixels):</translation>
-        </message>
-        <message>
             <source>OK</source>
             <translation>OK</translation>
+        </message>
+        <message>
+            <source>Move Down</source>
+            <translation>Move Down</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Select All</source>
+            <translation>Select All</translation>
+        </message>
+        <message>
+            <source>Deselect All</source>
+            <translation>Deselect All</translation>
         </message>
     </context>
     <context>
         <name>DuplicateDialog</name>
         <message>
-            <source>Open File</source>
-            <translation>Open File</translation>
+            <source>Restart download from beginning (0%)</source>
+            <translation>Restart download from beginning (0%)</translation>
         </message>
         <message>
-            <source>Open destination directory and highlight file</source>
-            <translation>Open destination directory and highlight file</translation>
-        </message>
-        <message>
-            <source>Cancel and discard this request</source>
-            <translation>Cancel and discard this request</translation>
-        </message>
-        <message>
-            <source>Resume</source>
-            <translation>Resume</translation>
+            <source>Restart</source>
+            <translation>Restart</translation>
         </message>
         <message>
             <source>Download Copy</source>
@@ -2967,24 +2989,16 @@
             <translation>Redownload</translation>
         </message>
         <message>
-            <source>Resume downloading this existing item</source>
-            <translation>Resume downloading this existing item</translation>
+            <source>Open destination directory and highlight file</source>
+            <translation>Open destination directory and highlight file</translation>
         </message>
         <message>
-            <source>Duplicate Download</source>
-            <translation>Duplicate Download</translation>
+            <source>Open existing downloaded file</source>
+            <translation>Open existing downloaded file</translation>
         </message>
         <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Download Already Exists</source>
-            <translation>Download Already Exists</translation>
-        </message>
-        <message>
-            <source>Restart download and overwrite existing file</source>
-            <translation>Restart download and overwrite existing file</translation>
+            <source>Cancel and discard this request</source>
+            <translation>Cancel and discard this request</translation>
         </message>
         <message>
             <source>Open Folder</source>
@@ -2995,16 +3009,32 @@
             <translation>Save as a new copy with an auto-numbered filename</translation>
         </message>
         <message>
-            <source>Open existing downloaded file</source>
-            <translation>Open existing downloaded file</translation>
+            <source>Restart download and overwrite existing file</source>
+            <translation>Restart download and overwrite existing file</translation>
         </message>
         <message>
-            <source>Restart</source>
-            <translation>Restart</translation>
+            <source>Duplicate Download</source>
+            <translation>Duplicate Download</translation>
         </message>
         <message>
-            <source>Restart download from beginning (0%)</source>
-            <translation>Restart download from beginning (0%)</translation>
+            <source>Open File</source>
+            <translation>Open File</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Resume downloading this existing item</source>
+            <translation>Resume downloading this existing item</translation>
+        </message>
+        <message>
+            <source>Download Already Exists</source>
+            <translation>Download Already Exists</translation>
+        </message>
+        <message>
+            <source>Resume</source>
+            <translation>Resume</translation>
         </message>
     </context>
     <context>
@@ -3014,58 +3044,54 @@
             <translation>Paste</translation>
         </message>
         <message>
-            <source>Paste from clipboard</source>
-            <translation>Paste from clipboard</translation>
-        </message>
-        <message>
             <source>Address:</source>
             <translation>Address:</translation>
         </message>
         <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
+            <source>Paste from clipboard</source>
+            <translation>Paste from clipboard</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
         </message>
         <message>
             <source>Refresh download address</source>
             <translation>Refresh download address</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
         </message>
     </context>
     <context>
         <name>RenameDialog</name>
         <message>
-            <source>Rename File</source>
-            <translation>Rename File</translation>
-        </message>
-        <message>
-            <source>Enter new file name:</source>
-            <translation>Enter new file name:</translation>
+            <source>OK</source>
+            <translation>OK</translation>
         </message>
         <message>
             <source>Cancel</source>
             <translation>Cancel</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Enter new file name:</source>
+            <translation>Enter new file name:</translation>
+        </message>
+        <message>
+            <source>Rename File</source>
+            <translation>Rename File</translation>
         </message>
     </context>
     <context>
         <name>Data_usageDialog</name>
         <message>
+            <source>Daily Activity Breakdown</source>
+            <translation>Daily Activity Breakdown</translation>
+        </message>
+        <message>
             <source>Total data downloaded today</source>
             <translation>Total data downloaded today</translation>
-        </message>
-        <message>
-            <source>Total data downloaded in current month</source>
-            <translation>Total data downloaded in current month</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
         </message>
         <message>
             <source>Today: 0 B</source>
@@ -3080,105 +3106,12 @@
             <translation>Only current month</translation>
         </message>
         <message>
-            <source>Daily Activity Breakdown</source>
-            <translation>Daily Activity Breakdown</translation>
+            <source>0 B</source>
+            <translation>0 B</translation>
         </message>
         <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
-    </context>
-    <context>
-        <name>CompleteDialog</name>
-        <message>
-            <source>Download Completed</source>
-            <translation>Download Completed</translation>
-        </message>
-        <message>
-            <source>Open with...</source>
-            <translation>Open with...</translation>
-        </message>
-        <message>
-            <source>Don</source>
-            <translation>Don</translation>
-        </message>
-        <message>
-            <source>Click and drag this file directly to any folder, desktop, file manager, or application</source>
-            <translation>Click and drag this file directly to any folder, desktop, file manager, or application</translation>
-        </message>
-        <message>
-            <source>Show file in its containing folder</source>
-            <translation>Show file in its containing folder</translation>
-        </message>
-        <message>
-            <source>Choose application to open this file</source>
-            <translation>Choose application to open this file</translation>
-        </message>
-        <message>
-            <source>Open Folder</source>
-            <translation>Open Folder</translation>
-        </message>
-        <message>
-            <source>Close completion dialog</source>
-            <translation>Close completion dialog</translation>
-        </message>
-        <message>
-            <source>Your file has been downloaded successfully and is ready to use.</source>
-            <translation>Your file has been downloaded successfully and is ready to use.</translation>
-        </message>
-        <message>
-            <source>Open downloaded file with default application</source>
-            <translation>Open downloaded file with default application</translation>
-        </message>
-        <message>
-            <source>Disable completion dialog popup for future downloads</source>
-            <translation>Disable completion dialog popup for future downloads</translation>
-        </message>
-        <message>
-            <source>Open</source>
-            <translation>Open</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
-    </context>
-    <context>
-        <name>DeleteDialog</name>
-        <message>
-            <source>Yes</source>
-            <translation>Yes</translation>
-        </message>
-        <message>
-            <source>Also delete files from disk (permanently)</source>
-            <translation>Also delete files from disk (permanently)</translation>
-        </message>
-        <message>
-            <source>Delete Completed Downloads" if is_completed else "Delete</source>
-            <translation>Delete Completed Downloads" if is_completed else "Delete</translation>
-        </message>
-        <message>
-            <source>No</source>
-            <translation>No</translation>
-        </message>
-    </context>
-    <context>
-        <name>PropertiesDialog</name>
-        <message>
-            <source>Open this file with default application</source>
-            <translation>Open this file with default application</translation>
-        </message>
-        <message>
-            <source>Close properties window</source>
-            <translation>Close properties window</translation>
-        </message>
-        <message>
-            <source>File Information</source>
-            <translation>File Information</translation>
-        </message>
-        <message>
-            <source>Open</source>
-            <translation>Open</translation>
+            <source>Total data downloaded in current month</source>
+            <translation>Total data downloaded in current month</translation>
         </message>
         <message>
             <source>Close</source>
@@ -3188,32 +3121,40 @@
     <context>
         <name>Add_urlDialog</name>
         <message>
-            <source>Media Stream detected (go to Media Downloader)</source>
-            <translation>Media Stream detected (go to Media Downloader)</translation>
-        </message>
-        <message>
             <source>Paste</source>
             <translation>Paste</translation>
         </message>
         <message>
-            <source>Batch pattern detected (go to Batch Downloader)</source>
-            <translation>Batch pattern detected (go to Batch Downloader)</translation>
+            <source>Media Stream detected (go to Media Downloader)</source>
+            <translation>Media Stream detected (go to Media Downloader)</translation>
         </message>
         <message>
-            <source>Download Media</source>
-            <translation>Download Media</translation>
+            <source>Cancel and close dialog</source>
+            <translation>Cancel and close dialog</translation>
+        </message>
+        <message>
+            <source>Enter or paste download address</source>
+            <translation>Enter or paste download address</translation>
+        </message>
+        <message>
+            <source>📁 ~/Downloads</source>
+            <translation>📁 ~/Downloads</translation>
         </message>
         <message>
             <source>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</source>
             <translation>Enter or paste the download URL address (HTTP, HTTPS, FTP, or Magnet link)</translation>
         </message>
         <message>
+            <source>Awaiting URL</source>
+            <translation>Awaiting URL</translation>
+        </message>
+        <message>
             <source>Address:</source>
             <translation>Address:</translation>
         </message>
         <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
+            <source>Paste link from clipboard</source>
+            <translation>Paste link from clipboard</translation>
         </message>
         <message>
             <source>Add download URL</source>
@@ -3228,234 +3169,168 @@
             <translation>Cancel</translation>
         </message>
         <message>
-            <source>Enter or paste download address</source>
-            <translation>Enter or paste download address</translation>
-        </message>
-        <message>
-            <source>📁 ~/Downloads</source>
-            <translation>📁 ~/Downloads</translation>
-        </message>
-        <message>
-            <source>Awaiting URL</source>
-            <translation>Awaiting URL</translation>
-        </message>
-        <message>
-            <source>Enter new address to download</source>
-            <translation>Enter new address to download</translation>
-        </message>
-        <message>
-            <source>Cancel and close dialog</source>
-            <translation>Cancel and close dialog</translation>
-        </message>
-        <message>
-            <source>Paste link from clipboard</source>
-            <translation>Paste link from clipboard</translation>
+            <source>Download Media</source>
+            <translation>Download Media</translation>
         </message>
         <message>
             <source>Add URL</source>
             <translation>Add URL</translation>
         </message>
+        <message>
+            <source>Batch pattern detected (go to Batch Downloader)</source>
+            <translation>Batch pattern detected (go to Batch Downloader)</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>Enter new address to download</source>
+            <translation>Enter new address to download</translation>
+        </message>
     </context>
     <context>
-        <name>File_infoDialog</name>
+        <name>CompleteDialog</name>
         <message>
-            <source>Full download source URL</source>
-            <translation>Full download source URL</translation>
+            <source>Close</source>
+            <translation>Close</translation>
         </message>
         <message>
-            <source>Begin downloading this file immediately</source>
-            <translation>Begin downloading this file immediately</translation>
+            <source>Open Folder</source>
+            <translation>Open Folder</translation>
         </message>
         <message>
-            <source>...</source>
-            <translation>...</translation>
+            <source>Choose application to open this file</source>
+            <translation>Choose application to open this file</translation>
+        </message>
+        <message>
+            <source>Click and drag this file directly to any folder, desktop, file manager, or application</source>
+            <translation>Click and drag this file directly to any folder, desktop, file manager, or application</translation>
+        </message>
+        <message>
+            <source>Disable completion dialog popup for future downloads</source>
+            <translation>Disable completion dialog popup for future downloads</translation>
+        </message>
+        <message>
+            <source>Open</source>
+            <translation>Open</translation>
+        </message>
+        <message>
+            <source>Your file has been downloaded successfully and is ready to use.</source>
+            <translation>Your file has been downloaded successfully and is ready to use.</translation>
         </message>
         <message>
             <source>Don</source>
             <translation>Don</translation>
         </message>
         <message>
-            <source>Add download to list in paused state</source>
-            <translation>Add download to list in paused state</translation>
+            <source>Open downloaded file with default application</source>
+            <translation>Open downloaded file with default application</translation>
         </message>
         <message>
-            <source>Download Later</source>
-            <translation>Download Later</translation>
+            <source>Show file in its containing folder</source>
+            <translation>Show file in its containing folder</translation>
         </message>
         <message>
-            <source>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</source>
-            <translation>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</translation>
+            <source>Open with...</source>
+            <translation>Open with...</translation>
         </message>
         <message>
-            <source>Destination path and filename for the download</source>
-            <translation>Destination path and filename for the download</translation>
+            <source>Close completion dialog</source>
+            <translation>Close completion dialog</translation>
         </message>
         <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
+            <source>Download Completed</source>
+            <translation>Download Completed</translation>
+        </message>
+    </context>
+    <context>
+        <name>DeleteDialog</name>
+        <message>
+            <source>Yes</source>
+            <translation>Yes</translation>
         </message>
         <message>
-            <source>Category to organize and route the download file</source>
-            <translation>Category to organize and route the download file</translation>
+            <source>Delete Completed Downloads" if is_completed else "Delete</source>
+            <translation>Delete Completed Downloads" if is_completed else "Delete</translation>
         </message>
         <message>
-            <source>Detected content size and file type</source>
-            <translation>Detected content size and file type</translation>
+            <source>Also delete files from disk (permanently)</source>
+            <translation>Also delete files from disk (permanently)</translation>
         </message>
         <message>
-            <source>Browse folder to select save location</source>
-            <translation>Browse folder to select save location</translation>
+            <source>No</source>
+            <translation>No</translation>
+        </message>
+    </context>
+    <context>
+        <name>File_infoDialog</name>
+        <message>
+            <source>...</source>
+            <translation>...</translation>
         </message>
         <message>
             <source>Cancel and discard download request</source>
             <translation>Cancel and discard download request</translation>
         </message>
         <message>
-            <source>Download File Info</source>
-            <translation>Download File Info</translation>
+            <source>Destination path and filename for the download</source>
+            <translation>Destination path and filename for the download</translation>
+        </message>
+        <message>
+            <source>Download Later</source>
+            <translation>Download Later</translation>
         </message>
         <message>
             <source>Start Download</source>
             <translation>Start Download</translation>
         </message>
+        <message>
+            <source>Browse folder to select save location</source>
+            <translation>Browse folder to select save location</translation>
+        </message>
+        <message>
+            <source>Category to organize and route the download file</source>
+            <translation>Category to organize and route the download file</translation>
+        </message>
+        <message>
+            <source>Full download source URL</source>
+            <translation>Full download source URL</translation>
+        </message>
+        <message>
+            <source>Detected content size and file type</source>
+            <translation>Detected content size and file type</translation>
+        </message>
+        <message>
+            <source>Add download to list in paused state</source>
+            <translation>Add download to list in paused state</translation>
+        </message>
+        <message>
+            <source>Download File Info</source>
+            <translation>Download File Info</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>Don</source>
+            <translation>Don</translation>
+        </message>
+        <message>
+            <source>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</source>
+            <translation>Skip this confirmation window and start downloads directly in the future (can be re-enabled in Options \u2192 Downloads)</translation>
+        </message>
+        <message>
+            <source>Begin downloading this file immediately</source>
+            <translation>Begin downloading this file immediately</translation>
+        </message>
     </context>
     <context>
         <name>Media_downloaderDialog</name>
         <message>
-            <source>📁 Open Binaries Folder</source>
-            <translation>📁 Open Binaries Folder</translation>
-        </message>
-        <message>
-            <source>Uploader: Unknown | Duration: 0s</source>
-            <translation>Uploader: Unknown | Duration: 0s</translation>
-        </message>
-        <message>
-            <source>Embed ID3 metadata (Artist, Album, Track number) into audio files</source>
-            <translation>Embed ID3 metadata (Artist, Album, Track number) into audio files</translation>
-        </message>
-        <message>
-            <source>Embed Artwork</source>
-            <translation>Embed Artwork</translation>
-        </message>
-        <message>
-            <source>Update All</source>
-            <translation>Update All</translation>
-        </message>
-        <message>
-            <source>Total: 0 items</source>
-            <translation>Total: 0 items</translation>
-        </message>
-        <message>
-            <source>Video</source>
-            <translation>Video</translation>
-        </message>
-        <message>
-            <source>Remember selection</source>
-            <translation>Remember selection</translation>
-        </message>
-        <message>
-            <source>Range:</source>
-            <translation>Range:</translation>
-        </message>
-        <message>
-            <source>Pipeline Engines &amp; Settings</source>
-            <translation>Pipeline Engines &amp; Settings</translation>
-        </message>
-        <message>
-            <source>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</source>
-            <translation>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</translation>
-        </message>
-        <message>
-            <source>Audio</source>
-            <translation>Audio</translation>
-        </message>
-        <message>
-            <source>Invert</source>
-            <translation>Invert</translation>
-        </message>
-        <message>
             <source>Audio Format:</source>
             <translation>Audio Format:</translation>
-        </message>
-        <message>
-            <source>Download single media</source>
-            <translation>Download single media</translation>
-        </message>
-        <message>
-            <source>Paste URL from clipboard (Ctrl+V)</source>
-            <translation>Paste URL from clipboard (Ctrl+V)</translation>
-        </message>
-        <message>
-            <source>Filter video container / codec</source>
-            <translation>Filter video container / codec</translation>
-        </message>
-        <message>
-            <source>Audio Only</source>
-            <translation>Audio Only</translation>
-        </message>
-        <message>
-            <source>Pipeline Engines &amp; Settings (Update Available)</source>
-            <translation>Pipeline Engines &amp; Settings (Update Available)</translation>
-        </message>
-        <message>
-            <source>Create dedicated playlist subfolder</source>
-            <translation>Create dedicated playlist subfolder</translation>
-        </message>
-        <message>
-            <source>Auto-start from extension</source>
-            <translation>Auto-start from extension</translation>
-        </message>
-        <message>
-            <source>Preserve album track ordering by prefixing track numbers</source>
-            <translation>Preserve album track ordering by prefixing track numbers</translation>
-        </message>
-        <message>
-            <source>⚙️ Media Options...</source>
-            <translation>⚙️ Media Options...</translation>
-        </message>
-        <message>
-            <source>Video:</source>
-            <translation>Video:</translation>
-        </message>
-        <message>
-            <source>Type:</source>
-            <translation>Type:</translation>
-        </message>
-        <message>
-            <source>Extract and download audio track only</source>
-            <translation>Extract and download audio track only</translation>
-        </message>
-        <message>
-            <source>Analyze</source>
-            <translation>Analyze</translation>
-        </message>
-        <message>
-            <source>Queue:</source>
-            <translation>Queue:</translation>
-        </message>
-        <message>
-            <source>Automatically start downloading media links sent from the browser extension using preselected quality</source>
-            <translation>Automatically start downloading media links sent from the browser extension using preselected quality</translation>
-        </message>
-        <message>
-            <source>Select All</source>
-            <translation>Select All</translation>
-        </message>
-        <message>
-            <source>Download</source>
-            <translation>Download</translation>
-        </message>
-        <message>
-            <source>Save all tracks inside a dedicated subfolder named after the playlist</source>
-            <translation>Save all tracks inside a dedicated subfolder named after the playlist</translation>
-        </message>
-        <message>
-            <source>Parse media formats or playlist items using yt-dlp</source>
-            <translation>Parse media formats or playlist items using yt-dlp</translation>
-        </message>
-        <message>
-            <source>Playlist Title</source>
-            <translation>Playlist Title</translation>
         </message>
         <message>
             <source>Start download for selected format (merges video + audio + thumbnail + subtitles)</source>
@@ -3466,223 +3341,355 @@
             <translation>Single</translation>
         </message>
         <message>
-            <source>Advanced Mode</source>
-            <translation>Advanced Mode</translation>
-        </message>
-        <message>
-            <source>to</source>
-            <translation>to</translation>
-        </message>
-        <message>
-            <source>Filter tracks...</source>
-            <translation>Filter tracks...</translation>
-        </message>
-        <message>
-            <source>Audio:</source>
-            <translation>Audio:</translation>
-        </message>
-        <message>
-            <source>Download the entire playlist batch</source>
-            <translation>Download the entire playlist batch</translation>
-        </message>
-        <message>
-            <source>0 of 0 items selected</source>
-            <translation>0 of 0 items selected</translation>
-        </message>
-        <message>
-            <source>No playlist detected in URL</source>
-            <translation>No playlist detected in URL</translation>
-        </message>
-        <message>
-            <source>Close Media Downloader window</source>
-            <translation>Close Media Downloader window</translation>
-        </message>
-        <message>
-            <source>Enter direct video URL or playlist link to analyze</source>
-            <translation>Enter direct video URL or playlist link to analyze</translation>
-        </message>
-        <message>
-            <source>Show individual audio and video streams table for advanced format selection</source>
-            <translation>Show individual audio and video streams table for advanced format selection</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>Close</translation>
-        </message>
-        <message>
-            <source>FPS:</source>
-            <translation>FPS:</translation>
-        </message>
-        <message>
-            <source>Paste</source>
-            <translation>Paste</translation>
-        </message>
-        <message>
-            <source>Deselect All</source>
-            <translation>Deselect All</translation>
-        </message>
-        <message>
-            <source>Enter a video or playlist link above and click</source>
-            <translation>Enter a video or playlist link above and click</translation>
-        </message>
-        <message>
-            <source>Save current quality, format choices, and selection mode for future downloads</source>
-            <translation>Save current quality, format choices, and selection mode for future downloads</translation>
-        </message>
-        <message>
-            <source>Apply Range</source>
-            <translation>Apply Range</translation>
+            <source>Download single media</source>
+            <translation>Download single media</translation>
         </message>
         <message>
             <source>Pipeline Engines</source>
             <translation>Pipeline Engines</translation>
         </message>
         <message>
-            <source>Enter URL</source>
-            <translation>Enter URL</translation>
+            <source>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</source>
+            <translation>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</translation>
         </message>
         <message>
-            <source>Embed ID3 Tags</source>
-            <translation>Embed ID3 Tags</translation>
+            <source>Audio Only</source>
+            <translation>Audio Only</translation>
         </message>
         <message>
-            <source>Download video with audio merged</source>
-            <translation>Download video with audio merged</translation>
-        </message>
-        <message>
-            <source>Embed album cover artwork into downloaded audio tracks</source>
-            <translation>Embed album cover artwork into downloaded audio tracks</translation>
-        </message>
-        <message>
-            <source>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</source>
-            <translation>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</translation>
-        </message>
-        <message>
-            <source>● Checking...</source>
-            <translation>● Checking...</translation>
-        </message>
-        <message>
-            <source>Quality:</source>
-            <translation>Quality:</translation>
-        </message>
-        <message>
-            <source>Video Batch</source>
-            <translation>Video Batch</translation>
-        </message>
-        <message>
-            <source>Filter video framerate (e.g. 60 fps, 30 fps)</source>
-            <translation>Filter video framerate (e.g. 60 fps, 30 fps)</translation>
+            <source>📁 Open Binaries Folder</source>
+            <translation>📁 Open Binaries Folder</translation>
         </message>
         <message>
             <source>Quality / Bitrate:</source>
             <translation>Quality / Bitrate:</translation>
         </message>
         <message>
-            <source>Video Title</source>
-            <translation>Video Title</translation>
+            <source>Playlist</source>
+            <translation>Playlist</translation>
         </message>
         <message>
-            <source>Installed</source>
-            <translation>Installed</translation>
+            <source>0 of 0 items selected</source>
+            <translation>0 of 0 items selected</translation>
         </message>
         <message>
-            <source>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</source>
-            <translation>Pipeline Engines &amp; Settings (Engines Missing / Attention Needed)</translation>
+            <source>Show individual audio and video streams table for advanced format selection</source>
+            <translation>Show individual audio and video streams table for advanced format selection</translation>
+        </message>
+        <message>
+            <source>Uploader: Unknown | Duration: 0s</source>
+            <translation>Uploader: Unknown | Duration: 0s</translation>
+        </message>
+        <message>
+            <source>Embed ID3 Tags</source>
+            <translation>Embed ID3 Tags</translation>
+        </message>
+        <message>
+            <source>Embed Artwork</source>
+            <translation>Embed Artwork</translation>
+        </message>
+        <message>
+            <source>Range:</source>
+            <translation>Range:</translation>
+        </message>
+        <message>
+            <source>Select All</source>
+            <translation>Select All</translation>
+        </message>
+        <message>
+            <source>Invert</source>
+            <translation>Invert</translation>
+        </message>
+        <message>
+            <source>Deselect All</source>
+            <translation>Deselect All</translation>
         </message>
         <message>
             <source>Select download queue for the downloaded item(s)</source>
             <translation>Select download queue for the downloaded item(s)</translation>
         </message>
         <message>
+            <source>Pipeline Engines &amp; Settings (Update Available)</source>
+            <translation>Pipeline Engines &amp; Settings (Update Available)</translation>
+        </message>
+        <message>
+            <source>Video Batch</source>
+            <translation>Video Batch</translation>
+        </message>
+        <message>
+            <source>Save all tracks inside a dedicated subfolder named after the playlist</source>
+            <translation>Save all tracks inside a dedicated subfolder named after the playlist</translation>
+        </message>
+        <message>
+            <source>Parse media formats or playlist items using yt-dlp</source>
+            <translation>Parse media formats or playlist items using yt-dlp</translation>
+        </message>
+        <message>
+            <source>Paste</source>
+            <translation>Paste</translation>
+        </message>
+        <message>
             <source>yt-dlp update channel (Stable or Nightly build)</source>
             <translation>yt-dlp update channel (Stable or Nightly build)</translation>
         </message>
         <message>
-            <source>Stop ongoing link analysis</source>
-            <translation>Stop ongoing link analysis</translation>
+            <source>Video:</source>
+            <translation>Video:</translation>
         </message>
         <message>
-            <source>Media Downloader</source>
-            <translation>Media Downloader</translation>
+            <source>Pipeline Engines &amp; Settings</source>
+            <translation>Pipeline Engines &amp; Settings</translation>
         </message>
         <message>
-            <source>Select quality (auto-merges Video + Audio)</source>
-            <translation>Select quality (auto-merges Video + Audio)</translation>
+            <source>Enter URL</source>
+            <translation>Enter URL</translation>
         </message>
         <message>
-            <source>Filter audio container / codec</source>
-            <translation>Filter audio container / codec</translation>
+            <source>Video Title</source>
+            <translation>Video Title</translation>
         </message>
         <message>
-            <source>Mode:</source>
-            <translation>Mode:</translation>
+            <source>● Checking...</source>
+            <translation>● Checking...</translation>
         </message>
         <message>
-            <source>No playlist detected in this URL</source>
-            <translation>No playlist detected in this URL</translation>
+            <source>Filter video container / codec</source>
+            <translation>Filter video container / codec</translation>
         </message>
         <message>
-            <source>Playlist</source>
-            <translation>Playlist</translation>
+            <source>Update All</source>
+            <translation>Update All</translation>
+        </message>
+        <message>
+            <source>Remember selection</source>
+            <translation>Remember selection</translation>
+        </message>
+        <message>
+            <source>FPS:</source>
+            <translation>FPS:</translation>
+        </message>
+        <message>
+            <source>to</source>
+            <translation>to</translation>
+        </message>
+        <message>
+            <source>Apply Range</source>
+            <translation>Apply Range</translation>
+        </message>
+        <message>
+            <source>Total: 0 items</source>
+            <translation>Total: 0 items</translation>
+        </message>
+        <message>
+            <source>Auto-start from extension</source>
+            <translation>Auto-start from extension</translation>
+        </message>
+        <message>
+            <source>Enter a video or playlist link above and click</source>
+            <translation>Enter a video or playlist link above and click</translation>
         </message>
         <message>
             <source>Batch Mode:</source>
             <translation>Batch Mode:</translation>
         </message>
         <message>
+            <source>Paste URL from clipboard (Ctrl+V)</source>
+            <translation>Paste URL from clipboard (Ctrl+V)</translation>
+        </message>
+        <message>
+            <source>No playlist detected in this URL</source>
+            <translation>No playlist detected in this URL</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Save current quality, format choices, and selection mode for future downloads</source>
+            <translation>Save current quality, format choices, and selection mode for future downloads</translation>
+        </message>
+        <message>
+            <source>Analyze</source>
+            <translation>Analyze</translation>
+        </message>
+        <message>
+            <source>Embed ID3 metadata (Artist, Album, Track number) into audio files</source>
+            <translation>Embed ID3 metadata (Artist, Album, Track number) into audio files</translation>
+        </message>
+        <message>
+            <source>Video</source>
+            <translation>Video</translation>
+        </message>
+        <message>
+            <source>Filter video framerate (e.g. 60 fps, 30 fps)</source>
+            <translation>Filter video framerate (e.g. 60 fps, 30 fps)</translation>
+        </message>
+        <message>
+            <source>Playlist Title</source>
+            <translation>Playlist Title</translation>
+        </message>
+        <message>
+            <source>Queue:</source>
+            <translation>Queue:</translation>
+        </message>
+        <message>
+            <source>Media Downloader</source>
+            <translation>Media Downloader</translation>
+        </message>
+        <message>
+            <source>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</source>
+            <translation>Paste video or playlist link (e.g. YouTube, Vimeo, Twitch)...</translation>
+        </message>
+        <message>
+            <source>Download video with audio merged</source>
+            <translation>Download video with audio merged</translation>
+        </message>
+        <message>
+            <source>No playlist detected in URL</source>
+            <translation>No playlist detected in URL</translation>
+        </message>
+        <message>
+            <source>Audio</source>
+            <translation>Audio</translation>
+        </message>
+        <message>
             <source>Prefix filenames with track order (e.g. 01 - Song)</source>
             <translation>Prefix filenames with track order (e.g. 01 - Song)</translation>
+        </message>
+        <message>
+            <source>Filter audio container / codec</source>
+            <translation>Filter audio container / codec</translation>
+        </message>
+        <message>
+            <source>Automatically start downloading media links sent from the browser extension using preselected quality</source>
+            <translation>Automatically start downloading media links sent from the browser extension using preselected quality</translation>
+        </message>
+        <message>
+            <source>Embed album cover artwork into downloaded audio tracks</source>
+            <translation>Embed album cover artwork into downloaded audio tracks</translation>
+        </message>
+        <message>
+            <source>Type:</source>
+            <translation>Type:</translation>
+        </message>
+        <message>
+            <source>Audio:</source>
+            <translation>Audio:</translation>
+        </message>
+        <message>
+            <source>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</source>
+            <translation>Available Formats &amp; Streams (Sorted High to Low Resolution, Audio-Only at Bottom):</translation>
+        </message>
+        <message>
+            <source>Filter tracks...</source>
+            <translation>Filter tracks...</translation>
+        </message>
+        <message>
+            <source>Mode:</source>
+            <translation>Mode:</translation>
+        </message>
+        <message>
+            <source>Quality:</source>
+            <translation>Quality:</translation>
+        </message>
+        <message>
+            <source>Select quality (auto-merges Video + Audio)</source>
+            <translation>Select quality (auto-merges Video + Audio)</translation>
+        </message>
+        <message>
+            <source>Extract and download audio track only</source>
+            <translation>Extract and download audio track only</translation>
+        </message>
+        <message>
+            <source>Preserve album track ordering by prefixing track numbers</source>
+            <translation>Preserve album track ordering by prefixing track numbers</translation>
+        </message>
+        <message>
+            <source>Close Media Downloader window</source>
+            <translation>Close Media Downloader window</translation>
+        </message>
+        <message>
+            <source>Create dedicated playlist subfolder</source>
+            <translation>Create dedicated playlist subfolder</translation>
+        </message>
+        <message>
+            <source>Stop ongoing link analysis</source>
+            <translation>Stop ongoing link analysis</translation>
+        </message>
+        <message>
+            <source>Download the entire playlist batch</source>
+            <translation>Download the entire playlist batch</translation>
+        </message>
+        <message>
+            <source>Enter direct video URL or playlist link to analyze</source>
+            <translation>Enter direct video URL or playlist link to analyze</translation>
+        </message>
+        <message>
+            <source>Download</source>
+            <translation>Download</translation>
+        </message>
+        <message>
+            <source>Advanced Mode</source>
+            <translation>Advanced Mode</translation>
+        </message>
+        <message>
+            <source>Installed</source>
+            <translation>Installed</translation>
+        </message>
+        <message>
+            <source>⚙️ Media Options...</source>
+            <translation>⚙️ Media Options...</translation>
         </message>
     </context>
     <context>
         <name>ProgressDialog</name>
         <message>
-            <source>0.00 B/s</source>
-            <translation>0.00 B/s</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Limit download speed to avoid slowing down internet browsing.</source>
-            <translation>Limit download speed to avoid slowing down internet browsing.</translation>
-        </message>
-        <message>
-            <source>Connecting...</source>
-            <translation>Connecting...</translation>
+            <source>KB/sec</source>
+            <translation>KB/sec</translation>
         </message>
         <message>
             <source>Pause</source>
             <translation>Pause</translation>
         </message>
         <message>
-            <source>Start positions and download progress by connections</source>
-            <translation>Start positions and download progress by connections</translation>
+            <source>Max speed:</source>
+            <translation>Max speed:</translation>
         </message>
         <message>
-            <source>Details &gt;&gt;</source>
-            <translation>Details &gt;&gt;</translation>
-        </message>
-        <message>
-            <source>Hide</source>
-            <translation>Hide</translation>
-        </message>
-        <message>
-            <source>0 bytes</source>
-            <translation>0 bytes</translation>
+            <source>Limit download speed to avoid slowing down internet browsing.</source>
+            <translation>Limit download speed to avoid slowing down internet browsing.</translation>
         </message>
         <message>
             <source>Cancel download and stop worker thread</source>
             <translation>Cancel download and stop worker thread</translation>
         </message>
         <message>
-            <source>Hide progress window and continue downloading in the background</source>
-            <translation>Hide progress window and continue downloading in the background</translation>
+            <source>Overall download progress</source>
+            <translation>Overall download progress</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <source>0 bytes</source>
+            <translation>0 bytes</translation>
+        </message>
+        <message>
+            <source>Start positions and download progress by connections</source>
+            <translation>Start positions and download progress by connections</translation>
         </message>
         <message>
             <source>Pause or resume this download</source>
             <translation>Pause or resume this download</translation>
+        </message>
+        <message>
+            <source>Connecting...</source>
+            <translation>Connecting...</translation>
+        </message>
+        <message>
+            <source>Calculating...</source>
+            <translation>Calculating...</translation>
         </message>
         <message>
             <source>Use Speed Limiter</source>
@@ -3693,24 +3700,47 @@
             <translation>Unknown</translation>
         </message>
         <message>
-            <source>Overall download progress</source>
-            <translation>Overall download progress</translation>
+            <source>0.00 B/s</source>
+            <translation>0.00 B/s</translation>
         </message>
         <message>
-            <source>Calculating...</source>
-            <translation>Calculating...</translation>
+            <source>Hide progress window and continue downloading in the background</source>
+            <translation>Hide progress window and continue downloading in the background</translation>
         </message>
         <message>
-            <source>Max speed:</source>
-            <translation>Max speed:</translation>
-        </message>
-        <message>
-            <source>KB/sec</source>
-            <translation>KB/sec</translation>
+            <source>Hide</source>
+            <translation>Hide</translation>
         </message>
         <message>
             <source>Show or hide multi-connection segment metrics panel</source>
             <translation>Show or hide multi-connection segment metrics panel</translation>
+        </message>
+        <message>
+            <source>Details &gt;&gt;</source>
+            <translation>Details &gt;&gt;</translation>
+        </message>
+    </context>
+    <context>
+        <name>PropertiesDialog</name>
+        <message>
+            <source>Open this file with default application</source>
+            <translation>Open this file with default application</translation>
+        </message>
+        <message>
+            <source>Open</source>
+            <translation>Open</translation>
+        </message>
+        <message>
+            <source>Close properties window</source>
+            <translation>Close properties window</translation>
+        </message>
+        <message>
+            <source>File Information</source>
+            <translation>File Information</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
         </message>
     </context>
     <context>

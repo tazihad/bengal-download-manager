@@ -169,10 +169,18 @@ jobs:
           version: ${{ needs.prepare.outputs.version }}
           arch: ${{ matrix.arch }}
 
+      - name: Build DEB and RPM Packages
+        uses: ./.github/actions/build-deb-rpm
+        with:
+          version: ${{ needs.prepare.outputs.version }}
+          arch: ${{ matrix.arch }}
+
       - name: Stage Release Artifacts
         run: |
           mkdir -p release_artifacts
           cp dist/*.tar.xz release_artifacts/ 2>/dev/null || cp build_cmake/dist/*.tar.xz release_artifacts/ 2>/dev/null || true
+          cp dist/*.deb release_artifacts/ 2>/dev/null || true
+          cp dist/*.rpm release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage release_artifacts/ 2>/dev/null || true
           cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.AppImage.zsync release_artifacts/ 2>/dev/null || true
           cp dist/bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || cp bengal-download-manager-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.flatpak release_artifacts/ 2>/dev/null || true
@@ -356,7 +364,14 @@ jobs:
           special_files = {"SHA256SUMS", "SHA256SUMS.sig", "SHA256SUMS.txt"}
           files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files and not f.endswith(".zsync")]
 
-          linux_groups = {"AppImage": [], "Flatpak": [], "Snap": [], ".tar.xz": []}
+          linux_groups = {
+              "Debian / Ubuntu (.deb)": [],
+              "Fedora / RHEL (.rpm)": [],
+              "AppImage": [],
+              "Flatpak": [],
+              "Snap": [],
+              ".tar.xz": []
+          }
           windows_items = []
           macos_items = []
           extension_items = []
@@ -371,6 +386,10 @@ jobs:
                   linux_groups["Flatpak"].append((arch, fname, url))
               elif fname.endswith(".snap"):
                   linux_groups["Snap"].append((arch, fname, url))
+              elif fname.endswith(".deb"):
+                  linux_groups["Debian / Ubuntu (.deb)"].append((arch, fname, url))
+              elif fname.endswith(".rpm"):
+                  linux_groups["Fedora / RHEL (.rpm)"].append((arch, fname, url))
               elif fname.endswith(".tar.xz"):
                   linux_groups[".tar.xz"].append((arch, fname, url))
               elif fname.endswith(".exe") or ("windows" in fname and fname.endswith(".zip")):
@@ -405,13 +424,15 @@ jobs:
               lines.append("  <tbody>")
 
               linux_notes = {
+                  "Debian / Ubuntu (.deb)": "Native package for Debian, Ubuntu, Linux Mint",
+                  "Fedora / RHEL (.rpm)": "Native package for Fedora, RHEL, openSUSE",
                   "AppImage": "Universal standalone bundle",
                   "Flatpak": "Single-file offline bundle",
                   "Snap": "Canonical Snap package",
                   ".tar.xz": "Portable tarball archive"
               }
 
-              for pkg in ["AppImage", "Flatpak", "Snap", ".tar.xz"]:
+              for pkg in ["Debian / Ubuntu (.deb)", "Fedora / RHEL (.rpm)", "AppImage", "Flatpak", "Snap", ".tar.xz"]:
                   items = linux_groups.get(pkg, [])
                   if not items:
                       continue

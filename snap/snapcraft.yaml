@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core26
-version: '0.3.13'
+version: '0.3.14-alpha.3'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -87,6 +87,8 @@ parts:
     source: .
     build-snaps:
       - astral-uv
+    build-environment:
+      - UV_PYTHON: python3
     # The core26 base snap does not include Python, so the snap must stage it.
     stage-packages:
       - python3-venv
