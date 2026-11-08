@@ -3,6 +3,14 @@
 
 const SITE_ROOT = "";
 
+// ---------- Path helpers (pages live at root and in privacy/ subdir) ----------
+const IS_SUBPAGE = window.location.pathname.split("/").filter(Boolean).length > 1;
+const ASSET_BASE = IS_SUBPAGE ? "../" : "";
+
+function asset(path) {
+  return ASSET_BASE + path;
+}
+
 // ---------- Data loading (inline page data, no fetch waterfall) ----------
 function getInlineData(id) {
   const el = document.getElementById(id);
@@ -82,11 +90,13 @@ function renderSiteShell() {
 
   // Brand
   const brandLinks = document.querySelectorAll(".brand");
-  brandLinks.forEach(el => {
-    el.innerHTML = '<img src="' + (data.brand && data.brand.logo ? data.brand.logo : "assets/logo.png") + '" alt="" />'
-      + '<strong>' + (data.brand && data.brand.name ? data.brand.name : "Bengal Download Manager") + '</strong>'
-      + (data.brand && data.brand.tagline ? ' <span>' + data.brand.tagline + '</span>' : '');
-  });
+  if (data.brand) {
+    brandLinks.forEach(el => {
+      el.innerHTML = '<img src="' + asset(data.brand.logo || "assets/logo.png") + '" alt="" />'
+        + '<strong>' + (data.brand.name || "Bengal Download Manager") + '</strong>'
+        + (data.brand.tagline ? ' <span>' + data.brand.tagline + '</span>' : '');
+    });
+  }
 
   // Nav links
   const navList = document.querySelector(".nav-links");
@@ -103,8 +113,8 @@ function renderSiteShell() {
 
   // Footer brand
   const footerBrand = document.querySelector(".footer-brand");
-  if (footerBrand && data.footer) {
-    footerBrand.innerHTML = '<img src="' + (data.brand && data.brand.logo ? data.brand.logo : "assets/logo.png") + '" alt="" />'
+  if (footerBrand && data.footer && data.brand) {
+    footerBrand.innerHTML = '<img src="' + asset(data.brand.logo || "assets/logo.png") + '" alt="" />'
       + '<span>' + (data.footer.brandName || "Bengal Download Manager") + '</span>';
   }
 

@@ -17,6 +17,39 @@
   <!-- Shared theme stylesheet -->
   <link rel="stylesheet" href="../site/css/shared.css" />
 
+  <!-- Inline site data (shared with index.html, renders common header/footer) -->
+  <script id="site-data" type="application/json">
+    {
+      "brand": { "name": "Bengal Download Manager", "tagline": "", "logo": "assets/logo.png", "github": "https://github.com/tazihad/bengal-download-manager" },
+      "nav": [
+        { "label": "Features", "href": "#features" },
+        { "label": "Screenshots", "href": "#screenshots" },
+        { "label": "Install", "href": "#install" },
+        { "label": "FAQ", "href": "#faq" }
+      ],
+      "actions": [ { "label": "GitHub", "href": "https://github.com/tazihad/bengal-download-manager", "external": true } ],
+      "footer": {
+        "brandName": "Bengal Download Manager",
+        "brandText": "A fast, native download manager for Linux.",
+        "download": [
+          { "label": "Flathub", "href": "https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager", "external": true },
+          { "label": "Snap Store", "href": "https://snapcraft.io/bengal-download-manager", "external": true },
+          { "label": "AppImage", "href": "#tab-appimage" },
+          { "label": "DEB package", "href": "#tab-deb" },
+          { "label": "RPM package", "href": "#tab-rpm" }
+        ],
+        "project": [
+          { "label": "Source code", "href": "https://github.com/tazihad/bengal-download-manager", "external": true },
+          { "label": "Report an issue", "href": "https://github.com/tazihad/bengal-download-manager/issues", "external": true },
+          { "label": "Privacy", "href": "privacy/index.html" },
+          { "label": "MIT License", "href": "https://github.com/tazihad/bengal-download-manager/blob/main/LICENSE", "external": true }
+        ],
+        "bottomLeft": "© 2026 Bengal Download Manager Contributors",
+        "bottomRight": "Made for Linux. No ads, no telemetry."
+      }
+    }
+  </script>
+
   <!-- Theme initialization (matches index.html) -->
   <script>
     (function () {
@@ -531,10 +564,6 @@
       </div>
     </div>
   </footer>
-
-  <script>
-    document.getElementById('year').textContent = new Date().getFullYear();
-  </script>
 
   <!-- Shared JS: renders common header/footer from site/data/site.json -->
   <script src="../site/js/app.js"></script>
