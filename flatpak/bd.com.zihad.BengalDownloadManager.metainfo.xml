@@ -87,6 +87,8 @@
           <li>Added native Debian/Ubuntu (.deb) and Fedora/RHEL (.rpm) packages</li>
           <li>Updated Snap package to modern Ubuntu 26.04 (core26) base with uv build system</li>
           <li>Enhanced execution wrapper with dynamic multi-Python site-packages discovery</li>
+          <li>About dialog now correctly identifies Debian and RPM package installs</li>
+          <li>Added a Chrome Web Store link to the Help menu and Extensions tab</li>
         </ul>
       </description>
     </release>
