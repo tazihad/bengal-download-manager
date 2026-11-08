@@ -4,8 +4,11 @@
 const SITE_ROOT = "";
 
 // ---------- Path helpers (pages live at root and in privacy/ subdir) ----------
-// Use raw split length (>2) so directory URLs like /privacy/ are detected as subpages too.
-const IS_SUBPAGE = window.location.pathname.split("/").length > 2;
+// Detect subpages by checking if the last non-empty path segment is a known subdir,
+// not by depth — depth check breaks on GitHub Pages where the repo name adds an extra segment.
+const _pathParts = window.location.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+const _KNOWN_SUBDIRS = ["privacy", "preview"];
+const IS_SUBPAGE = _KNOWN_SUBDIRS.includes(_pathParts[_pathParts.length - 1]);
 const ASSET_BASE = IS_SUBPAGE ? "../" : "";
 
 function asset(path) {
