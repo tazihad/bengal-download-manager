@@ -1431,6 +1431,37 @@
             </div>
             <span class="install-note" style="font-size: 0.85rem; opacity: 0.7;">Served from the project's Git repository Flatpak repo.</span>
 
+            <div style="margin-bottom: 16px;">
+              <div class="install-heading">Direct Repository (.flatpakref &amp; Git Source)</div>
+              <p class="install-lead">GPG-signed, sandboxed desktop installation built directly from git source.</p>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+              <a href="bengal-download-manager.flatpakref" class="custom-store-badge">
+                <img src="assets/badges/flatpak.svg" alt="" class="store-badge-icon" />
+                <div class="text-container">
+                  <div class="store-pre-title">Install via</div>
+                  <div class="store-title">Flatpakref</div>
+                </div>
+              </a>
+            </div>
+
+            <div class="field-label" style="margin-bottom: 8px;">Option 1: One-Command Online Install (.flatpakref)</div>
+            <div class="cli-box">
+              <button class="copy-btn" onclick="copyCode('flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref', this)">Copy</button>
+              <code><span class="cli-prompt">$</span>flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref</code>
+            </div>
+
+            <div class="field-label" style="margin: 20px 0 8px;">Option 2: Add Repository Remote (Auto-Updates via flatpak update)</div>
+            <div class="cli-box">
+              <button class="copy-btn" onclick="copyCode('flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo', this)">Copy</button>
+              <code><span class="cli-prompt">$</span>flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo</code>
+            </div>
+            <div class="cli-box">
+              <button class="copy-btn" onclick="copyCode('flatpak install --user -y tazihad bd.com.zihad.BengalDownloadManager', this)">Copy</button>
+              <code><span class="cli-prompt">$</span>flatpak install --user -y tazihad bd.com.zihad.BengalDownloadManager</code>
+            </div>
+
             <hr class="divider" />
 
             <p class="install-foot">
