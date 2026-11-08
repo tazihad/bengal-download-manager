@@ -109,12 +109,128 @@
 
   <!-- Shared stylesheet -->
   <link rel="stylesheet" href="site/css/shared.css" />
+
+  <!-- Inline page data (loaded synchronously, no fetch waterfall / hydration flash) -->
+  <script id="site-data" type="application/json">
+    {
+      "brand": { "name": "Bengal Download Manager", "tagline": "Download Manager", "logo": "assets/logo.png", "github": "https://github.com/tazihad/bengal-download-manager" },
+      "nav": [
+        { "label": "Features", "href": "#features" },
+        { "label": "Screenshots", "href": "#screenshots" },
+        { "label": "Install", "href": "#install" },
+        { "label": "FAQ", "href": "#faq" }
+      ],
+      "actions": [ { "label": "GitHub", "href": "https://github.com/tazihad/bengal-download-manager", "external": true } ],
+      "footer": {
+        "brandName": "Bengal Download Manager",
+        "brandText": "A fast, native download manager for Linux.",
+        "download": [
+          { "label": "Flathub", "href": "https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager", "external": true },
+          { "label": "Snap Store", "href": "https://snapcraft.io/bengal-download-manager", "external": true },
+          { "label": "AppImage", "href": "#tab-appimage" },
+          { "label": "DEB package", "href": "#tab-deb" },
+          { "label": "RPM package", "href": "#tab-rpm" }
+        ],
+        "project": [
+          { "label": "Source code", "href": "https://github.com/tazihad/bengal-download-manager", "external": true },
+          { "label": "Report an issue", "href": "https://github.com/tazihad/bengal-download-manager/issues", "external": true },
+          { "label": "Privacy", "href": "privacy/index.html" },
+          { "label": "MIT License", "href": "https://github.com/tazihad/bengal-download-manager/blob/main/LICENSE", "external": true }
+        ],
+        "bottomLeft": "© 2026 Bengal Download Manager Contributors",
+        "bottomRight": "Made for Linux. No ads, no telemetry."
+      }
+    }
+  </script>
+
+  <script id="content-data" type="application/json">
+    {
+      "hero": {
+        "eyebrow": "Free and open source for Linux",
+        "title": "A fast, native download manager for Linux.",
+        "desc": "Bengal Download Manager splits files into parallel connections, catches downloads from your browser, and resumes interrupted transfers automatically. It is a lightweight Qt application — no Electron, no ads, no telemetry.",
+        "primaryBtn": { "label": "Download for Linux", "href": "#install" },
+        "secondaryBtn": { "label": "View source", "href": "https://github.com/tazihad/bengal-download-manager", "external": true },
+        "availableOn": [
+          { "label": "Flathub", "href": "https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager", "external": true },
+          { "label": "Snap Store", "href": "https://snapcraft.io/bengal-download-manager", "external": true },
+          { "label": "AppImage", "href": "#tab-appimage" },
+          { "label": "DEB", "href": "#tab-deb" },
+          { "label": "RPM", "href": "#tab-rpm" }
+        ],
+        "browserExtensions": [
+          { "label": "Chrome", "href": "https://chromewebstore.google.com/detail/bengal-dm-connector/maabnenhophnabkehjgdaidaglneocbi", "external": true },
+          { "label": "Firefox", "href": "https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module", "external": true }
+        ],
+        "figure": { "image": "assets/screenshots/01-main-app.png", "caption": "Bengal Download Manager on KDE Plasma" }
+      },
+      "metrics": [
+        { "value": "32", "label": "Parallel connections", "sub": "Per file, powered by Aria2" },
+        { "value": "&lt;100 MB", "label": "Memory footprint", "sub": "Lightweight Qt application" },
+        { "value": "6", "label": "Install methods", "sub": "Flathub, Snap, Flatpak, AppImage, DEB, RPM" },
+        { "value": "0", "label": "Ads and telemetry", "sub": "MIT licensed, fully auditable" }
+      ],
+      "features": [
+        { "icon": "M12 3 3 8l9 5 9-5-9-5Z M3 12l9 5 9-5 M3 16l9 5 9-5", "title": "Parallel downloads", "text": "Files are split into up to 32 chunks and transferred at once, making better use of the available bandwidth." },
+        { "icon": "M3 4v5h5 M7 6.5h.01 M10 6.5h.01", "title": "Browser integration", "text": "The Chrome and Firefox extensions catch download links and hand them to the app over a secure local port." },
+        { "icon": "M3 12a9 9 0 1 0 3-6.7 M3 4v5h5", "title": "Pause and resume", "text": "Transfers resume from the last byte when a connection drops, so large files do not start over." },
+        { "icon": "M10 9l5 3-5 3V9Z", "title": "Media downloads", "text": "Paste a video or audio URL to read its metadata, preview a thumbnail, and choose a resolution or bitrate." },
+        { "icon": "M5 7V7H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7", "title": "Automatic categories", "text": "Incoming files are sorted into Documents, Videos, Music, Compressed, and Programs folders by type." },
+        { "icon": "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4", "title": "Native desktop interface", "text": "Follows your system light and dark theme, with support for both Wayland and X11 sessions." }
+      ],
+      "screenshots": [
+        { "image": "assets/screenshots/01-main-app.png", "title": "Main window, dark mode", "badge": "Core UI" },
+        { "image": "assets/screenshots/02-main-app-light-mode.png", "title": "Main window, light mode", "badge": "Breeze Light" },
+        { "image": "assets/screenshots/03-main-app-different-theme.png", "title": "Themes and accent colors", "badge": "Customization" },
+        { "image": "assets/screenshots/04-media-downloader.png", "title": "Media downloader", "badge": "Video" },
+        { "image": "assets/screenshots/05-site-grabber.png", "title": "Batch site grabber", "badge": "Tools" },
+        { "image": "assets/screenshots/06-scheduler.png", "title": "Download scheduler", "badge": "Automation" },
+        { "image": "assets/screenshots/07-data-usage-summary.png", "title": "Data usage summary", "badge": "Statistics" }
+      ],
+      "install": { "eyebrow": "Install", "title": "Get Bengal Download Manager", "desc": "Choose the package that fits your system. Releases are published through the official channels below." },
+      "faq": {
+        "eyebrow": "FAQ",
+        "title": "Common questions",
+        "desc": "A short overview of how the app works and what it supports.",
+        "items": [
+          { "q": "Why is Bengal Download Manager faster than browser downloads?", "a": "Browsers download files through a single continuous TCP stream, which is often throttled by servers or slowed by packet loss. Bengal Download Manager breaks the file into up to 32 parallel chunks (powered by Aria2) and transfers them at the same time." },
+          { "q": "Is it a good IDM alternative on Linux?", "a": "Yes. Internet Download Manager is Windows-only and not available natively on Linux. Bengal Download Manager is built for Linux and provides multi-segment acceleration, one-click browser interception, automatic category sorting, and reliable pause and resume support." },
+          { "q": "What makes it different from other download managers?", "a": "It pairs the Aria2 download engine with a native PyQt6 interface instead of an Electron shell. It starts quickly, uses little memory, follows your desktop theme, and ships without ads, bundled software, or telemetry." },
+          { "q": "How does the browser extension capture links?", "a": "The Chrome and Firefox extensions watch for download triggers using Manifest V3 APIs. When a matching file type is detected, the download is handed to the app through a local loopback connection on port 56800." },
+          { "q": "Can I pause and resume interrupted downloads?", "a": "Yes. Pause and resume works with any server that supports HTTP byte ranges. If the connection drops or the computer sleeps, the transfer continues from the last completed byte." },
+          { "q": "Which Linux distributions are supported?", "a": "It runs on major distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS. Packages are available through Flathub, Snap, a direct Flatpak repository, and portable AppImage builds for <code>x86_64</code> and <code>aarch64</code>." },
+          { "q": "Is it completely free and open source?", "a": "Yes. Bengal Download Manager is released under the MIT License. There are no subscriptions, no ads, no bundled software, and no telemetry. You can audit, contribute to, or fork the code on GitHub." }
+        ]
+      }
+    }
+  </script>
+
+  <script id="install-data" type="application/json">
+    {
+      "flatpak": {
+        "title": "Flatpak and Flathub",
+        "storeRow": { "badgeUrl": "https://flathub.org/api/badge?locale=en", "badgeLink": "https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager", "note": "Official Flathub release, sandboxed with automatic updates." },
+        "flathubCmd": "flatpak install flathub bd.com.zihad.BengalDownloadManager",
+        "directRepo": { "heading": "Direct Repository (.flatpakref &amp; Git Source)", "lead": "GPG-signed, sandboxed desktop installation built directly from git source.", "flatpakrefLink": "bengal-download-manager.flatpakref", "flatpakrefBadge": "assets/badges/flatpak.svg", "flatpakrefPreTitle": "Install via", "flatpakrefTitle": "Flatpakref" },
+        "options": [
+          { "label": "Option 1: One-command install via .flatpakref", "cmd": "flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref" },
+          { "label": "Option 2: Add repository remote (auto-updates via flatpak update)", "cmds": [ "flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo", "flatpak install --user -y tazihad bd.com.zihad.BengalDownloadManager" ] }
+        ],
+        "foot": "View all release assets on GitHub &rarr;",
+        "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest"
+      },
+      "snap": { "title": "Snap Store", "storeRow": { "badgeUrl": "https://snapcraft.io/en/dark/install.svg", "badgeLink": "https://snapcraft.io/bengal-download-manager", "note": "Official Canonical package with automatic updates." }, "cmd": "sudo snap install bengal-download-manager", "foot": "View all release assets on GitHub &rarr;", "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest" },
+      "appimage": { "title": "AppImage", "heading": "Direct AppImage download", "lead": "A portable executable that runs without installation or root access.", "archSelect": { "label": "System architecture", "options": [ { "value": "x86_64", "label": "x86_64 (64-bit Intel / AMD)" }, { "value": "aarch64", "label": "aarch64 (64-bit ARM)" } ] }, "badge": { "image": "assets/badges/appimage.svg", "preTitle": "Download", "title": "AppImage (x86_64)", "link": "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage" }, "curlCmd": "curl -L -o bengal-download-manager-0.3.14-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage", "runCmd": "chmod +x bengal-download-manager-0.3.14-x86_64.AppImage && ./bengal-download-manager-0.3.14-x86_64.AppImage", "foot": "View all release assets on GitHub →", "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest" },
+      "deb": { "title": "Debian / Ubuntu (.deb)", "heading": "Debian / Ubuntu package", "lead": "Native .deb package for Debian, Ubuntu, Linux Mint, Pop!_OS, and related distributions.", "archSelect": { "label": "System architecture", "options": [ { "value": "x86_64", "label": "x86_64 (64-bit Intel / AMD)" }, { "value": "aarch64", "label": "aarch64 (64-bit ARM)" } ] }, "badge": { "icon": "DEB", "preTitle": "Download", "title": ".deb (x86_64)", "link": "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb" }, "step1": "Download the package", "step1Cmd": "curl -L -o bengal-download-manager-0.3.14-x86_64.deb https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb", "step2": "Install with apt", "step2Cmd": "sudo apt install ./bengal-download-manager-0.3.14-x86_64.deb", "foot": "View all release assets on GitHub →", "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest" },
+      "rpm": { "title": "Fedora / RHEL (.rpm)", "heading": "Fedora / RHEL package", "lead": "Native .rpm package for Fedora, RHEL, CentOS Stream, and other dnf-based distributions.", "archSelect": { "label": "System architecture", "options": [ { "value": "x86_64", "label": "x86_64 (64-bit Intel / AMD)" }, { "value": "aarch64", "label": "aarch64 (64-bit ARM)" } ] }, "badge": { "icon": "RPM", "preTitle": "Download", "title": ".rpm (x86_64)", "link": "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm" }, "step1": "Download the package", "step1Cmd": "curl -L -o bengal-download-manager-0.3.14-x86_64.rpm https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm", "step2": "Install with dnf", "step2Cmd": "sudo dnf install ./bengal-download-manager-0.3.14-x86_64.rpm", "foot": "View all release assets on GitHub →", "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest" }
+    }
+  </script>
 </head>
 <body>
 
   <a class="skip-link" href="#main">Skip to main content</a>
 
-  <!-- Header (populated by JS from site/data/site.json) -->
+  <!-- Header (populated by JS from inline page data) -->
   <header class="site-header">
     <div class="container site-nav">
       <a href="#" class="brand"></a>

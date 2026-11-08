@@ -3,25 +3,26 @@
 
 const SITE_ROOT = "";
 
-// ---------- Data loading ----------
+// ---------- Data loading (inline page data, no fetch waterfall) ----------
+function getInlineData(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  try {
+    return JSON.parse(el.textContent);
+  } catch (e) {
+    console.warn("Failed to parse inline data #" + id + ":", e);
+    return null;
+  }
+}
+
 let siteData = {};
 let contentData = {};
 let installData = {};
 
-async function loadJSON(path) {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
-  return res.json();
-}
-
-async function initData() {
-  try {
-    siteData = await loadJSON("site/data/site.json");
-    contentData = await loadJSON("site/data/content.json");
-    installData = await loadJSON("site/data/install.json");
-  } catch (e) {
-    console.warn("Could not load site data:", e);
-  }
+function initData() {
+  siteData = getInlineData("site-data") || {};
+  contentData = getInlineData("content-data") || {};
+  installData = getInlineData("install-data") || {};
 }
 
 // ---------- Theme switching ----------
@@ -666,8 +667,8 @@ function closeLightbox(e) {
 }
 
 // ---------- Init ----------
-document.addEventListener("DOMContentLoaded", async () => {
-  await initData();
+document.addEventListener("DOMContentLoaded", () => {
+  initData();
   initTheme();
   renderSiteShell();
   renderHero();
