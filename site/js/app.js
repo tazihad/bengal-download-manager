@@ -6,9 +6,9 @@ const SITE_ROOT = "";
 // ---------- Path helpers (pages live at root and in privacy/ subdir) ----------
 // Detect subpages by checking if the last non-empty path segment is a known subdir,
 // not by depth — depth check breaks on GitHub Pages where the repo name adds an extra segment.
-const _pathParts = window.location.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+const _pathParts = window.location.pathname.split("/").filter(Boolean);
 const _KNOWN_SUBDIRS = ["privacy", "preview"];
-const IS_SUBPAGE = _KNOWN_SUBDIRS.includes(_pathParts[_pathParts.length - 1]);
+const IS_SUBPAGE = _pathParts.some(seg => _KNOWN_SUBDIRS.includes(seg));
 const ASSET_BASE = IS_SUBPAGE ? "../" : "";
 
 function asset(path) {
