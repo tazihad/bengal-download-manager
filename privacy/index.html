@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <!-- Shared theme stylesheet -->
+  <!-- Shared theme stylesheet (header, footer, layout — identical to index.html) -->
   <link rel="stylesheet" href="../site/css/shared.css" />
 
   <!-- Inline site data (shared with index.html, renders common header/footer) -->
@@ -60,7 +60,6 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
 
-    // Follow system theme changes when no preference stored
     var darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
     function handleSystemThemeChange(event) {
       try {
@@ -74,7 +73,7 @@
     }
   </script>
 
-  <!-- Privacy page specific styles (built on shared theme variables) -->
+  <!-- Privacy page specific content styles (built on shared theme variables) -->
   <style>
     :root {
       --plasma-bg: var(--bg);
@@ -90,136 +89,8 @@
       --plasma-green: #2ecc71;
       --plasma-red: #da4453;
       --bengal-orange: #ea580c;
-      --text: var(--text);
-      --text-dim: var(--text-soft);
-      --text-muted: var(--text-muted);
-      --radius-kde: var(--radius);
-      --radius-sm: 8px;
       --shadow-glass: 0 16px 40px rgba(0, 0, 0, 0.35);
       --shadow-glow: 0 0 35px rgba(61, 174, 233, 0.25);
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-      font-size: 16px;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      min-height: 100vh;
-      line-height: 1.7;
-      font-variant-numeric: tabular-nums;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    img {
-      max-width: 100%;
-      height: auto;
-      display: block;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-
-    /* Top Navigation */
-    .kde-header {
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-      background: var(--header-bg);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .kde-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      height: 72px;
-    }
-
-    .kde-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-family: 'Outfit', sans-serif;
-      font-weight: 800;
-      font-size: 1.25rem;
-      letter-spacing: -0.02em;
-      color: var(--text);
-    }
-
-    .kde-brand img {
-      width: 36px;
-      height: 36px;
-      transition: transform 0.2s;
-    }
-
-    .brand-bengal {
-      background: linear-gradient(135deg, var(--plasma-amber) 0%, var(--bengal-orange) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .kde-menu {
-      display: flex;
-      gap: 28px;
-      list-style: none;
-      align-items: center;
-    }
-
-    .kde-menu a {
-      color: var(--text-muted);
-      font-size: 14px;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-
-    .kde-menu a:hover {
-      color: var(--blue-700);
-    }
-
-    .kde-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .github-star-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      background: var(--surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      transition: all 0.2s;
-    }
-
-    .github-star-btn:hover {
-      background: var(--bg-soft);
-      border-color: var(--blue-700);
-      transform: translateY(-1px);
     }
 
     /* Page Header */
@@ -373,31 +244,6 @@
       border-top: 1px solid var(--border);
     }
 
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 48px 0 32px;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 13px;
-      background: var(--bg-soft);
-    }
-
-    .footer-links {
-      margin-bottom: 16px;
-    }
-
-    .footer-links a {
-      color: var(--blue-500);
-      margin: 0 10px;
-      font-size: 13px;
-      transition: color 0.2s;
-    }
-
-    .footer-links a:hover {
-      color: var(--blue-700);
-    }
-
     @media (max-width: 768px) {
       .page-header {
         grid-template-columns: 1fr;
@@ -406,9 +252,6 @@
       }
       .policy-body {
         padding: 32px 24px;
-      }
-      .kde-menu {
-        display: none;
       }
     }
   </style>
@@ -524,12 +367,12 @@
     </div>
 
     <p class="footer-note">
-      &copy; <span id="year"></span> Bengal Download Manager. MIT Licensed. Zero data collection by design.
+      © <span id="year"></span> Bengal Download Manager. MIT Licensed. Zero data collection by design.
     </p>
 
   </div>
 
-  <!-- Footer -->
+  <!-- Footer (shared theme, matches index.html) -->
   <footer class="site-footer">
     <div class="container">
       <div class="footer-grid">
@@ -565,7 +408,6 @@
     </div>
   </footer>
 
-  <!-- Shared JS: renders common header/footer from site/data/site.json -->
   <script src="../site/js/app.js"></script>
 </body>
 </html>
