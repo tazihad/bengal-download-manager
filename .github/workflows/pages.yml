@@ -32,6 +32,7 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp -r assets _site/
+          cp -r site _site/
           cp -r privacy _site/ 2>/dev/null || true
           touch _site/.nojekyll
           if [ -d "repo" ]; then
