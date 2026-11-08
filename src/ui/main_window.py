@@ -828,6 +828,10 @@ class MainWindow(QMainWindow):
         ext_chromium.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/tazihad/bengal-download-manager/releases")))
         ext_menu.addAction(ext_chromium)
 
+        ext_chrome_store = QAction(self.tr("&Chrome Web Store"), self)
+        ext_chrome_store.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://chromewebstore.google.com/detail/bengal-dm-connector/maabnenhophnabkehjgdaidaglneocbi")))
+        ext_menu.addAction(ext_chrome_store)
+
         help_menu.addSeparator()
 
         about_action = QAction(self.tr("&About Bengal DM"), self)

@@ -31,30 +31,44 @@ def reset_build_info_cache():
 
 
 def test_package_type_detection():
-    # 1. Dev build default (unfrozen)
-    with patch.dict(os.environ, {}, clear=True):
-        with patch.object(sys, "frozen", False, create=True):
-            assert get_package_type() == "Dev Build"
+    # 1. Dev build default (unfrozen, no dpkg/rpm)
+    with patch("shutil.which", return_value=None), \
+         patch.object(sys, "frozen", False, create=True):
+        assert get_package_type() == "Dev Build"
 
     # 2. Flatpak via FLATPAK_ID
-    with patch.dict(os.environ, {"FLATPAK_ID": "bd.com.zihad.BengalDownloadManager"}, clear=True):
+    with patch("shutil.which", return_value=None), \
+         patch.dict(os.environ, {"FLATPAK_ID": "bd.com.zihad.BengalDownloadManager"}, clear=True):
         assert get_package_type() == "Flatpak"
 
     # 3. Snap via SNAP
-    with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/current"}, clear=True):
+    with patch("shutil.which", return_value=None), \
+         patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/current"}, clear=True):
         assert get_package_type() == "Snap"
 
     # 4. AppImage via APPIMAGE
-    with patch.dict(os.environ, {"APPIMAGE": "/path/to/bdm.AppImage"}, clear=True):
+    with patch("shutil.which", return_value=None), \
+         patch.dict(os.environ, {"APPIMAGE": "/path/to/bdm.AppImage"}, clear=True):
         assert get_package_type() == "AppImage"
 
     # 5. Tar build via sys.frozen
-    with patch.dict(os.environ, {}, clear=True):
-        with patch.object(sys, "frozen", True, create=True):
-            assert get_package_type() == "Tar Build"
+    with patch("shutil.which", return_value=None), \
+         patch.object(sys, "frozen", True, create=True):
+        assert get_package_type() == "Tar Build"
 
-    # 6. Override via BDM_PACKAGE_TYPE
-    with patch.dict(os.environ, {"BDM_PACKAGE_TYPE": "Custom Build"}, clear=True):
+    # 6. Deb build via dpkg
+    with patch("shutil.which", return_value="/usr/bin/dpkg"), \
+         patch("subprocess.run", return_value=MagicMock(returncode=0)):
+        assert get_package_type() == "Deb Build"
+
+    # 7. RPM build via rpm (dpkg not found, rpm found)
+    with patch("shutil.which", side_effect=lambda cmd: "/usr/bin/rpm" if cmd == "rpm" else None), \
+         patch("subprocess.run", return_value=MagicMock(returncode=0)):
+        assert get_package_type() == "RPM Build"
+
+    # 8. Override via BDM_PACKAGE_TYPE
+    with patch("shutil.which", return_value=None), \
+         patch.dict(os.environ, {"BDM_PACKAGE_TYPE": "Custom Build"}, clear=True):
         assert get_package_type() == "Custom Build"
 
 
@@ -170,12 +184,12 @@ def test_verified_source_info_dev_and_tar():
             assert note == ""
 
     # Tar build / AppImage has tag-specific release URL and SHA-256 tooltip
-    with patch.dict(os.environ, {}, clear=True):
-        with patch.object(sys, "frozen", True, create=True):
-            is_verified, url, note = get_verified_source_info("0.2.55")
-            assert is_verified is True
-            assert url == f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.55"
-            assert "SHA-256" in note
+    with patch("shutil.which", return_value=None), \
+         patch.object(sys, "frozen", True, create=True):
+        is_verified, url, note = get_verified_source_info("0.2.55")
+        assert is_verified is True
+        assert url == f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.55"
+        assert "SHA-256" in note
 
 
 def test_about_dialog_formatting(qtbot):
@@ -191,7 +205,8 @@ def test_about_dialog_formatting(qtbot):
     dlg.close()
 
     # 2. Release Tar build with async verification
-    with patch.object(sys, "frozen", True, create=True), \
+    with patch("shutil.which", return_value=None), \
+         patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
          patch("core.build_info.verify_source_status", return_value=("verified", f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.57", "Checksums (SHA-256) matched")):
         dlg = AboutDialog(None)
@@ -225,7 +240,8 @@ def test_help_menu_homepage_url(qtbot):
 def test_about_verified_source_hover_tooltip(qtbot):
     from ui.dialogs.about import AboutDialog
 
-    with patch.object(sys, "frozen", True, create=True), \
+    with patch("shutil.which", return_value=None), \
+         patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
          patch("core.build_info.verify_source_status", return_value=("verified", f"{OFFICIAL_GITHUB_REPO}/releases/tag/v0.2.57", "Checksums (SHA-256) matched")):
         dlg = AboutDialog(None)
@@ -241,7 +257,8 @@ def test_about_dialog_offline_warning(qtbot):
     """Test that About dialog displays a small size text warning when no network is available."""
     from ui.dialogs.about import AboutDialog
 
-    with patch.object(sys, "frozen", True, create=True), \
+    with patch("shutil.which", return_value=None), \
+         patch.object(sys, "frozen", True, create=True), \
          patch.dict(os.environ, {}, clear=True), \
          patch("core.build_info.verify_source_status", return_value=("no_network", "", "No network connection")):
         dlg = AboutDialog(None)

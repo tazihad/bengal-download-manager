@@ -1430,11 +1430,12 @@ class OptionsDialog(QDialog):
         self.btn_ext_firefox.setToolTip(self.tr("Open Mozilla Firefox Add-ons Store page"))
         self.btn_ext_firefox.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module")))
 
-        self.btn_ext_chrome = QPushButton(self.tr(" Chrome (Coming Soon)"))
+        self.btn_ext_chrome = QPushButton(self.tr(" Chrome Web Store"))
         self.btn_ext_chrome.setFixedHeight(32)
+        self.btn_ext_chrome.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ext_chrome.setIcon(get_monochrome_icon("chrome", size=18))
-        self.btn_ext_chrome.setEnabled(False)
-        self.btn_ext_chrome.setToolTip(self.tr("Chrome Web Store integration is coming soon"))
+        self.btn_ext_chrome.setToolTip(self.tr("Open Chrome Web Store page for Bengal DM Connector"))
+        self.btn_ext_chrome.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://chromewebstore.google.com/detail/bengal-dm-connector/maabnenhophnabkehjgdaidaglneocbi")))
 
         buttons_layout.addWidget(self.btn_ext_github)
         buttons_layout.addWidget(self.btn_ext_firefox)

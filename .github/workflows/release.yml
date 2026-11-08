@@ -365,11 +365,11 @@ jobs:
           files = [f for f in sorted(os.listdir(".")) if os.path.isfile(f) and f not in special_files and not f.endswith(".zsync")]
 
           linux_groups = {
-              "Debian / Ubuntu (.deb)": [],
-              "Fedora / RHEL (.rpm)": [],
               "AppImage": [],
               "Flatpak": [],
               "Snap": [],
+              "Debian / Ubuntu (.deb)": [],
+              "Fedora / RHEL (.rpm)": [],
               ".tar.xz": []
           }
           windows_items = []
@@ -432,7 +432,7 @@ jobs:
                   ".tar.xz": "Portable tarball archive"
               }
 
-              for pkg in ["Debian / Ubuntu (.deb)", "Fedora / RHEL (.rpm)", "AppImage", "Flatpak", "Snap", ".tar.xz"]:
+              for pkg in ["AppImage", "Flatpak", "Snap", "Debian / Ubuntu (.deb)", "Fedora / RHEL (.rpm)", ".tar.xz"]:
                   items = linux_groups.get(pkg, [])
                   if not items:
                       continue

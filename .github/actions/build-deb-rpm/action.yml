@@ -107,13 +107,41 @@ runs:
         fi
         nfpm -v
 
-        # 4. Generate instantiated nfpm config via envsubst
-        envsubst < packaging/nfpm.yaml > "$PKG_DIR/nfpm.yaml"
+        # 4. Generate nfpm config with explicit per-file entries
+        # nfpm 2.48.0 directory globs resolve to basename-only destinations,
+        # causing content collisions for same-named files in different dirs.
+        # Generate explicit entries to preserve full paths.
+        {
+          echo "name: \"bengal-download-manager\""
+          echo "arch: \"${NFPM_ARCH}\""
+          echo "platform: \"linux\""
+          echo "version: \"${VERSION}\""
+          echo "section: \"net\""
+          echo "priority: \"optional\""
+          echo "maintainer: \"Zihad <tazihad@gmail.com>\""
+          echo "description: |"
+          echo "  Bengal Download Manager is a high-performance, multi-threaded open-source download manager powered by Aria2 and PyQt6."
+          echo "homepage: \"https://github.com/tazihad/bengal-download-manager\""
+          echo "license: \"MIT\""
+          echo ""
+          echo "contents:"
+          echo "  - src: \"${PKG_DIR}/usr/bin/bengal-download-manager\""
+          echo "    dst: \"/usr/bin/bengal-download-manager\""
+          echo "    file_info:"
+          echo "      mode: 0755"
+          find "$PKG_DIR/usr/share" -type f | sort | while IFS= read -r f; do
+            rel="${f#"$PKG_DIR"/}"
+            echo "  - src: \"${PKG_DIR}/${rel}\""
+            echo "    dst: \"/${rel}\""
+            echo "    file_info:"
+            echo "      mode: 0644"
+          done
+        } > "$PKG_DIR/nfpm.yaml"
 
         # 5. Build packages into dist/
         mkdir -p dist
-        nfpm package --config "$PKG_DIR/nfpm.yaml" --packager deb --target dist/
-        nfpm package --config "$PKG_DIR/nfpm.yaml" --packager rpm --target dist/
+        nfpm package --config "$PKG_DIR/nfpm.yaml" --packager deb --target "dist/bengal-download-manager-${VERSION}-${ARCH}.deb"
+        nfpm package --config "$PKG_DIR/nfpm.yaml" --packager rpm --target "dist/bengal-download-manager-${VERSION}-${RPM_ARCH}.rpm"
 
         echo "Packages generated successfully in dist/:"
         ls -la dist/*.deb dist/*.rpm

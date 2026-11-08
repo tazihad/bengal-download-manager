@@ -71,15 +71,15 @@
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
     <release version="0.3.14" date="2026-11-08">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.14</url>
-      <description translate="no">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.14</url>
+        <description translate="no">
         <p>Bengal Download Manager 0.3.14 changes:</p>
         <ul>
-          <li>Added native Debian/Ubuntu (.deb) and Fedora/RHEL (.rpm) packages</li>
-          <li>Updated Snap package to modern Ubuntu 26.04 (core26) base with uv build system</li>
-          <li>Enhanced execution wrapper with dynamic multi-Python site-packages discovery</li>
-        </ul>
-      </description>
+                <li>Added native Debian/Ubuntu (.deb) and Fedora/RHEL (.rpm) packages</li>
+                <li>Updated Snap package to modern Ubuntu 26.04 (core26) base with uv build system</li>
+                <li>Enhanced execution wrapper with dynamic multi-Python site-packages discovery</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.13" date="2026-11-01">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.13</url>

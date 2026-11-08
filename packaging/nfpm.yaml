@@ -15,25 +15,3 @@ contents:
     dst: "/usr/bin/bengal-download-manager"
     file_info:
       mode: 0755
-  - src: "${PKG_DIR}/usr/share/"
-    dst: "/usr/share/"
-
-overrides:
-  deb:
-    depends:
-      - aria2
-      - ffmpeg
-      - ca-certificates
-      - xdg-utils
-      - libgl1
-      - libegl1
-      - libdbus-1-3
-  rpm:
-    depends:
-      - aria2
-      - ffmpeg
-      - ca-certificates
-      - xdg-utils
-      - mesa-libGL
-      - mesa-libEGL
-      - dbus-libs
