@@ -170,7 +170,7 @@ function renderHero() {
   }
 
   // Browser extensions meta
-  const meta2 = document.querySelector(".hero-meta:nth-of-type(2)");
+  const meta2 = document.querySelector(".hero-extensions");
   if (meta2 && h.browserExtensions) {
     const items = h.browserExtensions.map((item, i) =>
       '<a href="' + item.href + '" target="_blank" rel="noopener">' + item.label + '</a>' + (i < h.browserExtensions.length - 1 ? " and " : "")
