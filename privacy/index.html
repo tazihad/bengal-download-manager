@@ -17,6 +17,30 @@
   <!-- Shared theme stylesheet -->
   <link rel="stylesheet" href="../site/css/shared.css" />
 
+  <!-- Theme initialization (matches index.html) -->
+  <script>
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem("bdm-theme"); } catch (e) {}
+      var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var theme = (stored === "dark" || stored === "light") ? stored : (systemDark ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+
+    // Follow system theme changes when no preference stored
+    var darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    function handleSystemThemeChange(event) {
+      try {
+        if (!localStorage.getItem("bdm-theme")) {
+          document.documentElement.setAttribute("data-theme", event.matches ? "dark" : "light");
+        }
+      } catch (e) {}
+    }
+    if (darkModeQuery.addEventListener) {
+      darkModeQuery.addEventListener("change", handleSystemThemeChange);
+    }
+  </script>
+
   <!-- Privacy page specific styles (built on shared theme variables) -->
   <style>
     :root {
