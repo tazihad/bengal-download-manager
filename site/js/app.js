@@ -84,7 +84,8 @@ function renderSiteShell() {
   const brandLinks = document.querySelectorAll(".brand");
   brandLinks.forEach(el => {
     el.innerHTML = '<img src="' + (data.brand && data.brand.logo ? data.brand.logo : "assets/logo.png") + '" alt="" />'
-      + '<strong>' + (data.brand && data.brand.name ? data.brand.name : "Bengal Download Manager") + '</strong> <span>' + (data.brand && data.brand.tagline ? data.brand.tagline : "Download Manager") + '</span>';
+      + '<strong>' + (data.brand && data.brand.name ? data.brand.name : "Bengal Download Manager") + '</strong>'
+      + (data.brand && data.brand.tagline ? ' <span>' + data.brand.tagline + '</span>' : '');
   });
 
   // Nav links
