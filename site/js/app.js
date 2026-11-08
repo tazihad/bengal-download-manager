@@ -92,16 +92,11 @@ function renderSiteShell() {
     navList.innerHTML = data.nav.map(item => '<li><a href="' + item.href + '">' + item.label + '</a></li>').join("");
   }
 
-  // Nav actions
-  const navActions = document.querySelector(".nav-actions");
-  if (navActions && data.actions) {
-    navActions.innerHTML = data.actions.map(item =>
-      '<a href="' + item.href + '" target="_blank" rel="noopener" class="github-btn">★ ' + item.label + '</a>'
-    ).join("");
-    // theme toggle already exists in HTML, don't overwrite nav-actions entirely
-    // Re-append theme toggle if present
-    const existingToggle = document.getElementById("theme-toggle");
-    if (existingToggle) navActions.appendChild(existingToggle);
+  // Nav actions: only update the GitHub button; leave the theme toggle untouched
+  const githubBtn = document.querySelector(".nav-actions .github-btn");
+  if (githubBtn && data.actions && data.actions[0]) {
+    githubBtn.href = data.actions[0].href;
+    githubBtn.textContent = "★ " + data.actions[0].label;
   }
 
   // Footer brand
