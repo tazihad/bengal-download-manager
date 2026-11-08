@@ -66,6 +66,22 @@ def test_package_type_detection():
          patch("subprocess.run", return_value=MagicMock(returncode=0)):
         assert get_package_type() == "RPM Build"
 
+    # 8. Deb build source verification unverified when checksums unavailable
+    with patch("shutil.which", return_value="/usr/bin/dpkg"), \
+         patch("subprocess.run", return_value=MagicMock(returncode=0)), \
+         patch("core.build_info.fetch_github_release_checksums", return_value={}), \
+         patch.dict(os.environ, {"BDM_BUILD_SOURCE": "https://example.com/other"}, clear=True):
+        is_verified, url, note = get_verified_source_info("0.2.55")
+        assert is_verified is False
+
+    # 9. RPM build source verification unverified when checksums unavailable
+    with patch("shutil.which", side_effect=lambda cmd: "/usr/bin/rpm" if cmd == "rpm" else None), \
+         patch("subprocess.run", return_value=MagicMock(returncode=0)), \
+         patch("core.build_info.fetch_github_release_checksums", return_value={}), \
+         patch.dict(os.environ, {"BDM_BUILD_SOURCE": "https://example.com/other"}, clear=True):
+        is_verified, url, note = get_verified_source_info("0.2.55")
+        assert is_verified is False
+
     # 8. Override via BDM_PACKAGE_TYPE
     with patch("shutil.which", return_value=None), \
          patch.dict(os.environ, {"BDM_PACKAGE_TYPE": "Custom Build"}, clear=True):
@@ -176,7 +192,8 @@ def test_is_snap_origin_github(tmp_path):
 
 def test_verified_source_info_dev_and_tar():
     # Dev build is a local checkout, not a GitHub release, so it is unverified
-    with patch.dict(os.environ, {}, clear=True):
+    with patch("shutil.which", return_value=None), \
+         patch.dict(os.environ, {}, clear=True):
         with patch.object(sys, "frozen", False, create=True):
             is_verified, url, note = get_verified_source_info()
             assert is_verified is False

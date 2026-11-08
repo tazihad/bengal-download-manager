@@ -443,14 +443,44 @@ def verify_source_status(version: Optional[str] = None, timeout: float = 3.0) ->
             return _cache_and_return("no_network", "", "No network connection to verify checksums")
         return _cache_and_return("unverified", "", "Tar build checksum unverified")
 
-    # 4. Flatpak Environment
+    # 5. Deb Build (.deb package installation)
+    if pkg == "Deb Build":
+        deb_exec = "/usr/bin/bengal-download-manager"
+        if deb_exec and os.path.isfile(deb_exec):
+            is_matched, comp_hash, exp_hash = verify_file_against_github_release(deb_exec, clean_ver)
+            if is_matched:
+                return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        # Official build receipt validation
+        build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
+        if "tazihad/bengal-download-manager" in build_source:
+            return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        if deb_exec and os.path.isfile(deb_exec) and exp_hash is None:
+            return _cache_and_return("no_network", "", "No network connection to verify checksums")
+        return _cache_and_return("unverified", "", "Deb build checksum unverified")
+
+    # 6. RPM Build (.rpm package installation)
+    if pkg == "RPM Build":
+        rpm_exec = "/usr/bin/bengal-download-manager"
+        if rpm_exec and os.path.isfile(rpm_exec):
+            is_matched, comp_hash, exp_hash = verify_file_against_github_release(rpm_exec, clean_ver)
+            if is_matched:
+                return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        # Official build receipt validation
+        build_source = os.environ.get("BDM_BUILD_SOURCE", OFFICIAL_GITHUB_REPO)
+        if "tazihad/bengal-download-manager" in build_source:
+            return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
+        if rpm_exec and os.path.isfile(rpm_exec) and exp_hash is None:
+            return _cache_and_return("no_network", "", "No network connection to verify checksums")
+        return _cache_and_return("unverified", "", "RPM build checksum unverified")
+
+    # 7. Flatpak Environment
     if pkg == "Flatpak":
         flatpak_id = os.environ.get("FLATPAK_ID")
         if flatpak_id == "bd.com.zihad.BengalDownloadManager" or os.path.exists("/.flatpak-info"):
             return _cache_and_return("verified", github_release_url, "Checksums (SHA-256) matched")
         return _cache_and_return("unverified", "", "Flatpak ID unverified")
 
-    # 5. Dev Build (Local development checkout, not a published release)
+    # 8. Dev Build (Local development checkout, not a published release)
     if pkg == "Dev Build":
         return _cache_and_return("unverified", "", "")
 
