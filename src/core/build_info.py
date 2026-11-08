@@ -8,6 +8,7 @@ including SHA-256 release checksum validation and Launchpad/Snap Store assertion
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -34,6 +35,38 @@ def warmup_build_info_async() -> None:
     t.start()
 
 
+def _is_deb_installed() -> bool:
+    """Check if bengal-download-manager is installed as a .deb package."""
+    if not shutil.which("dpkg"):
+        return False
+    try:
+        result = subprocess.run(
+            ["dpkg", "-s", "bengal-download-manager"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _is_rpm_installed() -> bool:
+    """Check if bengal-download-manager is installed as an .rpm package."""
+    if not shutil.which("rpm"):
+        return False
+    try:
+        result = subprocess.run(
+            ["rpm", "-q", "bengal-download-manager"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def get_package_type() -> str:
     """
     Return the packaging / runtime format of the application.
@@ -41,6 +74,8 @@ def get_package_type() -> str:
       - 'Flatpak'
       - 'Snap'
       - 'AppImage'
+      - 'Deb Build' (.deb package installation)
+      - 'RPM Build' (.rpm package installation)
       - 'Tar Build' (standalone frozen binary outside containers)
       - 'Dev Build' (unfrozen Python source / git development checkout)
     """
@@ -56,6 +91,12 @@ def get_package_type() -> str:
 
     if os.environ.get("APPIMAGE") or os.environ.get("APPDIR"):
         return "AppImage"
+
+    if _is_deb_installed():
+        return "Deb Build"
+
+    if _is_rpm_installed():
+        return "RPM Build"
 
     if getattr(sys, "frozen", False):
         return "Tar Build"
@@ -317,7 +358,7 @@ def verify_source_status(version: Optional[str] = None, timeout: float = 3.0) ->
             from core.version import VERSION
             version = VERSION
         except Exception:
-            version = "0.3.14-alpha.3"
+            version = "0.3.14-alpha.4"
 
     cache_key = (
         version,

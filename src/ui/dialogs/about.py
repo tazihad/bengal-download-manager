@@ -147,6 +147,8 @@ class AboutDialog(QDialog):
             "Flatpak": self.tr("Flatpak"),
             "Snap": self.tr("Snap"),
             "AppImage": self.tr("AppImage"),
+            "Deb Build": self.tr("Deb Build"),
+            "RPM Build": self.tr("RPM Build"),
             "Tar Build": self.tr("Tar Build"),
         }
         pkg_display = pkg_names.get(self.pkg_type, self.pkg_type)
