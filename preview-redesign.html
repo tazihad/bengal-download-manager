@@ -1,0 +1,2012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" id="theme-color-meta" />
+  <script>
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem("bdm-theme"); } catch (e) {}
+      var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var theme = (stored === "dark" || stored === "light") ? stored : (systemDark ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+      var meta = document.getElementById("theme-color-meta");
+      if (meta) meta.setAttribute("content", theme === "dark" ? "#0f172a" : "#ffffff");
+    })();
+  </script>
+  <title>Bengal Download Manager — A fast, native download manager for Linux</title>
+
+  <!-- Schema.org JSON-LD Structured Data for FAQ SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Why is Bengal Download Manager faster than browser downloads?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Browsers download files through a single continuous TCP stream, which is frequently throttled by servers or choked by packet loss. Bengal Download Manager breaks the requested file into up to 32 parallel chunks simultaneously (powered by Aria2), utilizing your entire network bandwidth."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Bengal Download Manager a good IDM (Internet Download Manager) alternative for Linux?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! Internet Download Manager (IDM) is Windows-only and not available on Linux. Bengal Download Manager is designed as a native Linux IDM alternative, providing up to 32x multi-segment speed acceleration, 1-click browser interception, automatic category sorting, and reliable pause/resume functionality."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What makes Bengal Download Manager the best download manager for Linux?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Bengal Download Manager combines the raw speed of the Aria2 multi-connection engine with a lightweight PyQt6 native desktop UI tailored for KDE Plasma, GNOME, XFCE, and other Linux desktops. It offers system tray integration, clipboard link capture, light/dark theme adaptation, Flatpak/Snap/AppImage distribution, and zero advertisements."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does the browser extension capture links?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The browser add-on monitors download triggers using Manifest V3 APIs for Chrome, Brave, Edge, and Firefox. When a matching file extension or mime-type is detected, it intercepts the download stream and communicates with Bengal Download Manager via a secure local loopback port (56800)."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I pause and resume interrupted downloads?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Bengal Download Manager supports dynamic resume and chunk recovery for all servers supporting HTTP byte-ranges. If your network resets or drops, you can resume downloads without losing previously downloaded progress."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does Bengal Download Manager compare to FDM, XDM, and other downloaders?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Unlike older Java-based or Electron-heavy tools, Bengal Download Manager is a lightweight native desktop application built with Python and Qt. It starts instantly, uses minimal RAM, adheres to the open-source MIT License, does not bundle adware, and natively supports Wayland and X11 display servers."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which Linux distributions are supported?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Bengal Download Manager runs on all major Linux distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS via Flathub, Flatpak, Snap Store, universal AppImage, or standalone binaries for both x86_64 and aarch64."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Bengal Download Manager completely free and open source?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes! Bengal Download Manager is 100% free and open source under the permissive MIT License. There are zero subscriptions, zero ads, zero bundled software, and zero telemetry."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- SEO & Social Meta -->
+  <meta name="description" content="A high-performance, open-source download manager for Linux. Parallel connections, browser integration, automatic resume, and Flatpak, Snap and AppImage packages." />
+  <meta name="keywords" content="best download manager linux, idm alternative linux, idm linux, internet download manager alternative, linux download manager, aria2 gui, multi-threaded downloader, open source download accelerator, flatpak download manager, pyqt6 aria2" />
+  <meta property="og:title" content="Bengal Download Manager — A fast, native download manager for Linux" />
+  <meta property="og:description" content="Parallel downloads, browser integration, resume support, and a native Qt interface. Free and open source." />
+  <meta property="og:image" content="assets/screenshots/01-main-app.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&amp;family=Open+Sans:wght@400;500;600;700&amp;family=Source+Code+Pro:wght@400;500&amp;display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      color-scheme: light;
+      --blue-900: #294172;
+      --blue-700: #3c6eb4;
+      --blue-600: #2f5b97;
+      --blue-500: #51a2da;
+      --blue-50: #eef5fb;
+      --action: #3c6eb4;
+      --action-hover: #2f5b97;
+      --bg: #ffffff;
+      --bg-soft: #f6f9fc;
+      --surface: #ffffff;
+      --header-bg: rgba(255, 255, 255, 0.96);
+      --border: #dbe4ee;
+      --border-strong: #c3d2e3;
+      --text: #20262e;
+      --text-soft: #4a5563;
+      --text-muted: #6b7683;
+      --code-text: #294172;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.05);
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --blue-900: #dcebf8;
+      --blue-700: #8faed9;
+      --blue-600: #aad0ee;
+      --blue-500: #51a2da;
+      --blue-50: rgba(81, 162, 218, 0.14);
+      --action: #3c6eb4;
+      --action-hover: #4b7fc9;
+      --bg: #0f172a;
+      --bg-soft: #14203a;
+      --surface: #1a2946;
+      --header-bg: rgba(15, 23, 42, 0.96);
+      --border: #2c4069;
+      --border-strong: #3c5688;
+      --text: #eef2f8;
+      --text-soft: #c3cddd;
+      --text-muted: #94a3b8;
+      --code-text: #aad0ee;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+      scroll-padding-top: 88px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Open Sans", ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    a {
+      color: var(--blue-700);
+      text-decoration: none;
+    }
+
+    a:hover {
+      color: var(--blue-600);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      background: none;
+      color: inherit;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--blue-700);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: 16px;
+      top: -60px;
+      z-index: 3000;
+      padding: 10px 16px;
+      background: var(--action);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: top 0.15s ease;
+    }
+
+    .skip-link:focus {
+      top: 12px;
+      text-decoration: none;
+      color: #fff;
+    }
+
+    .section-eyebrow {
+      font-family: "Montserrat", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--blue-700);
+      margin-bottom: 8px;
+    }
+
+    .section-head {
+      max-width: 700px;
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-family: "Montserrat", sans-serif;
+      font-size: clamp(1.5rem, 2.4vw, 1.9rem);
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      color: var(--blue-900);
+      margin-bottom: 10px;
+    }
+
+    .section-desc {
+      color: var(--text-soft);
+      font-size: 16px;
+    }
+
+    .font-mono {
+      font-family: "Source Code Pro", ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------- Header ---------- */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .site-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      height: 72px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      color: var(--blue-900);
+      font-family: "Montserrat", sans-serif;
+      font-size: 1.02rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .brand:hover {
+      text-decoration: none;
+      color: var(--blue-900);
+    }
+
+    .brand img {
+      width: 32px;
+      height: 32px;
+    }
+
+    .brand span {
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+      list-style: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .nav-links a {
+      color: var(--text-soft);
+    }
+
+    .nav-links a:hover {
+      color: var(--blue-700);
+      text-decoration: none;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .github-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--blue-900);
+      font-size: 13.5px;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .github-btn:hover {
+      background: var(--blue-50);
+      border-color: var(--blue-700);
+      text-decoration: none;
+      color: var(--blue-900);
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--blue-900);
+      background: transparent;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .theme-toggle:hover {
+      background: var(--blue-50);
+      border-color: var(--blue-700);
+    }
+
+    .theme-toggle svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .theme-toggle .icon-sun {
+      display: none;
+    }
+
+    :root[data-theme="dark"] .theme-toggle .icon-sun {
+      display: block;
+    }
+
+    :root[data-theme="dark"] .theme-toggle .icon-moon {
+      display: none;
+    }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      align-items: center;
+      gap: 56px;
+      padding: 72px 0 60px;
+    }
+
+    .hero-eyebrow {
+      font-family: "Montserrat", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--blue-700);
+      margin-bottom: 14px;
+    }
+
+    .hero h1 {
+      font-family: "Montserrat", sans-serif;
+      font-size: clamp(2.1rem, 4vw, 3.25rem);
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      color: var(--blue-900);
+      margin-bottom: 20px;
+    }
+
+    .hero-desc {
+      max-width: 54ch;
+      color: var(--text-soft);
+      font-size: 17px;
+      line-height: 1.7;
+      margin-bottom: 30px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.2;
+      border: 1px solid transparent;
+    }
+
+    .btn:hover {
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--action);
+      border-color: var(--action);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--action-hover);
+      border-color: var(--action-hover);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      border-color: var(--border-strong);
+      color: var(--blue-900);
+    }
+
+    .btn-secondary:hover {
+      background: var(--blue-50);
+      border-color: var(--blue-700);
+      color: var(--blue-900);
+    }
+
+    .hero-meta {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .hero-meta a {
+      font-weight: 600;
+    }
+
+    .hero-meta .sep {
+      color: var(--border-strong);
+      margin: 0 7px;
+    }
+
+    .hero-figure {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-figure a {
+      display: block;
+      cursor: zoom-in;
+    }
+
+    .hero-figure:hover {
+      border-color: var(--border-strong);
+    }
+
+    .hero-figure img {
+      width: 100%;
+      border-radius: 4px;
+    }
+
+    .hero-figure figcaption {
+      padding: 10px 6px 2px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* ---------- Metrics ---------- */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      padding: 30px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .metric-value {
+      font-family: "Montserrat", sans-serif;
+      font-size: 1.85rem;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--blue-900);
+      margin-bottom: 4px;
+    }
+
+    .metric-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .metric-sub {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ---------- Sections ---------- */
+    .section {
+      padding: 68px 0 8px;
+    }
+
+    /* ---------- Features ---------- */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .feature-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .feature-icon {
+      width: 26px;
+      height: 26px;
+      color: var(--blue-700);
+      margin-bottom: 16px;
+    }
+
+    .feature-title {
+      font-family: "Montserrat", sans-serif;
+      font-size: 1.02rem;
+      font-weight: 600;
+      color: var(--blue-900);
+      margin-bottom: 7px;
+    }
+
+    .feature-text {
+      color: var(--text-soft);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    /* ---------- Screenshots ---------- */
+    .screenshots-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+
+    .screenshot-card {
+      display: block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: zoom-in;
+      color: inherit;
+    }
+
+    .screenshot-card:hover {
+      border-color: var(--border-strong);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .screenshot-canvas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 250px;
+      padding: 14px;
+      background: var(--bg-soft);
+    }
+
+    .screenshot-canvas img {
+      width: 100%;
+      height: 230px;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .screenshot-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 18px;
+      border-top: 1px solid var(--border);
+    }
+
+    .screenshot-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .screenshot-badge {
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: var(--blue-50);
+      color: var(--blue-700);
+      font-size: 11.5px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* ---------- Install ---------- */
+    .install-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .install-nav {
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      gap: 4px;
+      padding: 0 8px;
+      background: var(--bg-soft);
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .install-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .install-nav-btn {
+      padding: 15px 18px;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .install-nav-btn:hover {
+      color: var(--blue-900);
+    }
+
+    .install-nav-btn.active {
+      color: var(--blue-700);
+      border-bottom-color: var(--blue-700);
+    }
+
+    .install-body {
+      display: none;
+      padding: 30px;
+    }
+
+    .install-body.active {
+      display: block;
+    }
+
+    .install-lead {
+      font-size: 14px;
+      color: var(--text-soft);
+    }
+
+    .install-note {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .install-heading {
+      font-family: "Montserrat", sans-serif;
+      font-size: 1.02rem;
+      font-weight: 600;
+      color: var(--blue-900);
+      margin-bottom: 3px;
+    }
+
+    .store-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .store-row img {
+      height: 48px;
+      width: auto;
+    }
+
+    .custom-store-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      height: 48px;
+      padding: 0 18px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--blue-900);
+    }
+
+    .custom-store-badge:hover {
+      background: var(--blue-50);
+      border-color: var(--blue-700);
+      text-decoration: none;
+      color: var(--blue-900);
+    }
+
+    .custom-store-badge .store-badge-icon {
+      width: 26px;
+      height: 26px;
+      object-fit: contain;
+    }
+
+    .fmt-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 26px;
+      border-radius: 4px;
+      background: var(--blue-50);
+      color: var(--blue-700);
+      font-family: "Source Code Pro", ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .custom-store-badge .text-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: left;
+    }
+
+    .custom-store-badge .store-pre-title {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      line-height: 1.1;
+    }
+
+    .custom-store-badge .store-title {
+      font-family: "Montserrat", sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--blue-900);
+      line-height: 1.25;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .arch-select {
+      min-width: 260px;
+      padding: 9px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .arch-select:hover {
+      border-color: var(--blue-700);
+    }
+
+    .cli-box {
+      position: relative;
+      padding: 16px 92px 16px 18px;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--code-text);
+      font-family: "Source Code Pro", ui-monospace, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    .cli-box + .cli-box {
+      margin-top: 10px;
+    }
+
+    .cli-prompt {
+      color: var(--blue-700);
+      font-weight: 500;
+      margin-right: 8px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      transform: translateY(-50%);
+      padding: 5px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 5px;
+      color: var(--text-soft);
+      font-family: "Open Sans", sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--blue-700);
+      color: var(--blue-700);
+    }
+
+    .install-foot {
+      margin-top: 18px;
+      font-size: 13.5px;
+      color: var(--text-muted);
+    }
+
+    .install-foot a {
+      font-weight: 600;
+    }
+
+    .divider {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+
+    /* ---------- FAQ ---------- */
+    .faq-list {
+      border-top: 1px solid var(--border);
+      max-width: 860px;
+    }
+
+    .faq-card {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .faq-q {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      width: 100%;
+      padding: 18px 4px 18px 0;
+      text-align: left;
+      font-family: "Montserrat", sans-serif;
+      font-size: 15.5px;
+      font-weight: 600;
+      color: var(--blue-900);
+      line-height: 1.4;
+    }
+
+    .faq-q:hover {
+      color: var(--blue-700);
+    }
+
+    .faq-q .faq-mark {
+      flex: none;
+      font-family: "Open Sans", sans-serif;
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--blue-700);
+      line-height: 1;
+      transition: transform 0.15s ease;
+    }
+
+    .faq-card.open .faq-mark {
+      transform: rotate(45deg);
+    }
+
+    .faq-a {
+      max-height: 0;
+      overflow: hidden;
+      padding: 0 24px 0 0;
+      color: var(--text-soft);
+      font-size: 14.5px;
+      line-height: 1.7;
+      transition: max-height 0.2s ease-out, padding 0.2s ease;
+    }
+
+    .faq-card.open .faq-a {
+      max-height: 500px;
+      padding-bottom: 20px;
+    }
+
+    .faq-a code {
+      font-family: "Source Code Pro", monospace;
+      font-size: 13px;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+
+    /* ---------- Footer ---------- */
+    .site-footer {
+      margin-top: 72px;
+      padding: 48px 0 28px;
+      background: var(--bg-soft);
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-soft);
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr 1fr;
+      gap: 40px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-family: "Montserrat", sans-serif;
+      font-weight: 600;
+      color: var(--blue-900);
+    }
+
+    .footer-brand img {
+      width: 28px;
+      height: 28px;
+    }
+
+    .footer-text {
+      max-width: 38ch;
+      color: var(--text-muted);
+      font-size: 13.5px;
+    }
+
+    .footer-heading {
+      font-family: "Montserrat", sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue-900);
+      margin-bottom: 10px;
+    }
+
+    .footer-links {
+      list-style: none;
+      display: grid;
+      gap: 6px;
+      font-size: 13.5px;
+    }
+
+    .footer-links a {
+      color: var(--text-soft);
+    }
+
+    .footer-links a:hover {
+      color: var(--blue-700);
+    }
+
+    .footer-bottom {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 36px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    /* ---------- Lightbox ---------- */
+    .lightbox-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(17, 24, 33, 0.9);
+    }
+
+    .lightbox-modal.active {
+      display: flex;
+    }
+
+    .lightbox-img {
+      width: auto;
+      max-width: 100%;
+      max-height: 86vh;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 960px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        padding: 52px 0 44px;
+      }
+
+      .hero-figure {
+        max-width: 640px;
+      }
+
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .metrics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 26px 16px;
+      }
+
+      .screenshots-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .install-body {
+        padding: 22px;
+      }
+
+      .cli-box {
+        padding-right: 18px;
+      }
+
+      .copy-btn {
+        position: static;
+        transform: none;
+        display: block;
+        margin-top: 10px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .brand span {
+        display: none;
+      }
+
+      .features-grid,
+      .footer-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container site-nav">
+      <a href="#" class="brand">
+        <img src="assets/logo.png" alt="" />
+        <strong>Bengal</strong> <span>Download Manager</span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#screenshots">Screenshots</a></li>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <a href="https://github.com/tazihad/bengal-download-manager" target="_blank" rel="noopener" class="github-btn">★ GitHub</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+          </svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <div class="container">
+
+      <!-- Hero -->
+      <section class="hero">
+        <div>
+          <p class="hero-eyebrow">Free and open source for Linux</p>
+          <h1>A fast, native download manager for Linux.</h1>
+          <p class="hero-desc">
+            Bengal Download Manager splits files into parallel connections, catches downloads from your browser, and resumes interrupted transfers automatically. It is a lightweight Qt application — no Electron, no ads, no telemetry.
+          </p>
+
+          <div class="hero-actions">
+            <a href="#install" class="btn btn-primary">Download for Linux</a>
+            <a href="https://github.com/tazihad/bengal-download-manager" target="_blank" rel="noopener" class="btn btn-secondary">View source</a>
+          </div>
+
+          <p class="hero-meta">
+            Available on
+            <a href="https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager" target="_blank" rel="noopener">Flathub</a><span class="sep">·</span>
+            <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener">Snap Store</a><span class="sep">·</span>
+            <a href="#tab-appimage">AppImage</a><span class="sep">·</span>
+            <a href="#tab-deb">DEB</a><span class="sep">·</span>
+            <a href="#tab-rpm">RPM</a>
+          </p>
+          <p class="hero-meta">
+            Browser extensions for
+            <a href="https://chromewebstore.google.com/detail/bengal-dm-connector/maabnenhophnabkehjgdaidaglneocbi" target="_blank" rel="noopener">Chrome</a>
+            and
+            <a href="https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module" target="_blank" rel="noopener">Firefox</a>.
+          </p>
+        </div>
+
+        <figure class="hero-figure">
+          <a href="assets/screenshots/01-main-app.png" onclick="openLightbox('assets/screenshots/01-main-app.png'); return false;" aria-label="View the main window screenshot full size">
+            <img src="assets/screenshots/01-main-app.png" alt="Bengal Download Manager main window" />
+          </a>
+          <figcaption>Bengal Download Manager on KDE Plasma</figcaption>
+        </figure>
+      </section>
+
+      <!-- Metrics -->
+      <section class="metrics" aria-label="At a glance">
+        <div>
+          <div class="metric-value font-mono">32</div>
+          <div class="metric-label">Parallel connections</div>
+          <div class="metric-sub">Per file, powered by Aria2</div>
+        </div>
+        <div>
+          <div class="metric-value font-mono">&lt;100 MB</div>
+          <div class="metric-label">Memory footprint</div>
+          <div class="metric-sub">Lightweight Qt application</div>
+        </div>
+        <div>
+          <div class="metric-value font-mono">6</div>
+          <div class="metric-label">Install methods</div>
+          <div class="metric-sub">Flathub, Snap, Flatpak, AppImage, DEB, RPM</div>
+        </div>
+        <div>
+          <div class="metric-value font-mono">0</div>
+          <div class="metric-label">Ads and telemetry</div>
+          <div class="metric-sub">MIT licensed, fully auditable</div>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section id="features" class="section">
+        <div class="section-head">
+          <p class="section-eyebrow">Features</p>
+          <h2 class="section-title">Built for fast, reliable transfers</h2>
+          <p class="section-desc">The essentials done well: parallel downloads, browser capture, dependable resume, and a native interface that follows your desktop.</p>
+        </div>
+
+        <div class="features-grid">
+          <article class="feature-card">
+            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+              <path d="m3 12 9 5 9-5" />
+              <path d="m3 16 9 5 9-5" />
+            </svg>
+            <h3 class="feature-title">Parallel downloads</h3>
+            <p class="feature-text">Files are split into up to 32 chunks and transferred at once, making better use of the available bandwidth.</p>
+          </article>
+
+          <article class="feature-card">
+            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M7 6.5h.01M10 6.5h.01" />
+            </svg>
+            <h3 class="feature-title">Browser integration</h3>
+            <p class="feature-text">The Chrome and Firefox extensions catch download links and hand them to the app over a secure local port.</p>
+          </article>
+
+          <article class="feature-card">
+            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 3-6.7" />
+              <path d="M3 4v5h5" />
+            </svg>
+            <h3 class="feature-title">Pause and resume</h3>
+            <p class="feature-text">Transfers resume from the last byte when a connection drops, so large files do not start over.</p>
+          </article>
+
+          <article class="feature-card">
+            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m10 9 5 3-5 3V9Z" />
+            </svg>
+            <h3 class="feature-title">Media downloads</h3>
+            <p class="feature-text">Paste a video or audio URL to read its metadata, preview a thumbnail, and choose a resolution or bitrate.</p>
+          </article>
+
+          <article class="feature-card">
+            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+            </svg>
+            <h3 class="feature-title">Automatic categories</h3>
+            <p class="feature-text">Incoming files are sorted into Documents, Videos, Music, Compressed, and Programs folders by type.</p>
+          </article>
+
+          <article class="feature-card">
+            <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+            <h3 class="feature-title">Native desktop interface</h3>
+            <p class="feature-text">Follows your system light and dark theme, with support for both Wayland and X11 sessions.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Screenshots -->
+      <section id="screenshots" class="section">
+        <div class="section-head">
+          <p class="section-eyebrow">Screenshots</p>
+          <h2 class="section-title">A quiet, focused interface</h2>
+          <p class="section-desc">Every screen is built to stay out of the way while a transfer is running.</p>
+        </div>
+
+        <div class="screenshots-grid">
+          <a class="screenshot-card" href="assets/screenshots/01-main-app.png" onclick="openLightbox('assets/screenshots/01-main-app.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/01-main-app.png" alt="Main window in dark mode" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Main window, dark mode</span>
+              <span class="screenshot-badge">Core UI</span>
+            </div>
+          </a>
+
+          <a class="screenshot-card" href="assets/screenshots/02-main-app-light-mode.png" onclick="openLightbox('assets/screenshots/02-main-app-light-mode.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/02-main-app-light-mode.png" alt="Main window in light mode" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Main window, light mode</span>
+              <span class="screenshot-badge">Breeze Light</span>
+            </div>
+          </a>
+
+          <a class="screenshot-card" href="assets/screenshots/03-main-app-different-theme.png" onclick="openLightbox('assets/screenshots/03-main-app-different-theme.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/03-main-app-different-theme.png" alt="Custom accent colors" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Themes and accent colors</span>
+              <span class="screenshot-badge">Customization</span>
+            </div>
+          </a>
+
+          <a class="screenshot-card" href="assets/screenshots/04-media-downloader.png" onclick="openLightbox('assets/screenshots/04-media-downloader.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/04-media-downloader.png" alt="Media downloader window" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Media downloader</span>
+              <span class="screenshot-badge">Video</span>
+            </div>
+          </a>
+
+          <a class="screenshot-card" href="assets/screenshots/05-site-grabber.png" onclick="openLightbox('assets/screenshots/05-site-grabber.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/05-site-grabber.png" alt="Batch site grabber" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Batch site grabber</span>
+              <span class="screenshot-badge">Tools</span>
+            </div>
+          </a>
+
+          <a class="screenshot-card" href="assets/screenshots/06-scheduler.png" onclick="openLightbox('assets/screenshots/06-scheduler.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/06-scheduler.png" alt="Download scheduler" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Download scheduler</span>
+              <span class="screenshot-badge">Automation</span>
+            </div>
+          </a>
+
+          <a class="screenshot-card" href="assets/screenshots/07-data-usage-summary.png" onclick="openLightbox('assets/screenshots/07-data-usage-summary.png'); return false;">
+            <div class="screenshot-canvas">
+              <img src="assets/screenshots/07-data-usage-summary.png" alt="Data usage summary" />
+            </div>
+            <div class="screenshot-caption">
+              <span class="screenshot-title">Data usage summary</span>
+              <span class="screenshot-badge">Statistics</span>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Install -->
+      <section id="install" class="section">
+        <div class="section-head">
+          <p class="section-eyebrow">Install</p>
+          <h2 class="section-title">Get Bengal Download Manager</h2>
+          <p class="section-desc">Choose the package that fits your system. Releases are published through the official channels below.</p>
+        </div>
+
+        <div class="install-box">
+          <div class="install-nav" role="tablist" aria-label="Installation methods">
+            <button class="install-nav-btn active" role="tab" aria-selected="true" data-tab="flatpak" onclick="switchTab('flatpak', this)">Flatpak and Flathub</button>
+            <button class="install-nav-btn" role="tab" aria-selected="false" data-tab="snap" onclick="switchTab('snap', this)">Snap Store</button>
+            <button class="install-nav-btn" role="tab" aria-selected="false" data-tab="appimage" onclick="switchTab('appimage', this)">AppImage</button>
+            <button class="install-nav-btn" role="tab" aria-selected="false" data-tab="deb" onclick="switchTab('deb', this)">Debian / Ubuntu (.deb)</button>
+            <button class="install-nav-btn" role="tab" aria-selected="false" data-tab="rpm" onclick="switchTab('rpm', this)">Fedora / RHEL (.rpm)</button>
+          </div>
+
+          <!-- Flatpak and Flathub -->
+          <div id="tab-flatpak" class="install-body active" role="tabpanel">
+            <div class="store-row">
+              <a href="https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager" target="_blank" rel="noopener">
+                <img alt="Get it on Flathub" src="https://flathub.org/api/badge?locale=en" />
+              </a>
+              <span class="install-note">Official Flathub release, sandboxed with automatic updates.</span>
+            </div>
+
+            <div class="field-label" style="margin-bottom: 8px;">Option 1: Install from Flathub</div>
+            <div class="cli-box">
+              <button class="copy-btn" onclick="copyCode('flatpak install flathub bd.com.zihad.BengalDownloadManager', this)">Copy</button>
+              <code><span class="cli-prompt">$</span>flatpak install flathub bd.com.zihad.BengalDownloadManager</code>
+            </div>
+
+            <div class="field-label" style="margin: 20px 0 8px;">Option 2: Install from direct repository</div>
+            <div class="cli-box">
+              <button class="copy-btn" onclick="copyCode('flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref', this)">Copy</button>
+              <code><span class="cli-prompt">$</span>flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref</code>
+            </div>
+
+            <hr class="divider" />
+
+            <p class="install-foot">
+              <a href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener">View all release assets on GitHub &rarr;</a>
+            </p>
+          </div>
+
+          <!-- Snap Store -->
+          <div id="tab-snap" class="install-body" role="tabpanel">
+            <div class="store-row">
+              <a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener">
+                <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" />
+              </a>
+              <span class="install-note">Official Canonical package with automatic updates.</span>
+            </div>
+
+            <div class="cli-box">
+              <button class="copy-btn" onclick="copyCode('sudo snap install bengal-download-manager', this)">Copy</button>
+              <code><span class="cli-prompt">$</span>sudo snap install bengal-download-manager</code>
+            </div>
+          </div>
+
+          <!-- AppImage -->
+          <div id="tab-appimage" class="install-body" role="tabpanel">
+            <div style="margin-bottom: 18px;">
+              <div class="install-heading">Direct AppImage download</div>
+              <p class="install-lead">A portable executable that runs without installation or root access.</p>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+              <label class="field-label" for="arch-select">System architecture</label>
+              <select id="arch-select" class="arch-select" onchange="onArchChange(this.value)">
+                <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+                <option value="aarch64">aarch64 (64-bit ARM)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <a id="appimage-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download AppImage">
+                <img src="assets/badges/appimage.svg" alt="" class="store-badge-icon" />
+                <div class="text-container">
+                  <div class="store-pre-title">Download</div>
+                  <div class="store-title" id="appimage-main-label">AppImage (x86_64)</div>
+                </div>
+              </a>
+            </div>
+
+            <div class="field-label" id="appimage-cmd-title" style="margin-bottom: 8px;">Terminal quick-start (x86_64 64-bit Intel / AMD)</div>
+            <div class="cli-box">
+              <button id="copy-appimage-curl-btn" class="copy-btn" onclick="copyAppImageCurl(this)">Copy</button>
+              <code id="appimage-curl-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.3.14-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage</code>
+            </div>
+            <div class="cli-box">
+              <button id="copy-appimage-run-btn" class="copy-btn" onclick="copyAppImageRun(this)">Copy</button>
+              <code id="appimage-run-cmd"><span class="cli-prompt">$</span>chmod +x bengal-download-manager-0.3.14-x86_64.AppImage &amp;&amp; ./bengal-download-manager-0.3.14-x86_64.AppImage</code>
+            </div>
+
+            <p class="install-foot">
+              <a href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener">View all release assets on GitHub →</a>
+            </p>
+          </div>
+
+          <!-- Debian / Ubuntu (.deb) -->
+          <div id="tab-deb" class="install-body" role="tabpanel">
+            <div style="margin-bottom: 18px;">
+              <div class="install-heading">Debian / Ubuntu package</div>
+              <p class="install-lead">Native .deb package for Debian, Ubuntu, Linux Mint, Pop!_OS, and related distributions.</p>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+              <label class="field-label" for="deb-arch-select">System architecture</label>
+              <select id="deb-arch-select" class="arch-select" onchange="onArchChange(this.value)">
+                <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+                <option value="aarch64">aarch64 (64-bit ARM)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <a id="deb-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download .deb package">
+                <span class="fmt-icon" aria-hidden="true">DEB</span>
+                <div class="text-container">
+                  <div class="store-pre-title">Download</div>
+                  <div class="store-title" id="deb-main-label">.deb (x86_64)</div>
+                </div>
+              </a>
+            </div>
+
+            <div class="field-label" style="margin-bottom: 8px;">Step 1: Download the package</div>
+            <div class="cli-box">
+              <button id="copy-deb-curl-btn" class="copy-btn" onclick="copyDebCurl(this)">Copy</button>
+              <code id="deb-curl-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.3.14-x86_64.deb https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb</code>
+            </div>
+
+            <div class="field-label" style="margin: 18px 0 8px;">Step 2: Install with apt</div>
+            <div class="cli-box">
+              <button id="copy-deb-btn" class="copy-btn" onclick="copyDebInstall(this)">Copy</button>
+              <code id="deb-install-cmd"><span class="cli-prompt">$</span>sudo apt install ./bengal-download-manager-0.3.14-x86_64.deb</code>
+            </div>
+
+            <p class="install-foot">
+              <a href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener">View all release assets on GitHub →</a>
+            </p>
+          </div>
+
+          <!-- Fedora / RHEL (.rpm) -->
+          <div id="tab-rpm" class="install-body" role="tabpanel">
+            <div style="margin-bottom: 18px;">
+              <div class="install-heading">Fedora / RHEL package</div>
+              <p class="install-lead">Native .rpm package for Fedora, RHEL, CentOS Stream, and other dnf-based distributions.</p>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+              <label class="field-label" for="rpm-arch-select">System architecture</label>
+              <select id="rpm-arch-select" class="arch-select" onchange="onArchChange(this.value)">
+                <option value="x86_64" selected>x86_64 (64-bit Intel / AMD)</option>
+                <option value="aarch64">aarch64 (64-bit ARM)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <a id="rpm-main-btn" href="https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm" target="_blank" rel="noopener noreferrer" class="custom-store-badge" title="Download .rpm package">
+                <span class="fmt-icon" aria-hidden="true">RPM</span>
+                <div class="text-container">
+                  <div class="store-pre-title">Download</div>
+                  <div class="store-title" id="rpm-main-label">.rpm (x86_64)</div>
+                </div>
+              </a>
+            </div>
+
+            <div class="field-label" style="margin-bottom: 8px;">Step 1: Download the package</div>
+            <div class="cli-box">
+              <button id="copy-rpm-curl-btn" class="copy-btn" onclick="copyRpmCurl(this)">Copy</button>
+              <code id="rpm-curl-cmd"><span class="cli-prompt">$</span>curl -L -o bengal-download-manager-0.3.14-x86_64.rpm https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm</code>
+            </div>
+
+            <div class="field-label" style="margin: 18px 0 8px;">Step 2: Install with dnf</div>
+            <div class="cli-box">
+              <button id="copy-rpm-btn" class="copy-btn" onclick="copyRpmInstall(this)">Copy</button>
+              <code id="rpm-install-cmd"><span class="cli-prompt">$</span>sudo dnf install ./bengal-download-manager-0.3.14-x86_64.rpm</code>
+            </div>
+
+            <p class="install-foot">
+              <a href="https://github.com/tazihad/bengal-download-manager/releases/latest" target="_blank" rel="noopener">View all release assets on GitHub →</a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="section">
+        <div class="section-head">
+          <p class="section-eyebrow">FAQ</p>
+          <h2 class="section-title">Common questions</h2>
+          <p class="section-desc">A short overview of how the app works and what it supports.</p>
+        </div>
+
+        <div class="faq-list">
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>Why is Bengal Download Manager faster than browser downloads?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              Browsers download files through a single continuous TCP stream, which is often throttled by servers or slowed by packet loss. Bengal Download Manager breaks the file into up to 32 parallel chunks (powered by Aria2) and transfers them at the same time.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>Is it a good IDM alternative on Linux?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              Yes. Internet Download Manager is Windows-only and not available natively on Linux. Bengal Download Manager is built for Linux and provides multi-segment acceleration, one-click browser interception, automatic category sorting, and reliable pause and resume support.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>What makes it different from other download managers?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              It pairs the Aria2 download engine with a native PyQt6 interface instead of an Electron shell. It starts quickly, uses little memory, follows your desktop theme, and ships without ads, bundled software, or telemetry.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>How does the browser extension capture links?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              The Chrome and Firefox extensions watch for download triggers using Manifest V3 APIs. When a matching file type is detected, the download is handed to the app through a local loopback connection on port 56800.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>Can I pause and resume interrupted downloads?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              Yes. Pause and resume works with any server that supports HTTP byte ranges. If the connection drops or the computer sleeps, the transfer continues from the last completed byte.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>Which Linux distributions are supported?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              It runs on major distributions including Ubuntu, Debian, Fedora, Arch Linux, openSUSE, Linux Mint, Manjaro, and Pop!_OS. Packages are available through Flathub, Snap, a direct Flatpak repository, and portable AppImage builds for <code>x86_64</code> and <code>aarch64</code>.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-q" onclick="toggleFaq(this)">
+              <span>Is it completely free and open source?</span>
+              <span class="faq-mark" aria-hidden="true">+</span>
+            </button>
+            <div class="faq-a">
+              Yes. Bengal Download Manager is released under the MIT License. There are no subscriptions, no ads, no bundled software, and no telemetry. You can audit, contribute to, or fork the code on GitHub.
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand">
+            <img src="assets/logo.png" alt="" />
+            <span>Bengal Download Manager</span>
+          </div>
+          <p class="footer-text">A fast, native download manager for Linux.</p>
+        </div>
+
+        <div>
+          <div class="footer-heading">Download</div>
+          <ul class="footer-links">
+            <li><a href="https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager" target="_blank" rel="noopener">Flathub</a></li>
+            <li><a href="https://snapcraft.io/bengal-download-manager" target="_blank" rel="noopener">Snap Store</a></li>
+            <li><a href="#tab-appimage">AppImage</a></li>
+            <li><a href="#tab-deb">DEB package</a></li>
+            <li><a href="#tab-rpm">RPM package</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-heading">Project</div>
+          <ul class="footer-links">
+            <li><a href="https://github.com/tazihad/bengal-download-manager" target="_blank" rel="noopener">Source code</a></li>
+            <li><a href="https://github.com/tazihad/bengal-download-manager/issues" target="_blank" rel="noopener">Report an issue</a></li>
+            <li><a href="privacy/index.html">Privacy</a></li>
+            <li><a href="https://github.com/tazihad/bengal-download-manager/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© 2026 Bengal Download Manager Contributors</span>
+        <span>Made for Linux. No ads, no telemetry.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox-modal" onclick="closeLightbox(event)">
+    <img id="lightboxImage" class="lightbox-img" src="" alt="Full-size screenshot" />
+  </div>
+
+  <script>
+    // Release package state
+    const releaseData = {
+      version: "v0.3.14",
+      x86_64: {
+        appimage: {
+          filename: "bengal-download-manager-0.3.14-x86_64.AppImage",
+          url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage"
+        },
+        deb: {
+          filename: "bengal-download-manager-0.3.14-x86_64.deb",
+          url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb"
+        },
+        rpm: {
+          filename: "bengal-download-manager-0.3.14-x86_64.rpm",
+          url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm"
+        }
+      },
+      aarch64: {
+        appimage: {
+          filename: "bengal-download-manager-0.3.14-aarch64.AppImage",
+          url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-aarch64.AppImage"
+        },
+        deb: {
+          filename: "bengal-download-manager-0.3.14-aarch64.deb",
+          url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-aarch64.deb"
+        },
+        rpm: {
+          filename: "bengal-download-manager-0.3.14-aarch64.rpm",
+          url: "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-aarch64.rpm"
+        }
+      }
+    };
+
+    const archLabels = {
+      x86_64: "x86_64 64-bit Intel / AMD",
+      aarch64: "aarch64 64-bit ARM"
+    };
+
+    function currentRelease(arch, format) {
+      const entry = releaseData[arch] || releaseData.x86_64;
+      return entry[format];
+    }
+
+    function getCurrentArch() {
+      const select = document.getElementById("arch-select")
+        || document.getElementById("deb-arch-select")
+        || document.getElementById("rpm-arch-select");
+      return select ? select.value : "x86_64";
+    }
+
+    function renderAppImageUI(arch) {
+      const current = currentRelease(arch, "appimage");
+      const btn = document.getElementById("appimage-main-btn");
+      const label = document.getElementById("appimage-main-label");
+      const title = document.getElementById("appimage-cmd-title");
+      const curlCmd = document.getElementById("appimage-curl-cmd");
+      const runCmd = document.getElementById("appimage-run-cmd");
+
+      if (btn) btn.href = current.url;
+      if (label) label.textContent = "AppImage (" + arch + ")";
+      if (title) title.textContent = "Terminal quick-start (" + archLabels[arch] + ")";
+      if (curlCmd) {
+        curlCmd.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url;
+      }
+      if (runCmd) {
+        runCmd.innerHTML = '<span class="cli-prompt">$</span>chmod +x ' + current.filename + ' &amp;&amp; ./' + current.filename;
+      }
+    }
+
+    function renderDebUI(arch) {
+      const current = currentRelease(arch, "deb");
+      const btn = document.getElementById("deb-main-btn");
+      const label = document.getElementById("deb-main-label");
+      const curl = document.getElementById("deb-curl-cmd");
+      const cmd = document.getElementById("deb-install-cmd");
+
+      if (btn) btn.href = current.url;
+      if (label) label.textContent = ".deb (" + arch + ")";
+      if (curl) curl.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url;
+      if (cmd) cmd.innerHTML = '<span class="cli-prompt">$</span>sudo apt install ./' + current.filename;
+    }
+
+    function renderRpmUI(arch) {
+      const current = currentRelease(arch, "rpm");
+      const btn = document.getElementById("rpm-main-btn");
+      const label = document.getElementById("rpm-main-label");
+      const curl = document.getElementById("rpm-curl-cmd");
+      const cmd = document.getElementById("rpm-install-cmd");
+
+      if (btn) btn.href = current.url;
+      if (label) label.textContent = ".rpm (" + arch + ")";
+      if (curl) curl.innerHTML = '<span class="cli-prompt">$</span>curl -L -o ' + current.filename + ' ' + current.url;
+      if (cmd) cmd.innerHTML = '<span class="cli-prompt">$</span>sudo dnf install ./' + current.filename;
+    }
+
+    function onArchChange(arch) {
+      ["arch-select", "deb-arch-select", "rpm-arch-select"].forEach(id => {
+        const select = document.getElementById(id);
+        if (select && select.value !== arch) select.value = arch;
+      });
+      renderAppImageUI(arch);
+      renderDebUI(arch);
+      renderRpmUI(arch);
+    }
+
+    function copyAppImageCurl(btn) {
+      const current = currentRelease(getCurrentArch(), "appimage");
+      copyCode("curl -L -o " + current.filename + " " + current.url, btn);
+    }
+
+    function copyAppImageRun(btn) {
+      const current = currentRelease(getCurrentArch(), "appimage");
+      copyCode("chmod +x " + current.filename + " && ./" + current.filename, btn);
+    }
+
+    function copyDebCurl(btn) {
+      const current = currentRelease(getCurrentArch(), "deb");
+      copyCode("curl -L -o " + current.filename + " " + current.url, btn);
+    }
+
+    function copyDebInstall(btn) {
+      const current = currentRelease(getCurrentArch(), "deb");
+      copyCode("sudo apt install ./" + current.filename, btn);
+    }
+
+    function copyRpmCurl(btn) {
+      const current = currentRelease(getCurrentArch(), "rpm");
+      copyCode("curl -L -o " + current.filename + " " + current.url, btn);
+    }
+
+    function copyRpmInstall(btn) {
+      const current = currentRelease(getCurrentArch(), "rpm");
+      copyCode("sudo dnf install ./" + current.filename, btn);
+    }
+
+    // Resolve the latest release assets from GitHub
+    (async function resolveReleases() {
+      try {
+        const res = await fetch("https://api.github.com/repos/tazihad/bengal-download-manager/releases/latest");
+        if (!res.ok) return;
+        const data = await res.json();
+        const assets = data.assets || [];
+        const version = data.tag_name || releaseData.version;
+        releaseData.version = version;
+
+        function findAsset(extension, arch) {
+          const tokens = arch === "x86_64" ? ["x86_64", "amd64"] : ["aarch64", "arm64"];
+          return assets.find(a => a.name.endsWith(extension) && tokens.some(token => a.name.includes(token)));
+        }
+
+        ["x86_64", "aarch64"].forEach(arch => {
+          const appimage = findAsset(".AppImage", arch);
+          const deb = findAsset(".deb", arch);
+          const rpm = findAsset(".rpm", arch);
+
+          if (appimage) releaseData[arch].appimage = { filename: appimage.name, url: appimage.browser_download_url };
+          if (deb) releaseData[arch].deb = { filename: deb.name, url: deb.browser_download_url };
+          if (rpm) releaseData[arch].rpm = { filename: rpm.name, url: rpm.browser_download_url };
+        });
+
+        onArchChange(getCurrentArch());
+      } catch (e) {
+        console.warn("Could not resolve release assets from the GitHub API:", e);
+      }
+    })();
+
+    // Theme switching
+    const themeToggle = document.getElementById("theme-toggle");
+    const themeColorMeta = document.getElementById("theme-color-meta");
+
+    function getStoredTheme() {
+      try {
+        return localStorage.getItem("bdm-theme");
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function applyTheme(theme, persist) {
+      document.documentElement.setAttribute("data-theme", theme);
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute("content", theme === "dark" ? "#0f172a" : "#ffffff");
+      }
+      if (themeToggle) {
+        const next = theme === "dark" ? "light" : "dark";
+        themeToggle.setAttribute("aria-label", "Switch to " + next + " theme");
+        themeToggle.setAttribute("title", "Switch to " + next + " theme");
+      }
+      if (persist) {
+        try {
+          localStorage.setItem("bdm-theme", theme);
+        } catch (e) {}
+      }
+    }
+
+    if (themeToggle) {
+      applyTheme(document.documentElement.getAttribute("data-theme") || "light", false);
+      themeToggle.addEventListener("click", () => {
+        const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        applyTheme(next, true);
+      });
+    }
+
+    const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    function handleSystemThemeChange(event) {
+      if (!getStoredTheme()) {
+        applyTheme(event.matches ? "dark" : "light", false);
+      }
+    }
+    if (darkModeQuery.addEventListener) {
+      darkModeQuery.addEventListener("change", handleSystemThemeChange);
+    } else if (darkModeQuery.addListener) {
+      darkModeQuery.addListener(handleSystemThemeChange);
+    }
+
+    // Install tabs
+    function switchTab(name, btn) {
+      document.querySelectorAll(".install-nav-btn").forEach(b => {
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
+      document.querySelectorAll(".install-body").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
+      document.getElementById("tab-" + name).classList.add("active");
+    }
+
+    function openTabFromHash() {
+      const match = (window.location.hash || "").match(/^#tab-(snap|appimage|flatpak|deb|rpm)$/);
+      if (!match) return;
+      const btn = document.querySelector('.install-nav-btn[data-tab="' + match[1] + '"]');
+      if (btn) {
+        switchTab(match[1], btn);
+        const install = document.getElementById("install");
+        if (install) install.scrollIntoView();
+      }
+    }
+
+    openTabFromHash();
+    window.addEventListener("hashchange", openTabFromHash);
+
+    // Copy to clipboard
+    function copyCode(text, btn) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          const old = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(() => { btn.textContent = old; }, 2000);
+        }).catch(() => fallbackCopy(text, btn));
+      } else {
+        fallbackCopy(text, btn);
+      }
+    }
+
+    function fallbackCopy(text, btn) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        const old = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = old; }, 2000);
+      } catch (err) {
+        console.error("Fallback copy failed", err);
+      }
+      document.body.removeChild(textArea);
+    }
+
+    // FAQ accordion
+    function toggleFaq(btn) {
+      const card = btn.parentElement;
+      const isOpen = card.classList.contains("open");
+      document.querySelectorAll(".faq-card").forEach(c => c.classList.remove("open"));
+      if (!isOpen) card.classList.add("open");
+    }
+
+    // Lightbox
+    function openLightbox(src) {
+      document.getElementById("lightboxImage").src = src;
+      document.getElementById("lightbox").classList.add("active");
+    }
+
+    function closeLightbox(e) {
+      if (e.target.id === "lightbox") {
+        document.getElementById("lightbox").classList.remove("active");
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        document.getElementById("lightbox").classList.remove("active");
+      }
+    });
+  </script>
+</body>
+</html>
