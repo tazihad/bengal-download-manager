@@ -4,7 +4,8 @@
 const SITE_ROOT = "";
 
 // ---------- Path helpers (pages live at root and in privacy/ subdir) ----------
-const IS_SUBPAGE = window.location.pathname.split("/").filter(Boolean).length > 1;
+// Use raw split length (>2) so directory URLs like /privacy/ are detected as subpages too.
+const IS_SUBPAGE = window.location.pathname.split("/").length > 2;
 const ASSET_BASE = IS_SUBPAGE ? "../" : "";
 
 function asset(path) {
