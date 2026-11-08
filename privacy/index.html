@@ -4,42 +4,41 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Privacy Policy — Bengal Download Manager &amp; Bengal DM Connector</title>
-
   <meta name="description" content="Bengal Download Manager and Bengal DM Connector do not collect, store, or transmit any personal data. A zero-data-collection privacy policy." />
   <meta name="robots" content="index, follow" />
 
   <link rel="icon" type="image/png" href="../assets/logo.png" />
 
-  <!-- Google Fonts -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
+  <!-- Shared theme stylesheet -->
+  <link rel="stylesheet" href="../site/css/shared.css" />
+
+  <!-- Privacy page specific styles (built on shared theme variables) -->
   <style>
     :root {
-      --plasma-bg: #15181a;
-      --plasma-surface: #232629;
-      --plasma-surface-glass: rgba(35, 38, 41, 0.75);
+      --plasma-bg: var(--bg);
+      --plasma-surface: var(--surface);
+      --plasma-surface-glass: rgba(26, 41, 70, 0.75);
       --plasma-surface-elevated: #2a2e32;
-      --plasma-border: rgba(255, 255, 255, 0.12);
-      --plasma-border-hover: rgba(61, 174, 233, 0.6);
-
-      --plasma-blue: #3daee9;
-      --plasma-blue-hover: #2980b9;
+      --plasma-border: var(--border);
+      --plasma-border-hover: var(--blue-700);
+      --plasma-blue: var(--blue-500);
+      --plasma-blue-hover: var(--blue-700);
       --plasma-blue-light: #68c3f4;
       --plasma-amber: #fdbc4b;
       --plasma-green: #2ecc71;
       --plasma-red: #da4453;
       --bengal-orange: #ea580c;
-
-      --text: #eff0f1;
-      --text-dim: #bdc3c7;
-      --text-muted: #7f8c8d;
-
-      --radius-kde: 12px;
+      --text: var(--text);
+      --text-dim: var(--text-soft);
+      --text-muted: var(--text-muted);
+      --radius-kde: var(--radius);
       --radius-sm: 8px;
-
-      --shadow-glass: 0 16px 40px rgba(0, 0, 0, 0.5);
+      --shadow-glass: 0 16px 40px rgba(0, 0, 0, 0.35);
       --shadow-glow: 0 0 35px rgba(61, 174, 233, 0.25);
     }
 
@@ -55,9 +54,7 @@
     }
 
     body {
-      background: radial-gradient(circle at 50% 0%, #202b38 0%, #15181a 100%);
-      background-attachment: fixed;
-      background-color: var(--plasma-bg);
+      background: var(--bg);
       color: var(--text);
       font-family: 'Inter', sans-serif;
       min-height: 100vh;
@@ -88,17 +85,17 @@
       position: sticky;
       top: 0;
       z-index: 1000;
-      background: rgba(21, 24, 26, 0.88);
+      background: var(--header-bg);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--plasma-border);
+      border-bottom: 1px solid var(--border);
     }
 
     .kde-nav {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      height: 74px;
+      height: 72px;
     }
 
     .kde-brand {
@@ -132,14 +129,14 @@
     }
 
     .kde-menu a {
-      color: var(--text-dim);
+      color: var(--text-muted);
       font-size: 14px;
       font-weight: 500;
       transition: color 0.2s;
     }
 
     .kde-menu a:hover {
-      color: var(--plasma-blue);
+      color: var(--blue-700);
     }
 
     .kde-header-actions {
@@ -153,8 +150,8 @@
       align-items: center;
       gap: 8px;
       padding: 8px 16px;
-      background: var(--plasma-surface);
-      border: 1px solid var(--plasma-border);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
       border-radius: var(--radius-sm);
       font-size: 13px;
       font-weight: 600;
@@ -163,20 +160,18 @@
     }
 
     .github-star-btn:hover {
-      background: var(--plasma-surface-elevated);
-      border-color: var(--plasma-blue);
+      background: var(--bg-soft);
+      border-color: var(--blue-700);
       transform: translateY(-1px);
     }
 
     /* Page Header */
     .page-header {
-      background: var(--plasma-surface-glass);
-      border: 1px solid var(--plasma-border);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 16px;
       padding: 56px 48px;
-      box-shadow: var(--shadow-glass);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      box-shadow: var(--shadow);
       margin: 36px 0 48px;
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -186,7 +181,7 @@
     }
 
     .page-eyebrow {
-      color: var(--plasma-amber);
+      color: var(--blue-700);
       font-weight: 700;
       font-size: 13px;
       text-transform: uppercase;
@@ -201,8 +196,8 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--plasma-green);
-      box-shadow: 0 0 10px var(--plasma-green);
+      background: var(--blue-500);
+      box-shadow: 0 0 10px var(--blue-500);
     }
 
     .page-h1 {
@@ -212,10 +207,11 @@
       line-height: 1.15;
       letter-spacing: -0.02em;
       margin-bottom: 16px;
+      color: var(--text);
     }
 
     .page-desc {
-      color: var(--text-dim);
+      color: var(--text-soft);
       font-size: 1.0625rem;
       line-height: 1.65;
       margin-bottom: 24px;
@@ -246,13 +242,11 @@
 
     /* Policy Content */
     .policy-body {
-      background: var(--plasma-surface-glass);
-      border: 1px solid var(--plasma-border);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 16px;
       padding: 48px;
-      box-shadow: var(--shadow-glass);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      box-shadow: var(--shadow);
       margin-bottom: 60px;
     }
 
@@ -270,14 +264,14 @@
     }
 
     .policy-body p {
-      color: var(--text-dim);
+      color: var(--text-soft);
       font-size: 15px;
       margin-bottom: 16px;
       line-height: 1.7;
     }
 
     .policy-body ul {
-      color: var(--text-dim);
+      color: var(--text-soft);
       font-size: 15px;
       margin-bottom: 20px;
       padding-left: 22px;
@@ -291,26 +285,26 @@
     .policy-body code {
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
-      background: var(--plasma-bg);
-      color: var(--plasma-blue-light);
+      background: var(--bg-soft);
+      color: var(--blue-500);
       padding: 2px 6px;
       border-radius: 4px;
-      border: 1px solid var(--plasma-border);
+      border: 1px solid var(--border);
     }
 
     .callout {
       background: rgba(61, 174, 233, 0.1);
       border: 1px solid rgba(61, 174, 233, 0.3);
-      border-left: 4px solid var(--plasma-blue);
+      border-left: 4px solid var(--blue-500);
       border-radius: var(--radius-sm);
       padding: 16px 20px;
       margin: 24px 0;
-      color: var(--text-dim);
+      color: var(--text-soft);
       font-size: 14.5px;
     }
 
     .callout b {
-      color: var(--plasma-blue-light);
+      color: var(--blue-500);
     }
 
     .footer-note {
@@ -319,17 +313,17 @@
       text-align: center;
       margin-top: 40px;
       padding-top: 24px;
-      border-top: 1px solid var(--plasma-border);
+      border-top: 1px solid var(--border);
     }
 
     /* Footer */
     footer {
-      border-top: 1px solid var(--plasma-border);
+      border-top: 1px solid var(--border);
       padding: 48px 0 32px;
       text-align: center;
       color: var(--text-muted);
       font-size: 13px;
-      background: var(--plasma-bg);
+      background: var(--bg-soft);
     }
 
     .footer-links {
@@ -337,14 +331,14 @@
     }
 
     .footer-links a {
-      color: var(--plasma-blue);
+      color: var(--blue-500);
       margin: 0 10px;
       font-size: 13px;
       transition: color 0.2s;
     }
 
     .footer-links a:hover {
-      color: var(--plasma-blue-light);
+      color: var(--blue-700);
     }
 
     @media (max-width: 768px) {
@@ -461,7 +455,7 @@
         If you have questions about this privacy policy, you can open an issue on the project repository or contact the maintainer through GitHub.
       </p>
       <p style="margin-top: 8px;">
-        <a href="https://github.com/tazihad/bengal-download-manager/issues" target="_blank" rel="noopener" style="color: var(--plasma-blue); font-weight: 600;">GitHub Issues &rarr;</a>
+        <a href="https://github.com/tazihad/bengal-download-manager/issues" target="_blank" rel="noopener" style="color: var(--blue-500); font-weight: 600;">GitHub Issues &rarr;</a>
       </p>
     </div>
 

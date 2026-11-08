@@ -1,0 +1,115 @@
+{
+  "flatpak": {
+    "title": "Flatpak and Flathub",
+    "storeRow": {
+      "badgeUrl": "https://flathub.org/api/badge?locale=en",
+      "badgeLink": "https://flathub.org/en/apps/bd.com.zihad.BengalDownloadManager",
+      "note": "Official Flathub release, sandboxed with automatic updates."
+    },
+    "flathubCmd": "flatpak install flathub bd.com.zihad.BengalDownloadManager",
+    "directRepo": {
+      "heading": "Direct Repository (.flatpakref &amp; Git Source)",
+      "lead": "GPG-signed, sandboxed desktop installation built directly from git source.",
+      "flatpakrefLink": "bengal-download-manager.flatpakref",
+      "flatpakrefBadge": "assets/badges/flatpak.svg",
+      "flatpakrefPreTitle": "Install via",
+      "flatpakrefTitle": "Flatpakref"
+    },
+    "options": [
+      {
+        "label": "Option 1: One-command install via .flatpakref",
+        "cmd": "flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref"
+      },
+      {
+        "label": "Option 2: Add repository remote (auto-updates via flatpak update)",
+        "cmds": [
+          "flatpak remote-add --user --if-not-exists tazihad https://zihad.com.bd/bengal-download-manager/tazihad.flatpakrepo",
+          "flatpak install --user -y tazihad bd.com.zihad.BengalDownloadManager"
+        ]
+      }
+    ],
+    "foot": "View all release assets on GitHub &rarr;",
+    "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest"
+  },
+  "snap": {
+    "title": "Snap Store",
+    "storeRow": {
+      "badgeUrl": "https://snapcraft.io/en/dark/install.svg",
+      "badgeLink": "https://snapcraft.io/bengal-download-manager",
+      "note": "Official Canonical package with automatic updates."
+    },
+    "cmd": "sudo snap install bengal-download-manager",
+    "foot": "View all release assets on GitHub &rarr;",
+    "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest"
+  },
+  "appimage": {
+    "title": "AppImage",
+    "heading": "Direct AppImage download",
+    "lead": "A portable executable that runs without installation or root access.",
+    "archSelect": {
+      "label": "System architecture",
+      "options": [
+        { "value": "x86_64", "label": "x86_64 (64-bit Intel / AMD)" },
+        { "value": "aarch64", "label": "aarch64 (64-bit ARM)" }
+      ]
+    },
+    "badge": {
+      "image": "assets/badges/appimage.svg",
+      "preTitle": "Download",
+      "title": "AppImage (x86_64)",
+      "link": "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage"
+    },
+    "curlCmd": "curl -L -o bengal-download-manager-0.3.14-x86_64.AppImage https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.AppImage",
+    "runCmd": "chmod +x bengal-download-manager-0.3.14-x86_64.AppImage && ./bengal-download-manager-0.3.14-x86_64.AppImage",
+    "foot": "View all release assets on GitHub →",
+    "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest"
+  },
+  "deb": {
+    "title": "Debian / Ubuntu (.deb)",
+    "heading": "Debian / Ubuntu package",
+    "lead": "Native .deb package for Debian, Ubuntu, Linux Mint, Pop!_OS, and related distributions.",
+    "archSelect": {
+      "label": "System architecture",
+      "options": [
+        { "value": "x86_64", "label": "x86_64 (64-bit Intel / AMD)" },
+        { "value": "aarch64", "label": "aarch64 (64-bit ARM)" }
+      ]
+    },
+    "badge": {
+      "icon": "DEB",
+      "preTitle": "Download",
+      "title": ".deb (x86_64)",
+      "link": "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb"
+    },
+    "step1": "Download the package",
+    "step1Cmd": "curl -L -o bengal-download-manager-0.3.14-x86_64.deb https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.deb",
+    "step2": "Install with apt",
+    "step2Cmd": "sudo apt install ./bengal-download-manager-0.3.14-x86_64.deb",
+    "foot": "View all release assets on GitHub →",
+    "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest"
+  },
+  "rpm": {
+    "title": "Fedora / RHEL (.rpm)",
+    "heading": "Fedora / RHEL package",
+    "lead": "Native .rpm package for Fedora, RHEL, CentOS Stream, and other dnf-based distributions.",
+    "archSelect": {
+      "label": "System architecture",
+      "options": [
+        { "value": "x86_64", "label": "x86_64 (64-bit Intel / AMD)" },
+        { "value": "aarch64", "label": "aarch64 (64-bit ARM)" }
+      ]
+    },
+    "badge": {
+      "icon": "RPM",
+      "preTitle": "Download",
+      "title": ".rpm (x86_64)",
+      "link": "https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm"
+    },
+    "step1": "Download the package",
+    "step1Cmd": "curl -L -o bengal-download-manager-0.3.14-x86_64.rpm https://github.com/tazihad/bengal-download-manager/releases/download/v0.3.14/bengal-download-manager-0.3.14-x86_64.rpm",
+    "step2": "Install with dnf",
+    "step2Cmd": "sudo dnf install ./bengal-download-manager-0.3.14-x86_64.rpm",
+    "foot": "View all release assets on GitHub →",
+    "footUrl": "https://github.com/tazihad/bengal-download-manager/releases/latest"
+  }
+}
