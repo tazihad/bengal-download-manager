@@ -30,7 +30,7 @@
 ### Get Addon
 
 [![Get the Firefox Add-on](https://img.shields.io/badge/Firefox-Get_the_Add--on-ff7139?style=for-the-badge&logo=firefox-browser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/bengal-dm-integration-module)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Store-Upcoming-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](#browser-extensions)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Store-Add_to_Chrome-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/bengal-dm-connector/maabnenhophnabkehjgdaidaglneocbi)
 [![GitHub Extension Package](https://img.shields.io/badge/GitHub-Extension_Package-24292e?style=for-the-badge&logo=github&logoColor=white)](https://github.com/tazihad/bengal-download-manager/releases/latest)
 
 </div>
@@ -151,7 +151,7 @@ Integrate Bengal Download Manager with your browser for automatic download inter
   [![GitHub Extension Package](https://img.shields.io/badge/GitHub-Extension_Package-24292e?style=for-the-badge&logo=github&logoColor=white)](https://github.com/tazihad/bengal-download-manager/releases/latest)
 
 - **Google Chrome:**  
-  [![Chrome Web Store](https://img.shields.io/badge/Chrome_Store-Upcoming-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](#browser-extensions) *(Chrome Web Store release coming soon)*
+  [![Chrome Web Store](https://img.shields.io/badge/Chrome_Store-Add_to_Chrome-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/bengal-dm-connector/maabnenhophnabkehjgdaidaglneocbi)
 
 ---
 
