@@ -34,7 +34,12 @@
   <supports>
     <control>pointing</control>
     <control>keyboard</control>
+    <control>touch</control>
   </supports>
+
+  <requires>
+    <display_length compare="ge" side="shortest">768</display_length>
+  </requires>
 
   <!-- Translators: Screenshot captions appear in app catalogs such as Flathub. -->
   <screenshots>
@@ -65,6 +70,10 @@
     <screenshot>
       <caption>Data usage and bandwidth monitor</caption>
       <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/07-data-usage-summary.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Modern dark mode layout</caption>
+      <image>https://raw.githubusercontent.com/tazihad/bengal-download-manager/main/assets/screenshots/08-modern-layout.png</image>
     </screenshot>
   </screenshots>
 
