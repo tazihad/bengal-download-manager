@@ -198,7 +198,7 @@ def _unique_release_date(preferred: str, content: str, exclude_version: Optional
         candidate = datetime.date.today()
 
     existing_versions = {
-        v for v, _ in re.findall(r'<release\s+[^>]*?version="([^"]+)"', content)
+        v for v in re.findall(r'<release\s+[^>]*?version="([^"]+)"', content)
     }
     is_new = exclude_version is None or exclude_version not in existing_versions
 
