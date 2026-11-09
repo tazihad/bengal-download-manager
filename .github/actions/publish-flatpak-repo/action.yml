@@ -17,21 +17,21 @@ inputs:
     required: false
     default: '_site'
   gpg_key:
-    description: 'GPG Key ID for signing'
+    description: 'GPG Key ID for signing (must already be imported into the runner keyring)'
     required: false
     default: ''
   collection_id:
-    description: 'OSTree Collection ID (defaults to bd.com.zihad.<Branch>)'
+    description: 'OSTree Collection ID. One per repo; must stay constant for the lifetime of the repo. Channels are separated by branch, not by collection ID.'
     required: false
-    default: ''
+    default: 'bd.com.zihad.Stable'
   sign:
-    description: 'Whether to sign with GPG'
+    description: 'Whether to sign with GPG (requires gpg_key)'
     required: false
     default: 'false'
   pages_url:
-    description: 'Base URL for GitHub Pages'
+    description: 'Base URL of the published site'
     required: false
-    default: 'https://tazihad.github.io/bengal-download-manager'
+    default: 'https://zihad.com.bd/bengal-download-manager'
 
 runs:
   using: 'composite'
@@ -44,6 +44,8 @@ runs:
     - name: Assemble Flathub-Standard Flatpak Repository
       shell: bash
       run: |
+        set -euo pipefail
+
         SITE_DIR="${{ inputs.site_dir }}"
         REPO_DIR="$SITE_DIR/repo"
         APP_ID="${{ inputs.app_id }}"
@@ -51,46 +53,65 @@ runs:
         PAGES_URL="${{ inputs.pages_url }}"
         SIGN="${{ inputs.sign }}"
         GPG_KEY="${{ inputs.gpg_key }}"
+        COLLECTION_ID="${{ inputs.collection_id }}"
 
         BRANCH="stable"
         if [[ "${VERSION,,}" =~ (alpha|beta|rc|dev) ]]; then
           BRANCH="${BASH_REMATCH[1]}"
         fi
-        BRANCH_CAP="$(tr '[:lower:]' '[:upper:]' <<< ${BRANCH:0:1})${BRANCH:1}"
-        DEFAULT_COLLECTION_ID="bd.com.zihad.${BRANCH_CAP}"
-        COLLECTION_ID="${{ inputs.collection_id }}"
-        COLLECTION_ID="${COLLECTION_ID:-$DEFAULT_COLLECTION_ID}"
 
-        echo "=== Assembling Flathub-Standard OSTree Repository at $REPO_DIR (Collection: $COLLECTION_ID) ==="
+        # Fail early if signing was requested but cannot work
+        if [ "$SIGN" = "true" ]; then
+          if [ -z "$GPG_KEY" ]; then
+            echo "::error::sign=true but gpg_key is empty"
+            exit 1
+          fi
+          command -v gpg >/dev/null || { echo "::error::gpg is not installed on this runner"; exit 1; }
+          gpg --list-secret-keys "$GPG_KEY" >/dev/null 2>&1 \
+            || { echo "::error::GPG key $GPG_KEY is not in the runner keyring (import it before this action)"; exit 1; }
+        fi
+
+        echo "=== Assembling OSTree Repository at $REPO_DIR (Collection: $COLLECTION_ID, Branch: $BRANCH) ==="
         mkdir -p "$SITE_DIR" "$REPO_DIR"
-        ostree init --mode=archive --repo="$REPO_DIR" --collection-id="$COLLECTION_ID" 2>/dev/null || true
-        ostree config --repo="$REPO_DIR" set "core.collection-id" "$COLLECTION_ID" 2>/dev/null || true
+        if [ ! -f "$REPO_DIR/config" ]; then
+          ostree init --mode=archive --repo="$REPO_DIR" --collection-id="$COLLECTION_ID"
+        fi
+        ostree config --repo="$REPO_DIR" set "core.collection-id" "$COLLECTION_ID"
         mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
 
-        # Pull existing history from live remote repository so that delta history and parent commits are retained
+        # Pull existing history from the live repository so older branches and parent commits are retained
         if [ -n "$PAGES_URL" ]; then
           echo "Pulling existing repository history from $PAGES_URL/repo into $REPO_DIR..."
-          ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PAGES_URL/repo" 2>/dev/null || true
-          ostree pull --repo="$REPO_DIR" --mirror origin-remote 2>/dev/null || ostree pull --repo="$REPO_DIR" origin-remote 2>/dev/null || true
-          ostree remote delete --repo="$REPO_DIR" origin-remote 2>/dev/null || true
-          rm -rf "$REPO_DIR"/refs/remotes/* "$REPO_DIR"/refs/mirrors/*
+          ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PAGES_URL/repo" || true
+          ostree pull --repo="$REPO_DIR" --mirror origin-remote \
+            || ostree pull --repo="$REPO_DIR" origin-remote \
+            || echo "::warning::Could not pull existing history (expected on the first publish)"
+          ostree remote delete --repo="$REPO_DIR" origin-remote || true
+          rm -rf "$REPO_DIR"/refs/remotes/*
           mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors"
         fi
 
         # Pull all downloaded architecture repo slices into the unified repo
+        SLICE_COUNT=0
         for slice in ${{ inputs.slices_pattern }}; do
           if [ -d "$slice" ]; then
             echo "Preparing OSTree directory structure for slice: $slice"
             rm -rf "$slice"/refs/remotes/* "$slice"/refs/mirrors/*
             mkdir -p "$slice/refs/heads" "$slice/refs/remotes" "$slice/refs/mirrors" "$slice/objects"
-            
+
             echo "Merging architecture slice: $slice -> $REPO_DIR"
             ostree pull-local --repo="$REPO_DIR" "$slice"
+            SLICE_COUNT=$((SLICE_COUNT + 1))
           fi
         done
+        if [ "$SLICE_COUNT" -eq 0 ]; then
+          echo "::error::No architecture slices matched '${{ inputs.slices_pattern }}'"
+          exit 1
+        fi
+        echo "Merged $SLICE_COUNT slice(s)"
 
         # Update repository summary and static deltas (with GPG if enabled)
-        if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
+        if [ "$SIGN" = "true" ]; then
           echo "Signing OSTree repo summary with GPG Key: $GPG_KEY (Collection: $COLLECTION_ID)"
           flatpak build-update-repo --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
           gpg --armor --export "$GPG_KEY" > "$REPO_DIR/$APP_ID.gpg"
@@ -100,9 +121,27 @@ runs:
           flatpak build-update-repo --collection-id="$COLLECTION_ID" --generate-static-deltas "$REPO_DIR"
         fi
 
+        # Fail the job now if the repo index is incomplete
+        echo "=== Verifying repository index ==="
+        ls -la "$REPO_DIR"
+        [ -s "$REPO_DIR/summary" ] || { echo "::error::summary missing from $REPO_DIR"; exit 1; }
+        if [ "$SIGN" = "true" ]; then
+          [ -s "$REPO_DIR/summary.sig" ] || { echo "::error::summary.sig missing"; exit 1; }
+        fi
+        REFS="$(ostree refs --repo="$REPO_DIR")"
+        echo "$REFS"
+        echo "$REFS" | grep -q "app/$APP_ID/.*/$BRANCH\$" \
+          || { echo "::error::no app/$APP_ID ref for branch '$BRANCH' in repo"; exit 1; }
+        if [ "$BRANCH" != "stable" ]; then
+          echo "$REFS" | grep -q "app/$APP_ID/.*/stable\$" \
+            || echo "::warning::publishing '$BRANCH' but no stable ref is in the repo; stable history may have been lost"
+        fi
+        echo "$REFS" | grep -q '^appstream' \
+          || echo "::warning::no appstream refs found; GNOME Software won't list the app"
+
         # Generate Flathub-standard .flatpakrepo and .flatpakref files
         GPG_ARG=""
-        if [ "$SIGN" = "true" ] && [ -n "$GPG_KEY" ]; then
+        if [ "$SIGN" = "true" ]; then
           GPG_ARG="--gpg-key $GPG_KEY"
         fi
 
@@ -121,4 +160,4 @@ runs:
         cp -r assets "$SITE_DIR/"
         touch "$SITE_DIR/.nojekyll"
 
-        echo "✓ Flathub-standard Pages staging directory prepared at $SITE_DIR"
+        echo "✓ Pages staging directory prepared at $SITE_DIR"
