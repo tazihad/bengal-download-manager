@@ -80,13 +80,13 @@
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
     <release version="0.3.15" date="2026-11-09">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.15</url>
-      <description translate="no">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.15</url>
+        <description translate="no">
         <p>Bengal Download Manager 0.3.15 changes:</p>
         <ul>
-          <li>Site: Shared CSS/JS data for index and privacy pages (#212)</li>
-        </ul>
-      </description>
+                <li>Site: Shared CSS/JS data for index and privacy pages (#212)</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.14" date="2026-11-08">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.14</url>
