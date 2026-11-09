@@ -1,5 +1,5 @@
 name: 'Publish Flatpak Repository'
-description: 'Merges multi-arch Flatpak OSTree slices, signs repository summary with GPG, and stages GitHub Pages'
+description: 'Merges multi-arch Flatpak OSTree slices into a stable-only repo, signs the summary with GPG, and stages GitHub Pages'
 inputs:
   version:
     description: 'Release version'
@@ -21,7 +21,7 @@ inputs:
     required: false
     default: ''
   collection_id:
-    description: 'OSTree Collection ID. One per repo; must stay constant for the lifetime of the repo. Channels are separated by branch, not by collection ID.'
+    description: 'OSTree Collection ID. One per repo; must stay constant for the lifetime of the repo.'
     required: false
     default: 'bd.com.zihad.Stable'
   sign:
@@ -41,7 +41,7 @@ runs:
       with:
         packages: flatpak ostree appstream appstream-compose
 
-    - name: Assemble Flathub-Standard Flatpak Repository
+    - name: Assemble Stable-Only Flatpak Repository
       shell: bash
       run: |
         set -euo pipefail
@@ -55,9 +55,12 @@ runs:
         GPG_KEY="${{ inputs.gpg_key }}"
         COLLECTION_ID="${{ inputs.collection_id }}"
 
+        # This repo only ever publishes the stable branch.
         BRANCH="stable"
+        IS_PRERELEASE="false"
         if [[ "${VERSION,,}" =~ (alpha|beta|rc|dev) ]]; then
-          BRANCH="${BASH_REMATCH[1]}"
+          IS_PRERELEASE="true"
+          echo "::notice::Version '$VERSION' is a pre-release; it will NOT be published to the stable repo."
         fi
 
         # Fail early if signing was requested but cannot work
@@ -79,7 +82,7 @@ runs:
         ostree config --repo="$REPO_DIR" set "core.collection-id" "$COLLECTION_ID"
         mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors" "$REPO_DIR/objects"
 
-        # Pull existing history from the live repository so older branches and parent commits are retained
+        # Pull existing history from the live repository so parent commits and the stable branch are retained
         if [ -n "$PAGES_URL" ]; then
           echo "Pulling existing repository history from $PAGES_URL/repo into $REPO_DIR..."
           ostree remote add --repo="$REPO_DIR" --no-gpg-verify origin-remote "$PAGES_URL/repo" || true
@@ -91,37 +94,50 @@ runs:
           mkdir -p "$REPO_DIR/refs/heads" "$REPO_DIR/refs/remotes" "$REPO_DIR/refs/mirrors"
         fi
 
-        # Pull all downloaded architecture repo slices into the unified repo
-        SLICE_COUNT=0
-        for slice in ${{ inputs.slices_pattern }}; do
-          if [ -d "$slice" ]; then
-            echo "Preparing OSTree directory structure for slice: $slice"
-            rm -rf "$slice"/refs/remotes/* "$slice"/refs/mirrors/*
-            mkdir -p "$slice/refs/heads" "$slice/refs/remotes" "$slice/refs/mirrors" "$slice/objects"
+        # Remove every app/runtime ref that is not on the stable branch (e.g. the old alpha ref)
+        echo "=== Pruning non-stable refs ==="
+        { ostree refs --repo="$REPO_DIR" | grep -E '^(app|runtime)/' | grep -v '/stable$' || true; } \
+          | while read -r ref; do
+              [ -n "$ref" ] || continue
+              echo "Removing non-stable ref: $ref"
+              ostree refs --repo="$REPO_DIR" --delete "$ref"
+            done
 
-            echo "Merging architecture slice: $slice -> $REPO_DIR"
-            ostree pull-local --repo="$REPO_DIR" "$slice"
-            SLICE_COUNT=$((SLICE_COUNT + 1))
+        # Merge new architecture slices (stable releases only)
+        if [ "$IS_PRERELEASE" = "false" ]; then
+          SLICE_COUNT=0
+          for slice in ${{ inputs.slices_pattern }}; do
+            if [ -d "$slice" ]; then
+              echo "Preparing OSTree directory structure for slice: $slice"
+              rm -rf "$slice"/refs/remotes/* "$slice"/refs/mirrors/*
+              mkdir -p "$slice/refs/heads" "$slice/refs/remotes" "$slice/refs/mirrors" "$slice/objects"
+
+              echo "Merging architecture slice: $slice -> $REPO_DIR"
+              ostree pull-local --repo="$REPO_DIR" "$slice"
+              SLICE_COUNT=$((SLICE_COUNT + 1))
+            fi
+          done
+          if [ "$SLICE_COUNT" -eq 0 ]; then
+            echo "::error::No architecture slices matched '${{ inputs.slices_pattern }}'"
+            exit 1
           fi
-        done
-        if [ "$SLICE_COUNT" -eq 0 ]; then
-          echo "::error::No architecture slices matched '${{ inputs.slices_pattern }}'"
-          exit 1
+          echo "Merged $SLICE_COUNT slice(s)"
+        else
+          echo "Skipping slice merge for pre-release; republishing existing stable repo."
         fi
-        echo "Merged $SLICE_COUNT slice(s)"
 
-        # Update repository summary and static deltas (with GPG if enabled)
+        # Update repository summary, prune unreferenced objects, regenerate deltas (with GPG if enabled)
         if [ "$SIGN" = "true" ]; then
           echo "Signing OSTree repo summary with GPG Key: $GPG_KEY (Collection: $COLLECTION_ID)"
-          flatpak build-update-repo --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --generate-static-deltas "$REPO_DIR"
+          flatpak build-update-repo --collection-id="$COLLECTION_ID" --gpg-sign="$GPG_KEY" --prune --generate-static-deltas "$REPO_DIR"
           gpg --armor --export "$GPG_KEY" > "$REPO_DIR/$APP_ID.gpg"
           echo "Exported GPG public key to $REPO_DIR/$APP_ID.gpg"
         else
           echo "Updating OSTree repo summary without GPG signing (Collection: $COLLECTION_ID)"
-          flatpak build-update-repo --collection-id="$COLLECTION_ID" --generate-static-deltas "$REPO_DIR"
+          flatpak build-update-repo --collection-id="$COLLECTION_ID" --prune --generate-static-deltas "$REPO_DIR"
         fi
 
-        # Fail the job now if the repo index is incomplete
+        # Fail the job now if the repo index is incomplete or contains non-stable refs
         echo "=== Verifying repository index ==="
         ls -la "$REPO_DIR"
         [ -s "$REPO_DIR/summary" ] || { echo "::error::summary missing from $REPO_DIR"; exit 1; }
@@ -130,16 +146,18 @@ runs:
         fi
         REFS="$(ostree refs --repo="$REPO_DIR")"
         echo "$REFS"
-        echo "$REFS" | grep -q "app/$APP_ID/.*/$BRANCH\$" \
-          || { echo "::error::no app/$APP_ID ref for branch '$BRANCH' in repo"; exit 1; }
-        if [ "$BRANCH" != "stable" ]; then
-          echo "$REFS" | grep -q "app/$APP_ID/.*/stable\$" \
-            || echo "::warning::publishing '$BRANCH' but no stable ref is in the repo; stable history may have been lost"
+        echo "$REFS" | grep -q "app/$APP_ID/.*/stable\$" \
+          || { echo "::error::no app/$APP_ID stable ref in repo"; exit 1; }
+
+        SUMMARY_VIEW="$(ostree summary --view --repo="$REPO_DIR")"
+        if echo "$SUMMARY_VIEW" | grep -E '(app|runtime)/[A-Za-z0-9._-]+/[A-Za-z0-9_]+/(alpha|beta|rc|dev)'; then
+          echo "::error::signed summary still lists non-stable refs (shown above)"
+          exit 1
         fi
         echo "$REFS" | grep -q '^appstream' \
           || echo "::warning::no appstream refs found; GNOME Software won't list the app"
 
-        # Generate Flathub-standard .flatpakrepo and .flatpakref files
+        # Generate Flathub-standard .flatpakrepo and .flatpakref files (always for the stable branch)
         GPG_ARG=""
         if [ "$SIGN" = "true" ]; then
           GPG_ARG="--gpg-key $GPG_KEY"

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 generate_flatpak_refs.py
-Generates Flathub-standard .flatpakrepo and .flatpakref files with embedded base64 GPG keys,
-with channel/branch isolation (stable vs alpha/beta) and clean versioned asset naming.
+Generates Flathub-standard .flatpakrepo and .flatpakref files with embedded base64 GPG keys
+for the stable Flatpak repository, plus clean versioned asset naming for stable releases.
 """
 
 import argparse
@@ -13,12 +13,32 @@ import subprocess
 import sys
 from pathlib import Path
 
+PRERELEASE_RE = re.compile(r"alpha|beta|rc|dev", re.IGNORECASE)
+
+
+def _dearmor(data: bytes) -> bytes:
+    """Convert an ASCII-armored PGP key to binary; return binary input unchanged."""
+    if not data.lstrip().startswith(b"-----BEGIN PGP"):
+        return data
+    try:
+        res = subprocess.run(
+            ["gpg", "--dearmor"],
+            input=data,
+            capture_output=True,
+            check=True,
+        )
+        if res.stdout:
+            return res.stdout
+    except Exception as e:
+        print(f"Warning: Could not dearmor GPG key, embedding it as-is: {e}", file=sys.stderr)
+    return data
+
 
 def get_gpg_base64(gpg_key: str = None, gpg_file: str = None) -> str:
-    """Extract and base64-encode a GPG public key."""
+    """Extract and base64-encode a GPG public key (binary form)."""
     if gpg_file and os.path.exists(gpg_file):
         with open(gpg_file, "rb") as f:
-            raw_bytes = f.read()
+            raw_bytes = _dearmor(f.read())
             return base64.b64encode(raw_bytes).decode("ascii")
 
     if gpg_key:
@@ -57,7 +77,7 @@ def main():
     parser.add_argument("--repo-dir", default="repo", help="Path to OSTree repository directory")
     parser.add_argument("--out-dir", default=".", help="Output directory for generated files")
     parser.add_argument("--app-id", default="bd.com.zihad.BengalDownloadManager", help="Flatpak Application ID")
-    parser.add_argument("--pages-url", default="https://tazihad.github.io/bengal-download-manager", help="Base Pages URL")
+    parser.add_argument("--pages-url", default="https://zihad.com.bd/bengal-download-manager", help="Base site URL")
     parser.add_argument("--gpg-key", default="", help="GPG Key ID")
     parser.add_argument("--gpg-file", default="", help="Path to exported GPG public key file")
     parser.add_argument("--version", default="", help="Release version for versioned assets")
@@ -79,7 +99,7 @@ def main():
     homepage_url = f"{pages_url}/"
     icon_url = f"{pages_url}/assets/icons/256x256.png"
 
-    # Determine channel branch for track isolation
+    # Determine channel branch
     branch = detect_branch(args.version, args.branch)
     collection_id = args.collection_id or f"bd.com.zihad.{branch.capitalize()}"
     collection_entry = f"CollectionID={collection_id}" if collection_id else ""
@@ -145,11 +165,15 @@ def main():
         print(f"✓ Generated web repo: {web_repo_file}")
         print(f"✓ Generated web ref: {web_ref_file}")
 
-    # Generate versioned release assets matching other release binaries
+    # Versioned release assets: stable releases only. The repo no longer publishes
+    # pre-releases, so a versioned ref for one would point at the stable branch.
     if version:
-        v_ref = out_dir / f"bengal-download-manager-{version}.flatpakref"
-        v_ref.write_text(rendered_ref, encoding="utf-8")
-        print(f"✓ Generated versioned asset: {v_ref}")
+        if PRERELEASE_RE.search(version):
+            print(f"Skipping versioned asset for pre-release '{version}' (repo is stable-only)")
+        else:
+            v_ref = out_dir / f"bengal-download-manager-{version}.flatpakref"
+            v_ref.write_text(rendered_ref, encoding="utf-8")
+            print(f"✓ Generated versioned asset: {v_ref}")
 
     # Mirror canonical files into repo_dir if different from out_dir
     if repo_dir.exists() and repo_dir != out_dir and not args.only_versioned:
