@@ -128,14 +128,16 @@ def test_verify_file_against_github_release(tmp_path):
 
 def test_verified_source_info_snap():
     # 1. Verified Snap from Canonical Snapcraft Store (numeric store revision)
-    with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/42", "SNAP_NAME": "bengal-download-manager", "SNAP_REVISION": "42"}, clear=True):
+    with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/42", "SNAP_NAME": "bengal-download-manager", "SNAP_REVISION": "42"}, clear=True), \
+         patch("core.build_info.verify_snapcraft_store_metadata_status", return_value=("verified", "Verified via Canonical Snap Store (Launchpad build)")):
         is_verified, url, note = get_verified_source_info()
         assert is_verified is True
         assert url == OFFICIAL_SNAP_URL
         assert "Launchpad" in note or "Snap" in note
 
     # Snapcraft store via BDM_SNAP_SOURCE override
-    with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/current", "SNAP_NAME": "bengal-download-manager", "BDM_SNAP_SOURCE": "snapcraft"}, clear=True):
+    with patch.dict(os.environ, {"SNAP": "/snap/bengal-download-manager/current", "SNAP_NAME": "bengal-download-manager", "BDM_SNAP_SOURCE": "snapcraft"}, clear=True), \
+         patch("core.build_info.verify_snapcraft_store_metadata_status", return_value=("verified", "Verified via Canonical Snap Store (Launchpad build)")):
         is_verified, url, note = get_verified_source_info()
         assert is_verified is True
         assert url == OFFICIAL_SNAP_URL
