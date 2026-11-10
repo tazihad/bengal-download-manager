@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core26
-version: '0.3.19'
+version: '0.3.20'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -134,8 +134,14 @@ parts:
       # Exclude staged librsvg2 so the GNOME platform's newer v2.61.1 is used
       # at runtime.  Without this, the older v2.50.0 (transitively pulled by
       # ffmpeg) shadows it and breaks the gdk-pixbuf SVG loader with:
-      #   undefined symbol: rsvg_handle_get_pixbuf_and_error
+      #   undefined symbol: rsg_handle_get_pixbuf_and_error
       - -usr/lib/*/librsvg*
       - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
+      - "*"
+    prime:
+      # Remove external symlinks created by uv plugin (point to build env Python)
+      - -bin/python
+      - -bin/python3
+      - -bin/python3.*
       - "*"
 
