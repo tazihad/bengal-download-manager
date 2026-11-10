@@ -87,6 +87,15 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.19" date="2026-11-10">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.19</url>
+      <description translate="no">
+        <p>Bengal Download Manager 0.3.19 changes:</p>
+        <ul>
+          <li>General maintenance, bug fixes, and performance improvements.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.18" date="2026-11-09">
       <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.18</url>
       <description translate="no">
