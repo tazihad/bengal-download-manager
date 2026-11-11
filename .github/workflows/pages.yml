@@ -1,6 +1,8 @@
 name: CD / Web Deploy
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -14,6 +16,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event.release.prerelease == false || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
