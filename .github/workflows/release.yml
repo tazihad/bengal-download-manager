@@ -203,6 +203,11 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    # Shared with CD / Web Deploy: only one workflow may deploy the Pages
+    # artifact at a time, otherwise one clobbers the other's repo/ directory.
+    concurrency:
+      group: 'pages'
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -281,16 +286,6 @@ jobs:
           merge-multiple: true
           path: release_dist
 
-      - name: Generate Flatpak Ref for Release
-        run: |
-          python3 scripts/generate_flatpak_refs.py \
-            --out-dir release_dist \
-            --app-id 'bd.com.zihad.BengalDownloadManager' \
-            --version '${{ needs.prepare.outputs.version }}' \
-            --only-versioned \
-            --pages-url 'https://zihad.com.bd/bengal-download-manager' 2>/dev/null || true
-          rm -f release_dist/*.flatpakrepo 2>/dev/null || true
-
       - name: Import GPG Key for Release Signing
         if: env.HAS_GPG == 'true'
         id: import_gpg
@@ -298,6 +293,29 @@ jobs:
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      # Must run after the GPG import: the versioned .flatpakref published as a
+      # release asset has to carry the same GPGKey as the signed repository,
+      # otherwise flatpak rejects it with
+      # "Collection ID requires GPG key to be provided".
+      - name: Generate Flatpak Ref for Release
+        env:
+          SIGNED_KEY: ${{ steps.import_gpg.outputs.keyid }}
+        run: |
+          GPG_ARG=""
+          if [ "$HAS_GPG" = "true" ] && [ -n "$SIGNED_KEY" ]; then
+            GPG_ARG="--gpg-key $SIGNED_KEY"
+          fi
+
+          python3 scripts/generate_flatpak_refs.py \
+            --out-dir release_dist \
+            --app-id 'bd.com.zihad.BengalDownloadManager' \
+            --version '${{ needs.prepare.outputs.version }}' \
+            --collection-id 'bd.com.zihad.Stable' \
+            --only-versioned \
+            --pages-url 'https://zihad.com.bd/bengal-download-manager' \
+            $GPG_ARG
+          rm -f release_dist/*.flatpakrepo 2>/dev/null || true
 
       - name: Generate SHA256SUMS Checksums
         run: |

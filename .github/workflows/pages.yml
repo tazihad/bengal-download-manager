@@ -1,8 +1,16 @@
 name: CD / Web Deploy
 
+# Manual-only website deploy.
+#
+# `CD / Release` (release.yml) owns the Flatpak OSTree repository and publishes
+# the full site together with it. This workflow exists so landing page / asset
+# changes can ship without cutting a release, and therefore reuses and re-signs
+# the live repository instead of rebuilding it.
+#
+# It is intentionally NOT triggered by `release: published`: both workflows
+# deploy the same GitHub Pages artifact, so running them together would race and
+# one would overwrite the other's `repo/` directory.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -16,32 +24,45 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event.release.prerelease == false || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Import GPG Key for Repository Signing
+        if: env.HAS_GPG == 'true'
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v7
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Read Release Version
+        id: version
+        run: echo "value=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble Site With Live Flatpak Repository
+        uses: ./.github/actions/publish-flatpak-repo
+        with:
+          version: ${{ steps.version.outputs.value }}
+          app_id: 'bd.com.zihad.BengalDownloadManager'
+          slices_pattern: '' # no slices: reuse the live published repository
+          site_dir: '_site'
+          sign: ${{ env.HAS_GPG == 'true' }}
+          gpg_key: ${{ steps.import_gpg.outputs.keyid }}
+          pages_url: 'https://zihad.com.bd/bengal-download-manager'
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
         with:
           enablement: true
-
-      - name: Prepare static files
-        run: |
-          mkdir -p _site
-          cp index.html _site/
-          cp -r assets _site/
-          cp -r site _site/
-          cp -r privacy _site/ 2>/dev/null || true
-          touch _site/.nojekyll
-          if [ -d "repo" ]; then
-            cp -r repo _site/
-          fi
-          python3 scripts/generate_flatpak_refs.py --repo-dir _site/repo --out-dir _site 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

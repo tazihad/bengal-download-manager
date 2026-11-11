@@ -102,7 +102,6 @@ def main():
     # Determine channel branch
     branch = detect_branch(args.version, args.branch)
     collection_id = args.collection_id or f"bd.com.zihad.{branch.capitalize()}"
-    collection_entry = f"CollectionID={collection_id}" if collection_id else ""
 
     # Look for GPG key file if not explicitly specified
     gpg_file = args.gpg_file
@@ -116,6 +115,19 @@ def main():
 
     gpg_b64 = get_gpg_base64(args.gpg_key, gpg_file)
     gpg_entry = f"GPGKey={gpg_b64}" if gpg_b64 else ""
+
+    # flatpak refuses to load a repo/ref that declares a collection ID without a
+    # key to verify it with ("error: Collection ID requires GPG key to be
+    # provided"), so never emit CollectionID unless GPGKey is present as well.
+    if collection_id and not gpg_b64:
+        print(
+            f"Warning: no GPG key available; omitting CollectionID={collection_id} "
+            "from generated ref files (flatpak rejects CollectionID without GPGKey).",
+            file=sys.stderr,
+        )
+        collection_entry = ""
+    else:
+        collection_entry = f"CollectionID={collection_id}" if collection_id else ""
 
     repo_template_path = templates_dir / f"{args.app_id}.flatpakrepo.in"
     ref_template_path = templates_dir / f"{args.app_id}.flatpakref.in"

@@ -99,6 +99,20 @@ flatpak-builder --user --install --force-clean build-flatpak flatpak/bd.com.ziha
 flatpak run bd.com.zihad.BengalDownloadManager
 ```
 
+### Published Repository Invariants
+
+The signed OSTree repository that `flatpak install --user https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref` consumes is published to GitHub Pages by `CD / Release` (`publish-flatpak` job) via `.github/actions/publish-flatpak-repo`.
+
+* **A collection ID requires a GPG key.** `.flatpakref`/`.flatpakrepo` files must carry `GPGKey=` whenever they carry `CollectionID=`, otherwise flatpak aborts with `error: Collection ID requires GPG key to be provided`. `scripts/generate_flatpak_refs.py` enforces this by dropping the collection ID when no key is available, and `tests/unit/test_flatpak_refs.py` guards the behaviour.
+* **`repo/` is not tracked in git** (see `.gitignore`). Any workflow that deploys the Pages artifact must obtain it from the build slices or by mirroring the live repository — never publish `_site` without it.
+* **One Pages deploy at a time.** `CD / Release` and the manual `CD / Web Deploy` workflow share the `pages` concurrency group and both stage the whole site (`index.html`, `assets/`, `site/`, `privacy/`, `repo/`). `CD / Web Deploy` is `workflow_dispatch`-only on purpose: it re-signs and republishes the *live* repository instead of rebuilding it, and fails loudly if no `stable` ref exists rather than replacing the site with a repo-less artifact.
+
+Verify a published ref before shipping:
+```bash
+curl -s https://zihad.com.bd/bengal-download-manager/bengal-download-manager.flatpakref | grep -E 'CollectionID|GPGKey'
+curl -sI https://zihad.com.bd/bengal-download-manager/repo/config | head -1
+```
+
 ---
 
 ## 5. Canonical Snap Packaging (Snapcraft)

@@ -9,7 +9,7 @@ inputs:
     required: false
     default: 'bd.com.zihad.BengalDownloadManager'
   slices_pattern:
-    description: 'Directory pattern where arch slices are downloaded'
+    description: 'Directory pattern where arch slices are downloaded. Leave empty to reuse (and re-sign) the live repository, e.g. for a manual site-only deploy.'
     required: false
     default: 'flatpak-repo-*'
   site_dir:
@@ -103,10 +103,13 @@ runs:
               ostree refs --repo="$REPO_DIR" --delete "$ref"
             done
 
-        # Merge new architecture slices (stable releases only)
+        # Merge new architecture slices (stable releases only). An empty
+        # slices_pattern means "reuse the live repository" (manual site deploy):
+        # the history pulled above is re-signed and republished as-is.
+        SLICE_COUNT=0
+        SLICES_PATTERN="${{ inputs.slices_pattern }}"
         if [ "$IS_PRERELEASE" = "false" ]; then
-          SLICE_COUNT=0
-          for slice in ${{ inputs.slices_pattern }}; do
+          for slice in $SLICES_PATTERN; do
             if [ -d "$slice" ]; then
               echo "Preparing OSTree directory structure for slice: $slice"
               rm -rf "$slice"/refs/remotes/* "$slice"/refs/mirrors/*
@@ -117,11 +120,15 @@ runs:
               SLICE_COUNT=$((SLICE_COUNT + 1))
             fi
           done
-          if [ "$SLICE_COUNT" -eq 0 ]; then
-            echo "::error::No architecture slices matched '${{ inputs.slices_pattern }}'"
+          if [ -n "$SLICES_PATTERN" ] && [ "$SLICE_COUNT" -eq 0 ]; then
+            echo "::error::No architecture slices matched '$SLICES_PATTERN'"
             exit 1
           fi
-          echo "Merged $SLICE_COUNT slice(s)"
+          if [ -z "$SLICES_PATTERN" ]; then
+            echo "No slices requested; republishing the live repository as-is."
+          else
+            echo "Merged $SLICE_COUNT slice(s)"
+          fi
         else
           echo "Skipping slice merge for pre-release; republishing existing stable repo."
         fi
@@ -163,19 +170,35 @@ runs:
           GPG_ARG="--gpg-key $GPG_KEY"
         fi
 
+        # Only real releases publish a versioned ref; a manual site deploy must
+        # not drop a bengal-download-manager-<version>.flatpakref into the site root.
+        VERSION_ARG=""
+        if [ "$SLICE_COUNT" -gt 0 ]; then
+          VERSION_ARG="--version $VERSION"
+        fi
+
         python3 scripts/generate_flatpak_refs.py \
           --repo-dir "$REPO_DIR" \
           --out-dir "$SITE_DIR" \
           --app-id "$APP_ID" \
-          --version "$VERSION" \
+          $VERSION_ARG \
           --branch "$BRANCH" \
           --collection-id "$COLLECTION_ID" \
           --pages-url "$PAGES_URL" \
           $GPG_ARG
 
-        # Copy landing page and assets into Pages staging root
+        # Copy the full landing page into the Pages staging root. CD / Release and
+        # the manual CD / Web Deploy workflow both deploy this same artifact, so
+        # every asset has to be staged here or one workflow will strip what the
+        # other added.
         cp index.html "$SITE_DIR/"
         cp -r assets "$SITE_DIR/"
+        if [ -d site ]; then
+          cp -r site "$SITE_DIR/"
+        fi
+        if [ -d privacy ]; then
+          cp -r privacy "$SITE_DIR/"
+        fi
         touch "$SITE_DIR/.nojekyll"
 
         echo "✓ Pages staging directory prepared at $SITE_DIR"
