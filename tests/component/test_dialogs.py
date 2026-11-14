@@ -195,6 +195,23 @@ class TestOptionsDialogTabs:
         assert dlg.content_stack.currentIndex() == 0
         dlg.close()
 
+    def test_initial_tab_shows_content(self, qapp):
+        """Opening directly on a tab must show its content, not just highlight it."""
+        from ui.dialogs.options import OptionsDialog
+        dlg = OptionsDialog(main_window=None, initial_tab="media")
+        assert dlg.category_list.currentRow() == [i[0] for i in dlg.tabs_meta].index("media")
+        assert dlg.content_stack.currentWidget() is dlg.media_tab
+        dlg.close()
+
+    def test_select_tab_resyncs_when_row_already_current(self, qapp):
+        """Re-selecting the current row must still switch the content stack."""
+        from ui.dialogs.options import OptionsDialog
+        dlg = OptionsDialog(main_window=None, initial_tab="media")
+        dlg.content_stack.setCurrentIndex(0)  # simulate stale right panel
+        dlg.select_tab("media")
+        assert dlg.content_stack.currentWidget() is dlg.media_tab
+        dlg.close()
+
     def test_getters(self, qapp):
         from ui.dialogs.options import OptionsDialog
         dlg = OptionsDialog(main_window=None)
