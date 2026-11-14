@@ -71,17 +71,19 @@ PYTHONPATH=src uv run pytest -v tests/
 
 ### Build Standalone Executable Binary
 ```bash
-PYTHONPATH=src uv run pyinstaller \
-    --name "bengal-download-manager" \
-    --onefile \
-    --paths "src" \
-    --collect-all core \
-    --collect-all ui \
-    --add-data "assets:assets" \
-    --distpath "dist" \
-    --workpath ".pyinstaller-build" \
-    --noconfirm src/main.py
+# Recommended: prepares runtime assets, filters unused Qt modules, builds
+# a single self-contained executable, and strips symbol tables.
+bash scripts/build_binary.sh            # one-file (default)
+bash scripts/build_binary.sh --onedir   # app tree (easier to inspect/debug)
 ```
+The build is driven by `bengal-download-manager.spec`. Unused Qt/GTK
+libraries, plugins, and translation catalogs are pruned before packing, using
+the shared purge list in `scripts/cleanup_application_tree.py`. That helper can
+also clean an existing onedir tree directly:
+```bash
+uv run python scripts/cleanup_application_tree.py dist/bengal-download-manager
+```
+Set `BDM_SLIM=0` to build the unfiltered bundle for size comparisons.
 
 ### Build Flatpak Package
 ```bash

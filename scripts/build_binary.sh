@@ -8,6 +8,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
 MODE="--onefile"
+ONEDIR_FLAG="0"
 DO_CLEAN=1
 EXTRA_ARGS=()
 
@@ -15,9 +16,11 @@ for arg in "$@"; do
     case "$arg" in
         --onefile)
             MODE="--onefile"
+            ONEDIR_FLAG="0"
             ;;
         --onedir)
             MODE="--onedir"
+            ONEDIR_FLAG="1"
             ;;
         --no-clean)
             DO_CLEAN=0
@@ -74,19 +77,19 @@ if [ -f "$SCRIPT_DIR/i18n.py" ]; then
 fi
 bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH"
 
-PYTHONPATH=src $PYINSTALLER_BIN \
-    --name "bengal-download-manager" \
-    "$MODE" \
-    --paths "src" \
-    --collect-all core \
-    --collect-all ui \
-    --collect-all python_socks \
-    --add-data "$RUNTIME_ASSETS_DIR:assets" \
+PYTHONPATH=src BDM_ONEDIR="$ONEDIR_FLAG" $PYINSTALLER_BIN \
+    --noconfirm \
     --distpath "dist" \
     --workpath "$PYINSTALLER_WORKPATH" \
-    --noconfirm \
     "${EXTRA_ARGS[@]}" \
-    src/main.py
+    bengal-download-manager.spec
+
+# The spec already filters the PyInstaller TOCs (required for --onefile).  Run
+# the standalone cleaner as a second, idempotent pass for --onedir output so
+# anything added by COLLECT is caught as well.
+if [ "$MODE" = "--onedir" ]; then
+    $PY_BIN "$SCRIPT_DIR/cleanup_application_tree.py" "dist/bengal-download-manager"
+fi
 
 echo ""
 echo "========================================================"
