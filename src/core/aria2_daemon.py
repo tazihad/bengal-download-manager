@@ -39,6 +39,27 @@ from core.services.socks_bridge import SocksBridgeRunner
 logger = logging.getLogger("bengal.core.aria2_daemon")
 
 
+def _describe_proxy(url: Optional[str]) -> str:
+    """
+    Returns a human-readable description of the effective proxy for logs.
+
+    Credentials (``user:password``) are never included; only the scheme and
+    the ``host:port`` destination are shown.  An empty URL reads as
+    ``"direct connection (no proxy)"`` so a bare ``''`` never reaches the log.
+    """
+    text = str(url or "").strip()
+    if not text:
+        return "direct connection (no proxy)"
+    try:
+        scheme, _, rest = text.partition("://")
+        if "@" in rest:
+            rest = rest.rsplit("@", 1)[-1]
+        host = rest.split("/", 1)[0]
+        return f"{scheme or 'proxy'}://{host}"
+    except Exception:
+        return "the configured proxy"
+
+
 class Aria2DaemonManager(QObject):
     """
     Supervises the internal aria2 RPC daemon process.
@@ -57,6 +78,7 @@ class Aria2DaemonManager(QObject):
         self._token: str = ""
         self._socks_bridge_runner: Optional[SocksBridgeRunner] = None
         self._lock = threading.RLock()
+        self._last_proxy_description: Optional[str] = None
 
     @property
     def process(self) -> Optional[subprocess.Popen]:
@@ -171,6 +193,11 @@ class Aria2DaemonManager(QObject):
             proxy_url = self._setup_proxy_for_startup()
             if proxy_url:
                 cmd.append(f"--all-proxy={proxy_url}")
+            logger.info(
+                "[Aria2DaemonManager] Starting Aria2 with %s",
+                _describe_proxy(proxy_url),
+            )
+            self._last_proxy_description = _describe_proxy(proxy_url)
 
             debug_active = is_debug_mode()
             if debug_active:
@@ -279,7 +306,20 @@ class Aria2DaemonManager(QObject):
                         port=self._port,
                         token=self._token,
                     )
-                    logger.info("[Aria2DaemonManager] Dynamically updated Aria2 all-proxy to '%s'", effective_url)
+                    description = _describe_proxy(effective_url)
+                    # Only announce a real change so repeated saves do not
+                    # reprint the same line every few seconds.
+                    if description != self._last_proxy_description:
+                        if effective_url:
+                            logger.info(
+                                "[Aria2DaemonManager] Aria2 proxy updated to %s",
+                                description,
+                            )
+                        else:
+                            logger.info(
+                                "[Aria2DaemonManager] Aria2 proxy cleared; using a direct connection"
+                            )
+                        self._last_proxy_description = description
                 except Exception as e:
                     logger.warning("[Aria2DaemonManager] Failed to apply proxy dynamically via RPC: %s", e)
 

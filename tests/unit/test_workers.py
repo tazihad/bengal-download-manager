@@ -286,6 +286,52 @@ class TestAria2CertificateValidation:
             manager._process = None
 
 
+class TestAria2ProxyLogMessages:
+    def test_describe_proxy_is_human_readable(self):
+        from core.aria2_daemon import _describe_proxy
+
+        assert _describe_proxy("") == "direct connection (no proxy)"
+        assert _describe_proxy(None) == "direct connection (no proxy)"
+        assert _describe_proxy("http://1.2.3.4:8080") == "http://1.2.3.4:8080"
+        # Credentials must never leak into log output.
+        assert _describe_proxy("http://user:secret@1.2.3.4:8080") == "http://1.2.3.4:8080"
+        assert _describe_proxy("https://user@proxy.example:3128") == "https://proxy.example:3128"
+
+    def test_update_proxy_logs_human_readable_message(self, caplog):
+        import logging
+        from core.aria2_daemon import Aria2DaemonManager
+
+        manager = Aria2DaemonManager()
+        with patch.object(
+            manager, "_setup_proxy_for_startup", return_value="http://user:secret@10.0.0.1:8080"
+        ), patch.object(manager, "is_running", return_value=True), patch(
+            "core.utils.call_aria2_rpc"
+        ) as mock_rpc, caplog.at_level(
+            logging.INFO, logger="bengal.core.aria2_daemon"
+        ):
+            manager.update_proxy({})
+
+        assert mock_rpc.called
+        assert "proxy updated to http://10.0.0.1:8080" in caplog.text
+        assert "secret" not in caplog.text
+        assert "all-proxy to ''" not in caplog.text
+
+    def test_update_proxy_reports_direct_connection(self, caplog):
+        import logging
+        from core.aria2_daemon import Aria2DaemonManager
+
+        manager = Aria2DaemonManager()
+        with patch.object(
+            manager, "_setup_proxy_for_startup", return_value=""
+        ), patch.object(manager, "is_running", return_value=True), patch(
+            "core.utils.call_aria2_rpc"
+        ), caplog.at_level(logging.INFO, logger="bengal.core.aria2_daemon"):
+            manager.update_proxy({})
+
+        assert "Aria2 proxy cleared; using a direct connection" in caplog.text
+        assert "''" not in caplog.text
+
+
 class TestMediaDependenciesAndPotProvider:
     def test_bgutil_dependency_tool_defined(self):
         from core.media.dependencies import DEPENDENCY_TOOLS, get_tool_url
