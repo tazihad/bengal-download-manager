@@ -71,17 +71,19 @@ PYTHONPATH=src uv run pytest -v tests/
 
 ### Build Standalone Executable Binary
 ```bash
-PYTHONPATH=src uv run pyinstaller \
-    --name "bengal-download-manager" \
-    --onefile \
-    --paths "src" \
-    --collect-all core \
-    --collect-all ui \
-    --add-data "assets:assets" \
-    --distpath "dist" \
-    --workpath ".pyinstaller-build" \
-    --noconfirm src/main.py
+# Recommended: prepares runtime assets, filters unused Qt modules, builds
+# a single self-contained executable, and strips symbol tables.
+bash scripts/build_binary.sh            # one-file (default)
+bash scripts/build_binary.sh --onedir   # app tree (easier to inspect/debug)
 ```
+The build is driven by `bengal-download-manager.spec`. Unused Qt/GTK
+libraries, plugins, and translation catalogs are pruned before packing, using
+the shared purge list in `scripts/cleanup_application_tree.py`. That helper can
+also clean an existing onedir tree directly:
+```bash
+uv run python scripts/cleanup_application_tree.py dist/bengal-download-manager
+```
+Set `BDM_SLIM=0` to build the unfiltered bundle for size comparisons.
 
 ### Build Flatpak Package
 ```bash
@@ -100,6 +102,6 @@ bash scripts/build_flatpak.sh
 6. **Single Source of Truth Versioning**: Always use `scripts/sync_version.py` when changing or checking version numbers across `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, and `src/core/version.py`. (Note: Browser extension in `extension/manifest.json` is versioned independently). See `docs/VERSIONING.md` for details.
 7. **Use `uv` Instead of `venv`**: Always use `uv` for Python environment management, package installation, and execution (e.g. `uv venv`, `uv pip install ...`, and `uv run <command>`). Do not use standard `python3 -m venv` or raw `venv/bin/python`.
 8. **Mandatory UI Localization (`tr(...)` & Tooltips)**: Whenever adding or modifying any UI component, dialog, widget, button, menu action, table header, status message, or tooltip (`setToolTip(...)`), always wrap the user-facing text in `self.tr(...)` or `tr(...)`. Keep `translations/bdm_en.ts` updated by running `uv run python scripts/i18n.py extract` and `uv run python scripts/i18n.py compile`.
-9. **Release Notes & Version Bumps (AppStream & Human-Friendly)**: Whenever merging and creating a release (or bumping versions via `scripts/sync_version.py`), always ensure the upcoming release entry in `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml` is generated with release notes. The release notes must be **user-facing, human-friendly, and not overly technical**: focus on visible features, fixes, and improvements (e.g., "Improved download speeds", "Resolved Wayland window glitch", "Added new color themes") instead of internal developer jargon (such as ctypes pointers, function prototype cache mutations, AST transformations, or internal class refactors).
+9. **Release Notes & Version Bumps (AppStream & Human-Friendly)**: Whenever merging and creating a release (or bumping versions via `scripts/sync_version.py`), always ensure the upcoming release entry in `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml` is generated with release notes. The release notes must be **user-facing, human-friendly, and not overly technical**: focus on visible features, fixes, and improvements (e.g., "Improved download speeds", "Resolved Wayland window glitch", "Added new color themes") instead of internal developer jargon (such as ctypes pointers, function prototype cache mutations, AST transformations, or internal class refactors). The same rule applies to every `<release>` entry in `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml.in`: write it so a non-technical user understands it at a glance. Avoid terminal commands, file paths, security/signing jargon, repository or D-Bus terminology, and implementation details; describe the result the user experiences (e.g., "Installing from the website works again") rather than the mechanism behind it.
 
 

@@ -115,19 +115,17 @@ rm -rf "$WORK_DIR" dist
 RUNTIME_ASSETS_DIR="$WORK_DIR/runtime_assets"
 bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH_NAME"
 
-PYTHONPATH=src $PYINSTALLER_BIN \
-    --name "bengal-download-manager" \
-    --onedir \
+# Build through the shared spec so Flatpak ships the same pruned payload as the
+# standalone binary and AppImage (see scripts/cleanup_application_tree.py).
+PYTHONPATH=src \
+BDM_ASSETS_DIR="$RUNTIME_ASSETS_DIR" \
+BDM_ONEDIR=1 \
+$PYINSTALLER_BIN \
     --clean \
-    --paths "src" \
-    --collect-all core \
-    --collect-all ui \
-    --collect-all python_socks \
-    --add-data "$RUNTIME_ASSETS_DIR:assets" \
-    --add-data "$ROOT_DIR/VERSION:." \
     --distpath "dist" \
     --workpath "$WORK_DIR" \
-    --noconfirm src/main.py
+    --noconfirm \
+    bengal-download-manager.spec
 
 echo "=== 2. Assembling Flatpak Package Structure ($BUILD_DIR) ==="
 rm -rf "$BUILD_DIR" "$REPO_DIR"

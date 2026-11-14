@@ -87,14 +87,25 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.22" date="2026-11-14">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.22</url>
+      <description translate="no">
+        <p>Bengal Download Manager 0.3.22 changes:</p>
+        <ul>
+          <li>The Media Options button now reliably opens the Media page, instead of sometimes leaving you on the previous section.</li>
+          <li>Status messages now clearly say whether downloads are using a direct connection or a proxy, instead of showing an empty value.</li>
+          <li>Proxy passwords are no longer written to the application log.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.21" date="2026-11-11">
       <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.21</url>
       <description translate="no">
         <p>Bengal Download Manager 0.3.21 changes:</p>
         <ul>
-          <li>Fixed one-command Flatpak installation from the website (flatpak install --user .../bengal-download-manager.flatpakref), which could stop with a signing-key error.</li>
-          <li>Flatpak installs and updates from the official tazihad repository are reliable again.</li>
-          <li>The download page now always ships together with the complete Flatpak repository, so install links no longer go missing after a website update.</li>
+          <li>Installing from the website's Flatpak link works again, without stopping with a security check error.</li>
+          <li>Flatpak downloads and updates from the official source are reliable again.</li>
+          <li>Download links on the website no longer go missing after a website update.</li>
         </ul>
       </description>
     </release>

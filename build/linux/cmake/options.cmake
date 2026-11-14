@@ -9,7 +9,6 @@ option(LINUX_BUILD_SNAP "Build Snap package" OFF)
 set(APP_NAME "bengal-download-manager")
 set(MAIN_SCRIPT "${ROOT_DIR}/src/main.py")
 set(EXECUTABLE_NAME "${APP_NAME}")
-set(SEP ":")
 
 # Verify PyInstaller is installed in the current Python environment
 execute_process(
@@ -24,28 +23,23 @@ if(NOT PYINSTALLER_RESULT EQUAL 0)
 endif()
 
 set(WORK_BUILD_DIR "${CMAKE_BINARY_DIR}/build_pyinstaller")
-set(SPEC_DIR "${CMAKE_BINARY_DIR}")
 set(RUNTIME_ASSETS_DIR "${CMAKE_BINARY_DIR}/runtime_assets")
 
-# Custom command that runs PyInstaller to build dist/bengal-download-manager
+# Custom command that runs PyInstaller to build dist/bengal-download-manager.
+# The shared spec owns the payload definition (datas, hidden imports, unused
+# Qt/GTK pruning), so every packaging path produces the same slim binary.
 add_custom_command(
     OUTPUT "${DIST_DIR}/${EXECUTABLE_NAME}"
     COMMAND bash "${ROOT_DIR}/scripts/prepare_runtime_assets.sh" "${RUNTIME_ASSETS_DIR}" "${CMAKE_SYSTEM_PROCESSOR}"
-    COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${ROOT_DIR}/src"
+    COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=${ROOT_DIR}/src"
+            "BDM_ASSETS_DIR=${RUNTIME_ASSETS_DIR}"
+            "BDM_ONEDIR=0"
             ${Python3_EXECUTABLE} -m PyInstaller
-            --name "${APP_NAME}"
-            --onefile
-            --paths "${ROOT_DIR}/src"
-            --collect-all core
-            --collect-all ui
-            --collect-all python_socks
-            --add-data "${RUNTIME_ASSETS_DIR}${SEP}assets"
-            --add-data "${ROOT_DIR}/VERSION${SEP}."
             --distpath "${DIST_DIR}"
             --workpath "${WORK_BUILD_DIR}"
-            --specpath "${SPEC_DIR}"
             --noconfirm
-            "${MAIN_SCRIPT}"
+            "${ROOT_DIR}/bengal-download-manager.spec"
     DEPENDS "${MAIN_SCRIPT}"
     COMMENT "Building standalone executable with PyInstaller (with clean runtime assets)..."
     WORKING_DIRECTORY "${ROOT_DIR}"
