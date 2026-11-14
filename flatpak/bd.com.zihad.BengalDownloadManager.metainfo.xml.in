@@ -79,16 +79,27 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
-    <release version="0.3.21" date="2026-11-11">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.21</url>
+    <release version="0.3.22" date="2026-11-14">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.22</url>
       <description translate="no">
-        <p>Bengal Download Manager 0.3.21 changes:</p>
+        <p>Bengal Download Manager 0.3.22 changes:</p>
         <ul>
-          <li>Fixed one-command Flatpak installation from the website (flatpak install --user .../bengal-download-manager.flatpakref), which could stop with a signing-key error.</li>
-          <li>Flatpak installs and updates from the official tazihad repository are reliable again.</li>
-          <li>The download page now always ships together with the complete Flatpak repository, so install links no longer go missing after a website update.</li>
+          <li>The standalone download is about 20% smaller, so it takes less time to download and uses less disk space.</li>
+          <li>AppImage, portable archive, and Flatpak packages now include only the parts the app actually needs, making installs and updates quicker.</li>
+          <li>All existing features, settings, themes, and browser integration work exactly as before.</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.21" date="2026-11-11">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.21</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.21 changes:</p>
+        <ul>
+                <li>Fixed one-command Flatpak installation from the website (flatpak install --user .../bengal-download-manager.flatpakref), which could stop with a signing-key error.</li>
+                <li>Flatpak installs and updates from the official tazihad repository are reliable again.</li>
+                <li>The download page now always ships together with the complete Flatpak repository, so install links no longer go missing after a website update.</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.20" date="2026-11-10">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.20</url>
