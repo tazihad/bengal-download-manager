@@ -84,9 +84,9 @@
       <description translate="no">
         <p>Bengal Download Manager 0.3.22 changes:</p>
         <ul>
-          <li>The standalone download is about 20% smaller, so it takes less time to download and uses less disk space.</li>
-          <li>AppImage, portable archive, and Flatpak packages now include only the parts the app actually needs, making installs and updates quicker.</li>
-          <li>All existing features, settings, themes, and browser integration work exactly as before.</li>
+          <li>The Media Options button now reliably opens the Media page, instead of sometimes leaving you on the previous section.</li>
+          <li>Status messages now clearly say whether downloads are using a direct connection or a proxy, instead of showing an empty value.</li>
+          <li>Proxy passwords are no longer written to the application log.</li>
         </ul>
       </description>
     </release>
