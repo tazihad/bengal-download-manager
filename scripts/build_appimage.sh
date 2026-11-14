@@ -11,16 +11,12 @@ ARCH="$(uname -m)"
 REPO_OWNER="tazihad"
 REPO_NAME="bengal-download-manager"
 
-PYINSTALLER_BIN="pyinstaller"
 PY_BIN="python3"
 if command -v uv >/dev/null 2>&1; then
-    PYINSTALLER_BIN="uv run pyinstaller"
     PY_BIN="uv run python"
-elif [ -f ".venv/bin/pyinstaller" ]; then
-    PYINSTALLER_BIN=".venv/bin/pyinstaller"
+elif [ -f ".venv/bin/python" ]; then
     PY_BIN=".venv/bin/python"
-elif [ -f "venv/bin/pyinstaller" ]; then
-    PYINSTALLER_BIN="venv/bin/pyinstaller"
+elif [ -f "venv/bin/python" ]; then
     PY_BIN="venv/bin/python"
 fi
 
@@ -30,7 +26,9 @@ VERSION="${VERSION#v}"
 echo "=== 1. Checking / Building PyInstaller Executable (v$VERSION - $ARCH) ==="
 
 if [ ! -f "dist/bengal-download-manager" ]; then
-    PYTHONPATH=src $PYINSTALLER_BIN --noconfirm bengal-download-manager.spec
+    # Reuse the canonical build entry point so the AppImage gets the same
+    # prepared runtime assets and pruned payload as every other package.
+    bash "$SCRIPT_DIR/build_binary.sh"
 fi
 
 echo "=== 2. Preparing Icon & AppDir Structure ==="

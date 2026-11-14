@@ -12,6 +12,17 @@ is packed.  This matters for one-file builds, where there is no application
 directory left to clean after the build.  The purge list lives in
 ``scripts/cleanup_application_tree.py`` and is shared with the standalone
 post-build cleaner for one-dir output.
+
+Environment
+-----------
+``BDM_ASSETS_DIR``
+    Directory holding the prepared runtime assets (see
+    ``scripts/prepare_runtime_assets.sh``).  Defaults to
+    ``.pyinstaller-build/runtime_assets`` under the repository root.
+``BDM_ONEDIR``
+    Set to ``1`` for a one-dir build instead of the one-file default.
+``BDM_SLIM``
+    Set to ``0`` to keep the full, unfiltered payload.
 """
 
 import os
@@ -23,7 +34,24 @@ from PyInstaller.utils.hooks import collect_all
 sys.path.insert(0, os.path.join(SPECPATH, "scripts"))
 from cleanup_application_tree import filter_toc  # noqa: E402
 
-datas = [(".pyinstaller-build/runtime_assets", "assets")]
+ROOT_DIR = os.path.abspath(SPECPATH)
+ASSETS_DIR = os.path.abspath(
+    os.environ.get("BDM_ASSETS_DIR") or os.path.join(ROOT_DIR, ".pyinstaller-build", "runtime_assets")
+)
+
+datas = []
+if os.path.isdir(ASSETS_DIR):
+    datas.append((ASSETS_DIR, "assets"))
+else:
+    print(f"[spec] WARNING: runtime assets directory not found: {ASSETS_DIR}")
+
+# src/core/version.py reads VERSION from the bundle root as the last-resort
+# fallback, so the canonical SSOT file must ship inside the executable.
+VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
+if os.path.isfile(VERSION_FILE):
+    datas.append((VERSION_FILE, "."))
+else:
+    print(f"[spec] WARNING: canonical VERSION file not found: {VERSION_FILE}")
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all("core")
