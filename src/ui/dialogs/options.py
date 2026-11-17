@@ -370,14 +370,18 @@ class OptionsDialog(QDialog):
                 item.setData(Qt.ItemDataRole.UserRole, tab_id)
                 self.category_list.addItem(item)
 
+            # Connect before the initial selection: selecting a row only reaches
+            # the content stack through currentRowChanged, so an early selection
+            # would highlight the left panel while leaving the right panel on
+            # the previous tab (e.g. opening directly on "media").
+            self.category_list.currentRowChanged.connect(self._on_category_selected)
+            self.category_list.currentRowChanged.connect(lambda idx: self.refresh_engine_status() if (self.tabs_meta[idx][0] in ("downloads", "aria2") or any(k in self.tabs_meta[idx][1] for k in ("Downloads", "Aria2", "RPC"))) else None)
+
             # Default to General tab or initial_tab if specified
             if initial_tab is not None:
                 self.select_tab(initial_tab)
             else:
                 self.category_list.setCurrentRow(0)
-
-            self.category_list.currentRowChanged.connect(self._on_category_selected)
-            self.category_list.currentRowChanged.connect(lambda idx: self.refresh_engine_status() if (self.tabs_meta[idx][0] in ("downloads", "aria2") or any(k in self.tabs_meta[idx][1] for k in ("Downloads", "Aria2", "RPC"))) else None)
         if hasattr(self, 'spin_aria_port'):
             self.spin_aria_port.valueChanged.connect(self.refresh_engine_status)
         if hasattr(self, 'txt_aria_token'):
@@ -403,13 +407,24 @@ class OptionsDialog(QDialog):
         btn_layout.addWidget(self.btn_cancel)
         layout.addLayout(btn_layout)
 
+    def _activate_tab_index(self, idx):
+        """Selects *idx* in whichever layout the dialog was built with.
+
+        Modern UI keeps the list row and the content stack in sync manually so
+        the requested tab is shown even when the row is already current (in
+        which case ``currentRowChanged`` would not fire).
+        """
+        if hasattr(self, 'category_list') and 0 <= idx < self.category_list.count():
+            self.category_list.setCurrentRow(idx)
+            if hasattr(self, 'content_stack') and 0 <= idx < self.content_stack.count():
+                self.content_stack.setCurrentIndex(idx)
+        elif hasattr(self, 'tabs') and 0 <= idx < self.tabs.count():
+            self.tabs.setCurrentIndex(idx)
+
     def select_tab(self, target):
         """Switches to the tab specified by QWidget, index (int), or name string (e.g. 'media')."""
         if isinstance(target, int):
-            if hasattr(self, 'category_list') and 0 <= target < self.category_list.count():
-                self.category_list.setCurrentRow(target)
-            elif hasattr(self, 'tabs') and 0 <= target < self.tabs.count():
-                self.tabs.setCurrentIndex(target)
+            self._activate_tab_index(target)
             return
         if isinstance(target, str):
             target_lower = target.strip().lower()
@@ -417,18 +432,12 @@ class OptionsDialog(QDialog):
                 label = item[1]
                 tid = item[0]
                 if target_lower == tid.lower() or target_lower in tid.lower() or target_lower in label.lower():
-                    if hasattr(self, 'category_list'):
-                        self.category_list.setCurrentRow(idx)
-                    elif hasattr(self, 'tabs'):
-                        self.tabs.setCurrentIndex(idx)
+                    self._activate_tab_index(idx)
                     return
         if isinstance(target, QWidget):
             for idx, item in enumerate(self.tabs_meta):
                 if item[2] == target:
-                    if hasattr(self, 'category_list'):
-                        self.category_list.setCurrentRow(idx)
-                    elif hasattr(self, 'tabs'):
-                        self.tabs.setCurrentIndex(idx)
+                    self._activate_tab_index(idx)
                     return
 
     def _on_category_selected(self, row):
