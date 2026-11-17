@@ -84,9 +84,9 @@
       <description translate="no">
         <p>Bengal Download Manager 0.3.22 changes:</p>
         <ul>
-          <li>The Media Options button now always opens the Media page you asked for</li>
-          <li>Proxy messages now say whether downloads use a direct connection or a proxy, and never show your password</li>
-          <li>Release notes in app stores are easier to understand</li>
+          <li>The Media Options button now opens the Media page right away, instead of leaving you on the previous section</li>
+          <li>Proxy status messages now clearly say whether downloads use a direct connection or a proxy, and never show your password</li>
+          <li>Release notes shown in app stores are easier to follow</li>
         </ul>
       </description>
     </release>
