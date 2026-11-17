@@ -79,16 +79,27 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
-    <release version="0.3.21" date="2026-11-11">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.21</url>
+    <release version="0.3.22" date="2026-11-17">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.22</url>
       <description translate="no">
-        <p>Bengal Download Manager 0.3.21 changes:</p>
+        <p>Bengal Download Manager 0.3.22 changes:</p>
         <ul>
-          <li>Installing from the website's Flatpak link works again, without stopping with a security check error.</li>
-          <li>Flatpak downloads and updates from the official source are reliable again.</li>
-          <li>Download links on the website no longer go missing after a website update.</li>
+          <li>The Media Options button now always opens the Media page you asked for</li>
+          <li>Proxy messages now say whether downloads use a direct connection or a proxy, and never show your password</li>
+          <li>Release notes in app stores are easier to understand</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.21" date="2026-11-11">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.21</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.21 changes:</p>
+        <ul>
+                <li>Installing from the website's Flatpak link works again, without stopping with a security check error.</li>
+                <li>Flatpak downloads and updates from the official source are reliable again.</li>
+                <li>Download links on the website no longer go missing after a website update.</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.20" date="2026-11-10">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.20</url>
