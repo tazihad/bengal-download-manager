@@ -18,7 +18,7 @@ This documentation suite is organized following standard Free and Open Source So
 | **[Media Downloader Engine](MEDIA_DOWNLOADER.md)** | Technical breakdown of the media capture subsystem: yt-dlp supervisor, ffmpeg/ffprobe stream multiplexing, dependency management, and playlist parsing. | Media Engineers, Contributors |
 | **[Cookie Authentication Guide](COOKIES_GUIDE.md)** | Step-by-step instructions for exporting Netscape `cookies.txt` files and leveraging browser session cookies for authenticated downloads. | End Users, Power Users |
 | **[Theming & Design System](THEMING.md)** | Visual design language, adaptive OS light/dark tracking, 20+ color themes, 14 accents, resolution-independent vector icons, and OpenType tabular figures (`tnum`). | UI/UX Designers, Frontend Engineers |
-| **[Build & Packaging Guide](BUILD_AND_PACKAGING.md)** | Compilation, packaging, and distribution instructions for Linux: Flatpak, Canonical Snap, AppImage, CMake standalone binary, and browser extensions. | Packagers, System Maintainers, CI/CD |
+| **[Build & Packaging Guide](BUILD_AND_PACKAGING.md)** | Compilation, packaging, and distribution instructions for Linux: Flatpak, Canonical Snap, AppImage, CMake onedir bundle, DEB/RPM, tarball, and browser extensions. | Packagers, System Maintainers, CI/CD |
 | **[Version Management (SSOT)](VERSIONING.md)** | Single Source of Truth versioning architecture across `VERSION`, Snapcraft, Flatpak AppStream, and runtime metadata using `sync_version.py`. | Maintainers, Release Managers |
 | **[Localization Guide](TRANSLATIONS.md)** | Localization pipeline using Qt Linguist XML catalogs, automated extraction, compilation, and Gemini AI translation. | Translators, Contributors, Maintainers |
 

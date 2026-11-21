@@ -37,33 +37,43 @@ runs:
 
         echo "Packaging DEB and RPM for architecture: $ARCH (nfpm arch: $NFPM_ARCH, deb: $DEB_ARCH, rpm: $RPM_ARCH)"
 
-        # 1. Locate compiled binary
-        RAW_EXE=""
+        # 1. Locate compiled onedir bundle (directory containing the
+        #    executable plus its _internal/ runtime tree)
+        ONEDIR_DIR=""
         for candidate in \
-            "build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}" \
             "build_cmake/dist/bengal-download-manager" \
-            "dist/bengal-download-manager-${VERSION}-${ARCH}" \
             "dist/bengal-download-manager"; do
-            if [ -f "$candidate" ]; then
-                RAW_EXE="$candidate"
+            if [ -x "$candidate/bengal-download-manager" ]; then
+                ONEDIR_DIR="$candidate"
                 break
             fi
         done
-        if [ -z "$RAW_EXE" ]; then
-            RAW_EXE=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | head -n 1 || true)
+        if [ -z "$ONEDIR_DIR" ]; then
+            ONEDIR_DIR=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | while IFS= read -r exe; do
+                dir="$(dirname "$exe")"
+                if [ -d "$dir/_internal" ]; then
+                    echo "$dir"
+                    break
+                fi
+            done || true)
         fi
 
-        if [ -z "$RAW_EXE" ] || [ ! -f "$RAW_EXE" ]; then
-            echo "Error: Compiled standalone binary not found!" >&2
+        if [ -z "$ONEDIR_DIR" ] || [ ! -x "$ONEDIR_DIR/bengal-download-manager" ]; then
+            echo "Error: PyInstaller onedir bundle not found!" >&2
+            ls -la build_cmake/dist dist 2>/dev/null || true
             exit 1
         fi
-        echo "Found compiled binary: $RAW_EXE"
+        echo "Found onedir bundle: $ONEDIR_DIR"
 
-        # 2. Stage filesystem tree
+        # 2. Stage filesystem tree. The onedir bundle is installed under
+        #    /usr/lib and exposed through a small /usr/bin launcher.
         export PKG_DIR="build_pkg_${ARCH}"
         rm -rf "$PKG_DIR"
-        mkdir -p "$PKG_DIR/usr/bin"
-        install -Dm755 "$RAW_EXE" "$PKG_DIR/usr/bin/bengal-download-manager"
+        mkdir -p "$PKG_DIR/usr/bin" "$PKG_DIR/usr/lib/bengal-download-manager"
+        cp -a "$ONEDIR_DIR/." "$PKG_DIR/usr/lib/bengal-download-manager/"
+        printf '#!/bin/sh\nexec /usr/lib/bengal-download-manager/bengal-download-manager "$@"\n' \
+            > "$PKG_DIR/usr/bin/bengal-download-manager"
+        chmod 755 "$PKG_DIR/usr/bin/bengal-download-manager"
 
         # Runtime assets
         mkdir -p "$PKG_DIR/usr/share/bengal-download-manager/assets"
@@ -106,10 +116,10 @@ runs:
         fi
         nfpm -v
 
-        # 4. Generate nfpm config with explicit per-file entries
-        # nfpm 2.48.0 directory globs resolve to basename-only destinations,
-        # causing content collisions for same-named files in different dirs.
-        # Generate explicit entries to preserve full paths.
+        # 4. Generate nfpm config.
+        # The onedir bundle is packaged with "type: tree" so the full runtime
+        # tree (including symlinks) is preserved under /usr/lib. Shared assets
+        # are enumerated explicitly to keep their full destination paths.
         {
           echo "name: \"bengal-download-manager\""
           echo "arch: \"${NFPM_ARCH}\""
@@ -128,6 +138,9 @@ runs:
           echo "    dst: \"/usr/bin/bengal-download-manager\""
           echo "    file_info:"
           echo "      mode: 0755"
+          echo "  - src: \"${PKG_DIR}/usr/lib/bengal-download-manager/\""
+          echo "    dst: \"/usr/lib/bengal-download-manager\""
+          echo "    type: tree"
           find "$PKG_DIR/usr/share" -type f | sort | while IFS= read -r f; do
             rel="${f#"$PKG_DIR"/}"
             echo "  - src: \"${PKG_DIR}/${rel}\""

@@ -27,11 +27,27 @@ fi
 VERSION=$($PY_BIN -c "import sys; sys.path.insert(0, 'src'); from core.version import VERSION; print(VERSION)" 2>/dev/null || cat VERSION 2>/dev/null || echo "0.1.20")
 VERSION="${VERSION#v}"
 
-echo "=== 1. Checking / Building PyInstaller Executable (v$VERSION - $ARCH) ==="
+echo "=== 1. Building PyInstaller Standalone Application (onedir mode, v$VERSION - $ARCH) ==="
 
-if [ ! -f "dist/bengal-download-manager" ]; then
-    PYTHONPATH=src $PYINSTALLER_BIN --noconfirm bengal-download-manager.spec
-fi
+WORK_DIR=".pyinstaller-build"
+rm -rf "$WORK_DIR" dist
+RUNTIME_ASSETS_DIR="$ROOT_DIR/$WORK_DIR/runtime_assets"
+bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH"
+
+PYTHONPATH=src $PYINSTALLER_BIN \
+    --name "bengal-download-manager" \
+    --onedir \
+    --clean \
+    --paths "src" \
+    --collect-all core \
+    --collect-all ui \
+    --collect-all python_socks \
+    --add-data "$RUNTIME_ASSETS_DIR:assets" \
+    --add-data "$ROOT_DIR/VERSION:." \
+    --distpath "dist" \
+    --workpath "$WORK_DIR" \
+    --specpath "$WORK_DIR" \
+    --noconfirm src/main.py
 
 echo "=== 2. Preparing Icon & AppDir Structure ==="
 $PY_BIN -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bd.com.zihad.BengalDownloadManager.png')"
@@ -39,7 +55,13 @@ cp assets/bd.com.zihad.BengalDownloadManager.png assets/bengal-download-manager.
 
 rm -rf AppDir
 
-install -Dm755 dist/bengal-download-manager AppDir/usr/bin/bengal-download-manager
+mkdir -p AppDir/usr/lib/bengal-download-manager AppDir/usr/bin
+cp -a dist/bengal-download-manager/. AppDir/usr/lib/bengal-download-manager/
+chmod +x AppDir/usr/lib/bengal-download-manager/bengal-download-manager
+ln -sf ../lib/bengal-download-manager/bengal-download-manager AppDir/usr/bin/bengal-download-manager
+# Also symlink to AppDir root for appimagetool to find the Exec entry
+# (avoids duplicating the binary in the final AppImage)
+ln -sf usr/lib/bengal-download-manager/bengal-download-manager AppDir/bengal-download-manager
 for s in 16 32 48 64 128 256 512; do
     if [ -f "assets/icons/${s}x${s}.png" ]; then
         install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"

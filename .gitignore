@@ -13,6 +13,7 @@ __pycache__/
 # Distribution / Packaging
 dist/
 .pyinstaller-build/
+build_flatpak_onedir/
 build_output/
 build/*/output/
 build/*-release/

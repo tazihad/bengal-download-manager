@@ -27,14 +27,17 @@ set(WORK_BUILD_DIR "${CMAKE_BINARY_DIR}/build_pyinstaller")
 set(SPEC_DIR "${CMAKE_BINARY_DIR}")
 set(RUNTIME_ASSETS_DIR "${CMAKE_BINARY_DIR}/runtime_assets")
 
-# Custom command that runs PyInstaller to build dist/bengal-download-manager
+# Onedir bundle output: <dist>/<app>/ containing the executable + _internal/
+set(ONEDIR_OUTPUT "${DIST_DIR}/${EXECUTABLE_NAME}/${EXECUTABLE_NAME}")
+
+# Custom command that runs PyInstaller in --onedir mode
 add_custom_command(
-    OUTPUT "${DIST_DIR}/${EXECUTABLE_NAME}"
+    OUTPUT "${ONEDIR_OUTPUT}"
     COMMAND bash "${ROOT_DIR}/scripts/prepare_runtime_assets.sh" "${RUNTIME_ASSETS_DIR}" "${CMAKE_SYSTEM_PROCESSOR}"
     COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${ROOT_DIR}/src"
             ${Python3_EXECUTABLE} -m PyInstaller
             --name "${APP_NAME}"
-            --onefile
+            --onedir
             --paths "${ROOT_DIR}/src"
             --collect-all core
             --collect-all ui
@@ -47,24 +50,33 @@ add_custom_command(
             --noconfirm
             "${MAIN_SCRIPT}"
     DEPENDS "${MAIN_SCRIPT}"
-    COMMENT "Building standalone executable with PyInstaller (with clean runtime assets)..."
+    COMMENT "Building onedir bundle with PyInstaller (with clean runtime assets)..."
     WORKING_DIRECTORY "${ROOT_DIR}"
 )
 
 # Default ALL target: bengal-download-manager (for cmake --build .)
 add_custom_target(
     ${APP_NAME} ALL
-    DEPENDS "${DIST_DIR}/${EXECUTABLE_NAME}"
+    DEPENDS "${ONEDIR_OUTPUT}"
 )
 
 # Target alias
 add_custom_target(
     build_linux_binary
-    DEPENDS "${DIST_DIR}/${EXECUTABLE_NAME}"
+    DEPENDS "${ONEDIR_OUTPUT}"
 )
 
-# Install target for application binary
-install(PROGRAMS "${DIST_DIR}/${EXECUTABLE_NAME}" DESTINATION bin)
+# Install onedir bundle under lib/ and expose a launcher in bin/
+install(DIRECTORY "${DIST_DIR}/${EXECUTABLE_NAME}/"
+        DESTINATION "lib/${APP_NAME}"
+        USE_SOURCE_PERMISSIONS)
+install(CODE "
+    file(WRITE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/${EXECUTABLE_NAME}\"
+        \"#!/bin/sh\\nexec \\\"\${CMAKE_INSTALL_PREFIX}/lib/${APP_NAME}/${EXECUTABLE_NAME}\\\" \\\"\\\$@\\\"\\n\")
+    file(CHMOD \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/${EXECUTABLE_NAME}\"
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+")
 
 # Install VERSION file into share/bengal-download-manager
 if(EXISTS "${ROOT_DIR}/VERSION")
@@ -119,4 +131,16 @@ add_custom_target(build_linux_snap
     COMMAND bash "${ROOT_DIR}/scripts/build_snap.sh"
     WORKING_DIRECTORY "${ROOT_DIR}"
     COMMENT "Building Snap package..."
+)
+
+add_custom_target(build_linux_deb_rpm
+    COMMAND bash "${ROOT_DIR}/scripts/build_deb_rpm.sh"
+    WORKING_DIRECTORY "${ROOT_DIR}"
+    COMMENT "Building DEB and RPM packages..."
+)
+
+add_custom_target(build_linux_tarball
+    COMMAND bash "${ROOT_DIR}/scripts/build_tarball.sh"
+    WORKING_DIRECTORY "${ROOT_DIR}"
+    COMMENT "Building portable tarball..."
 )

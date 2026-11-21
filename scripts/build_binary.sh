@@ -7,7 +7,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$ROOT_DIR"
 
-MODE="--onefile"
+MODE="--onedir"
 DO_CLEAN=1
 EXTRA_ARGS=()
 
@@ -23,11 +23,11 @@ for arg in "$@"; do
             DO_CLEAN=0
             ;;
         --help|-h)
-            echo "Usage: $0 [--onefile|--onedir] [--no-clean]"
+            echo "Usage: $0 [--onedir|--onefile] [--no-clean]"
             echo ""
             echo "Options:"
-            echo "  --onefile   Build single self-contained executable binary (default)"
-            echo "  --onedir    Build directory containing executable and shared libraries"
+            echo "  --onedir    Build directory containing executable and shared libraries (default)"
+            echo "  --onefile   Build single self-contained executable binary"
             echo "  --no-clean  Do not delete existing build/ and dist/ folders before building"
             echo "  --help, -h  Show this help message"
             exit 0

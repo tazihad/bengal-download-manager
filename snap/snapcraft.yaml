@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core26
-version: '0.3.22'
+version: '0.3.23-alpha.2'
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -33,8 +33,6 @@ platforms:
 apps:
   bengal-download-manager:
     command: bin/bengal-wrapper
-    # Link the snap to the AppStream component so desktop environments can
-    # match the running app with its metadata (icons, keywords, screenshots).
     common-id: bd.com.zihad.BengalDownloadManager
     desktop: usr/share/applications/bengal-download-manager.desktop
     autostart: bengal-download-manager.desktop
@@ -52,19 +50,12 @@ apps:
       - audio-playback
       - unity7
     environment:
-      PYTHONPATH: $SNAP/share/bengal-download-manager/src:$SNAP/lib/python3.12/site-packages:$SNAP/lib/python3.13/site-packages:$SNAP/lib/python3.14/site-packages:$PYTHONPATH
       PATH: $SNAP/bin:$SNAP/usr/bin:$PATH
+      LD_LIBRARY_PATH: $SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH
 
 parts:
   desktop-deps:
     plugin: nil
-    # Do NOT add librsvg2-2 or librsvg2-common to stage-packages.
-    # The gnome-46-2404 content snap provides librsvg-2.so.2 v2.61.1, which
-    # libpixbufloader_svg.so was compiled against and requires the symbol
-    # rsvg_handle_get_pixbuf_and_error. Staging the older v2.50.0 (pulled
-    # in transitively by ffmpeg/libgl) places it earlier in LD_LIBRARY_PATH
-    # and causes:
-    #   g_module_open() failed … undefined symbol: rsvg_handle_get_pixbuf_and_error
     stage-packages:
       - aria2
       - ffmpeg
@@ -89,52 +80,78 @@ parts:
       - astral-uv
     build-environment:
       - UV_PYTHON: python3
-    # The core26 base snap does not include Python, so the snap must stage it.
     stage-packages:
       - python3-venv
       - python3
     override-build: |
       craftctl default
 
-      # 1. Install app sources and runtime assets
+      # 1. Install pyinstaller in uv environment
+      uv pip install pyinstaller
+
+      # 2. Build PyInstaller onedir bundle
+      WORK_DIR=".pyinstaller-build"
+      rm -rf "$WORK_DIR" dist
+      RUNTIME_ASSETS_DIR="$CRAFT_PART_INSTALL/$WORK_DIR/runtime_assets"
+      bash "$CRAFT_PROJECT_DIR/scripts/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
+
+      PYTHONPATH=src uv run pyinstaller \
+          --name "bengal-download-manager" \
+          --onedir \
+          --clean \
+          --paths "src" \
+          --collect-all core \
+          --collect-all ui \
+          --collect-all python_socks \
+          --add-data "$RUNTIME_ASSETS_DIR:assets" \
+          --add-data "$CRAFT_PROJECT_DIR/VERSION:." \
+          --distpath "dist" \
+          --workpath "$WORK_DIR" \
+          --specpath "$WORK_DIR" \
+          --noconfirm src/main.py
+
+      # 2. Install onedir bundle to $CRAFT_PART_INSTALL
+      install -d "$CRAFT_PART_INSTALL/usr/lib/bengal-download-manager"
+      cp -a dist/bengal-download-manager/. "$CRAFT_PART_INSTALL/usr/lib/bengal-download-manager/"
+      chmod +x "$CRAFT_PART_INSTALL/usr/lib/bengal-download-manager/bengal-download-manager"
+
+      # 3. Install app sources (for version.py and any runtime Python modules)
       install -d "$CRAFT_PART_INSTALL/share/bengal-download-manager"
       cp -r src "$CRAFT_PART_INSTALL/share/bengal-download-manager/"
-      bash scripts/prepare_runtime_assets.sh "$CRAFT_PART_INSTALL/share/bengal-download-manager/assets" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
 
-      # 2. Install desktop entry & AppStream metadata
-      install -D -m 644 snap/gui/bengal-download-manager.desktop "$CRAFT_PART_INSTALL/usr/share/applications/bengal-download-manager.desktop"
-      install -D -m 644 flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml "$CRAFT_PART_INSTALL/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml"
+      # 4. Install runtime assets
+      bash "$CRAFT_PROJECT_DIR/scripts/prepare_runtime_assets.sh" "$CRAFT_PART_INSTALL/share/bengal-download-manager/assets" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
 
-      # 3. Install hicolor icons
+      # 5. Install desktop entry & AppStream metadata
+      install -D -m 644 "$CRAFT_PROJECT_DIR/snap/gui/bengal-download-manager.desktop" "$CRAFT_PART_INSTALL/usr/share/applications/bengal-download-manager.desktop"
+      install -D -m 644 "$CRAFT_PROJECT_DIR/flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml" "$CRAFT_PART_INSTALL/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml"
+
+      # 6. Install hicolor icons
       for s in 16 32 64 128 256 512; do
-        if [ -f "assets/icons/${s}x${s}.png" ]; then
-          install -D -m 644 "assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
-          install -D -m 644 "assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
+        if [ -f "$CRAFT_PROJECT_DIR/assets/icons/${s}x${s}.png" ]; then
+          install -D -m 644 "$CRAFT_PROJECT_DIR/assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
+          install -D -m 644 "$CRAFT_PROJECT_DIR/assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
         fi
       done
-      if [ -f assets/logo.svg ]; then
-        install -D -m 644 assets/logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg"
-        install -D -m 644 assets/logo.svg "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg"
+      if [ -f "$CRAFT_PROJECT_DIR/assets/logo.svg" ]; then
+        install -D -m 644 "$CRAFT_PROJECT_DIR/assets/logo.svg" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg"
+        install -D -m 644 "$CRAFT_PROJECT_DIR/assets/logo.svg" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg"
       fi
 
-      # 4. Install launcher wrapper
-      if [ -f "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" ]; then
-        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
-      elif [ -f snap/local/bengal-wrapper.sh ]; then
-        install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      # 7. Install launcher wrapper (modified for onedir binary)
+      if [ -f "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper-ondir.sh" ]; then
+        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper-ondir.sh" "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      elif [ -f snap/local/bengal-wrapper-ondir.sh ]; then
+        install -D -m 755 snap/local/bengal-wrapper-ondir.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
       fi
 
-      # 5. Install portal-aware xdg-open wrapper (matching Flatpak)
+      # 8. Install portal-aware xdg-open wrapper
       if [ -f "$CRAFT_PROJECT_DIR/snap/local/xdg-open" ]; then
         install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/xdg-open" "$CRAFT_PART_INSTALL/bin/xdg-open"
       elif [ -f snap/local/xdg-open ]; then
         install -D -m 755 snap/local/xdg-open "$CRAFT_PART_INSTALL/bin/xdg-open"
       fi
     stage:
-      # Exclude staged librsvg2 so the GNOME platform's newer v2.61.1 is used
-      # at runtime.  Without this, the older v2.50.0 (transitively pulled by
-      # ffmpeg) shadows it and breaks the gdk-pixbuf SVG loader with:
-      #   undefined symbol: rsg_handle_get_pixbuf_and_error
       - -usr/lib/*/librsvg*
       - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
       - "*"

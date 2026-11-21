@@ -37,27 +37,42 @@ runs:
         python -c "from PyQt6.QtGui import QImage; from PyQt6.QtCore import Qt; img = QImage('assets/logo.png'); img.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation).save('assets/bd.com.zihad.BengalDownloadManager.png')"
         cp assets/bd.com.zihad.BengalDownloadManager.png assets/bengal-download-manager.png
 
-        # Locate compiled binary
-        RAW_EXE=""
+        # Locate compiled onedir bundle (executable + _internal/ tree)
+        ONEDIR_DIR=""
         for candidate in \
-            "build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}" \
             "build_cmake/dist/bengal-download-manager" \
-            "dist/bengal-download-manager-${VERSION}-${ARCH}" \
             "dist/bengal-download-manager"; do
-            if [ -f "$candidate" ]; then
-                RAW_EXE="$candidate"
+            if [ -x "$candidate/bengal-download-manager" ]; then
+                ONEDIR_DIR="$candidate"
                 break
             fi
         done
-        if [ -z "$RAW_EXE" ]; then
-            RAW_EXE=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | head -n 1)
+        if [ -z "$ONEDIR_DIR" ]; then
+            ONEDIR_DIR=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | while IFS= read -r exe; do
+                dir="$(dirname "$exe")"
+                if [ -d "$dir/_internal" ]; then
+                    echo "$dir"
+                    break
+                fi
+            done || true)
         fi
-        echo "Using compiled binary for AppImage: $RAW_EXE"
+        if [ -z "$ONEDIR_DIR" ] || [ ! -x "$ONEDIR_DIR/bengal-download-manager" ]; then
+            echo "Error: PyInstaller onedir bundle not found for AppImage!" >&2
+            ls -la build_cmake/dist dist 2>/dev/null || true
+            exit 1
+        fi
+        echo "Using onedir bundle for AppImage: $ONEDIR_DIR"
 
-        # Pre-populate AppDir structure using install
+        # Pre-populate AppDir structure with the full onedir runtime tree
         rm -rf AppDir
-        install -Dm755 "$RAW_EXE" AppDir/usr/bin/bengal-download-manager
-        for s in 16 32 64 128 256 512; do
+        mkdir -p AppDir/usr/lib/bengal-download-manager AppDir/usr/bin
+        cp -a "$ONEDIR_DIR/." AppDir/usr/lib/bengal-download-manager/
+        chmod +x AppDir/usr/lib/bengal-download-manager/bengal-download-manager
+        ln -sf ../lib/bengal-download-manager/bengal-download-manager AppDir/usr/bin/bengal-download-manager
+        # Symlink the executable to the AppDir root so appimagetool resolves Exec=
+        # (avoids duplicating the binary in the final AppImage)
+        ln -sf usr/lib/bengal-download-manager/bengal-download-manager AppDir/bengal-download-manager
+        for s in 16 32 48 64 128 256 512; do
             if [ -f "assets/icons/${s}x${s}.png" ]; then
                 install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
                 install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"

@@ -158,6 +158,16 @@ def main():
     if is_debug or is_verbose:
         logger.debug("Command-line arguments: %s", sys.argv)
 
+    # Remove leftover PyInstaller onefile bundles from unclean shutdowns. Inside
+    # Flatpak these live on a RAM-backed tmpfs and can fill the runtime directory.
+    try:
+        from core.temp_cleanup import cleanup_stale_pyinstaller_dirs
+        removed_tmp = cleanup_stale_pyinstaller_dirs()
+        if removed_tmp:
+            logger.debug("Cleaned up %d stale PyInstaller temp directories", len(removed_tmp))
+    except Exception:
+        pass
+
     def exception_hook(exc_type, exc_value, exc_tb):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_tb)

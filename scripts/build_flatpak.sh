@@ -112,7 +112,7 @@ echo "========================================================"
 echo "=== 1. Building PyInstaller Standalone Application ==="
 WORK_DIR=".pyinstaller-build"
 rm -rf "$WORK_DIR" dist
-RUNTIME_ASSETS_DIR="$WORK_DIR/runtime_assets"
+RUNTIME_ASSETS_DIR="$ROOT_DIR/$WORK_DIR/runtime_assets"
 bash "$SCRIPT_DIR/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "$ARCH_NAME"
 
 PYTHONPATH=src $PYINSTALLER_BIN \
@@ -127,6 +127,7 @@ PYTHONPATH=src $PYINSTALLER_BIN \
     --add-data "$ROOT_DIR/VERSION:." \
     --distpath "dist" \
     --workpath "$WORK_DIR" \
+    --specpath "$WORK_DIR" \
     --noconfirm src/main.py
 
 echo "=== 2. Assembling Flatpak Package Structure ($BUILD_DIR) ==="
