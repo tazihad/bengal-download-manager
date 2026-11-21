@@ -15,3 +15,7 @@ contents:
     dst: "/usr/bin/bengal-download-manager"
     file_info:
       mode: 0755
+  # Full PyInstaller onedir runtime tree (executable + _internal/)
+  - src: "${PKG_DIR}/usr/lib/bengal-download-manager/"
+    dst: "/usr/lib/bengal-download-manager"
+    type: tree

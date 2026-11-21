@@ -69,11 +69,11 @@ uv run python src/main.py --debug --verbose
 PYTHONPATH=src uv run pytest -v tests/
 ```
 
-### Build Standalone Executable Binary
+### Build Standalone Onedir Bundle
 ```bash
 PYTHONPATH=src uv run pyinstaller \
     --name "bengal-download-manager" \
-    --onefile \
+    --onedir \
     --paths "src" \
     --collect-all core \
     --collect-all ui \
@@ -82,10 +82,22 @@ PYTHONPATH=src uv run pyinstaller \
     --workpath ".pyinstaller-build" \
     --noconfirm src/main.py
 ```
+The bundle is written to `dist/bengal-download-manager/`; run
+`dist/bengal-download-manager/bengal-download-manager`.
 
 ### Build Flatpak Package
 ```bash
 bash scripts/build_flatpak.sh
+```
+
+### Build DEB / RPM Packages
+```bash
+bash scripts/build_deb_rpm.sh
+```
+
+### Build Portable Tarball
+```bash
+bash scripts/build_tarball.sh
 ```
 
 ---

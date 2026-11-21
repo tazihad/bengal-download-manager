@@ -1,5 +1,5 @@
 name: 'Build Binary'
-description: 'Builds the standalone python binary using PyInstaller and CMake'
+description: 'Builds the standalone onedir bundle using PyInstaller and CMake'
 inputs:
   version:
     description: 'Version string (without leading v)'
@@ -22,24 +22,34 @@ runs:
     - name: Build Application
       shell: bash
       run: |
+        VERSION="${{ inputs.version }}"
+        ARCH="${{ inputs.arch }}"
+        DIR_NAME="bengal-download-manager-${VERSION}-${ARCH}"
+
         mkdir -p build_cmake
         cd build_cmake
         cmake -DPython3_EXECUTABLE=$(which python) ..
         cmake --build .
-        # Preserve binary for downstream packaging (AppImage, Flatpak)
-        cp dist/bengal-download-manager dist/bengal-download-manager-${VERSION}-${ARCH}
-        mkdir -p ../dist
-        cp dist/bengal-download-manager ../dist/bengal-download-manager
-        cp dist/bengal-download-manager-${VERSION}-${ARCH} ../dist/bengal-download-manager-${VERSION}-${ARCH}
+        # CMake now produces an onedir bundle: build_cmake/dist/bengal-download-manager/
+        ONEDIR_DIR="dist/bengal-download-manager"
+        if [ ! -x "${ONEDIR_DIR}/bengal-download-manager" ]; then
+          echo "Error: onedir bundle not found at ${ONEDIR_DIR}" >&2
+          ls -la dist || true
+          exit 1
+        fi
 
-        # Package portable tarball (.tar.xz)
-        VERSION="${{ inputs.version }}"
-        ARCH="${{ inputs.arch }}"
-        DIR_NAME="bengal-download-manager-${VERSION}-${ARCH}"
-        mkdir -p "dist/${DIR_NAME}"
-        cp dist/bengal-download-manager "dist/${DIR_NAME}/"
+        # Preserve the onedir bundle for downstream packaging (DEB/RPM/Tarball)
+        mkdir -p ../dist
+        rm -rf "../dist/bengal-download-manager"
+        cp -a "${ONEDIR_DIR}" ../dist/bengal-download-manager
+
+        # Package portable tarball (.tar.xz) with a top-level launcher
+        rm -rf "dist/${DIR_NAME}"
+        mkdir -p "dist/${DIR_NAME}/lib"
+        cp -a "${ONEDIR_DIR}" "dist/${DIR_NAME}/lib/bengal-download-manager"
+        printf '#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\nexec "$HERE/lib/bengal-download-manager/bengal-download-manager" "$@"\n' \
+          > "dist/${DIR_NAME}/bengal-download-manager"
         chmod 755 "dist/${DIR_NAME}/bengal-download-manager"
-        bash ../scripts/prepare_runtime_assets.sh "dist/${DIR_NAME}/assets" "${ARCH}"
         cp ../README.md ../LICENSE "dist/${DIR_NAME}/" 2>/dev/null || true
 
         cd dist
