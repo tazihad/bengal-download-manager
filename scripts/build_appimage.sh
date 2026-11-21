@@ -59,9 +59,9 @@ mkdir -p AppDir/usr/lib/bengal-download-manager AppDir/usr/bin
 cp -a dist/bengal-download-manager/. AppDir/usr/lib/bengal-download-manager/
 chmod +x AppDir/usr/lib/bengal-download-manager/bengal-download-manager
 ln -sf ../lib/bengal-download-manager/bengal-download-manager AppDir/usr/bin/bengal-download-manager
-# Also copy to AppDir root for appimagetool to find the Exec entry
-cp dist/bengal-download-manager/bengal-download-manager AppDir/bengal-download-manager
-chmod +x AppDir/bengal-download-manager
+# Also symlink to AppDir root for appimagetool to find the Exec entry
+# (avoids duplicating the binary in the final AppImage)
+ln -sf usr/lib/bengal-download-manager/bengal-download-manager AppDir/bengal-download-manager
 for s in 16 32 48 64 128 256 512; do
     if [ -f "assets/icons/${s}x${s}.png" ]; then
         install -Dm644 "assets/icons/${s}x${s}.png" "AppDir/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
