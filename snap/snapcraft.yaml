@@ -139,10 +139,10 @@ parts:
       fi
 
       # 7. Install launcher wrapper (modified for onedir binary)
-      if [ -f "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper-ondir.sh" ]; then
-        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper-ondir.sh" "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
-      elif [ -f snap/local/bengal-wrapper-ondir.sh ]; then
-        install -D -m 755 snap/local/bengal-wrapper-ondir.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      if [ -f "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" ]; then
+        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
+      elif [ -f snap/local/bengal-wrapper.sh ]; then
+        install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
       fi
 
       # 8. Install portal-aware xdg-open wrapper

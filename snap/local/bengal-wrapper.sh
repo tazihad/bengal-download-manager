@@ -1,6 +1,5 @@
 #!/bin/bash
-# Bengal Download Manager - Snap Execution Wrapper
-# Sets up architecture-agnostic paths, library fallbacks, and launches Bengal DM.
+# Bengal Download Manager - Snap Execution Wrapper (PyInstaller onedir mode)
 
 ARCH="$(uname -m)"
 case "$ARCH" in
@@ -16,11 +15,12 @@ case "$ARCH" in
 esac
 
 # 1. Environment & Library paths
-export SNAP_APP_ROOT="$SNAP/share/bengal-download-manager"
+export SNAP_APP_ROOT="$SNAP/usr/lib/bengal-download-manager"
 if [ -n "$SNAP_VERSION" ] && [ -z "$APP_VERSION" ]; then
     export APP_VERSION="$SNAP_VERSION"
 fi
 
+# Find Python site-packages from gnome extension / staged python
 SITE_PACKAGES=""
 QT_PLUGINS=""
 QML_IMPORTS=""
@@ -36,29 +36,18 @@ for py_site in "$SNAP"/lib/python3.*/site-packages; do
     fi
 done
 
-export PYTHONPATH="$SNAP_APP_ROOT/src${SITE_PACKAGES:+:${SITE_PACKAGES}}:$SNAP/usr/lib/python3/dist-packages:$PYTHONPATH"
 export PATH="$SNAP/bin:$SNAP/usr/bin:$SNAP_APP_ROOT/assets/bin/linux/$ARCH:$SNAP_APP_ROOT/assets/bin/$ARCH:$SNAP_APP_ROOT/assets/bin:$PATH"
-export LD_LIBRARY_PATH="$SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$SNAP_APP_ROOT:$SNAP_APP_ROOT/_internal:$LD_LIBRARY_PATH"
 
 # 2. Qt6 / Wayland / Rendering configuration
-# If the GNOME extension's desktop-launch forced 'wayland-egl', override it to 'wayland;xcb'.
-# 'wayland-egl' forces Qt6 to initialize hardware EGL/OpenGL contexts, which in turn
-# pulls in Mesa Gallium (libgallium.so) and LLVM JIT (libLLVM.so) adding ~70MB unnecessary RSS
-# for a 2D QWidget desktop application.
 if [ "$QT_QPA_PLATFORM" = "wayland-egl" ] || [ -z "$QT_QPA_PLATFORM" ]; then
     export QT_QPA_PLATFORM="wayland;xcb"
 fi
-# QT_PLUGIN_PATH must be set before QApplication() is constructed so that
-# platform theme plugins (libqxdgdesktopportal, libqgtk3) are discoverable.
 export QT_PLUGIN_PATH="$SNAP/usr/lib/$TRIPLET/qt6/plugins${QT_PLUGINS:+:${QT_PLUGINS}}${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
 export QML2_IMPORT_PATH="$SNAP/usr/lib/$TRIPLET/qt6/qml${QML_IMPORTS:+:${QML_IMPORTS}}${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
 export XDG_DATA_DIRS="$SNAP/usr/share:$SNAP_APP_ROOT/assets:$XDG_DATA_DIRS"
 
 # 3. GDK Pixbuf — do NOT override GDK_PIXBUF_MODULE_FILE or GDK_PIXBUF_MODULEDIR.
-#    The GNOME extension's desktop-launch sets them to the gnome-platform paths,
-#    pointing at the correct librsvg-2.so.2 v2.61.1. Overriding here would
-#    redirect to the older staged version and cause:
-#      undefined symbol: rsvg_handle_get_pixbuf_and_error
 
 # 4. Aria2 bundled fallback detection
 if [ -f "$SNAP_APP_ROOT/assets/bin/linux/$ARCH/aria2c" ]; then
@@ -67,18 +56,6 @@ elif [ -f "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" ]; then
     chmod +x "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" 2>/dev/null || true
 fi
 
-# 5. Resolve Python executable
-if [ -x "$SNAP/bin/python3" ]; then
-    PYTHON_BIN="$SNAP/bin/python3"
-elif [ -x "$SNAP/usr/bin/python3" ]; then
-    PYTHON_BIN="$SNAP/usr/bin/python3"
-else
-    PYTHON_BIN="python3"
-fi
-
-# 6. Execute Python application with branded process identity
-if [ -n "$BASH_VERSION" ]; then
-    exec -a "bengal-download-manager" "$PYTHON_BIN" "$SNAP_APP_ROOT/src/main.py" "$@"
-else
-    exec "$PYTHON_BIN" "$SNAP_APP_ROOT/src/main.py" "$@"
-fi
+# 5. Execute onedir binary with branded process identity
+cd "$SNAP_APP_ROOT"
+exec -a "bengal-download-manager" "$SNAP_APP_ROOT/bengal-download-manager" "$@"
