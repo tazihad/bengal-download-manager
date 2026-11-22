@@ -56,6 +56,6 @@ elif [ -f "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" ]; then
     chmod +x "$SNAP_APP_ROOT/assets/bin/$ARCH/aria2c" 2>/dev/null || true
 fi
 
-# 5. Execute onedir binary with branded process identity
+# 5. Execute onedir binary
 cd "$SNAP_APP_ROOT"
-exec -a "bengal-download-manager" "$SNAP_APP_ROOT/bengal-download-manager" "$@"
+exec "$SNAP_APP_ROOT/bengal-download-manager" "$@"
