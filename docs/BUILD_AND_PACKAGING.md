@@ -142,7 +142,7 @@ curl -sI https://zihad.com.bd/bengal-download-manager/repo/config | head -1
 
 ## 5. Canonical Snap Packaging (Snapcraft)
 
-The Snapcraft manifest is maintained in [`snap/snapcraft.yaml`](file:///mnt/data/dev/bengal-download-manager/snap/snapcraft.yaml).
+The Snapcraft manifest is maintained in [`snap/snapcraft.yml`](file:///mnt/data/dev/bengal-download-manager/snap/snapcraft.yml).
 
 ### Build with Snapcraft
 ```bash
@@ -191,6 +191,6 @@ Before committing release tags or building distribution packages, ensure all pac
 # Verify consistency across all manifests
 python3 scripts/sync_version.py --check
 
-# To bump version atomically across VERSION, snapcraft.yaml, metainfo.xml, and runtime:
+# To bump version atomically across VERSION, snapcraft.yml, metainfo.xml, and runtime:
 python3 scripts/sync_version.py --set 0.2.25
 ```

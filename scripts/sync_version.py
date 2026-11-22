@@ -22,7 +22,7 @@ from typing import List, Optional
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VERSION_FILE = os.path.join(ROOT_DIR, "VERSION")
-SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yaml")
+SNAPCRAFT_FILE = os.path.join(ROOT_DIR, "snap", "snapcraft.yml")
 # Release entries are authored in the .in template; the plain .xml is generated
 # from it (plus the translation catalogs) by scripts/i18n.py.
 METAINFO_TEMPLATE = os.path.join(ROOT_DIR, "flatpak", "bd.com.zihad.BengalDownloadManager.metainfo.xml.in")
@@ -135,7 +135,7 @@ def update_root_version(ver: str):
 
 
 def _snapcraft_uses_adopt_info() -> bool:
-    """Check if snapcraft.yaml uses adopt-info for version management."""
+    """Check if snapcraft.yml uses adopt-info for version management."""
     if not os.path.exists(SNAPCRAFT_FILE):
         return False
     with open(SNAPCRAFT_FILE, "r", encoding="utf-8") as f:
@@ -374,7 +374,7 @@ def check_consistency() -> bool:
                 m = re.search(r"version:\s*['\"]([^'\"]+)['\"]", f.read())
                 if not m or m.group(1) != root_ver:
                     found = m.group(1) if m else "None"
-                    errors.append(f"snapcraft.yaml version ({found}) != VERSION ({root_ver})")
+                    errors.append(f"snapcraft.yml version ({found}) != VERSION ({root_ver})")
 
     # 2. Metainfo check
     if os.path.exists(METAINFO_FILE):

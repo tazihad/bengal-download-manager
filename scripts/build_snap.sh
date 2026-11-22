@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bengal Download Manager - Snap Build Automation Script (core26, PyInstaller onedir)
-# Uses the tracked snap/snapcraft.yaml (adopt-info + craftctl set version)
+# Uses the tracked snap/snapcraft.yml (adopt-info + craftctl set version)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +26,7 @@ for arg in "$@"; do
         --help|-h)
             echo "Usage: $0 [--target-arch=amd64|arm64] [--destructive-mode] [--use-lxd]"
             echo ""
-            echo "Builds the snap using the tracked snap/snapcraft.yaml (adopt-info)."
+            echo "Builds the snap using the tracked snap/snapcraft.yml (adopt-info)."
             echo "Version and grade are set from VERSION file via craftctl."
             exit 0
             ;;
