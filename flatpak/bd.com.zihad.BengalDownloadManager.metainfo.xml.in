@@ -79,27 +79,36 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
-    <release version="0.3.23" date="2026-11-21">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.23</url>
+    <release version="0.3.24" date="2026-11-23">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.24</url>
       <description translate="no">
-        <p>Bengal Download Manager 0.3.23 changes:</p>
+        <p>Bengal Download Manager 0.3.24 changes:</p>
         <ul>
-          <li>All Linux packages now use a faster folder-based app layout</li>
-          <li>Startup is quicker and uses less temporary storage</li>
-          <li>AppImage, Flatpak, Snap, DEB, RPM, and tarball downloads now behave consistently</li>
+          <li>General maintenance, bug fixes, and performance improvements.</li>
         </ul>
       </description>
     </release>
+    <release version="0.3.23" date="2026-11-21">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.23</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.23 changes:</p>
+        <ul>
+                <li>All Linux packages now use a faster folder-based app layout</li>
+                <li>Startup is quicker and uses less temporary storage</li>
+                <li>AppImage, Flatpak, Snap, DEB, RPM, and tarball downloads now behave consistently</li>
+            </ul>
+        </description>
+    </release>
     <release version="0.3.22" date="2026-11-17">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.22</url>
-      <description translate="no">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.22</url>
+        <description translate="no">
         <p>Bengal Download Manager 0.3.22 changes:</p>
         <ul>
-          <li>The Media Options button now opens the Media page right away, instead of leaving you on the previous section</li>
-          <li>Proxy status messages now clearly say whether downloads use a direct connection or a proxy, and never show your password</li>
-          <li>Release notes shown in app stores are easier to follow</li>
-        </ul>
-      </description>
+                <li>The Media Options button now opens the Media page right away, instead of leaving you on the previous section</li>
+                <li>Proxy status messages now clearly say whether downloads use a direct connection or a proxy, and never show your password</li>
+                <li>Release notes shown in app stores are easier to follow</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.21" date="2026-11-11">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.21</url>
