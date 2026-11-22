@@ -73,7 +73,8 @@ The version string itself determines release type:
 uv run python scripts/sync_version.py --set 0.3.12-alpha.3 --tag --commit
 ```
 
-This writes `0.3.12-alpha.3` to `VERSION`, `snap/snapcraft.yaml`, `flatpak/metainfo.xml`, `src/core/version.py`, and `src/core/build_info.py`, then creates git tag `v0.3.12-alpha.3` and a commit.
+This writes `0.3.12-alpha.3` to `VERSION`, `flatpak/metainfo.xml`, `src/core/version.py`, and `src/core/build_info.py`, then creates git tag `v0.3.12-alpha.3` and a commit.
+(Note: `snap/snapcraft.yaml` uses `adopt-info: bengal-download-manager` and receives the version at build time via `craftctl set version`, so it does not contain a static `version:` key.)
 
 ```bash
 # Push the alpha branch and tag (do NOT merge to main)
@@ -152,7 +153,9 @@ If `--check` reports mismatches, fix them before committing.
    - The workflow reads the canonical `VERSION` file, produces all binaries and package formats with that exact version, and creates the GitHub Release.
 
 3. **Snap Store Synchronization**:
-   - Because `snap/snapcraft.yaml` is pre-synchronized to the exact version in Git, Canonical's Snapcraft Build Service builds and publishes the exact matching release version to `snapcraft.io/bengal-download-manager` without race conditions or tag guessing.
+   - `snap/snapcraft.yaml` uses `adopt-info: bengal-download-manager` with `craftctl set version="$VERSION"` at build time.
+   - The `scripts/sync_version.py` tool skips the snapcraft static version check when `adopt-info` is detected.
+   - Canonical's Snapcraft Build Service builds from the tagged commit and reads the version set by `craftctl` at build time, publishing the exact matching release version to `snapcraft.io/bengal-download-manager` without race conditions or tag guessing.
 
 ---
 
@@ -161,3 +164,4 @@ If `--check` reports mismatches, fix them before committing.
 1. **Never edit application version strings manually in individual package manifests**. Always use `scripts/sync_version.py --set <ver>` or `--bump <type>`.
 2. **Run `uv run python scripts/sync_version.py --check` before committing** any changes related to versioning or packaging.
 3. **Browser extension versioning is independent**: `extension/manifest.json` is decoupled from app version bumps and managed independently.
+4. **Snapcraft uses `adopt-info`**: The `snap/snapcraft.yaml` file does not contain a static `version:` key. Version is injected at build time via `craftctl set version="$VERSION"`. `scripts/sync_version.py` detects this pattern and skips the snapcraft version check/updates.
