@@ -94,7 +94,7 @@ The translation pipeline in `scripts/i18n.py` enforces strict localization rules
 
 ## 🚀 4. CI/CD Validation & Compilation
 
-The [Translations GitHub Action](https://github.com/tazihad/bengal-download-manager/actions/workflows/translations.yml) runs on every push and pull request modifying `translations/**`, `scripts/i18n.py`, or `flatpak/*.metainfo.xml.in`:
+The [Translations GitHub Action](https://github.com/tazihad/bengal-download-manager/actions/workflows/translations.yaml) runs on every push and pull request modifying `translations/**`, `scripts/i18n.py`, or `flatpak/*.metainfo.xml.in`:
 1. Compiles all `.ts` files to `.qm` binary catalogs.
 2. Regenerates the localized `flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml` from the template and catalogs.
 3. Validates translation status and integrity.

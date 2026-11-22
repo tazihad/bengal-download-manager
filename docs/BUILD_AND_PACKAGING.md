@@ -104,7 +104,7 @@ Both scripts accept `--skip-build` to reuse an existing `dist/bengal-download-ma
 
 ## 4. Flatpak Packaging (Flathub / KDE Platform 6.11)
 
-The Flatpak manifest is maintained in [`flatpak/bd.com.zihad.BengalDownloadManager.yml`](file:///mnt/data/dev/bengal-download-manager/flatpak/bd.com.zihad.BengalDownloadManager.yml) using the `org.kde.Platform` 6.11 runtime.
+The Flatpak manifest is maintained in [`flatpak/bd.com.zihad.BengalDownloadManager.yaml`](file:///mnt/data/dev/bengal-download-manager/flatpak/bd.com.zihad.BengalDownloadManager.yaml) using the `org.kde.Platform` 6.11 runtime.
 
 ### Local Flatpak Build Script
 Run the automated packaging helper:
@@ -118,7 +118,7 @@ bash scripts/build_flatpak.sh
 flatpak install flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
 
 # 2. Build and export Flatpak bundle
-flatpak-builder --user --install --force-clean build-flatpak flatpak/bd.com.zihad.BengalDownloadManager.yml
+flatpak-builder --user --install --force-clean build-flatpak flatpak/bd.com.zihad.BengalDownloadManager.yaml
 
 # 3. Launch installed Flatpak package
 flatpak run bd.com.zihad.BengalDownloadManager
@@ -142,7 +142,7 @@ curl -sI https://zihad.com.bd/bengal-download-manager/repo/config | head -1
 
 ## 5. Canonical Snap Packaging (Snapcraft)
 
-The Snapcraft manifest is maintained in [`snap/snapcraft.yml`](file:///mnt/data/dev/bengal-download-manager/snap/snapcraft.yml).
+The Snapcraft manifest is maintained in [`snap/snapcraft.yaml`](file:///mnt/data/dev/bengal-download-manager/snap/snapcraft.yaml).
 
 ### Build with Snapcraft
 ```bash
@@ -191,6 +191,6 @@ Before committing release tags or building distribution packages, ensure all pac
 # Verify consistency across all manifests
 python3 scripts/sync_version.py --check
 
-# To bump version atomically across VERSION, snapcraft.yml, metainfo.xml, and runtime:
+# To bump version atomically across VERSION, snapcraft.yaml, metainfo.xml, and runtime:
 python3 scripts/sync_version.py --set 0.2.25
 ```

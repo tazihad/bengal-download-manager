@@ -7,7 +7,7 @@ This document defines the authoritative versioning architecture, release lifecyc
 ## 1. Architectural Philosophy: Single Source of Truth (SSOT)
 
 Bengal Download Manager targets multiple distribution channels:
-* **Canonical Snap Store**: Snap package built via Snapcraft (`snap/snapcraft.yml`).
+* **Canonical Snap Store**: Snap package built via Snapcraft (`snap/snapcraft.yaml`).
 * **Flatpak / Flathub**: Flatpak bundle and AppStream catalog metadata (`flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml`).
 * **Python Packaging (PEP 517/518/621)**: Package manifest and dynamic versioning (`pyproject.toml`).
 * **In-App Runtime**: Help -> About Dialog, CLI `--version`, and IPC daemon (`src/core/version.py`).
@@ -74,7 +74,7 @@ uv run python scripts/sync_version.py --set 0.3.12-alpha.3 --tag --commit
 ```
 
 This writes `0.3.12-alpha.3` to `VERSION`, `flatpak/metainfo.xml`, `src/core/version.py`, and `src/core/build_info.py`, then creates git tag `v0.3.12-alpha.3` and a commit.
-(Note: `snap/snapcraft.yml` uses `adopt-info: bengal-download-manager` and receives the version at build time via `craftctl set version`, so it does not contain a static `version:` key.)
+(Note: `snap/snapcraft.yaml` uses `adopt-info: bengal-download-manager` and receives the version at build time via `craftctl set version`, so it does not contain a static `version:` key.)
 
 ```bash
 # Push the alpha branch and tag (do NOT merge to main)
@@ -134,7 +134,7 @@ If `--check` reports mismatches, fix them before committing.
 | Channel | Trigger Mechanism |
 |---|---|
 | **GitHub Releases** | Triggered only when a release tag (e.g. `v0.3.12`) is pushed or manually dispatched via `workflow_dispatch`. Merging PRs or pushing to branches never triggers a release. |
-| **Snap Store (snapcraft.io)** | Snapcraft.io's build service reads `version` from `snap/snapcraft.yml` upon release tag push or build dispatch. |
+| **Snap Store (snapcraft.io)** | Snapcraft.io's build service reads `version` from `snap/snapcraft.yaml` upon release tag push or build dispatch. |
 | **Flatpak / Flathub** | Uses the updated `<release version="..." .../>` in `bd.com.zihad.BengalDownloadManager.metainfo.xml`. |
 | **In-App (Help -> About)** | Automatically displays version from `VERSION` and `SNAP_VERSION`. |
 
@@ -142,18 +142,18 @@ If `--check` reports mismatches, fix them before committing.
 
 ## 7. Release Lifecycle & CI/CD Pipeline
 
-1. **Pull Requests & Commits (`ci.yml`)**:
+1. **Pull Requests & Commits (`ci.yaml`)**:
    - `uv run python scripts/sync_version.py --check` automatically executes on every commit and PR.
    - If any manifest does not match `VERSION`, CI fails immediately with actionable instructions.
    - Branch merges and pushes run tests and validation, but do not create releases.
 
-2. **Automated Builds & Releases (`release.yml`)**:
+2. **Automated Builds & Releases (`release.yaml`)**:
    - Pushing release tags (`v*`) or manual `workflow_dispatch` triggers the release workflow.
    - Merging to `main`, `dev`, or any other branch will NOT publish a release.
    - The workflow reads the canonical `VERSION` file, produces all binaries and package formats with that exact version, and creates the GitHub Release.
 
 3. **Snap Store Synchronization**:
-   - `snap/snapcraft.yml` uses `adopt-info: bengal-download-manager` with `craftctl set version="$VERSION"` at build time.
+   - `snap/snapcraft.yaml` uses `adopt-info: bengal-download-manager` with `craftctl set version="$VERSION"` at build time.
    - The `scripts/sync_version.py` tool skips the snapcraft static version check when `adopt-info` is detected.
    - Canonical's Snapcraft Build Service builds from the tagged commit and reads the version set by `craftctl` at build time, publishing the exact matching release version to `snapcraft.io/bengal-download-manager` without race conditions or tag guessing.
 
@@ -164,4 +164,4 @@ If `--check` reports mismatches, fix them before committing.
 1. **Never edit application version strings manually in individual package manifests**. Always use `scripts/sync_version.py --set <ver>` or `--bump <type>`.
 2. **Run `uv run python scripts/sync_version.py --check` before committing** any changes related to versioning or packaging.
 3. **Browser extension versioning is independent**: `extension/manifest.json` is decoupled from app version bumps and managed independently.
-4. **Snapcraft uses `adopt-info`**: The `snap/snapcraft.yml` file does not contain a static `version:` key. Version is injected at build time via `craftctl set version="$VERSION"`. `scripts/sync_version.py` detects this pattern and skips the snapcraft version check/updates.
+4. **Snapcraft uses `adopt-info`**: The `snap/snapcraft.yaml` file does not contain a static `version:` key. Version is injected at build time via `craftctl set version="$VERSION"`. `scripts/sync_version.py` detects this pattern and skips the snapcraft version check/updates.

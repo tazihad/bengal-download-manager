@@ -9,7 +9,7 @@ cd "$ROOT_DIR"
 # Extract top-level attributes from canonical manifest to keep single source of truth
 eval "$(python3 -c "
 import re
-with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+with open('flatpak/bd.com.zihad.BengalDownloadManager.yaml') as f:
     text = f.read()
 
 keys = {'app-id': 'APP_ID', 'runtime': 'RUNTIME', 'runtime-version': 'RUNTIME_VERSION', 'sdk': 'SDK', 'command': 'COMMAND'}
@@ -183,7 +183,7 @@ fi
 # Extract finish-args from canonical manifest to keep permissions unified
 readarray -t FINISH_ARGS < <(python3 -c "
 in_fa = False
-with open('flatpak/bd.com.zihad.BengalDownloadManager.yml') as f:
+with open('flatpak/bd.com.zihad.BengalDownloadManager.yaml') as f:
     for line in f:
         s = line.strip()
         if s.startswith('finish-args:'):

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Bengal Download Manager — Snapcraft build script
-# Extracted from snap/snapcraft.yml override-build for readability and independent testing.
+# Extracted from snap/snapcraft.yaml override-build for readability and independent testing.
 
 set -eu
 craftctl default
