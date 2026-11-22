@@ -3,7 +3,6 @@
 # Extracted from snap/snapcraft.yaml override-build for readability and independent testing.
 
 set -eu
-craftctl default
 
 # Version and grade come from the VERSION file
 VERSION="$(tr -d '[:space:]' < "$CRAFT_PROJECT_DIR/VERSION")"
