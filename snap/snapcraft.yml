@@ -98,13 +98,14 @@ parts:
       cp -a "dist/$APP/." "$CRAFT_PART_INSTALL/usr/lib/$APP/"
       chmod +x "$CRAFT_PART_INSTALL/usr/lib/$APP/$APP"
 
+      # Drop uv venv — PyInstaller already bundles PyQt6 and all dependencies
+      # into the onedir bundle. Removing it avoids shipping Qt (and everything
+      # else) a second time in the snap.
+      rm -rf "$CRAFT_PART_INSTALL/bin" "$CRAFT_PART_INSTALL/lib" "$CRAFT_PART_INSTALL/lib64" "$CRAFT_PART_INSTALL/include" "$CRAFT_PART_INSTALL/pyvenv.cfg"
+
       # 5. Install app sources (only version.py needed for build-marker in build_info.py)
       install -d "$CRAFT_PART_INSTALL/share/$APP/src/core"
       cp src/core/version.py "$CRAFT_PART_INSTALL/share/$APP/src/core/version.py"
-
-      # 6. Install runtime assets (copied from step 2, not regenerated)
-      install -d "$CRAFT_PART_INSTALL/share/$APP/assets"
-      cp -a "$RUNTIME_ASSETS_DIR/." "$CRAFT_PART_INSTALL/share/$APP/assets/"
 
       # 7. Install desktop entry & AppStream metadata
       install -D -m 644 "$CRAFT_PROJECT_DIR/snap/gui/$APP.desktop" \
