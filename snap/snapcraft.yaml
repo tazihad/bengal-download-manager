@@ -51,7 +51,7 @@ parts:
     build-snaps:
       - astral-uv
     build-environment:
-      - UV_PYTHON: python3.14
+      - UV_PYTHON: python3
     override-build: |
       bash "$CRAFT_PROJECT_DIR/snap/local/build.sh"
     stage-packages:
