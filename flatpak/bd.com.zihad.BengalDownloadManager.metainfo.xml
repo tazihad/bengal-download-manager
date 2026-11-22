@@ -87,6 +87,17 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.23" date="2026-11-21">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.23</url>
+      <description translate="no">
+        <p>Bengal Download Manager 0.3.23 changes:</p>
+        <ul>
+          <li>All Linux packages now use a faster folder-based app layout</li>
+          <li>Startup is quicker and uses less temporary storage</li>
+          <li>AppImage, Flatpak, Snap, DEB, RPM, and tarball downloads now behave consistently</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.22" date="2026-11-17">
       <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.22</url>
       <description translate="no">

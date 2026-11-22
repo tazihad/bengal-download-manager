@@ -76,31 +76,41 @@ runs:
 
         # Create standard directory layout
         mkdir -p "$BUILD_DIR/files/bin" \
+                "$BUILD_DIR/files/lib/bengal-download-manager" \
                 "$BUILD_DIR/files/share/applications" \
                 "$BUILD_DIR/files/share/icons/hicolor/256x256/apps" \
                 "$BUILD_DIR/files/share/metainfo" \
                 "$BUILD_DIR/files/share/app-info/xmls" \
                 "$BUILD_DIR/files/share/app-info/icons/flatpak"
 
-        RAW_EXE=""
-        for candidate in \
-            "build_cmake/dist/bengal-download-manager-${VERSION}-${ARCH}" \
-            "build_cmake/dist/bengal-download-manager" \
-            "dist/bengal-download-manager-${VERSION}-${ARCH}" \
-            "dist/bengal-download-manager"; do
-            if [ -f "$candidate" ]; then
-                RAW_EXE="$candidate"
-                break
-            fi
-        done
-        if [ -z "$RAW_EXE" ]; then
-            RAW_EXE=$(find build_cmake/dist dist -maxdepth 2 -type f -name "bengal-download-manager" -executable 2>/dev/null | head -n 1)
-        fi
-        echo "Using compiled binary for Flatpak: $RAW_EXE"
-        if [ -n "$RAW_EXE" ] && [ -f "$RAW_EXE" ]; then
-          cp "$RAW_EXE" "$BUILD_DIR/files/bin/bengal-download-manager"
-        fi
-        chmod +x "$BUILD_DIR/files/bin/bengal-download-manager"
+        # Build an onedir bundle for the Flatpak. A onefile binary would unpack
+        # its whole payload into the sandbox's RAM-backed /tmp on every launch,
+        # and force-quits leave ~250 MB _MEI* directories behind. Installing the
+        # bundle read-only under /app avoids that extraction entirely.
+        ONEDIR_BUILD_DIR="$PWD/build_flatpak_onedir"
+        rm -rf "$ONEDIR_BUILD_DIR"
+        mkdir -p "$ONEDIR_BUILD_DIR"
+        bash scripts/prepare_runtime_assets.sh "$ONEDIR_BUILD_DIR/runtime_assets" "$ARCH"
+        PYTHONPATH=src python3 -m PyInstaller \
+            --name "bengal-download-manager" \
+            --onedir \
+            --clean \
+            --paths "src" \
+            --collect-all core \
+            --collect-all ui \
+            --collect-all python_socks \
+            --add-data "$ONEDIR_BUILD_DIR/runtime_assets:assets" \
+            --add-data "$PWD/VERSION:." \
+            --distpath "$ONEDIR_BUILD_DIR/dist" \
+            --workpath "$ONEDIR_BUILD_DIR/work" \
+            --specpath "$ONEDIR_BUILD_DIR" \
+            --noconfirm src/main.py
+
+        ONEDIR_BUNDLE="$ONEDIR_BUILD_DIR/dist/bengal-download-manager"
+        echo "Using onedir bundle for Flatpak: $ONEDIR_BUNDLE"
+        cp -a "$ONEDIR_BUNDLE/." "$BUILD_DIR/files/lib/bengal-download-manager/"
+        chmod +x "$BUILD_DIR/files/lib/bengal-download-manager/bengal-download-manager"
+        ln -sf /app/lib/bengal-download-manager/bengal-download-manager "$BUILD_DIR/files/bin/bengal-download-manager"
 
         if [ -f "assets/bin/linux/${ARCH}/aria2c" ]; then
           cp "assets/bin/linux/${ARCH}/aria2c" "$BUILD_DIR/files/bin/aria2c"

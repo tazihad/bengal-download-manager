@@ -310,7 +310,7 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
             app.installTranslator(new_qt_trans)
             _qt_translator = new_qt_trans
             base_loaded = True
-            logger.debug("[i18n] Installed Qt base translator: %s", name_prefix)
+            logger.debug("[i18n] Qt base translator loaded: %s", name_prefix)
             break
 
     # 2. Search for Bengal DM application translations (compiled .qm binaries)
@@ -334,7 +334,7 @@ def apply_language(app: Optional[QCoreApplication] = None, lang_code: Optional[s
                     app.installTranslator(trans)
                     _app_translator = trans
                     app_loaded = True
-                    logger.debug("[i18n] Installed QM application translator: %s", qm_path)
+                    logger.debug("[i18n] App translator loaded: %s", qm_path)
                     break
         if app_loaded:
             break

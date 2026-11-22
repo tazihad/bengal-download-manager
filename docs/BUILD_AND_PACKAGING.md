@@ -53,27 +53,52 @@ PYTHONPATH=src uv run pytest -v tests/test_media_downloader.py
 
 ---
 
-## 3. Standalone Binary Build (CMake & PyInstaller)
+## 3. Standalone Onedir Bundle (CMake & PyInstaller)
 
-BDM includes a CMake build definition (`CMakeLists.txt`) that compiles a single-file, self-contained executable bundling all Python code, Qt6 libraries, and application assets:
+BDM includes a CMake build definition (`CMakeLists.txt`) that produces a PyInstaller **onedir** bundle: an executable plus its `_internal/` runtime tree containing the Python code, Qt6 libraries, and application assets. Onedir starts faster than a single-file build and avoids unpacking the application on every launch.
 
 ```bash
 # 1. Configure the CMake build directory
 cmake -B build -S .
 
-# 2. Compile standalone binary
+# 2. Build the onedir bundle
 cmake --build build
 ```
 
-The compiled standalone binary executable will be located at:
+The bundle will be located at:
 ```bash
-./build/dist/bengal-download-manager
+./build/dist/bengal-download-manager/
 ```
 
 To run directly:
 ```bash
-./build/dist/bengal-download-manager
+./build/dist/bengal-download-manager/bengal-download-manager
 ```
+
+You can also build the bundle without CMake:
+```bash
+bash scripts/build_binary.sh            # onedir (default)
+bash scripts/build_binary.sh --onefile  # legacy single-file build
+```
+
+### Portable Tarball
+
+Create a portable `.tar.xz` archive containing the onedir bundle and a top-level launcher:
+```bash
+bash scripts/build_tarball.sh
+# Output: dist/bengal-download-manager-<version>-<arch>.tar.xz
+```
+
+### Native DEB / RPM Packages
+
+Build `.deb` and `.rpm` packages with [nfpm](https://nfpm.goreleaser.com). The onedir bundle is installed under `/usr/lib/bengal-download-manager` and exposed through a `/usr/bin/bengal-download-manager` launcher:
+```bash
+bash scripts/build_deb_rpm.sh
+# Output: dist/bengal-download-manager-<version>-<arch>.deb
+#         dist/bengal-download-manager-<version>-<rpm-arch>.rpm
+```
+
+Both scripts accept `--skip-build` to reuse an existing `dist/bengal-download-manager/` bundle.
 
 ---
 
@@ -121,8 +146,8 @@ The Snapcraft manifest is maintained in [`snap/snapcraft.yaml`](file:///mnt/data
 
 ### Build with Snapcraft
 ```bash
-# Build locally using LXD or Multipass container
-snapcraft --use-lxd
+# Build the onedir snap locally (uses LXD when available)
+bash scripts/build_snap.sh
 
 # Install locally for testing
 sudo snap install bengal-download-manager_*.snap --dangerous
@@ -132,9 +157,12 @@ sudo snap install bengal-download-manager_*.snap --dangerous
 
 ## 6. AppImage Packaging
 
-BDM builds portable `x86_64` and `aarch64` AppImages packaged with AppImageKit:
+BDM builds portable `x86_64` and `aarch64` AppImages from the onedir bundle, packaged with AppImageKit:
 
 ```bash
+# Build the AppImage locally
+bash scripts/build_appimage.sh
+
 # Make AppImage executable and run
 chmod +x bengal-download-manager-*-x86_64.AppImage
 ./bengal-download-manager-*-x86_64.AppImage

@@ -110,7 +110,7 @@ jobs:
       - name: Install System Dependencies
         uses: ./.github/actions/setup-apt
         with:
-          packages: libqt6gui6 cmake zip libfuse2 aria2 zsync
+          packages: libqt6gui6 cmake zip libfuse2 aria2 zsync libxcb-cursor0
 
       - name: Install Python Dependencies
         run: |

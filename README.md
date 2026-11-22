@@ -177,9 +177,9 @@ python3 src/main.py
 | `--verbose` | `VERBOSE=1` or `BENGAL_VERBOSE=1` | Enables full, unrestricted diagnostic logging including every raw IPC extension ping and HTTP request/response line. |
 | `--debug --verbose` | `DEBUG=1 VERBOSE=1` | Complete unrestricted verbose debug output for comprehensive troubleshooting. |
 
-### 2. Standalone Binary Build (CMake)
+### 2. Standalone Onedir Build (CMake)
 
-Build a self-contained, single-file binary executable using **CMake** and **PyInstaller**:
+Build a self-contained application bundle using **CMake** and **PyInstaller**:
 
 ```bash
 # Ensure dependencies and PyInstaller are installed
@@ -188,14 +188,21 @@ pip install -e ".[dev]"
 # Configure CMake build tree
 cmake -B build -S .
 
-# Compile standalone executable
+# Build the onedir bundle
 cmake --build build
 ```
 
-The resulting binary will be generated at:
+The resulting bundle will be generated at:
 ```bash
-./build/dist/bengal-download-manager
+./build/dist/bengal-download-manager/
 ```
+
+Run it with:
+```bash
+./build/dist/bengal-download-manager/bengal-download-manager
+```
+
+Native `.deb`/`.rpm` packages and a portable `.tar.xz` can be built from the same bundle with `bash scripts/build_deb_rpm.sh` and `bash scripts/build_tarball.sh`.
 
 ### 3. Flatpak Package Build
 
