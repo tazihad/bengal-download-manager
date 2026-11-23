@@ -25,7 +25,7 @@ finish-args:
   - --talk-name=org.freedesktop.StatusNotifierWatcher
 
 modules:
-  - python3-requirements.yml
+  - python3-requirements.yaml
 
   - name: bengal-download-manager
     buildsystem: cmake

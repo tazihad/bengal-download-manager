@@ -42,7 +42,7 @@
   * `fetcher.py`: Pre-fetcher worker to query filename and size before starting downloads.
 * **`src/ui/dialogs/`**: PyQt6 QWidget dialog windows (`progress.py`, `complete.py`, `file_info.py`, `options.py`, `properties.py`).
 * **`flatpak/`**:
-  * `bd.com.zihad.BengalDownloadManager.yml`: Flatpak manifest for `org.kde.Platform` 6.11.
+  * `bd.com.zihad.BengalDownloadManager.yaml`: Flatpak manifest for `org.kde.Platform` 6.11.
   * `bd.com.zihad.BengalDownloadManager.desktop`: XDG desktop launcher entry.
   * `bd.com.zihad.BengalDownloadManager.metainfo.xml`: AppStream component metadata.
 * **`extension/`**: Manifest V3 browser extension for Chrome and Firefox.

@@ -134,7 +134,20 @@ def update_root_version(ver: str):
         f.write(f"{ver}\n")
 
 
+def _snapcraft_uses_adopt_info() -> bool:
+    """Check if snapcraft.yaml uses adopt-info for version management."""
+    if not os.path.exists(SNAPCRAFT_FILE):
+        return False
+    with open(SNAPCRAFT_FILE, "r", encoding="utf-8") as f:
+        content = f.read()
+    return "adopt-info:" in content
+
+
 def update_snapcraft(ver: str):
+    # If adopt-info is used, version is managed via craftctl set at build time,
+    # not via a static version: key in the YAML. Skip static update.
+    if _snapcraft_uses_adopt_info():
+        return
     if not os.path.exists(SNAPCRAFT_FILE):
         return
     with open(SNAPCRAFT_FILE, "r", encoding="utf-8") as f:
@@ -353,11 +366,15 @@ def check_consistency() -> bool:
 
     # 1. Snapcraft check
     if os.path.exists(SNAPCRAFT_FILE):
-        with open(SNAPCRAFT_FILE, "r", encoding="utf-8") as f:
-            m = re.search(r"version:\s*['\"]([^'\"]+)['\"]", f.read())
-            if not m or m.group(1) != root_ver:
-                found = m.group(1) if m else "None"
-                errors.append(f"snapcraft.yaml version ({found}) != VERSION ({root_ver})")
+        if _snapcraft_uses_adopt_info():
+            # adopt-info + craftctl set version at build time; no static version: key expected
+            pass
+        else:
+            with open(SNAPCRAFT_FILE, "r", encoding="utf-8") as f:
+                m = re.search(r"version:\s*['\"]([^'\"]+)['\"]", f.read())
+                if not m or m.group(1) != root_ver:
+                    found = m.group(1) if m else "None"
+                    errors.append(f"snapcraft.yaml version ({found}) != VERSION ({root_ver})")
 
     # 2. Metainfo check
     if os.path.exists(METAINFO_FILE):

@@ -2,7 +2,7 @@ name: CD / Web Deploy
 
 # Manual-only website deploy.
 #
-# `CD / Release` (release.yml) owns the Flatpak OSTree repository and publishes
+# `CD / Release` (release.yaml) owns the Flatpak OSTree repository and publishes
 # the full site together with it. This workflow exists so landing page / asset
 # changes can ship without cutting a release, and therefore reuses and re-signs
 # the live repository instead of rebuilding it.

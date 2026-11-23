@@ -1,6 +1,6 @@
 name: bengal-download-manager
 base: core26
-version: '0.3.23'
+adopt-info: bengal-download-manager
 summary: High-speed multi-threaded download manager powered by Aria2
 description: |
   Bengal Download Manager is a high-performance, open-source download accelerator
@@ -14,7 +14,6 @@ description: |
   - Scheduled queues, proxy manager, and speed limiter
   - Media Downloader
 
-grade: stable
 confinement: strict
 license: MIT
 icon: assets/icons/512x512.png
@@ -24,11 +23,7 @@ issues: https://github.com/tazihad/bengal-download-manager/issues
 
 platforms:
   amd64:
-    build-on: [amd64]
-    build-for: [amd64]
   arm64:
-    build-on: [arm64]
-    build-for: [arm64]
 
 apps:
   bengal-download-manager:
@@ -36,129 +31,38 @@ apps:
     common-id: bd.com.zihad.BengalDownloadManager
     desktop: usr/share/applications/bengal-download-manager.desktop
     autostart: bengal-download-manager.desktop
-    extensions: [ gnome ]
+    extensions: [gnome]
     plugs:
-      - desktop
-      - desktop-legacy
-      - wayland
-      - x11
-      - opengl
       - home
       - network
       - network-bind
       - removable-media
-      - audio-playback
       - unity7
-    environment:
-      PATH: $SNAP/bin:$SNAP/usr/bin:$PATH
-      LD_LIBRARY_PATH: $SNAP/usr/lib/$TRIPLET:$SNAP/usr/lib:$SNAP/lib/$TRIPLET:$SNAP/lib:$LD_LIBRARY_PATH
+      - opengl
+      - wayland
+      - x11
+      - desktop
+      - desktop-legacy
 
 parts:
-  desktop-deps:
-    plugin: nil
-    stage-packages:
-      - aria2
-      - ffmpeg
-      - libgl1-mesa-dri
-      - libgl1
-      - libegl1
-      - libxkbcommon0
-      - libdbus-1-3
-      - ca-certificates
-      - xdg-utils
-    stage:
-      - -usr/lib/*/librsvg*
-      - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
-      - "*"
-
   bengal-download-manager:
-    after:
-      - desktop-deps
     plugin: uv
     source: .
     build-snaps:
       - astral-uv
     build-environment:
       - UV_PYTHON: python3
+    override-build: |
+      bash "$CRAFT_PROJECT_DIR/snap/local/build.sh"
     stage-packages:
+      # core26 has no system Python: the uv plugin requires a provisioned
+      # interpreter to symlink the venv to (see snapcraft python_common).
       - python3-venv
       - python3
-    override-build: |
-      craftctl default
-
-      # 1. Install pyinstaller in uv environment
-      uv pip install pyinstaller
-
-      # 2. Build PyInstaller onedir bundle
-      WORK_DIR=".pyinstaller-build"
-      rm -rf "$WORK_DIR" dist
-      RUNTIME_ASSETS_DIR="$CRAFT_PART_INSTALL/$WORK_DIR/runtime_assets"
-      bash "$CRAFT_PROJECT_DIR/scripts/prepare_runtime_assets.sh" "$RUNTIME_ASSETS_DIR" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
-
-      PYTHONPATH=src uv run pyinstaller \
-          --name "bengal-download-manager" \
-          --onedir \
-          --clean \
-          --paths "src" \
-          --collect-all core \
-          --collect-all ui \
-          --collect-all python_socks \
-          --add-data "$RUNTIME_ASSETS_DIR:assets" \
-          --add-data "$CRAFT_PROJECT_DIR/VERSION:." \
-          --distpath "dist" \
-          --workpath "$WORK_DIR" \
-          --specpath "$WORK_DIR" \
-          --noconfirm src/main.py
-
-      # 2. Install onedir bundle to $CRAFT_PART_INSTALL
-      install -d "$CRAFT_PART_INSTALL/usr/lib/bengal-download-manager"
-      cp -a dist/bengal-download-manager/. "$CRAFT_PART_INSTALL/usr/lib/bengal-download-manager/"
-      chmod +x "$CRAFT_PART_INSTALL/usr/lib/bengal-download-manager/bengal-download-manager"
-
-      # 3. Install app sources (for version.py and any runtime Python modules)
-      install -d "$CRAFT_PART_INSTALL/share/bengal-download-manager"
-      cp -r src "$CRAFT_PART_INSTALL/share/bengal-download-manager/"
-
-      # 4. Install runtime assets
-      bash "$CRAFT_PROJECT_DIR/scripts/prepare_runtime_assets.sh" "$CRAFT_PART_INSTALL/share/bengal-download-manager/assets" "${CRAFT_ARCH_BUILD_FOR:-$(uname -m)}"
-
-      # 5. Install desktop entry & AppStream metadata
-      install -D -m 644 "$CRAFT_PROJECT_DIR/snap/gui/bengal-download-manager.desktop" "$CRAFT_PART_INSTALL/usr/share/applications/bengal-download-manager.desktop"
-      install -D -m 644 "$CRAFT_PROJECT_DIR/flatpak/bd.com.zihad.BengalDownloadManager.metainfo.xml" "$CRAFT_PART_INSTALL/usr/share/metainfo/bd.com.zihad.BengalDownloadManager.metainfo.xml"
-
-      # 6. Install hicolor icons
-      for s in 16 32 64 128 256 512; do
-        if [ -f "$CRAFT_PROJECT_DIR/assets/icons/${s}x${s}.png" ]; then
-          install -D -m 644 "$CRAFT_PROJECT_DIR/assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bengal-download-manager.png"
-          install -D -m 644 "$CRAFT_PROJECT_DIR/assets/icons/${s}x${s}.png" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/${s}x${s}/apps/bd.com.zihad.BengalDownloadManager.png"
-        fi
-      done
-      if [ -f "$CRAFT_PROJECT_DIR/assets/logo.svg" ]; then
-        install -D -m 644 "$CRAFT_PROJECT_DIR/assets/logo.svg" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bengal-download-manager.svg"
-        install -D -m 644 "$CRAFT_PROJECT_DIR/assets/logo.svg" "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/scalable/apps/bd.com.zihad.BengalDownloadManager.svg"
-      fi
-
-      # 7. Install launcher wrapper (modified for onedir binary)
-      if [ -f "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" ]; then
-        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/bengal-wrapper.sh" "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
-      elif [ -f snap/local/bengal-wrapper.sh ]; then
-        install -D -m 755 snap/local/bengal-wrapper.sh "$CRAFT_PART_INSTALL/bin/bengal-wrapper"
-      fi
-
-      # 8. Install portal-aware xdg-open wrapper
-      if [ -f "$CRAFT_PROJECT_DIR/snap/local/xdg-open" ]; then
-        install -D -m 755 "$CRAFT_PROJECT_DIR/snap/local/xdg-open" "$CRAFT_PART_INSTALL/bin/xdg-open"
-      elif [ -f snap/local/xdg-open ]; then
-        install -D -m 755 snap/local/xdg-open "$CRAFT_PART_INSTALL/bin/xdg-open"
-      fi
-    stage:
-      - -usr/lib/*/librsvg*
-      - -usr/lib/*/gdk-pixbuf-2.0/*/loaders/libpixbufloader_svg.so
-      - "*"
+      - ca-certificates
     prime:
       # Remove external symlinks created by uv plugin (point to build env Python)
       - -bin/python
       - -bin/python3
       - -bin/python3.*
       - "*"
-
