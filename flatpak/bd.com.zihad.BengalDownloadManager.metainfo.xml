@@ -92,7 +92,9 @@
       <description translate="no">
         <p>Bengal Download Manager 0.3.24 changes:</p>
         <ul>
-          <li>General maintenance, bug fixes, and performance improvements.</li>
+          <li>The Snap package is now less than half its previous size, so it downloads faster and uses much less disk space</li>
+          <li>Snap packages now always show the correct version number and stability level</li>
+          <li>Snap packages build and publish reliably again on current Linux systems</li>
         </ul>
       </description>
     </release>
