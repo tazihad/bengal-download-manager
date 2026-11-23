@@ -79,16 +79,26 @@
 
   <!-- Release notes stay in English: they mirror the upstream release tags. -->
   <releases>
-    <release version="0.3.24" date="2026-11-23">
-      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.24</url>
+    <release version="0.3.25" date="2026-11-23">
+      <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.25</url>
       <description translate="no">
-        <p>Bengal Download Manager 0.3.24 changes:</p>
+        <p>Bengal Download Manager 0.3.25 changes:</p>
         <ul>
-          <li>The Snap package is now less than half its previous size, so it downloads faster and uses much less disk space</li>
-          <li>Snap packages now always show the correct version number and stability level</li>
-          <li>Snap packages build and publish reliably again on current Linux systems</li>
+          <li>Engine: Do not append .bin to extensionless files served as octet-stream</li>
+          <li>Media: Show dependency update downloads in --debug logging</li>
         </ul>
       </description>
+    </release>
+    <release version="0.3.24" date="2026-11-23">
+        <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.24</url>
+        <description translate="no">
+        <p>Bengal Download Manager 0.3.24 changes:</p>
+        <ul>
+                <li>The Snap package is now less than half its previous size, so it downloads faster and uses much less disk space</li>
+                <li>Snap packages now always show the correct version number and stability level</li>
+                <li>Snap packages build and publish reliably again on current Linux systems</li>
+            </ul>
+        </description>
     </release>
     <release version="0.3.23" date="2026-11-21">
         <url type="details">https://github.com/tazihad/bengal-download-manager/releases/tag/v0.3.23</url>
