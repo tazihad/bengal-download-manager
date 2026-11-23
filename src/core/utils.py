@@ -298,7 +298,9 @@ def resolve_filename(url, headers):
         current_ext = current_ext.lower()
         
         if real_extension:
-            if current_ext in script_exts or not current_ext:
+            if current_ext in script_exts:
+                filename = base + real_extension
+            elif not current_ext and real_extension != '.bin':
                 filename = base + real_extension
             elif current_ext == '.bin' and real_extension != '.bin':
                 # .bin is often a generic fallback, prefer specific extensions
