@@ -55,6 +55,10 @@ parts:
     override-build: |
       bash "$CRAFT_PROJECT_DIR/snap/local/build.sh"
     stage-packages:
+      # core26 has no system Python: the uv plugin requires a provisioned
+      # interpreter to symlink the venv to (see snapcraft python_common).
+      - python3-venv
+      - python3
       - ca-certificates
     prime:
       # Remove external symlinks created by uv plugin (point to build env Python)
