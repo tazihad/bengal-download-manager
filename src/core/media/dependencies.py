@@ -473,12 +473,16 @@ class DependencyManagerWorker(QThread):
                 dl_mb = dl_bytes / (1024 * 1024)
                 tot_mb = totalsize / (1024 * 1024)
                 display_str = f"{tool_name} ({dl_mb:.1f} MB / {tot_mb:.1f} MB)"
+                pct = int((dl_bytes / totalsize) * 100)
+                logger.debug("[MediaDepUpdate] %s downloading: %d%% (%d/%d bytes)", tool_name, pct, dl_bytes, totalsize)
             else:
                 dl_mb = dl_bytes / (1024 * 1024)
                 display_str = f"{tool_name} ({dl_mb:.1f} MB)"
+                logger.debug("[MediaDepUpdate] %s downloading: %.1f MB (%d bytes)", tool_name, dl_mb, dl_bytes)
             self.tool_status_signal.emit(tool_name, display_str, "yellow")
 
         try:
+            logger.debug("[MediaDepUpdate] Downloading %s from %s", tool_name, url)
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"})
             resp = None
             for use_unverified in (False, True):
@@ -556,9 +560,11 @@ class DependencyManagerWorker(QThread):
 
             ver = get_tool_version(tool_name, local_only=True) or "vLatest"
             self.tool_status_signal.emit(tool_name, f"{tool_name} ({ver})", "green")
+            logger.debug("[MediaDepUpdate] %s installed successfully (%s)", tool_name, ver)
             return True
 
         except Exception as e:
+            logger.debug("[MediaDepUpdate] %s download/install failed: %s", tool_name, e)
             if tmp_download_path.exists():
                 tmp_download_path.unlink(missing_ok=True)
             current_ver = get_tool_version(tool_name, local_only=True)
@@ -590,6 +596,7 @@ class YtDlpManager:
         if cls.is_binary_available():
             return cls.get_binary_path()
 
+        logger.debug("[MediaDepUpdate] yt-dlp binary missing; downloading engine to %s", BIN_DIR)
         BIN_DIR.mkdir(parents=True, exist_ok=True)
 
         if progress_callback:
