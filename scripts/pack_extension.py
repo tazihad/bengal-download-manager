@@ -147,7 +147,7 @@ def make_crx(extension_dir, output_crx, output_zip, pem_key_path=None, exclude_d
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Pack Bengal DM browser extension for Chrome and Firefox.")
+    parser = argparse.ArgumentParser(description="Pack Bengal DM browser extension for Chrome, Edge, and Firefox.")
     parser.add_argument("out_dir", nargs="?", default=None, help="Output directory for generated packages (default: <repo>/dist)")
     args = parser.parse_args()
 
@@ -158,10 +158,13 @@ if __name__ == "__main__":
     ext_dir = os.path.join(repo_root, "extension")
     out_crx = os.path.join(out_dir, "extension-chromium.crx")
     out_zip = os.path.join(out_dir, "extension-chromium.zip")
+    out_edge_crx = os.path.join(out_dir, "extension-edge.crx")
+    out_edge_zip = os.path.join(out_dir, "extension-edge.zip")
     out_firefox_zip = os.path.join(out_dir, "extension-firefox.zip")
     out_firefox_xpi = os.path.join(out_dir, "extension-firefox.xpi")
     
     make_crx(ext_dir, out_crx, out_zip, exclude_dirs=("chrome",))
+    make_crx(ext_dir, out_edge_crx, out_edge_zip, exclude_dirs=("chrome",))
     build_zip_package(ext_dir, out_firefox_zip, target="firefox", exclude_dirs=("chrome",))
     shutil.copy(out_firefox_zip, out_firefox_xpi)
     
@@ -175,4 +178,6 @@ if __name__ == "__main__":
         print(f"Webstore Chrome ZIP created: {out_webstore_zip}")
     
     print(f"CRX binary created: {out_crx}")
+    print(f"Edge CRX binary created: {out_edge_crx}")
+    print(f"Edge ZIP package created: {out_edge_zip}")
     print(f"Firefox XPI package created: {out_firefox_xpi}")
